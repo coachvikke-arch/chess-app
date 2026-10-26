@@ -182,7 +182,7 @@ exports.getStudentHomework = async (req, res) => {
          FROM assignment_puzzles ap
          JOIN puzzles p ON p.id = ap.puzzle_id
          LEFT JOIN sets s ON s.code = p.set_code
-         LEFT JOIN LATERAL (${LATEST_ATTEMPT}) pa ON TRUE
+         LEFT JOIN LATERAL (${LATEST_ATTEMPT}) pa ON pa.puzzle_id = p.id
         WHERE ap.assignment_id = $1
         ORDER BY ap.order_index, p.id`,
       [h.assignment_id, studentId]
