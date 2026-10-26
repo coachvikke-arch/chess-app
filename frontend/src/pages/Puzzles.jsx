@@ -1,9 +1,10 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import { Chess } from 'chess.js';
 import api from '../services/api';
 import PuzzlePlayer from '../components/PuzzlePlayer';
 import { pieceGlyph } from '../components/puzzle/PuzzlePopups';
-import { Page, Chip, ConfirmDialog } from '../components/ui';
+import { Page, Chip, ConfirmDialog, Spinner } from '../components/ui';
 import { useFittedBoardWidth } from '../hooks/useBoardWidth';
 import { createTransitionGuard } from '../lib/puzzleTransition';
 import { revealAfterCheckmate } from '../effects/moveEffect';
@@ -36,6 +37,12 @@ const THEME_LABELS = {
 
 export default function Puzzles() {
   const boardWidth = useFittedBoardWidth(420);
+  const { assignmentId } = useParams();
+  const navigate = useNavigate();
+  /* /student/homework/:assignmentId reuses this page as the solver. The only
+     differences are that one assignment is opened directly from the URL and
+     the assignment-card list is replaced by the board. */
+  const homeworkMode = assignmentId != null;
   const [assignments,   setAssignments]   = useState([]);
   const [current,      setCurrent]      = useState(null);
   const [wrongMove,    setWrongMove]    = useState(false);
@@ -54,6 +61,7 @@ export default function Puzzles() {
   const [moveLog,     setMoveLog]     = useState([]);
   const [puzzleDone,   setPuzzleDone]   = useState(false);
   const [loadError,    setLoadError]    = useState('');
+  const [loading,      setLoading]      = useState(true);
 
   // Assignment submit flow
   const [submitDialog, setSubmitDialog] = useState(null); // { assignment, onConfirm }
@@ -70,6 +78,9 @@ export default function Puzzles() {
      and it is cancelled whenever the user leaves the puzzle. */
   const transitionGuardRef = useRef(null);
   if (!transitionGuardRef.current) transitionGuardRef.current = createTransitionGuard(2000);
+  /* Remembers which homework route has already been auto-opened, so the silent
+     reload after every solve cannot reset the board underneath the student. */
+  const autoOpenedRef = useRef(null);
   // Always-fresh nextPuzzle for the delayed transition (a setTimeout closure
   // must not capture a stale current).
   const nextPuzzleRef = useRef(null);
@@ -87,10 +98,24 @@ export default function Puzzles() {
     } catch (err) {
       setLoadError(err.response?.data?.message || 'Failed to load assigned puzzles');
       setAssignments([]);
+    } finally {
+      setLoading(false);
     }
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  /* Homework route: open the assignment named in the URL once its data is in.
+     The guard makes the refresh triggered by each solve a no-op. */
+  useEffect(() => {
+    if (!homeworkMode) return;
+    const wanted = String(assignmentId);
+    if (autoOpenedRef.current === wanted) return;
+    const target = assignments.find((a) => String(a.assignmentId) === wanted);
+    if (!target) return;
+    autoOpenedRef.current = wanted;
+    openAssignmentFromCard(target);
+  }, [assignments, assignmentId, homeworkMode]);
 
 /* ── panel reset ── */
   function resetSolvePanel() {
@@ -110,12 +135,27 @@ export default function Puzzles() {
 
   async function handleSubmitAssignment(assignment) {
     try {
-      await api.post(`/puzzles/${assignment.assignmentId}/submit-assignment`);
+      const res = await api.post(`/puzzles/${assignment.assignmentId}/submit-assignment`);
       setPendingSubmit(null);
-      // Refresh cards only AFTER the server confirms, then leave the solving
-      // context so the card's new Submitted state is what the student sees.
+      // Refresh cards only AFTER the server confirms.
       await load();
-      if (activeAssignment?.assignmentId === assignment.assignmentId) closeAssignment();
+      if (activeAssignment?.assignmentId === assignment.assignmentId) {
+        if (homeworkMode) {
+          /* Stay on the homework so the final score is visible; the board is
+             now read-only because viewOnlyAssignment is set. */
+          setViewOnlyAssignment({
+            ...assignment,
+            status: 'submitted',
+            score: res.data?.submission?.score ?? assignment.progress?.solved ?? 0,
+            submittedAt: res.data?.submission?.submittedAt || new Date().toISOString(),
+          });
+          setAssignmentComplete(false);
+          setCurrent(null);
+        } else {
+          // Leave the solving context so the card's new Submitted state shows.
+          closeAssignment();
+        }
+      }
     } catch (err) {
       const msg = err.response?.data?.message || 'Failed to submit assignment';
       alert(msg); // keep prior state — nothing was persisted, so the student can retry
@@ -183,6 +223,7 @@ export default function Puzzles() {
     setAssignmentComplete(false);
     setCurrent(null);
     resetSolvePanel();
+    if (homeworkMode) navigate('/student/homework');
   }
 
   /* ── solution in SAN ── */
@@ -241,6 +282,14 @@ export default function Puzzles() {
   }, []);
 
   /* ── attempt handlers ── */
+  /* The attempt endpoint is the authority for scoring; this snapshot keeps the
+     homework submission's progress/status in step so the student can leave and
+     resume, and it never marks the homework submitted. */
+  function persistHomeworkProgress() {
+    if (!homeworkMode || !activeAssignment) return;
+    api.post(`/student/homework/${activeAssignment.assignmentId}/progress`).catch(() => {});
+  }
+
   async function handleSolved(moves, meta = {}) {
     const isMate = !!meta.checkmate;
     const fxPayload = {
@@ -279,6 +328,7 @@ export default function Puzzles() {
         setPuzzleDone(true);
         setWrongMove(false);
         load();
+        persistHomeworkProgress();
         notifyDashboardRefresh();
         if (activeAssignment) {
           transitionGuardRef.current.schedule(current.id, () => nextPuzzleRef.current());
@@ -290,6 +340,7 @@ export default function Puzzles() {
         setPuzzleDone(true);
         setExhausted(res.data.message || 'No attempts left for this puzzle.');
         load();
+        persistHomeworkProgress();
       }
     } catch { /* keep playing */ }
   }
@@ -322,6 +373,7 @@ export default function Puzzles() {
         clearTimeout(wrongTimer.current);
         wrongTimer.current = setTimeout(() => { setWrongMove(false); setWrongMsg(''); }, 1300);
       }
+      persistHomeworkProgress();
     } catch {
       setWrongMove(true);
       setWrongMsg('');
@@ -347,7 +399,7 @@ export default function Puzzles() {
   return (
     <Page
       piece="♞"
-      title="My Assignments"
+      title={homeworkMode ? 'Homework' : 'My Assignments'}
     >
 
       {/* Active puzzle header bar */}
@@ -393,8 +445,10 @@ export default function Puzzles() {
 
       {/* My Assignments view — the sole student entry point for puzzle
           assignments. Each assignment renders as its own card keyed by
-          assignmentId, so two assignments that share a title or set never merge. */}
-      {!activeAssignment && (
+          assignmentId, so two assignments that share a title or set never merge.
+          On the Homework route the card list is skipped: the URL already names
+          the one assignment to open. */}
+      {!activeAssignment && !homeworkMode && (
         <div className="space-y-4">
           <p className="text-xs text-ivory-500 mb-4">
             {assignments.length} assignment{assignments.length !== 1 ? 's' : ''} · Click to view puzzles
@@ -504,6 +558,29 @@ export default function Puzzles() {
         </div>
       )}
 
+      {/* Homework route placeholder — data is still loading, or the assignment
+          is not one of this student's. Never leaves a blank screen. */}
+      {homeworkMode && !activeAssignment && (
+        <div className="chess-card text-center py-12">
+          {loading ? (
+            <Spinner text="Opening homework…" />
+          ) : (
+            <>
+              <span className="block text-5xl mb-3 piece-glyph-spin text-gold-500/40">📋</span>
+              <p className="chess-empty">
+                {loadError || 'This homework is not assigned to you, or it was removed.'}
+              </p>
+              <Button
+                onClick={() => navigate('/student/homework')}
+                variant="secondary" size="sm" className="mt-4"
+              >
+                ← Back to Homework
+              </Button>
+            </>
+          )}
+        </div>
+      )}
+
       {activeAssignment && (
         <>
         {/* ════════════════════════════ ASSIGNMENT SOLVING VIEW ════════════════════════════ */}
@@ -526,7 +603,9 @@ export default function Puzzles() {
             </div>
             {viewOnlyAssignment ? (
               <span className="text-xs text-green-600 flex items-center gap-1">
-                ✓ {activeAssignment.status === 'reviewed' ? 'Reviewed' : 'Submitted'} · browsing read-only
+                ✓ {viewOnlyAssignment.status === 'reviewed' || activeAssignment.status === 'reviewed' ? 'Reviewed' : 'Submitted'}
+                {viewOnlyAssignment.score != null && ` · ${viewOnlyAssignment.score} pts`}
+                {' '}· read-only
               </span>
             ) : (
               <div className="flex flex-col items-end gap-1 shrink-0">
@@ -542,7 +621,7 @@ export default function Puzzles() {
                     Submit Assignment
                   </Button>
                   <Button onClick={closeAssignment} variant="secondary" size="sm" className="!px-3 !py-1.5 text-xs">
-                    ← Assignments
+                    ← {homeworkMode ? 'Homework' : 'Assignments'}
                   </Button>
                 </div>
                 {!assignmentAllAttempted(activeAssignment.puzzles) && (
@@ -566,7 +645,7 @@ export default function Puzzles() {
                 onClick={closeAssignment}
                 className="text-xs chess-link mb-3 inline-flex items-center gap-1"
               >
-                ← Back to assignments
+                ← Back to {homeworkMode ? 'homework' : 'assignments'}
               </button>
               <h2 className="font-display text-lg font-bold mb-1 flex items-center gap-2">
                 <span className="text-xl text-gold-400">📋</span> {activeAssignment.title}

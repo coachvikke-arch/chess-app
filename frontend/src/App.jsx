@@ -38,6 +38,8 @@ import ManagePerformances from './pages/ManagePerformances';
 import LiveMeetings from './pages/LiveMeetings';
 import ChessProfile from './pages/ChessProfile';
 import Puzzles from './pages/Puzzles';
+import StudentHomework from './pages/StudentHomework';
+import AdminHomework from './pages/AdminHomework';
 import AnalysisBoard from './pages/AnalysisBoard';
 import Assignments from './pages/Assignments';
 import Profile from './pages/Profile';
@@ -405,6 +407,10 @@ export default function App() {
           <Route path="/student/live-meetings" element={<ProtectedRoute role="student"><FeatureRoute feature="live_game"><StudentLayout><LiveMeetings /></StudentLayout></FeatureRoute></ProtectedRoute>} />
           <Route path="/student/attendance" element={<ProtectedRoute role="student"><StudentLayout><Attendance /></StudentLayout></ProtectedRoute>} />
           <Route path="/student/puzzles" element={<ProtectedRoute role="student"><FeatureRoute feature="puzzle_trainer"><StudentLayout><Puzzles /></StudentLayout></FeatureRoute></ProtectedRoute>} />
+          {/* Homework — the list is its own page; the detail route mounts the
+              same solver component the Puzzles page uses, scoped by :assignmentId. */}
+          <Route path="/student/homework" element={<ProtectedRoute role="student"><FeatureRoute feature="puzzle_trainer"><StudentLayout><StudentHomework /></StudentLayout></FeatureRoute></ProtectedRoute>} />
+          <Route path="/student/homework/:assignmentId" element={<ProtectedRoute role="student"><FeatureRoute feature="puzzle_trainer"><StudentLayout><Puzzles /></StudentLayout></FeatureRoute></ProtectedRoute>} />
           <Route path="/student/analysis" element={<ProtectedRoute role="student"><StudentLayout><AnalysisBoard /></StudentLayout></ProtectedRoute>} />
           <Route path="/student/assignments" element={<ProtectedRoute role="student"><FeatureRoute feature="assignments"><StudentLayout><Assignments /></StudentLayout></FeatureRoute></ProtectedRoute>} />
           {/* Game History is no longer its own page — it is the History tab inside
@@ -484,6 +490,7 @@ export default function App() {
           <Route path="/admin/tournaments/:id" element={<ProtectedRoute role="admin"><AdminLayout><TournamentDetail /></AdminLayout></ProtectedRoute>} />
 
           <Route path="/admin/puzzle-listing" element={<ProtectedRoute role="admin"><FeatureRoute feature="puzzle_authoring"><AdminLayout><PuzzleListing /></AdminLayout></FeatureRoute></ProtectedRoute>} />
+          <Route path="/admin/homework" element={<ProtectedRoute role="admin"><AdminLayout><AdminHomework /></AdminLayout></ProtectedRoute>} />
           <Route path="/admin/puzzle-assignments" element={<ProtectedRoute role="admin"><AdminLayout><PuzzleSolvingReport /></AdminLayout></ProtectedRoute>} />
           <Route path="/admin/quizzes" element={<ProtectedRoute role="admin"><AdminLayout><ManageQuizzes /></AdminLayout></ProtectedRoute>} />
           <Route path="/admin/game-analysis" element={<ProtectedRoute role="admin"><AdminLayout><GameAnalysis /></AdminLayout></ProtectedRoute>} />

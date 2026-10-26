@@ -312,6 +312,9 @@ exports.listStudentPuzzleAssignments = async (req, res) => {
         status,
         submittedAt: sub.submitted_at,
         reviewedAt: sub.reviewed_at,
+        /* Final score, so a handed-in homework re-opened from its card can
+           show the result without a second request. */
+        score: sub.score,
         puzzles: puzzleData,
         progress: {
           solved,

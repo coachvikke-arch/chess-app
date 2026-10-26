@@ -13,6 +13,7 @@ export const adminLinks = [
   { to: '/super/certificates', label: 'Certificates', icon: '♕', superOnly: true },
   { to: '/super/certificate-settings', label: 'Certificate Settings', icon: '✈', superOnly: true },
   { to: '/admin/dashboard', label: 'Dashboard', icon: '♕' },
+  { to: '/admin/homework', label: 'Homework', icon: '📋' },
   { to: '/admin/command-center', label: 'Command Center', icon: '🗓', feature: 'analytics' },
   { to: '/admin/messages', label: 'Messages', icon: '💬', feature: 'messaging_students', badge: true },
   { to: '/admin/chat-requests', label: 'Chat Requests', icon: '✉', requestBadge: true },
@@ -40,6 +41,8 @@ export const adminLinks = [
 
 export const studentLinks = [
   { to: '/student/dashboard', label: 'Dashboard', icon: '♕' },
+  { to: '/student/puzzles', label: 'Puzzles', icon: '♟', feature: 'puzzle_trainer' },
+  { to: '/student/homework', label: 'Homework', icon: '📋', feature: 'puzzle_trainer' },
   { to: '/openings', label: 'Openings', icon: '♞', feature: 'opening_library' },
   { to: '/student/openings', label: 'Academy', icon: '♘', feature: 'piece_lessons' },
   { to: '/student/gm-games', label: 'GM Games', icon: '♞', feature: 'gm_games' },
