@@ -1,0 +1,20 @@
+{
+  "source": "synthetic",
+  "boards_total": 500,
+  "boards_used": 263,
+  "train_samples": 676,
+  "test_samples": 177,
+  "held_out_type_accuracy": 0.548,
+  "per_class_type_accuracy": {
+    "B": 0.75,
+    "K": 0.3636,
+    "N": 0.6429,
+    "P": 0.5789,
+    "Q": 0.625,
+    "R": 0.2857,
+    "k": 0.6923,
+    "p": 0.4727
+  },
+  "caveat": "Measured on SYNTHETIC boards held out by board. This measures the pipeline, not real printed worksheets. Run against a real worksheet before trusting it.",
+  "seconds": 16.2
+}

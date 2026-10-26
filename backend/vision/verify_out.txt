@@ -1,0 +1,16 @@
+board_001: mean   0.00  max   0.00
+board_002: mean   0.00  max   0.00
+board_003: mean   0.00  max   0.00
+board_004: mean   0.00  max   0.00
+board_005: mean   0.00  max   0.00
+board_006: mean   0.00  max   0.00
+board_007: mean   0.00  max   0.00
+board_008: mean   0.00  max   0.00
+board_009: mean   0.00  max   0.00
+board_010: mean   0.00  max   0.00
+board_011: mean   0.00  max   0.00
+board_012: mean   0.00  max   0.00
+board_013: mean   0.00  max   0.00
+
+worst single-square difference: 0.00
+Crops agree with the manifest grid; safe to label from.

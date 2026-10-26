@@ -1,0 +1,205 @@
+/* ── MoveEffect overlay ─────────────────────────────────────────────────────
+ * All motion is written from JavaScript (one rAF loop) as transforms, opacity
+ * and mask changes; this file only owns the static look, so there are no
+ * layout properties in the animation path.
+ */
+
+.me-root {
+  position: absolute;
+  z-index: 45;               /* above the pieces, below the badge (47) and the picker (50) */
+  pointer-events: none;
+  /* The overlay is exactly the board rectangle. Everything it draws — dim,
+     ripple (whose radius grows past the board), flashes, lifted pieces,
+     badges and pill — is clipped to it, including the rounded corners, so
+     nothing can spill onto the header, clocks or the rest of the page. */
+  overflow: hidden;
+  border-radius: 14px;       /* replaced inline with the board's own radius */
+  contain: layout style;     /* the effect can never reflow the page */
+  isolation: isolate;        /* its z-index cannot leak into the page */
+  /* Own compositing layer: the rAF loop repaints this box only. */
+  transform: translateZ(0);
+}
+
+/* the dim: tint + grayscale, punched through on the path squares and inside
+   the ripple front by the mask the component writes */
+.me-dim {
+  position: absolute;
+  opacity: 0;
+  border-radius: 3px;
+  -webkit-backdrop-filter: grayscale(1) contrast(1.02);
+  backdrop-filter: grayscale(1) contrast(1.02);
+  pointer-events: none;
+}
+
+/* the two squares tinted while the effect plays (removed by cleanup) */
+.me-hl {
+  position: absolute;
+  opacity: 0;
+  border-radius: 3px;
+  pointer-events: none;
+}
+
+/* teal wash as the ripple front crosses a piece's square */
+.me-flash {
+  position: absolute;
+  opacity: 0;
+  border-radius: 3px;
+  background: rgba(32, 176, 146, 0.74);
+  pointer-events: none;
+  will-change: opacity;
+}
+
+/* ghost pieces: exact copies of the board's own pieces while the real ones
+   are hidden, so each one can wobble independently */
+.me-piece {
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform-origin: 50% 85%;
+  filter: grayscale(1) brightness(0.62);
+  pointer-events: none;
+  will-change: transform, filter;
+}
+
+.me-fly {
+  left: 0;
+  top: 0;
+  z-index: 3;
+  will-change: transform;
+}
+
+.me-fly-inner {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* the glass ring that rolls out from the landing square */
+.me-ripple {
+  position: absolute;
+  opacity: 0;
+  border-radius: 50%;
+  transform: scale(0);
+  transform-origin: 50% 50%;
+  pointer-events: none;
+  will-change: transform, opacity;
+}
+
+/* seal badge */
+.me-seal {
+  position: absolute;
+  z-index: 5;
+  transform: translate(-50%, -50%) scale(0);
+  transform-origin: 50% 50%;
+  filter: drop-shadow(0 3px 8px rgba(0, 0, 0, 0.45));
+  pointer-events: none;
+}
+
+.me-seal-svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.me-seal-glyph {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  font-weight: 900;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
+  pointer-events: none;
+}
+
+/* the label pill */
+.me-pill {
+  position: absolute;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  transform: translate(0, -50%) scaleX(0);
+  transform-origin: left center;
+  will-change: transform;
+  pointer-events: none;
+}
+
+.me-pill-label {
+  color: #fff;
+  font-weight: 800;
+  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  letter-spacing: 0.08em;
+  line-height: 1;
+  white-space: nowrap;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+  pointer-events: none;
+}
+
+/* sacrifice sword badge + arrow */
+.me-sword {
+  position: absolute;
+  z-index: 6;
+  display: grid;
+  place-items: center;
+  border-radius: 30%;
+  transform: translate(-50%, -50%) scale(0);
+  transform-origin: 50% 50%;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.45);
+  pointer-events: none;
+}
+
+.me-sword-arrow {
+  position: absolute;
+  z-index: 5;
+  transform: translate(-50%, -50%) rotate(-45deg) scale(0);
+  transform-origin: 50% 50%;
+  pointer-events: none;
+  filter: drop-shadow(0 2px 5px rgba(0, 0, 0, 0.45));
+}
+
+/* checkmate popup — anchored to the mated king, stays until cleanup */
+.me-checkmate {
+  position: absolute;
+  z-index: 9;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35em;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #b3122b, #e0344f);
+  color: #fff;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-size: clamp(10px, 2.4vmin, 18px);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.5), inset 0 0 0 1px rgba(255, 255, 255, 0.35);
+  transform: translateY(-10%);
+  animation: me-checkmate-in 180ms ease-out;
+  pointer-events: none;
+}
+
+.me-checkmate-dot {
+  width: 0.55em;
+  height: 0.55em;
+  border-radius: 50%;
+  background: #fff;
+}
+
+@keyframes me-checkmate-in {
+  from { opacity: 0; transform: translateY(-10%) scale(0.86); }
+  to   { opacity: 1; transform: translateY(-10%) scale(1); }
+}
+
+/* Reduced motion is handled in JS (badge + highlights only); belt-and-braces
+   guard so nothing animates if a style is ever added here. */
+@media (prefers-reduced-motion: reduce) {
+  .me-root .me-dim,
+  .me-root .me-ripple {
+    transition: none !important;
+    animation: none !important;
+  }
+}

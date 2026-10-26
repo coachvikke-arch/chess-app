@@ -1,0 +1,17 @@
+board_001: OK  (11 pieces)
+board_002: OK  (14 pieces)
+board_003: OK  (12 pieces)
+board_004: OK  (11 pieces)
+board_005: OK  (14 pieces)
+board_006: OK  (15 pieces)
+board_007: 2R3k1/1bp5/1p3pp1/5p2/3P1P2/2P3P1/1P2Q2P/8 w - - 0 1
+    CHESS:     no white king found
+    kings: w=[] b=['g8']
+board_008: OK  (16 pieces)
+board_009: OK  (12 pieces)
+board_010: OK  (12 pieces)
+board_011: OK  (14 pieces)
+board_012: OK  (11 pieces)
+board_013: marked invalid (expected - skipped)
+
+1 suspect king square(s)

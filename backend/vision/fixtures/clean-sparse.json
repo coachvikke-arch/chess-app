@@ -1,0 +1,8 @@
+{
+  "key": "clean-sparse",
+  "fen": "4k3/8/8/3K4/8/8/8/7Q w - - 0 1",
+  "expect": "exact",
+  "orientation": "white_bottom",
+  "width": 640,
+  "height": 640
+}

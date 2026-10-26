@@ -1,0 +1,103 @@
+
+=== board_001  MISMATCH   6k1/2p1q1p1/5p2/8/8/2R2B1P/P4P2/7K w - - 0 1
+  label claims a piece but the crop is blank (4):
+    c7 labelled  bP  cstd= 77.1 depth=  8.0 cmin=  36 ink_px=    0
+    g7 labelled  bP  cstd= 44.1 depth=  5.0 cmin=  35 ink_px=    0
+    f6 labelled  bP  cstd= 55.8 depth=  7.0 cmin=  30 ink_px=    0
+    f2 labelled  wP  cstd=  3.1 depth=  3.0 cmin= 202 ink_px=    0
+  label says EMPTY but ink is present (1):
+    g2              cstd= 46.2 depth=128.2 cmin=  72 ink_px=   45
+
+=== board_002  MISMATCH   3RK3/4bpp1/3p4/1n2p3/4P3/5N1P/2Q3Pk/8 w - - 0 1
+  label claims a piece but the crop is blank (4):
+    f7 labelled  bP  cstd= 50.1 depth=  7.2 cmin=  22 ink_px=    0
+    g7 labelled  bP  cstd= 37.5 depth= 10.2 cmin=  23 ink_px=    0
+    d6 labelled  bP  cstd= 72.6 depth=  7.0 cmin=  29 ink_px=    0
+    e5 labelled  bP  cstd= 63.4 depth=  7.0 cmin=  25 ink_px=    0
+
+=== board_003  MISMATCH   1k6/1p5Q/6p1/7p/7P/PPB4P/6K1/5R2 w - - 0 1
+  label claims a piece but the crop is blank (5):
+    b7 labelled  bP  cstd=103.1 depth= 16.0 cmin=  24 ink_px=   18
+    h7 labelled  wQ  cstd=  2.0 depth=  3.0 cmin= 234 ink_px=    0
+    g6 labelled  bP  cstd= 94.1 depth=  9.0 cmin=  19 ink_px=    0
+    c3 labelled  wB  cstd=  4.8 depth=  8.0 cmin= 191 ink_px=    0
+    h3 labelled  wP  cstd=  0.7 depth=  2.0 cmin= 242 ink_px=    0
+  label says EMPTY but ink is present (2):
+    g7              cstd= 68.5 depth= 27.5 cmin=  13 ink_px=   89
+    g3              cstd= 36.7 depth= 91.0 cmin=  74 ink_px=   32
+
+=== board_004  MISMATCH   3R4/R3Ppk1/6p1/8/6Q1/7P/5PP1/6K1 w - - 0 1
+  label claims a piece but the crop is blank (4):
+    d8 labelled  wR  cstd=  5.5 depth= 12.0 cmin= 196 ink_px=    0
+    e7 labelled  wP  cstd=  3.0 depth=  6.2 cmin= 203 ink_px=    0
+    f7 labelled  bP  cstd= 41.8 depth=  4.0 cmin=  35 ink_px=    0
+    g6 labelled  bP  cstd= 76.5 depth=  6.0 cmin=  30 ink_px=    0
+  label says EMPTY but ink is present (1):
+    e8              cstd= 77.8 depth= 46.0 cmin=  35 ink_px=   86
+
+=== board_005  MISMATCH   3R4/k3b1p1/pp4p1/8/8/6N1/PPQ3PP/6K1 w - - 0 1
+  label claims a piece but the crop is blank (3):
+    g7 labelled  bP  cstd=  3.1 depth=  6.0 cmin= 196 ink_px=    0
+    b6 labelled  bP  cstd= 74.7 depth= 11.2 cmin=  21 ink_px=    0
+    g6 labelled  bP  cstd= 74.3 depth=  7.0 cmin=  26 ink_px=    0
+
+=== board_006  MISMATCH   4k3/p3n1pp/5p2/4p3/R3P3/7P/P3QPP1/6K1 w - - 0 1
+  label claims a piece but the crop is blank (5):
+    e7 labelled  bN  cstd= 54.2 depth=  8.0 cmin=  14 ink_px=    0
+    g7 labelled  bP  cstd= 59.2 depth=  7.0 cmin=  17 ink_px=    0
+    h7 labelled  bP  cstd= 94.7 depth=  9.0 cmin=  17 ink_px=    0
+    f6 labelled  bP  cstd= 50.7 depth=  7.5 cmin=  17 ink_px=    0
+    e5 labelled  bP  cstd= 42.7 depth=  5.0 cmin=  18 ink_px=    0
+
+=== board_007  MISMATCH   2R3k1/1bp5/1p3pp1/5p2/3P1P2/2P3P1/1P2Q2P/8 w - - 0 1
+  label claims a piece but the crop is blank (4):
+    c7 labelled  bP  cstd= 94.9 depth= 12.0 cmin=  21 ink_px=    0
+    f6 labelled  bP  cstd=  0.9 depth=  1.0 cmin= 241 ink_px=    0
+    g6 labelled  bP  cstd= 34.9 depth=  7.0 cmin=  24 ink_px=    0
+    f5 labelled  bP  cstd= 36.9 depth=  5.0 cmin=  26 ink_px=    0
+
+=== board_008  MISMATCH   n4kbp/5b1p/p6p/8/8/1RP1QPPP/1P4K1/8 w - - 0 1
+  label claims a piece but the crop is blank (7):
+    a8 labelled  bN  cstd=  0.8 depth=  2.0 cmin= 242 ink_px=    0
+    f8 labelled  bK  cstd=  4.0 depth=  2.2 cmin= 189 ink_px=    0
+    g8 labelled  bB  cstd=  1.1 depth=  1.0 cmin= 241 ink_px=    0
+    h8 labelled  bP  cstd=  2.2 depth=  4.2 cmin= 190 ink_px=    0
+    h7 labelled  bP  cstd=  3.0 depth=  6.0 cmin= 235 ink_px=    0
+    h6 labelled  bP  cstd= 35.4 depth=  4.2 cmin=  20 ink_px=    0
+    e3 labelled  wQ  cstd=  5.1 depth=  5.0 cmin= 189 ink_px=    0
+  label says EMPTY but ink is present (1):
+    f6              cstd= 61.9 depth= 67.0 cmin=  24 ink_px=   88
+
+=== board_009  MISMATCH   8/3nK1p1/7p/4p3/1p2P3/r6B/6Pk/4Q3 w - - 0 1
+  label claims a piece but the crop is blank (4):
+    d7 labelled  bN  cstd= 48.4 depth=  5.0 cmin=  18 ink_px=    0
+    g7 labelled  bP  cstd= 37.0 depth=  5.0 cmin=  21 ink_px=    0
+    h6 labelled  bP  cstd= 66.0 depth=  7.0 cmin=  17 ink_px=    0
+    e5 labelled  bP  cstd= 50.9 depth=  6.8 cmin=  16 ink_px=    0
+
+=== board_010  MISMATCH   2k5/pp2R2p/6p1/8/1P5n/5P2/6P1/5Q1K w - - 0 1
+  label claims a piece but the crop is blank (4):
+    b7 labelled  bP  cstd= 87.0 depth= 12.5 cmin=  34 ink_px=    0
+    h7 labelled  bP  cstd= 84.2 depth=  6.0 cmin=  28 ink_px=    0
+    g6 labelled  bP  cstd= 70.2 depth=  8.0 cmin=  27 ink_px=    0
+    h4 labelled  bN  cstd= 58.7 depth= 15.2 cmin=  29 ink_px=   16
+
+=== board_011  MISMATCH   1kR5/p7/2p1bpp1/4p3/4P3/6P1/P4PK1/3Q4 w - - 0 1
+  label claims a piece but the crop is blank (4):
+    c6 labelled  bP  cstd= 84.5 depth= 10.5 cmin=  27 ink_px=    0
+    e6 labelled  bB  cstd=  1.5 depth=  3.2 cmin= 236 ink_px=    0
+    g6 labelled  bP  cstd= 74.7 depth=  5.0 cmin=  30 ink_px=    0
+    e5 labelled  bP  cstd= 32.3 depth=  6.0 cmin=  26 ink_px=    0
+
+=== board_012  MISMATCH   6k1/6p1/5Q2/1p5R/1P6/P5P1/2B2KP1/8 w - - 0 1
+  label claims a piece but the crop is blank (2):
+    g7 labelled  bP  cstd= 47.5 depth=  6.0 cmin=  21 ink_px=    0
+    f2 labelled  wK  cstd=  2.4 depth=  3.2 cmin= 198 ink_px=    0
+  label says EMPTY but ink is present (1):
+    h2              cstd= 33.1 depth= 93.5 cmin=  53 ink_px=   24
+
+=== TOTALS ===
+  phantom pieces (labelled, not on page): 50
+  unlabelled ink   (on page, labelled empty): 6
+
+  Ground truth disagrees with the pixels. Training or evaluating on it measures the labels, not the recogniser. Correct real_labels.json from the page image first.

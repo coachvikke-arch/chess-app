@@ -1,0 +1,8 @@
+{
+  "key": "two-boards",
+  "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+  "expect": "reject",
+  "orientation": "white_bottom",
+  "width": 900,
+  "height": 470
+}

@@ -1,0 +1,16 @@
+
+[validation] boards=['board_011']  squares=64  no-vector misses=50
+  occupancy accuracy : 0.9688  (tp=13 fp=1 fn=1 tn=49)
+  colour accuracy   : 0.9286  (n=14)
+  type accuracy     : 0.8571
+  full-square acc   : 0.9531
+  errors: bB->empty (board_011), bP->bB (board_011), empty->bP (board_011)
+
+[test] boards=['board_012']  squares=64  no-vector misses=53
+  occupancy accuracy : 0.9688  (tp=10 fp=1 fn=1 tn=52)
+  colour accuracy   : 0.8182  (n=11)
+  type accuracy     : 0.6364
+  full-square acc   : 0.9219
+  errors: empty->wP (board_012), wB->wP (board_012), wK->empty (board_012), wP->wK (board_012), wQ->bQ (board_012)
+
+saved real_model.pkl

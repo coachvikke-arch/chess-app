@@ -1,0 +1,11 @@
+node_modules/
+.env
+.env.*
+!.env.railway.example
+uploads/
+backups/
+dataset/
+debug_dataset/
+debug_dataset2/
+*.log
+.pytest_cache/

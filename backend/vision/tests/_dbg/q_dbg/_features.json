@@ -1,0 +1,306 @@
+{
+ "a8": {
+  "empty": true,
+  "area_frac": 0.0005
+ },
+ "b8": {
+  "empty": true,
+  "area_frac": 0.0003
+ },
+ "c8": {
+  "empty": true,
+  "area_frac": 0.0003
+ },
+ "d8": {
+  "empty": true,
+  "area_frac": 0.0002
+ },
+ "e8": {
+  "empty": true,
+  "area_frac": 0.0002
+ },
+ "f8": {
+  "empty": true,
+  "area_frac": 0.0003
+ },
+ "g8": {
+  "empty": true,
+  "area_frac": 0.0003
+ },
+ "h8": {
+  "empty": true,
+  "area_frac": 0.0005
+ },
+ "a7": {
+  "empty": true,
+  "area_frac": 0.0003
+ },
+ "b7": {
+  "empty": true,
+  "area_frac": 0.0002
+ },
+ "c7": {
+  "empty": true,
+  "area_frac": 0.0003
+ },
+ "d7": {
+  "empty": true,
+  "area_frac": 0.0001
+ },
+ "e7": {
+  "empty": true,
+  "area_frac": 0.0001
+ },
+ "f7": {
+  "empty": true,
+  "area_frac": 0.0003
+ },
+ "g7": {
+  "empty": true,
+  "area_frac": 0.0002
+ },
+ "h7": {
+  "empty": true,
+  "area_frac": 0.0003
+ },
+ "a6": {
+  "empty": true,
+  "area_frac": 0.0003
+ },
+ "b6": {
+  "empty": true,
+  "area_frac": 0.0002
+ },
+ "c6": {
+  "empty": true,
+  "area_frac": 0.0002
+ },
+ "d6": {
+  "empty": true,
+  "area_frac": 0.0001
+ },
+ "e6": {
+  "empty": true,
+  "area_frac": 0.0001
+ },
+ "f6": {
+  "empty": true,
+  "area_frac": 0.0002
+ },
+ "g6": {
+  "empty": true,
+  "area_frac": 0.0002
+ },
+ "h6": {
+  "empty": true,
+  "area_frac": 0.0003
+ },
+ "a5": {
+  "empty": true,
+  "area_frac": 0.0001
+ },
+ "b5": {
+  "empty": true,
+  "area_frac": 0.0001
+ },
+ "c5": {
+  "empty": true,
+  "area_frac": 0.0001
+ },
+ "d5": {
+  "empty": true,
+  "area_frac": 0.0001
+ },
+ "e5": {
+  "empty": true,
+  "area_frac": 0.0001
+ },
+ "f5": {
+  "empty": true,
+  "area_frac": 0.0001
+ },
+ "g5": {
+  "empty": true,
+  "area_frac": 0.0001
+ },
+ "h5": {
+  "empty": true,
+  "area_frac": 0.0001
+ },
+ "a4": {
+  "empty": true,
+  "area_frac": 0.0001
+ },
+ "b4": {
+  "empty": true,
+  "area_frac": 0.0001
+ },
+ "c4": {
+  "empty": true,
+  "area_frac": 0.0001
+ },
+ "d4": {
+  "empty": true,
+  "area_frac": 0.0001
+ },
+ "e4": {
+  "empty": true,
+  "area_frac": 0.0001
+ },
+ "f4": {
+  "empty": true,
+  "area_frac": 0.0001
+ },
+ "g4": {
+  "empty": true,
+  "area_frac": 0.0001
+ },
+ "h4": {
+  "empty": true,
+  "area_frac": 0.0001
+ },
+ "a3": {
+  "empty": true,
+  "area_frac": 0.0003
+ },
+ "b3": {
+  "empty": true,
+  "area_frac": 0.0002
+ },
+ "c3": {
+  "empty": true,
+  "area_frac": 0.0002
+ },
+ "d3": {
+  "empty": false,
+  "pred": "bK",
+  "area_frac": 0.284,
+  "area": 4089,
+  "bh": 83,
+  "bw": 83,
+  "compact": 0.594,
+  "aspect": 1.0,
+  "topocc": 0.142,
+  "runs": 1,
+  "maxrun": 0.205,
+  "minw": 1.0,
+  "maxw": 1.0,
+  "asym_top": 0.005,
+  "top_w": 0.205,
+  "top2_w": 0.434,
+  "mid_w": 1.0,
+  "base_w": 0.675
+ },
+ "e3": {
+  "empty": true,
+  "area_frac": 0.0001
+ },
+ "f3": {
+  "empty": true,
+  "area_frac": 0.0002
+ },
+ "g3": {
+  "empty": true,
+  "area_frac": 0.0002
+ },
+ "h3": {
+  "empty": true,
+  "area_frac": 0.0003
+ },
+ "a2": {
+  "empty": true,
+  "area_frac": 0.0003
+ },
+ "b2": {
+  "empty": true,
+  "area_frac": 0.0002
+ },
+ "c2": {
+  "empty": true,
+  "area_frac": 0.0003
+ },
+ "d2": {
+  "empty": false,
+  "pred": "bQ",
+  "area_frac": 0.323,
+  "area": 4653,
+  "bh": 81,
+  "bw": 90,
+  "compact": 0.638,
+  "aspect": 1.111,
+  "topocc": 0.454,
+  "runs": 4,
+  "maxrun": 0.367,
+  "minw": 0.844,
+  "maxw": 1.0,
+  "asym_top": 0.003,
+  "top_w": 0.511,
+  "top2_w": 0.867,
+  "mid_w": 0.844,
+  "base_w": 0.678
+ },
+ "e2": {
+  "empty": true,
+  "area_frac": 0.0001
+ },
+ "f2": {
+  "empty": true,
+  "area_frac": 0.0003
+ },
+ "g2": {
+  "empty": true,
+  "area_frac": 0.0002
+ },
+ "h2": {
+  "empty": true,
+  "area_frac": 0.0003
+ },
+ "a1": {
+  "empty": true,
+  "area_frac": 0.0005
+ },
+ "b1": {
+  "empty": true,
+  "area_frac": 0.0003
+ },
+ "c1": {
+  "empty": true,
+  "area_frac": 0.0003
+ },
+ "d1": {
+  "empty": false,
+  "pred": "wK",
+  "area_frac": 0.281,
+  "area": 4053,
+  "bh": 83,
+  "bw": 83,
+  "compact": 0.588,
+  "aspect": 1.0,
+  "topocc": 0.14,
+  "runs": 1,
+  "maxrun": 0.205,
+  "minw": 1.0,
+  "maxw": 1.0,
+  "asym_top": 0.005,
+  "top_w": 0.205,
+  "top2_w": 0.253,
+  "mid_w": 1.0,
+  "base_w": 0.663
+ },
+ "e1": {
+  "empty": true,
+  "area_frac": 0.0002
+ },
+ "f1": {
+  "empty": true,
+  "area_frac": 0.0003
+ },
+ "g1": {
+  "empty": true,
+  "area_frac": 0.0003
+ },
+ "h1": {
+  "empty": true,
+  "area_frac": 0.0005
+ }
+}

@@ -1,0 +1,8 @@
+{
+  "key": "text-around",
+  "fen": "r1bqkbnr/pppp1ppp/2n5/4p3/2B1P3/5N2/PPPP1PPP/RNBQK2R b KQkq - 0 1",
+  "expect": "board",
+  "orientation": "white_bottom",
+  "width": 700,
+  "height": 700
+}

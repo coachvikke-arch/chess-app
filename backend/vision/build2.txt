@@ -1,0 +1,15 @@
+dataset -> dataset
+  empty: 611
+     wK: 11
+     wQ: 11
+     wR: 12
+     wB: 4
+     wN: 2
+     wP: 47
+     bK: 12
+     bQ: 1
+     bR: 1
+     bB: 6
+     bN: 5
+     bP: 45
+skipped boards: board_013

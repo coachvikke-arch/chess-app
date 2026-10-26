@@ -1,0 +1,136 @@
+/*
+ * Certificate module styles.
+ *
+ * Kept in their own file rather than appended to index.css so the whole module's
+ * styling is one deletable, reviewable block. Imported from main.jsx after
+ * index.css, so it can rely on the same custom properties (--ink-*, --ivory-*,
+ * --gold-*) and on the shared .chess-* component classes.
+ *
+ * Only two things here cannot be expressed with the utility classes in use:
+ *   .cert-preview / .cert-field  — absolutely positioned boxes over an image,
+ *                                 sized in percentages of the artwork
+ *   .cert-field-text            — line clamping to the layout's maxLines
+ */
+
+/* ── The artwork + positioned fields ────────────────────────────────────── */
+
+.cert-preview {
+  position: relative;
+  width: 100%;
+  overflow: hidden;
+  border-radius: 0.75rem;
+  border: 1px solid var(--ivory-700);
+  background: #fdfbf4;
+  /* The artwork is the design; nothing may reflow it or add a shadow inside. */
+  box-shadow: 0 10px 30px -12px rgba(0, 0, 0, 0.45);
+  user-select: none;
+}
+
+.cert-preview-art {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  /* `cover` matches the PDF renderer, which bleeds the artwork off the page
+     edges rather than letterboxing it. */
+  object-fit: cover;
+  pointer-events: none;
+}
+
+.cert-field {
+  position: absolute;
+}
+
+/*
+ * Field text.
+ *
+ * `display:-webkit-box` + `line-clamp` is what makes `maxLines` in the layout
+ * actually clamp. The PDF renderer shrinks type to fit; a browser cannot
+ * measure glyphs the way pdfkit does, so the preview keeps the nominal size from
+ * the layout and clips instead. The PDF remains the authority on final size, and
+ * it never overflows.
+ */
+.cert-field-text {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  font-weight: 600;
+}
+
+/* A weighted line (the certificate description) is centred as one unit, matching
+   the renderer, which measures every run before drawing so the emphasised words
+   do not push the line off-centre by their own width. */
+.cert-rich {
+  display: inline-block;
+}
+
+/* ── Student list ───────────────────────────────────────────────────────── */
+
+.cert-avatar {
+  width: 2rem;
+  height: 2rem;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 9999px;
+  background: linear-gradient(135deg, #243f55, #102333);
+  border: 1px solid var(--gold-500);
+  color: var(--gold-400);
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+/* ── Message preview (send queue + settings live preview) ───────────────── */
+
+.cert-queue-message {
+  padding: 0.75rem 0.85rem;
+  border-radius: 0.75rem;
+  border: 1px solid var(--ivory-700);
+  background: rgba(0, 0, 0, 0.25);
+  max-height: 14rem;
+  overflow-y: auto;
+  /* Long certificate links must wrap rather than stretch the modal. */
+  overflow-wrap: anywhere;
+}
+
+/* ── "Show in page" ──────────────────────────────────────────────────────
+   The same preview, mounted in the list instead of a modal. Separated by the
+   same hairline the cards use, and capped so the artwork cannot grow taller
+   than a laptop viewport. */
+
+.cert-inline {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--ivory-700);
+  max-width: 56rem;
+}
+
+/* ── Print ────────────────────────────────────────────────────────────────
+   A certificate is a document that gets framed, so printing the preview should
+   produce the page and nothing else. */
+
+@media print {
+  .cert-preview {
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
+  }
+
+  body * {
+    visibility: hidden;
+  }
+
+  .cert-preview,
+  .cert-preview * {
+    visibility: visible;
+  }
+
+  .cert-preview {
+    position: fixed;
+    inset: 0;
+    width: 100vw;
+    height: 100vh;
+  }
+}

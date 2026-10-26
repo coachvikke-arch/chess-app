@@ -1,0 +1,14 @@
+{
+  "fen": "qbn2pQp/1B1p1K2/p1Q1p3/2pBp2p/ppQ1kn2/pQpB1PpQ/P1QqR1K1/1P1P1P1P w - - 0 1",
+  "occupied": 37,
+  "method": "grid",
+  "score": 1752,
+  "warning": "37 pieces found — the diagram crop may be off.",
+  "_pieces": 37,
+  "uncertain": [
+    "b1",
+    "d1",
+    "f1",
+    "h1"
+  ]
+}

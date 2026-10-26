@@ -1,0 +1,15 @@
+board_001: label/ink agreement 0.953, best-aligned 0.953
+board_002: label/ink agreement 0.953, best-aligned 0.953
+board_003: label/ink agreement 0.906, best-aligned 0.906
+board_004: label/ink agreement 0.891, best-aligned 0.891
+board_005: label/ink agreement 0.906, best-aligned 0.906
+board_006: label/ink agreement 0.922, best-aligned 0.922
+board_007: label/ink agreement 0.875, best-aligned 0.875
+board_008: label/ink agreement 0.797, best-aligned 0.797
+board_009: label/ink agreement 0.953, best-aligned 0.953
+board_010: label/ink agreement 0.953, best-aligned 0.953
+board_011: label/ink agreement 0.906, best-aligned 0.906
+board_012: label/ink agreement 0.922, best-aligned 0.922
+board_013: skipped (marked invalid)
+
+All labels line up with their crops.

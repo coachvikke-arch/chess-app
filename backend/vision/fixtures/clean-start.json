@@ -1,0 +1,8 @@
+{
+  "key": "clean-start",
+  "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+  "expect": "exact",
+  "orientation": "white_bottom",
+  "width": 640,
+  "height": 640
+}

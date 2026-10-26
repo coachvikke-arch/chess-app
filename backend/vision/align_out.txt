@@ -1,0 +1,19 @@
+board_001: label/ink agreement 0.953, best-aligned 0.953
+board_002: label/ink agreement 0.953, best-aligned 0.953
+board_003: label/ink agreement 0.906, best-aligned 0.906
+board_004: label/ink agreement 0.891, best-aligned 0.891
+board_005: label/ink agreement 0.906, best-aligned 0.906
+board_006: label/ink agreement 0.922, best-aligned 0.922
+board_007: label/ink agreement 0.875, best-aligned 0.875
+board_008: label/ink agreement 0.797, best-aligned 0.797
+board_009: label/ink agreement 0.719, best-aligned 0.938  <-- MISALIGNED, best offset rank+1 file+0
+board_010: label/ink agreement 0.953, best-aligned 0.953
+board_011: label/ink agreement 0.906, best-aligned 0.906
+board_012: label/ink agreement 0.922, best-aligned 0.922
+board_013: skipped (marked invalid)
+
+Boards whose labels do not line up with their crops:
+  board_009: shift rank +1, file +0
+
+The crops and boards.json are mutually consistent (verify_crops.py), so the LABELS are the stale side.
+Re-label these boards from the per-tile-labelled sheets produced by regen_sheets.py.

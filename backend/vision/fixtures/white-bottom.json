@@ -1,0 +1,8 @@
+{
+  "key": "white-bottom",
+  "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+  "expect": "orientation",
+  "orientation": "white_bottom",
+  "width": 640,
+  "height": 640
+}

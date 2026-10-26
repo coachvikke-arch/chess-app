@@ -1,0 +1,8 @@
+{
+  "key": "no-board",
+  "fen": null,
+  "expect": "reject",
+  "orientation": "white_bottom",
+  "width": 640,
+  "height": 640
+}

@@ -1,0 +1,62 @@
+board_001: occ=0.984 colour=0.909 type=0.818 board=0.969 fen=FAIL
+    got      6k1/2p1q1p1/5p2/8/8/2R2P1P/P7/7K w - - 0 1
+    expected 6k1/2p1q1p1/5p2/8/8/2R2B1P/P4P2/7K w - - 0 1
+board_002: occ=1.000 colour=1.000 type=1.000 board=1.000 fen=OK
+board_003: occ=0.953 colour=0.750 type=0.750 board=0.953 fen=FAIL
+    got      1K6/1p6/6p1/7p/7P/PP6/6K1/5R2 w - - 0 1
+    expected 1K6/1p5Q/6p1/7p/7P/PPB4P/6K1/5R2 w - - 0 1
+    LEGALITY: multiple white kings: ['b8', 'g2']
+    LEGALITY: no black king found
+board_004: occ=0.969 colour=0.818 type=0.818 board=0.969 fen=FAIL
+    got      8/R4pK1/6p1/8/6Q1/7P/5PP1/6K1 w - - 0 1
+    expected 3R4/R3PpK1/6p1/8/6Q1/7P/5PP1/6K1 w - - 0 1
+    LEGALITY: multiple white kings: ['g1', 'g7']
+    LEGALITY: no black king found
+board_005: occ=0.984 colour=0.929 type=0.929 board=0.984 fen=FAIL
+    got      3R4/K3b3/pp4p1/8/8/6N1/PPQ3PP/6K1 w - - 0 1
+    expected 3R4/K3b1p1/pp4p1/8/8/6N1/PPQ3PP/6K1 w - - 0 1
+    LEGALITY: multiple white kings: ['a7', 'g1']
+    LEGALITY: no black king found
+board_006: occ=0.984 colour=0.933 type=0.933 board=0.984 fen=FAIL
+    got      4K3/p3n1pp/5p2/4p3/R3P3/7P/4QPP1/6K1 w - - 0 1
+    expected 4K3/p3n1pp/5p2/4p3/R3P3/7P/P3QPP1/6K1 w - - 0 1
+    LEGALITY: multiple white kings: ['e8', 'g1']
+    LEGALITY: no black king found
+board_007: occ=0.984 colour=0.933 type=0.933 board=0.984 fen=FAIL
+    got      2R3K1/1bp5/1p4p1/5p2/3P1P2/2P3P1/1P2Q2P/8 w - - 0 1
+    expected 2R3K1/1bp5/1p3pp1/5p2/3P1P2/2P3P1/1P2Q2P/8 w - - 0 1
+    LEGALITY: no black king found
+board_008: occ=0.906 colour=0.625 type=0.625 board=0.906 fen=FAIL
+    got      8/5b2/p6p/8/8/1RP2PPP/1P4K1/8 w - - 0 1
+    expected n4Kbp/5b1p/p6p/8/8/1RP1QPPP/1P4K1/8 w - - 0 1
+    LEGALITY: no black king found
+board_009: occ=0.844 colour=0.167 type=0.083 board=0.828 fen=FAIL
+    got      8/8/8/4P3/8/7P/8/8 w - - 0 1
+    expected 3nK1p1/7p/4p3/1p2P3/R6P/6PK/4Q3/8 w - - 0 1
+    LEGALITY: no white king found
+    LEGALITY: no black king found
+board_010: occ=1.000 colour=1.000 type=1.000 board=1.000 fen=OK
+    LEGALITY: multiple white kings: ['c8', 'h1']
+    LEGALITY: no black king found
+board_011: occ=0.969 colour=0.929 type=0.857 board=0.953 fen=FAIL
+    got      1KR5/p6p/2p2bp1/4p3/4P3/6P1/P4PK1/3Q4 w - - 0 1
+    expected 1KR5/p7/2p1bpp1/4p3/4P3/6P1/P4PK1/3Q4 w - - 0 1
+    LEGALITY: multiple white kings: ['b8', 'g2']
+    LEGALITY: no black king found
+board_012: occ=0.953 colour=0.818 type=0.636 board=0.922 fen=FAIL
+    got      6K1/6p1/8/1p5R/1P6/P5P1/2P3KP/8 w - - 0 1
+    expected 6K1/6p1/5Q2/1p5R/1P6/P5P1/2B2KP1/8 w - - 0 1
+    LEGALITY: multiple white kings: ['g2', 'g8']
+    LEGALITY: no black king found
+board_013: INVALID expected -> NOT REJECTED (accepted an invalid board)
+
+=== TOTALS (real scanned boards) ===
+  boards scored      : 12
+  occupancy accuracy : 0.9609
+  colour accuracy    : 0.8217
+  type accuracy      : 0.7898
+  full-board accuracy: 0.9544
+  FEN accuracy       : 0.1667
+  invalid rejected   : 0/1
+
+report -> regress_report.json   debug -> regress_debug/

@@ -1,0 +1,29 @@
+{
+  "fen": "rPpPpPpP/QqQnQqQb/qQpQkQqP/NbQ1RqPb/bQQp1PpP/Pbq1NbPb/rR1RnNrP/RpPpRrRb w - - 0 1",
+  "occupied": 60,
+  "method": "grid",
+  "score": 706,
+  "warning": "60 pieces found — the diagram crop may be off.",
+  "_pieces": 60,
+  "uncertain": [
+    "b1",
+    "b8",
+    "c1",
+    "c4",
+    "c6",
+    "c8",
+    "d1",
+    "d4",
+    "d8",
+    "e8",
+    "f4",
+    "f8",
+    "g3",
+    "g5",
+    "g8",
+    "h2",
+    "h4",
+    "h6",
+    "h8"
+  ]
+}

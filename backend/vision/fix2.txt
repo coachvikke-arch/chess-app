@@ -1,0 +1,33 @@
+board_009  [realigned]
+    3n2p1/7p/4p3/1p2P3/R6P/6PB/4Q3/8
+ -> 8/3nK1p1/7p/4p3/1p2P3/r6B/6Pk/4Q3
+board_003
+    1k6/1p5Q/6p1/7p/7P/PPB4P/6K1/5R2
+ -> 1k6/1p5Q/6p1/7p/7P/PPB4P/6K1/5R2
+board_004
+    3R4/R3Ppk1/6p1/8/6Q1/7P/5PP1/6K1
+ -> 3R4/R3Ppk1/6p1/8/6Q1/7P/5PP1/6K1
+board_005
+    3R4/k3b1p1/pp4p1/8/8/6N1/PPQ3PP/6K1
+ -> 3R4/k3b1p1/pp4p1/8/8/6N1/PPQ3PP/6K1
+board_006
+    4k3/p3n1pp/5p2/4p3/R3P3/7P/P3QPP1/6K1
+ -> 4k3/p3n1pp/5p2/4p3/R3P3/7P/P3QPP1/6K1
+board_007
+    2R3k1/1bp5/1p3pp1/5p2/3P1P2/2P3P1/1P2Q2P/8
+ -> 2R3k1/1bp5/1p3pp1/5p2/3P1P2/2P3P1/1P2Q2P/8
+board_008
+    n4kbp/5b1p/p6p/8/8/1RP1QPPP/1P4K1/8
+ -> n4kbp/5b1p/p6p/8/8/1RP1QPPP/1P4K1/8
+board_010
+    2k5/pp2R2p/6p1/8/1P5n/5P2/6P1/5Q1K
+ -> 2k5/pp2R2p/6p1/8/1P5n/5P2/6P1/5Q1K
+board_011
+    1kR5/p7/2p1bpp1/4p3/4P3/6P1/P4PK1/3Q4
+ -> 1kR5/p7/2p1bpp1/4p3/4P3/6P1/P4PK1/3Q4
+board_012
+    6k1/6p1/5Q2/1p5R/1P6/P5P1/2B2KP1/8
+ -> 6k1/6p1/5Q2/1p5R/1P6/P5P1/2B2KP1/8
+
+updated C:\Users\MANIVEL M\Downloads\Files\chess-academy\backend\vision\real_labels.json
+Now run: python audit_labels.py   (every valid board must report OK)

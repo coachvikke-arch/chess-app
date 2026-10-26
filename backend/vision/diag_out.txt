@@ -1,0 +1,267 @@
+boards.json -> ../debug_dataset/boards.json
+runtime vs stored grid:
+board_001 runtime ox=9.0 oy=7.0 s=46.0
+board_002 runtime ox=12.0 oy=8.0 s=45.0
+board_003 runtime ox=9.0 oy=7.0 s=45.0
+board_004 runtime ox=9.0 oy=12.0 s=45.0
+board_005 runtime ox=9.0 oy=11.0 s=45.0
+board_006 runtime ox=9.0 oy=9.0 s=45.0
+board_007 runtime ox=12.0 oy=11.0 s=45.0
+board_008 runtime ox=9.0 oy=7.0 s=46.0
+board_009 runtime ox=11.0 oy=9.0 s=45.0
+board_010 runtime ox=9.0 oy=12.0 s=45.0
+board_011 runtime ox=9.0 oy=9.0 s=45.0
+board_012 runtime ox=9.0 oy=7.0 s=45.0
+board_013 runtime ox=9.0 oy=2.0 s=46.0
+
+=== pixel compare: runtime crop vs stored crop ===
+board_001  bbox=(68,205,377)  identical=5  differing=0
+board_002  bbox=(546,204,377)  identical=5  differing=0
+board_003  bbox=(1023,203,377)  identical=5  differing=0
+board_004  bbox=(71,699,377)  identical=5  differing=0
+board_005  bbox=(549,698,377)  identical=5  differing=0
+board_006  bbox=(1026,696,377)  identical=5  differing=0
+board_007  bbox=(27,1194,377)  identical=5  differing=0
+board_008  bbox=(552,1193,377)  identical=5  differing=0
+board_009  bbox=(1029,1191,377)  identical=5  differing=0
+board_010  bbox=(77,1689,377)  identical=5  differing=0
+board_011  bbox=(555,1688,377)  identical=5  differing=0
+board_012  bbox=(1032,1687,377)  identical=5  differing=0
+board_013  bbox=(77,1879,377)  identical=5  differing=0
+
+=== stored bbox from boards.json ===
+board_001  bbox=(68,205,377)
+board_002  bbox=(546,204,377)
+board_003  bbox=(1023,203,377)
+board_004  bbox=(71,699,377)
+board_005  bbox=(549,698,377)
+board_006  bbox=(1026,696,377)
+board_007  bbox=(27,1194,377)
+board_008  bbox=(552,1193,377)
+board_009  bbox=(1029,1191,377)
+board_010  bbox=(77,1689,377)
+board_011  bbox=(555,1688,377)
+board_012  bbox=(1032,1687,377)
+board_013  bbox=(77,1879,377)
+
+=== review sheets: ink-bearing squares + model top-2 ===
+
+board_001  label=6k1/2p1q1p1/5p2/8/8/2R2B1P/P4P2/7K w - - 0 1
+   g8  label=bK   model: bK 0.70 / wK 0.21
+   c7  label=bP   model: bP 0.98 / wN 0.00
+   e7  label=bQ   model: bQ 0.81 / wQ 0.04
+   g7  label=bP   model: bP 0.98 / wP 0.01
+   f6  label=bP   model: bP 0.98 / wP 0.01
+   c3  label=wR   model: wR 0.81 / wP 0.06
+   f3  label=wB   model: wB 0.72 / wP 0.12
+   h3  label=wP   model: wP 0.93 / bP 0.02
+   a2  label=wP   model: wP 0.90 / bP 0.02
+   g2  label=.    model: wP 0.88 / bP 0.04  <== LABEL SAYS EMPTY
+   h1  label=wK   model: wK 0.79 / bK 0.09
+board_013  bbox=(77,1879,377)
+
+board_002  label=3RK3/4bpp1/3p4/1n2p3/4P3/5N1P/2Q3Pk/8 w - - 0 1
+   d8  label=wR   model: wR 0.87 / bR 0.09
+   e8  label=wK   model: wK 0.81 / bK 0.10
+   e7  label=bB   model: bB 0.89 / bP 0.02
+   f7  label=bP   model: bP 0.99 / wR 0.00
+   g7  label=bP   model: bP 0.95 / wP 0.01
+   d6  label=bP   model: bP 0.99 / wP 0.00
+   b5  label=bN   model: bN 0.87 / wR 0.02
+   e5  label=bP   model: bP 0.96 / wP 0.01
+   e4  label=wP   model: wP 0.92 / bP 0.02
+   f3  label=wN   model: wN 0.80 / wR 0.04
+   h3  label=wP   model: wP 0.92 / wB 0.03
+   c2  label=wQ   model: wQ 0.90 / wK 0.02
+   g2  label=wP   model: wP 0.94 / wR 0.02
+   h2  label=bK   model: bK 0.81 / wK 0.12
+board_013  bbox=(77,1879,377)
+
+board_003  label=1k6/1p5Q/6p1/7p/7P/PPB4P/6K1/5R2 w - - 0 1
+   b8  label=bK   model: bK 0.87 / wK 0.05
+   b7  label=bP   model: bP 0.99 / wR 0.00
+   g7  label=.    model: bQ 0.29 / wP 0.24  <== LABEL SAYS EMPTY
+   g6  label=bP   model: bP 0.99 / wR 0.00
+   h5  label=bP   model: bP 0.99 / wB 0.00
+   h4  label=wP   model: wP 0.91 / wQ 0.03
+   a3  label=wP   model: wP 0.93 / wB 0.02
+   b3  label=wP   model: wP 0.76 / wB 0.15
+   g3  label=.    model: wP 0.92 / wB 0.02  <== LABEL SAYS EMPTY
+   g2  label=wK   model: wK 0.86 / bK 0.03
+   f1  label=wR   model: wR 0.83 / wQ 0.05
+board_013  bbox=(77,1879,377)
+
+board_004  label=3R4/R3Ppk1/6p1/8/6Q1/7P/5PP1/6K1 w - - 0 1
+   e8  label=.    model: wR 0.87 / bR 0.04  <== LABEL SAYS EMPTY
+   a7  label=wR   model: wR 0.89 / bR 0.10
+   f7  label=bP   model: bP 0.96 / wR 0.01
+   g7  label=bK   model: bK 0.82 / wK 0.15
+   h7  label=.    model: bP 0.99 / wP 0.00  <== LABEL SAYS EMPTY
+   g6  label=bP   model: bP 0.98 / wR 0.00
+   g4  label=wQ   model: wQ 0.93 / wP 0.02
+   h3  label=wP   model: wP 0.92 / bP 0.02
+   f2  label=wP   model: wP 0.91 / wB 0.03
+   g2  label=wP   model: wP 0.92 / wB 0.03
+   g1  label=wK   model: wK 0.90 / bK 0.07
+board_013  bbox=(77,1879,377)
+
+board_005  label=3R4/k3b1p1/pp4p1/8/8/6N1/PPQ3PP/6K1 w - - 0 1
+   d8  label=wR   model: wR 0.81 / bR 0.07
+   a7  label=bK   model: bK 0.84 / bB 0.05
+   e7  label=bB   model: bB 0.89 / bP 0.02
+   f7  label=.    model: bP 0.99 / wB 0.00  <== LABEL SAYS EMPTY
+   a6  label=bP   model: bP 0.99 / wR 0.00
+   b6  label=bP   model: bP 0.98 / wN 0.00
+   g6  label=bP   model: bP 0.99 / wB 0.00
+   e3  label=.    model: wQ 0.49 / bK 0.23  <== LABEL SAYS EMPTY
+   g3  label=wN   model: wN 0.73 / wP 0.07
+   a2  label=wP   model: wP 0.91 / wB 0.03
+   b2  label=wP   model: wP 0.89 / wQ 0.03
+   c2  label=wQ   model: wQ 0.95 / wP 0.02
+   g2  label=wP   model: wP 0.91 / wQ 0.03
+   h2  label=wP   model: wP 0.93 / wB 0.02
+   g1  label=wK   model: wK 0.81 / bK 0.08
+board_013  bbox=(77,1879,377)
+
+board_006  label=4k3/p3n1pp/5p2/4p3/R3P3/7P/P3QPP1/6K1 w - - 0 1
+   e8  label=bK   model: bK 0.81 / wK 0.10
+   a7  label=bP   model: bP 0.99 / wR 0.00
+   e7  label=bN   model: bN 0.88 / bP 0.02
+   g7  label=bP   model: bP 0.99 / wR 0.00
+   h7  label=bP   model: bP 0.99 / wR 0.00
+   f6  label=bP   model: bP 0.97 / wR 0.01
+   e5  label=bP   model: bP 0.99 / bR 0.00
+   a4  label=wR   model: wR 0.87 / bR 0.09
+   e4  label=wP   model: wP 0.90 / wB 0.04
+   h3  label=wP   model: wP 0.91 / wR 0.02
+   e2  label=wQ   model: wQ 0.87 / wR 0.05
+   f2  label=wP   model: wP 0.91 / wB 0.03
+   g2  label=wP   model: wP 0.90 / wR 0.03
+   g1  label=wK   model: wK 0.87 / bK 0.05
+board_013  bbox=(77,1879,377)
+
+board_007  label=2R3k1/1bp5/1p3pp1/5p2/3P1P2/2P3P1/1P2Q2P/8 w - - 0 1
+   a8  label=.    model: wP 0.56 / bP 0.40  <== LABEL SAYS EMPTY
+   c8  label=wR   model: wR 0.82 / bR 0.08
+   g8  label=bK   model: bK 0.78 / wK 0.14
+   b7  label=bB   model: bB 0.87 / bP 0.02
+   c7  label=bP   model: bP 0.98 / wN 0.01
+   a6  label=.    model: wP 0.56 / bP 0.40  <== LABEL SAYS EMPTY
+   b6  label=bP   model: bP 0.98 / wP 0.01
+   g6  label=bP   model: bP 0.97 / wP 0.01
+   h6  label=.    model: bP 0.99 / wP 0.00  <== LABEL SAYS EMPTY
+   f5  label=bP   model: bP 0.98 / wB 0.00
+   d4  label=wP   model: wP 0.91 / wB 0.04
+   f4  label=wP   model: wP 0.89 / wQ 0.03
+   c3  label=wP   model: wP 0.91 / wR 0.03
+   g3  label=wP   model: wP 0.91 / wR 0.03
+   a2  label=.    model: wP 0.57 / bP 0.39  <== LABEL SAYS EMPTY
+   b2  label=wP   model: wP 0.92 / bP 0.02
+   e2  label=wQ   model: wQ 0.94 / wP 0.02
+   h2  label=wP   model: wP 0.90 / wB 0.03
+board_013  bbox=(77,1879,377)
+
+board_008  label=n4kbp/5b1p/p6p/8/8/1RP1QPPP/1P4K1/8 w - - 0 1
+   a7  label=.    model: bN 0.65 / wP 0.09  <== LABEL SAYS EMPTY
+   f7  label=bB   model: bB 0.85 / wK 0.10
+   g7  label=.    model: bP 0.98 / wB 0.00  <== LABEL SAYS EMPTY
+   a6  label=bP   model: bP 0.98 / wB 0.01
+   f6  label=.    model: bB 0.64 / wP 0.12  <== LABEL SAYS EMPTY
+   h6  label=bP   model: bP 0.95 / bK 0.01
+   b3  label=wR   model: wR 0.88 / bR 0.10
+   c3  label=wP   model: wP 0.93 / wB 0.03
+   f3  label=wP   model: wP 0.90 / wQ 0.03
+   g3  label=wP   model: wP 0.90 / wB 0.04
+   h3  label=wP   model: wP 0.91 / wR 0.02
+   b2  label=wP   model: wP 0.93 / wB 0.02
+   g2  label=wK   model: wK 0.82 / bK 0.07
+   h2  label=.    model: wR 0.71 / wP 0.17  <== LABEL SAYS EMPTY
+board_013  bbox=(77,1879,377)
+
+board_009  label=8/3nK1p1/7p/4p3/1p2P3/r6B/6Pk/4Q3 w - - 0 1
+   d7  label=bN   model: bN 0.87 / wN 0.04
+   e7  label=wK   model: wK 0.87 / bK 0.06
+   g7  label=bP   model: bP 0.96 / bK 0.01
+   h6  label=bP   model: bP 0.98 / wB 0.01
+   e5  label=bP   model: bP 0.95 / bK 0.01
+   b4  label=bP   model: bP 0.98 / wP 0.00
+   e4  label=wP   model: wP 0.88 / wN 0.03
+   a3  label=bR   model: wR 0.82 / bR 0.16
+   h3  label=wB   model: wP 0.68 / wB 0.25
+   h2  label=bK   model: bK 0.77 / wK 0.14
+   e1  label=wQ   model: wQ 0.91 / wR 0.04
+board_013  bbox=(77,1879,377)
+
+board_010  label=2k5/pp2R2p/6p1/8/1P5n/5P2/6P1/5Q1K w - - 0 1
+   c8  label=bK   model: bK 0.81 / wK 0.15
+   a7  label=bP   model: bP 0.96 / wN 0.01
+   b7  label=bP   model: bP 0.97 / wP 0.01
+   e7  label=wR   model: wR 0.89 / bR 0.09
+   h7  label=bP   model: bP 0.94 / wN 0.01
+   g6  label=bP   model: bP 0.97 / wR 0.01
+   b4  label=wP   model: wP 0.93 / wR 0.02
+   h4  label=bN   model: bN 0.89 / bP 0.02
+   f3  label=wP   model: wP 0.91 / wB 0.03
+   g2  label=wP   model: wP 0.91 / wB 0.03
+   f1  label=wQ   model: wQ 0.95 / wP 0.01
+   h1  label=wK   model: wK 0.94 / bB 0.02
+board_013  bbox=(77,1879,377)
+
+board_011  label=1kR5/p7/2p1bpp1/4p3/4P3/6P1/P4PK1/3Q4 w - - 0 1
+   b8  label=bK   model: bK 0.74 / wK 0.16
+   c8  label=wR   model: wR 0.91 / bR 0.06
+   a7  label=bP   model: bP 0.95 / wP 0.02
+   h7  label=.    model: bP 0.98 / wR 0.01  <== LABEL SAYS EMPTY
+   c6  label=bP   model: bP 0.99 / wP 0.00
+   f6  label=bP   model: bB 0.81 / wB 0.07
+   g6  label=bP   model: bP 0.99 / wB 0.00
+   e5  label=bP   model: bP 0.99 / wB 0.00
+   e4  label=wP   model: wP 0.60 / bP 0.30
+   g3  label=wP   model: wP 0.92 / wB 0.03
+   a2  label=wP   model: wP 0.84 / bP 0.07
+   f2  label=wP   model: wP 0.94 / bP 0.01
+   g2  label=wK   model: wK 0.86 / bB 0.06
+   d1  label=wQ   model: wQ 0.94 / wR 0.02
+board_013  bbox=(77,1879,377)
+
+board_012  label=6k1/6p1/5Q2/1p5R/1P6/P5P1/2B2KP1/8 w - - 0 1
+   g8  label=bK   model: bK 0.48 / wK 0.35
+   g7  label=bP   model: bP 0.97 / wP 0.01
+   f6  label=wQ   model: bQ 0.72 / wQ 0.12
+   b5  label=bP   model: bP 0.94 / wR 0.02
+   h5  label=wR   model: wR 0.85 / bR 0.11
+   b4  label=wP   model: wP 0.88 / wB 0.06
+   a3  label=wP   model: wP 0.90 / wQ 0.03
+   g3  label=wP   model: wP 0.92 / wQ 0.03
+   c2  label=wB   model: wP 0.54 / bB 0.13
+   g2  label=wP   model: wK 0.84 / wP 0.04
+   h2  label=.    model: wP 0.88 / wR 0.03  <== LABEL SAYS EMPTY
+board_013  bbox=(77,1879,377)
+board_013 grid: {'ox': 9, 'oy': 2, 's': 46} crop 377 grid extent 377
+board_001 f2  truth=wP   got=empty  VECTOR=None ink=0.0000
+board_003 h7  truth=wQ   got=empty  VECTOR=None ink=0.0000
+board_003 c3  truth=wB   got=empty  VECTOR=None ink=0.0000
+board_003 h3  truth=wP   got=empty  VECTOR=None ink=0.0000
+board_004 d8  truth=wR   got=empty  VECTOR=None ink=0.0000
+board_004 e7  truth=wP   got=empty  VECTOR=None ink=0.0000
+board_005 g7  truth=bP   got=empty  VECTOR=None ink=0.0000
+board_006 a2  truth=wP   got=empty  VECTOR=None ink=0.0000
+board_007 f6  truth=bP   got=empty  VECTOR=None ink=0.0000
+board_008 a8  truth=bN   got=empty  VECTOR=None ink=0.0000
+board_008 f8  truth=bK   got=empty  VECTOR=None ink=0.0000
+board_008 g8  truth=bB   got=empty  VECTOR=None ink=0.0000
+board_008 h8  truth=bP   got=empty  VECTOR=None ink=0.0000
+board_008 h7  truth=bP   got=empty  VECTOR=None ink=0.0128
+board_008 e3  truth=wQ   got=empty  VECTOR=None ink=0.0000
+board_009 a3  truth=bR   got=wR    p_piece=0.993 -> wR (p=0.82)
+board_009 h3  truth=wB   got=wP    p_piece=0.960 -> wP (p=0.68)
+board_009 g2  truth=wP   got=empty  VECTOR=None ink=0.0030
+board_011 h7  truth=empty got=bP    p_piece=0.857 -> bP (p=0.98)
+board_011 e6  truth=bB   got=empty  VECTOR=None ink=0.0000
+board_011 f6  truth=bP   got=bB    p_piece=0.747 -> bB (p=0.81)
+board_012 f6  truth=wQ   got=bQ    p_piece=0.550 -> bQ (p=0.72)
+board_012 c2  truth=wB   got=wP    p_piece=0.873 -> wP (p=0.54)
+board_012 f2  truth=wK   got=empty  VECTOR=None ink=0.0000
+board_012 g2  truth=wP   got=wK    p_piece=0.997 -> wK (p=0.84)
+board_012 h2  truth=empty got=wP    p_piece=0.853 -> wP (p=0.88)
+wrote mismatch_sheet.png with 26 tiles

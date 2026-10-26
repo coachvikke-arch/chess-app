@@ -1,0 +1,212 @@
+/* ── Shared on-board move feedback (homework puzzles + live classroom drills) ──
+ * One badge, one look, both surfaces. The overlay never intercepts input
+ * (pointer-events: none) so the next move is always playable, and it never
+ * changes the board's size — it floats above it. */
+
+.mvfb-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 45; /* above squares/pieces/badges, below the promotion picker (50+) */
+  pointer-events: none;
+  overflow: visible;
+}
+
+.mvfb-badge {
+  position: absolute;
+  transform: translate(-50%, -100%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  max-width: 88%;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-weight: 800;
+  font-size: clamp(0.68rem, 2.6vw + 0.4rem, 1rem);
+  line-height: 1.15;
+  white-space: nowrap;
+  pointer-events: none;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.35);
+  animation: mvfb-in-out 1.2s ease both;
+}
+
+/* Dropped below the square when there is no room above (top-edge moves). */
+.mvfb-badge.mvfb--below {
+  transform: translate(-50%, 12%);
+}
+
+/* Tones — kept in the app's palette (gold/green/red with dark text on light). */
+.mvfb--excellent,
+.mvfb--correct {
+  background: linear-gradient(160deg, #22c55e, #15803d);
+  color: #f0fdf4;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+}
+
+.mvfb--solved {
+  background: linear-gradient(160deg, #16a34a, #15803d);
+  color: #f0fdf4;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+}
+
+.mvfb--check {
+  background: linear-gradient(160deg, #fb923c, #ea580c);
+  color: #fff7ed;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+}
+
+.mvfb--checkmate {
+  background: linear-gradient(160deg, #a855f7, #b8860b);
+  color: #fffbeb;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  font-size: clamp(0.8rem, 3vw + 0.5rem, 1.2rem);
+  padding: 8px 16px;
+  box-shadow:
+    0 0 0 1.5px rgba(255, 255, 255, 0.35),
+    0 0 22px 6px rgba(168, 85, 247, 0.55),
+    0 6px 20px rgba(0, 0, 0, 0.4);
+}
+
+.mvfb--wrong {
+  background: linear-gradient(160deg, #ef4444, #b91c1c);
+  color: #fef2f2;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  animation: mvfb-in-out 1.2s ease both, mvfb-shake 0.4s ease;
+}
+
+.mvfb-main {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.mvfb-icon {
+  font-size: 1.05em;
+  line-height: 1;
+}
+
+.mvfb-text {
+  letter-spacing: 0.01em;
+}
+
+.mvfb-points {
+  font-size: 0.78em;
+  font-weight: 700;
+  background: rgba(255, 255, 255, 0.22);
+  border-radius: 999px;
+  padding: 1px 8px;
+}
+
+.mvfb-sub {
+  font-size: 0.68em;
+  font-weight: 600;
+  opacity: 0.9;
+}
+
+/* Small confetti sparkle for mate (pure CSS, no layout cost). */
+.mvfb--confetti::after {
+  content: '✦ ✧ ★ ✧ ✦';
+  position: absolute;
+  top: -1.1em;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 0.62em;
+  color: #fde68a;
+  text-shadow: 0 0 6px rgba(253, 230, 138, 0.9);
+  animation: mvfb-twinkle 1.2s ease both;
+}
+
+/* Scale-in, hold, fade-out — ~1.2s total, then the hook unmounts the badge. */
+@keyframes mvfb-in-out {
+  0%   { opacity: 0; transform: translate(-50%, -100%) scale(0.5); }
+  14%  { opacity: 1; transform: translate(-50%, -100%) scale(1.08); }
+  24%  { transform: translate(-50%, -100%) scale(1); }
+  72%  { opacity: 1; transform: translate(-50%, -100%) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -100%) scale(0.94); }
+}
+
+.mvfb-badge.mvfb--below {
+  animation: mvfb-in-out-below 1.2s ease both;
+}
+
+.mvfb--wrong.mvfb--below {
+  animation: mvfb-in-out-below 1.2s ease both, mvfb-shake 0.4s ease;
+}
+
+@keyframes mvfb-in-out-below {
+  0%   { opacity: 0; transform: translate(-50%, 12%) scale(0.5); }
+  14%  { opacity: 1; transform: translate(-50%, 12%) scale(1.08); }
+  24%  { transform: translate(-50%, 12%) scale(1); }
+  72%  { opacity: 1; transform: translate(-50%, 12%) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, 12%) scale(0.94); }
+}
+
+@keyframes mvfb-shake {
+  0%, 100% { margin-left: 0; }
+  20% { margin-left: -7px; }
+  40% { margin-left: 6px; }
+  60% { margin-left: -4px; }
+  80% { margin-left: 3px; }
+}
+
+@keyframes mvfb-twinkle {
+  0%   { opacity: 0; transform: translateX(-50%) scale(0.6); }
+  30%  { opacity: 1; transform: translateX(-50%) scale(1.1); }
+  100% { opacity: 0.85; transform: translateX(-50%) scale(1); }
+}
+
+/* Mobile: smaller badge, never overflows the board. */
+@media (max-width: 480px) {
+  .mvfb-badge {
+    padding: 4px 9px;
+    max-width: 92%;
+  }
+}
+
+/* Wrapper the caller puts around its board: relative anchor for the overlay.
+ * Inline-block so it hugs the board and never shifts layout. */
+.mvfb-wrap {
+  position: relative;
+  display: inline-block;
+  line-height: 0;
+}
+
+.mvfb-wrap > :not(.mvfb-layer) {
+  line-height: normal;
+}
+
+/* ── Inline per-move status (student puzzle page) ──
+   This is the single lightweight feedback that replaced the orange on-board
+   card popup there: a short line under the board, so one move never produces
+   two simultaneous feedbacks. aria-live announces it to screen readers. */
+.mv-status {
+  min-height: 1.25rem;
+  margin-top: 0.5rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  line-height: 1.25;
+  text-align: center;
+}
+.mv-status-wrong { color: #dc2626; }
+.mv-status-correct { color: #16a34a; }
+.mv-status-solved { color: #ca8a04; }
+.mv-status-waiting { color: #6b7280; font-weight: 600; }
+
+/* Reduced motion: fade only — no pop, shake, or confetti sparkle. */
+@media (prefers-reduced-motion: reduce) {
+  .mvfb-badge,
+  .mvfb-badge.mvfb--below,
+  .mvfb--wrong {
+    animation: mvfb-fade 1.2s ease both;
+  }
+  .mvfb--confetti::after {
+    display: none;
+  }
+}
+
+@keyframes mvfb-fade {
+  0%   { opacity: 0; }
+  15%  { opacity: 1; }
+  75%  { opacity: 1; }
+  100% { opacity: 0; }
+}

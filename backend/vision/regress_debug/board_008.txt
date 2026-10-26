@@ -1,0 +1,66 @@
+fen: 8/5b2/p6p/8/8/1RP2PPP/1P4K1/8 w - - 0 1
+a8: empty 0.00  TRUTH=bN
+b8: empty 0.00
+c8: empty 0.00
+d8: empty 0.00
+e8: empty 0.00
+f8: empty 0.00  TRUTH=bK
+g8: empty 0.00  TRUTH=bB
+h8: empty 0.00  TRUTH=bP
+b7: empty 0.00
+c7: empty 0.00
+d7: empty 0.00
+e7: empty 0.00
+h7: empty 0.00  TRUTH=bP
+b6: empty 0.00
+c6: empty 0.00
+d6: empty 0.00
+e6: empty 0.00
+g6: empty 0.00
+a5: empty 0.00
+b5: empty 0.00
+c5: empty 0.00
+d5: empty 0.00
+e5: empty 0.00
+f5: empty 0.00
+g5: empty 0.00
+h5: empty 0.00
+a4: empty 0.00
+b4: empty 0.00
+c4: empty 0.00
+d4: empty 0.00
+e4: empty 0.00
+f4: empty 0.00
+g4: empty 0.00
+h4: empty 0.00
+a3: empty 0.00
+d3: empty 0.00
+e3: empty 0.00  TRUTH=wQ
+a2: empty 0.00
+c2: empty 0.00
+d2: empty 0.00
+e2: empty 0.00
+f2: empty 0.00
+a1: empty 0.00
+b1: empty 0.00
+c1: empty 0.00
+d1: empty 0.00
+e1: empty 0.00
+f1: empty 0.00
+g1: empty 0.00
+h1: empty 0.00
+a7: empty 0.24
+f7: bB 0.85
+g7: empty 0.27
+a6: bP 0.98
+f6: empty 0.15
+h6: bP 0.94
+b3: wR 0.88
+c3: wP 0.93
+f3: wP 0.90
+g3: wP 0.90
+h3: wP 0.91
+b2: wP 0.93
+g2: wK 0.82
+h2: empty 0.24
+LEGALITY: no black king found

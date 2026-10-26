@@ -1,0 +1,823 @@
+{
+  "version": 1,
+  "openings": [
+    {
+      "slug": "danish-gambit",
+      "name": "Danish Gambit",
+      "eco": "C21",
+      "side": "white",
+      "family": "Danish Gambit",
+      "style": ["Gambit", "Aggressive"],
+      "difficulty": "Intermediate",
+      "popularity": 44,
+      "aliases": ["Danish Gambit Accepted", "Danish Gambit Declined", "Schlechter Gambit"],
+      "gambit": { "by": "white", "kind": "pawn", "sacrificed": "pawn", "acceptedMain": true, "classification": "Genuine gambit" },
+      "description": "White offers one and then two pawns for rapid development, open diagonals and a direct attack on f7.",
+      "moves": ["e4", "e5", "d4", "exd4", "c3", "dxc3", "Bc4", "cxb2", "Bxb2", "d5", "exd5", "Nf6", "Nc3"],
+      "variations": [
+        {
+          "id": "accepted-classical",
+          "name": "Danish Gambit: Classical",
+          "moves": ["e4", "e5", "d4", "exd4", "c3", "dxc3", "Bc4", "Nf6", "Nf3", "Bc5", "O-O"],
+          "notes": { "7": "4.Bc4 develops with tempo and aims at f7.", "9": "5.Nf3 completes development before recovering the pawns." }
+        },
+        {
+          "id": "declined",
+          "name": "Danish Gambit: Declined",
+          "moves": ["e4", "e5", "d4", "exd4", "c3", "d5", "exd5", "Qxd5", "cxd4", "Nc6", "Nf3", "Bg4", "Be2"],
+          "notes": { "6": "3...d5 declines the second pawn and strikes at the centre.", "9": "5.cxd4 restores the pawn balance with a lead in development." }
+        }
+      ],
+      "notes": {
+        "1": "1.e4 takes the centre.",
+        "3": "2.d4 opens the centre before offering c3.",
+        "5": "3.c3 offers the second pawn - the Danish Gambit.",
+        "6": "3...dxc3 accepts and opens the d-file.",
+        "8": "4...cxb2 grabs a second pawn but costs time."
+      },
+      "keyIdeas": ["Develop quickly with Bc4 and Nf3.", "Use the open b2-g7 diagonal.", "Do not chase every pawn back."],
+      "traps": ["Grabbing too many pawns lets White develop with tempo.", "Black should return material to finish development."]
+    },
+    {
+      "slug": "goring-gambit",
+      "name": "Goring Gambit",
+      "eco": "C44",
+      "side": "white",
+      "family": "Scotch Game",
+      "style": ["Gambit", "Aggressive"],
+      "difficulty": "Intermediate",
+      "popularity": 30,
+      "aliases": ["Göring Gambit", "Goering Gambit", "Scotch Gambit Accepted"],
+      "gambit": { "by": "white", "kind": "pawn", "sacrificed": "pawn", "acceptedMain": true, "classification": "Genuine gambit" },
+      "description": "A Scotch Gambit cousin: White gives the c-pawn for fast development and pressure against f7.",
+      "moves": ["e4", "e5", "Nf3", "Nc6", "d4", "exd4", "c3", "dxc3", "Nxc3", "Bb4", "Bc4", "Nf6", "O-O"],
+      "variations": [
+        {
+          "id": "accepted-d6",
+          "name": "Goring Gambit: Accepted",
+          "moves": ["e4", "e5", "Nf3", "Nc6", "d4", "exd4", "c3", "dxc3", "Nxc3", "d6", "Bc4", "Nf6", "O-O"],
+          "notes": { "7": "4.c3 offers the pawn.", "9": "5.Nxc3 develops and controls d5." }
+        },
+        {
+          "id": "declined",
+          "name": "Goring Gambit: Declined",
+          "moves": ["e4", "e5", "Nf3", "Nc6", "d4", "exd4", "c3", "d5", "exd5", "Qxd5", "cxd4", "Bg4", "Be2", "Bb4+", "Nc3"],
+          "notes": { "8": "4...d5 declines the gambit and challenges the centre.", "13": "7.Be2 meets the pin without weakening the king." }
+        }
+      ],
+      "notes": { "1": "1.e4 claims the centre.", "5": "3.d4 opens the centre.", "7": "4.c3 offers the c-pawn for development." },
+      "keyIdeas": ["Develop the c3-knight quickly.", "Target f7 with Bc4.", "Castle before opening more lines."],
+      "traps": ["Do not hold the extra pawn at the cost of development.", "Watch for ...Bb4 pins and ...d5 equalising breaks."]
+    },
+    {
+      "slug": "smith-morra-gambit",
+      "name": "Smith-Morra Gambit",
+      "eco": "B21",
+      "side": "white",
+      "family": "Sicilian",
+      "style": ["Gambit", "Aggressive"],
+      "difficulty": "Intermediate",
+      "popularity": 56,
+      "aliases": ["Morra Gambit", "Smith Morra"],
+      "gambit": { "by": "white", "kind": "pawn", "sacrificed": "pawn", "acceptedMain": true, "classification": "Genuine gambit" },
+      "description": "White gives the c-pawn against the Sicilian for rapid development and a dangerous initiative.",
+      "moves": ["e4", "c5", "d4", "cxd4", "c3", "dxc3", "Nxc3", "Nc6", "Nf3", "d6", "Bc4", "e6", "O-O", "Nf6"],
+      "variations": [
+        {
+          "id": "declined",
+          "name": "Smith-Morra: Declined",
+          "moves": ["e4", "c5", "d4", "cxd4", "c3", "Nf6", "e5", "Nd5", "Nf3", "Nc6", "Bc4", "Nb6"],
+          "notes": { "6": "3...Nf6 declines the pawn and attacks e4.", "7": "4.e5 gains space and drives the knight." }
+        },
+        {
+          "id": "classical",
+          "name": "Smith-Morra: Classical",
+          "moves": ["e4", "c5", "d4", "cxd4", "c3", "dxc3", "Nxc3", "Nc6", "Nf3", "e6", "Bc4", "a6", "O-O", "Nge7"],
+          "notes": { "7": "4.Nxc3 develops with a lead in time.", "11": "6.Bc4 aims at f7." }
+        }
+      ],
+      "notes": { "1": "1.e4 opens the game.", "3": "2.d4 offers a pawn to open the centre.", "5": "3.c3 is the Smith-Morra Gambit." },
+      "keyIdeas": ["Develop every piece with tempo.", "Use the c-file and the b2-g7 diagonal.", "Attack before Black consolidates."],
+      "traps": ["Black can return the pawn with ...d5 to equalise.", "Do not trade queens while behind in material."]
+    },
+    {
+      "slug": "halloween-gambit",
+      "name": "Halloween Gambit",
+      "eco": "C42",
+      "side": "white",
+      "family": "Halloween Gambit",
+      "style": ["Gambit", "Aggressive"],
+      "difficulty": "Advanced",
+      "popularity": 18,
+      "aliases": ["Halloween Attack", "Nxe5 Gambit"],
+      "gambit": { "by": "white", "kind": "piece", "sacrificed": "knight", "acceptedMain": true, "classification": "Genuine gambit" },
+      "description": "White sacrifices a knight on e5 for a huge centre and a lasting initiative against the uncastled king.",
+      "moves": ["e4", "e5", "Nf3", "Nc6", "Nxe5", "Nxe5", "Nc3", "Nc6", "d4", "Bb4", "d5", "Ne5"],
+      "variations": [
+        {
+          "id": "bc5-line",
+          "name": "Halloween: Bishop Check Line",
+          "moves": ["e4", "e5", "Nf3", "Nc6", "Nxe5", "Nxe5", "Nc3", "Bc5", "d4", "Bxd4", "Qxd4", "Qf6", "Nb5"],
+          "notes": { "8": "4...Bc5 develops and invites 5.d4.", "10": "5...Bxd4 tries to return material." }
+        },
+        {
+          "id": "nc6-line",
+          "name": "Halloween: Knight Retreat",
+          "moves": ["e4", "e5", "Nf3", "Nc6", "Nxe5", "Nxe5", "Nc3", "Nc6", "d4", "d6", "d5", "Ne5", "Qd4"],
+          "notes": { "11": "6.d5 drives the knight from c6.", "13": "7.Qd4 centralises and prepares a kingside attack." }
+        }
+      ],
+      "notes": { "3": "3.Nxe5! gives a knight for the centre.", "7": "4.Nc3 develops and supports d4-d5.", "9": "5.d4 builds the big pawn centre." },
+      "keyIdeas": ["Push d4-d5 to gain space.", "Use the bishops and queen on the open lines.", "Attack the uncastled king."],
+      "traps": ["Black may return the knight for a solid position.", "Do not allow the centre to be blockaded."]
+    },
+    {
+      "slug": "fried-liver-attack",
+      "name": "Fried Liver Attack",
+      "eco": "C57",
+      "side": "white",
+      "family": "Italian Game",
+      "style": ["Gambit", "Aggressive"],
+      "difficulty": "Advanced",
+      "popularity": 54,
+      "aliases": ["Fried Liver", "Liver Attack", "Fegatello"],
+      "gambit": { "by": "white", "kind": "piece", "sacrificed": "knight", "acceptedMain": true, "classification": "Sacrificial attack" },
+      "description": "A famous Two Knights sacrificial attack: White gives a knight on f7 to drag the king into the open.",
+      "moves": ["e4", "e5", "Nf3", "Nc6", "Bc4", "Nf6", "Ng5", "d5", "exd5", "Nxd5", "Nxf7", "Kxf7", "Qf3+", "Ke6", "Nc3", "Nb4"],
+      "variations": [
+        {
+          "id": "polerio",
+          "name": "Fried Liver: Polerio Defence",
+          "moves": ["e4", "e5", "Nf3", "Nc6", "Bc4", "Nf6", "Ng5", "d5", "exd5", "Na5", "Bb5+", "c6", "dxc6", "bxc6", "Be2", "h6"],
+          "notes": { "10": "5...Na5 is the standard defensive resource.", "11": "6.Bb5+ gains a tempo before recovering the pawn." }
+        },
+        {
+          "id": "declined-capture",
+          "name": "Fried Liver: Declined Capture",
+          "moves": ["e4", "e5", "Nf3", "Nc6", "Bc4", "Nf6", "Ng5", "d5", "exd5", "Nxd5", "Nxf7", "Kxf7", "Qf3+", "Ke6", "Nc3", "Nd4"],
+          "notes": { "15": "8.Nc3 develops and attacks the d5-knight.", "16": "8...Nd4 keeps the extra piece active." }
+        }
+      ],
+      "notes": { "4": "4.Ng5 attacks f7 immediately.", "7": "4...d5 challenges the centre.", "9": "5.exd5 opens the c4 bishop.", "11": "6.Nxf7! is the Fried Liver sacrifice." },
+      "keyIdeas": ["Drive the king to e6.", "Bring the queen and knight into the attack.", "Use the open lines around the king."],
+      "traps": ["Black can decline with the Polerio Defence.", "White must keep giving checks and developing threats."]
+    },
+    {
+      "slug": "traxler-counterattack",
+      "name": "Traxler Counterattack",
+      "eco": "C57",
+      "side": "black",
+      "family": "Italian Game",
+      "style": ["Gambit", "Aggressive"],
+      "difficulty": "Advanced",
+      "popularity": 24,
+      "aliases": ["Traxler", "Wilkes-Barre Variation"],
+      "gambit": { "by": "black", "kind": "piece", "sacrificed": "bishop", "acceptedMain": true, "classification": "Countergambit" },
+      "description": "Black ignores the attack on f7 and sacrifices a bishop on f2, turning the Fried Liver into a counterattack.",
+      "moves": ["e4", "e5", "Nf3", "Nc6", "Bc4", "Nf6", "Ng5", "Bc5", "Nxf7", "Bxf2+", "Kxf2", "Nxe4+", "Ke3", "Qh4"],
+      "variations": [
+        {
+          "id": "bishop-takes",
+          "name": "Traxler: Bishop Takes f7",
+          "moves": ["e4", "e5", "Nf3", "Nc6", "Bc4", "Nf6", "Ng5", "Bc5", "Bxf7+", "Ke7", "Bb3"],
+          "notes": { "9": "5.Bxf7+ refuses the countergambit.", "10": "5...Ke7 keeps the king safe." }
+        },
+        {
+          "id": "declined",
+          "name": "Traxler: Declined",
+          "moves": ["e4", "e5", "Nf3", "Nc6", "Bc4", "Nf6", "Ng5", "d5", "exd5", "Na5", "Bb5+", "c6", "dxc6", "bxc6", "Be2", "h6"],
+          "notes": { "8": "4...d5 declines the Traxler and enters the Polerio.", "11": "6.Bb5+ is the main resource." }
+        }
+      ],
+      "notes": { "8": "4...Bc5! is the Traxler Counterattack.", "10": "5...Bxf2+ sacrifices the bishop.", "12": "6...Nxe4+ drags the king forward." },
+      "keyIdeas": ["Open lines against the white king.", "Use queen checks and knight forks.", "Accept the f7 pawn sacrifice."],
+      "traps": ["The attack must be precise - Black is down material.", "5.Bxf7+ can steer into a safer game for White."]
+    },
+    {
+      "slug": "vienna-gambit",
+      "name": "Vienna Gambit",
+      "eco": "C29",
+      "side": "white",
+      "family": "Vienna Game",
+      "style": ["Gambit", "Aggressive"],
+      "difficulty": "Intermediate",
+      "popularity": 42,
+      "aliases": ["Vienna Gambit Accepted", "Vienna Gambit Declined"],
+      "gambit": { "by": "white", "kind": "pawn", "sacrificed": "pawn", "acceptedMain": true, "classification": "Genuine gambit" },
+      "description": "White combines Nc3 and f4 to offer a pawn for a strong centre and kingside attacking chances.",
+      "moves": ["e4", "e5", "Nc3", "Nf6", "f4", "exf4", "Nf3", "d5", "exd5", "Nxd5", "Bc4"],
+      "variations": [
+        {
+          "id": "accepted-g5",
+          "name": "Vienna Gambit: Accepted, g5",
+          "moves": ["e4", "e5", "Nc3", "Nf6", "f4", "exf4", "Nf3", "g5", "h4", "g4", "Ng5", "h6"],
+          "notes": { "8": "4...g5 tries to hold the extra pawn.", "9": "5.h4 attacks the pawn chain immediately." }
+        },
+        {
+          "id": "declined",
+          "name": "Vienna Gambit: Declined",
+          "moves": ["e4", "e5", "Nc3", "Nf6", "f4", "d5", "fxe5", "Nxe4", "Nf3", "Be7"],
+          "notes": { "6": "3...d5 declines the pawn and strikes at e4.", "8": "5...Nxe4 grabs the centre pawn." }
+        }
+      ],
+      "notes": { "5": "3.f4 offers the f-pawn.", "6": "3...exf4 accepts.", "7": "4.Nf3 develops and prepares the centre.", "9": "5.exd5 opens the centre." },
+      "keyIdeas": ["Develop with Nf3 and Bc4.", "Use the f-file after castling.", "Attack the f7 square."],
+      "traps": ["Do not lose time recovering the f4 pawn.", "Black can strike back with ...d5."]
+    },
+    {
+      "slug": "kings-gambit-declined",
+      "name": "King's Gambit Declined",
+      "eco": "C30",
+      "side": "white",
+      "family": "King's Gambit",
+      "style": ["Gambit", "Aggressive"],
+      "difficulty": "Intermediate",
+      "popularity": 38,
+      "aliases": ["KGD", "King's Gambit Refused"],
+      "gambit": { "by": "white", "kind": "pawn", "sacrificed": "pawn", "acceptedMain": false, "classification": "Genuine gambit" },
+      "description": "Black refuses the f-pawn and builds a solid centre; White still gets the space and attacking plans of the King's Gambit.",
+      "moves": ["e4", "e5", "f4", "Bc5", "Nf3", "d6", "c3", "Nf6", "d4", "exd4", "cxd4", "Bb6"],
+      "variations": [
+        {
+          "id": "classical",
+          "name": "King's Gambit Declined: Classical",
+          "moves": ["e4", "e5", "f4", "Bc5", "Nf3", "d6", "Nc3", "Nf6", "Bc4", "c6", "d3"],
+          "notes": { "4": "2...Bc5 declines the pawn and develops.", "9": "5.Bc4 aims at f7." }
+        },
+        {
+          "id": "central",
+          "name": "King's Gambit Declined: Central",
+          "moves": ["e4", "e5", "f4", "Bc5", "Nf3", "d6", "d4", "exd4", "Nxd4", "Nf6", "Nc3"],
+          "notes": { "7": "4.d4 opens the centre at once.", "9": "5.Nxd4 develops with tempo." }
+        }
+      ],
+      "notes": { "3": "2.f4 offers the f-pawn.", "4": "2...Bc5 declines and develops.", "5": "3.Nf3 supports the centre.", "7": "4.c3 prepares d4." },
+      "keyIdeas": ["Use the extra space to build a centre.", "Develop with Bc4 or Bd3.", "Castle before opening the f-file."],
+      "traps": ["Black's ...Bc5 bishop can pressure d4.", "Do not overextend before completing development."]
+    },
+    {
+      "slug": "falkbeer-countergambit",
+      "name": "Falkbeer Countergambit",
+      "eco": "C31",
+      "side": "black",
+      "family": "King's Gambit",
+      "style": ["Gambit", "Aggressive"],
+      "difficulty": "Advanced",
+      "popularity": 32,
+      "aliases": ["Falkbeer", "King's Gambit Countergambit"],
+      "gambit": { "by": "black", "kind": "pawn", "sacrificed": "pawn", "acceptedMain": true, "classification": "Countergambit" },
+      "description": "Black answers the King's Gambit with a counter-sacrifice on d5, opening the centre before White can attack.",
+      "moves": ["e4", "e5", "f4", "d5", "exd5", "e4", "d3", "Nf6", "dxe4", "Nxe4", "Nf3", "Bc5"],
+      "variations": [
+        {
+          "id": "nimzowitsch",
+          "name": "Falkbeer: Nimzowitsch",
+          "moves": ["e4", "e5", "f4", "d5", "exd5", "c6", "dxc6", "Nxc6", "Nf3", "e4", "Qe2", "Bc5"],
+          "notes": { "6": "3...c6 offers a second pawn for rapid development.", "8": "4...Nxc6 develops with tempo." }
+        },
+        {
+          "id": "modern",
+          "name": "Falkbeer: Modern",
+          "moves": ["e4", "e5", "f4", "d5", "exd5", "e4", "Nc3", "Nf6", "d3", "Bb4", "Bd2"],
+          "notes": { "7": "4.Nc3 develops and attacks e4.", "9": "5.d3 challenges the advanced pawn." }
+        }
+      ],
+      "notes": { "4": "2...d5! is the Falkbeer Countergambit.", "6": "3...e4 gains space and attacks d3.", "8": "4.d3 undermines the pawn chain." },
+      "keyIdeas": ["Open the centre before White attacks.", "Use the e4 pawn to gain time.", "Develop the bishops actively."],
+      "traps": ["Black can fall behind in development.", "White may return the pawn to blunt the attack."]
+    },
+    {
+      "slug": "latvian-gambit",
+      "name": "Latvian Gambit",
+      "eco": "C40",
+      "side": "black",
+      "family": "Latvian Gambit",
+      "style": ["Gambit", "Aggressive"],
+      "difficulty": "Advanced",
+      "popularity": 16,
+      "aliases": ["Latvian", "Greco Countergambit"],
+      "gambit": { "by": "black", "kind": "pawn", "sacrificed": "pawn", "acceptedMain": true, "classification": "Countergambit" },
+      "description": "Black offers the f-pawn for a quick attack on e4 and a direct fight for the initiative.",
+      "moves": ["e4", "e5", "Nf3", "f5", "exf5", "e4", "Ne5", "Nf6", "Be2", "d6", "Nf3"],
+      "variations": [
+        {
+          "id": "declined",
+          "name": "Latvian Gambit: Declined",
+          "moves": ["e4", "e5", "Nf3", "f5", "Bc4", "fxe4", "Nxe5", "Qg5"],
+          "notes": { "5": "3.Bc4 declines the pawn and eyes f7.", "8": "4...Qg5 creates immediate threats." }
+        },
+        {
+          "id": "bc4-line",
+          "name": "Latvian Gambit: Bishop Line",
+          "moves": ["e4", "e5", "Nf3", "f5", "exf5", "e4", "Ne5", "Nf6", "Bc4", "d5"],
+          "notes": { "10": "6.Bc4 develops and aims at f7." }
+        }
+      ],
+      "notes": { "4": "2...f5! is the Latvian Gambit.", "6": "3...e4 gains space and attacks the knight.", "8": "4...Nf6 develops with pressure on e4." },
+      "keyIdeas": ["Use the e4 pawn as a wedge.", "Attack the knight on e5.", "Develop with ...Nf6 and ...d6."],
+      "traps": ["White can decline with 3.Bc4.", "Black's king can become exposed after ...fxe5 lines."]
+    },
+    {
+      "slug": "elephant-gambit",
+      "name": "Elephant Gambit",
+      "eco": "C40",
+      "side": "black",
+      "family": "Elephant Gambit",
+      "style": ["Gambit", "Aggressive"],
+      "difficulty": "Advanced",
+      "popularity": 12,
+      "aliases": ["Elephant", "Queen's Pawn Countergambit"],
+      "gambit": { "by": "black", "kind": "pawn", "sacrificed": "pawn", "acceptedMain": true, "classification": "Countergambit" },
+      "description": "Black meets 1.e4 e5 2.Nf3 with 2...d5, offering a pawn for active piece play and a central wedge.",
+      "moves": ["e4", "e5", "Nf3", "d5", "exd5", "e4", "Qe2", "Nf6", "d3", "Be7"],
+      "variations": [
+        {
+          "id": "paulsen",
+          "name": "Elephant Gambit: Paulsen",
+          "moves": ["e4", "e5", "Nf3", "d5", "exd5", "e4", "Qe2", "Nf6", "Nc3", "Be7"],
+          "notes": { "9": "5.Nc3 develops and pressures e4." }
+        },
+        {
+          "id": "maroczy",
+          "name": "Elephant Gambit: Maroczy",
+          "moves": ["e4", "e5", "Nf3", "d5", "exd5", "e4", "Nd4", "Nf6", "Nc3", "Bc5"],
+          "notes": { "7": "4.Nd4 attacks e4 and keeps the centre closed.", "10": "5...Bc5 develops with a hit on d4." }
+        }
+      ],
+      "notes": { "4": "2...d5! is the Elephant Gambit.", "6": "3...e4 gains space.", "8": "4...Nf6 develops and attacks e4." },
+      "keyIdeas": ["Use the e4 pawn to cramp White.", "Develop quickly with ...Nf6 and ...Be7.", "Challenge the centre with ...c5 or ...d5 ideas."],
+      "traps": ["The pawn on e4 can become a target.", "White can develop with Qe2 and d3."]
+    },
+    {
+      "slug": "cochrane-gambit",
+      "name": "Cochrane Gambit",
+      "eco": "C42",
+      "side": "white",
+      "family": "Petrov Defence",
+      "style": ["Gambit", "Aggressive"],
+      "difficulty": "Advanced",
+      "popularity": 20,
+      "aliases": ["Cochrane", "Petrov Gambit"],
+      "gambit": { "by": "white", "kind": "piece", "sacrificed": "knight", "acceptedMain": true, "classification": "Genuine gambit" },
+      "description": "White sacrifices a knight on f7 against the Petrov, gaining a central pawn mass and attacking chances.",
+      "moves": ["e4", "e5", "Nf3", "Nf6", "Nxe5", "d6", "Nxf7", "Kxf7", "d4", "c5", "Bc4+", "Be6"],
+      "variations": [
+        {
+          "id": "d5-block",
+          "name": "Cochrane: d5 Block",
+          "moves": ["e4", "e5", "Nf3", "Nf6", "Nxe5", "d6", "Nxf7", "Kxf7", "Bc4+", "d5", "exd5", "Bd6"],
+          "notes": { "9": "5.Bc4+ develops with check.", "10": "5...d5 blocks and returns material." }
+        },
+        {
+          "id": "nxe4",
+          "name": "Cochrane: Petrov Transposition",
+          "moves": ["e4", "e5", "Nf3", "Nf6", "Nxe5", "Nxe4", "Qe2", "Qe7", "Nc3", "Nxc3", "dxc3"],
+          "notes": { "6": "3...Nxe4 enters the Petrov main line.", "7": "4.Qe2 targets the e4 knight." }
+        }
+      ],
+      "notes": { "5": "3.Nxe5 wins a pawn but invites ...d6.", "7": "4.Nxf7! is the Cochrane sacrifice.", "8": "4...Kxf7 accepts the knight.", "9": "5.d4 builds the centre." },
+      "keyIdeas": ["Build a broad pawn centre.", "Use the bishops on the open diagonals.", "Attack the exposed king."],
+      "traps": ["Black may return material to neutralise the attack.", "White must keep the centre mobile."]
+    },
+    {
+      "slug": "urusov-gambit",
+      "name": "Urusov Gambit",
+      "eco": "C24",
+      "side": "white",
+      "family": "Bishop's Opening",
+      "style": ["Gambit", "Aggressive"],
+      "difficulty": "Intermediate",
+      "popularity": 22,
+      "aliases": ["Urusov", "Bishop's Opening Gambit"],
+      "gambit": { "by": "white", "kind": "pawn", "sacrificed": "pawn", "acceptedMain": true, "classification": "Genuine gambit" },
+      "description": "White offers the d-pawn in the Bishop's Opening for fast development and pressure on f7.",
+      "moves": ["e4", "e5", "Bc4", "Nf6", "d4", "exd4", "Nf3", "Nxe4", "Qe2", "d5", "Bxd5", "Qxd5", "Nc3"],
+      "variations": [
+        {
+          "id": "nc6",
+          "name": "Urusov: Knight Development",
+          "moves": ["e4", "e5", "Bc4", "Nf6", "d4", "exd4", "Nf3", "Nc6", "O-O", "Bc5"],
+          "notes": { "8": "4...Nc6 develops and defends e5.", "9": "5.O-O gets the king safe." }
+        },
+        {
+          "id": "nxe4-main",
+          "name": "Urusov: Main Line",
+          "moves": ["e4", "e5", "Bc4", "Nf6", "d4", "exd4", "Nf3", "Nxe4", "Qe2", "d5", "Bxd5", "Qxd5", "Nc3", "Qd8"],
+          "notes": { "8": "4...Nxe4 grabs the centre pawn.", "11": "6.Bxd5 recovers material with tempo." }
+        }
+      ],
+      "notes": { "5": "3.d4 offers the pawn.", "6": "3...exd4 accepts.", "7": "4.Nf3 develops and attacks e5.", "9": "5.Qe2 prepares to recapture on d4." },
+      "keyIdeas": ["Develop with tempo.", "Use the queen on e2.", "Attack f7 and the open centre."],
+      "traps": ["Do not overextend after recovering the pawn.", "Black can develop with ...Nc6 and ...Bc5."]
+    },
+    {
+      "slug": "belgrade-gambit",
+      "name": "Belgrade Gambit",
+      "eco": "C47",
+      "side": "white",
+      "family": "Four Knights Game",
+      "style": ["Gambit", "Aggressive"],
+      "difficulty": "Advanced",
+      "popularity": 16,
+      "aliases": ["Belgrade", "Four Knights Gambit"],
+      "gambit": { "by": "white", "kind": "pawn", "sacrificed": "pawn", "acceptedMain": true, "classification": "Genuine gambit" },
+      "description": "A Four Knights gambit where White gives the d-pawn and a knight to seize the initiative with Nd5.",
+      "moves": ["e4", "e5", "Nf3", "Nc6", "Nc3", "Nf6", "d4", "exd4", "Nd5", "Be7", "Bf4", "d6", "Nxd4"],
+      "variations": [
+        {
+          "id": "nxd5",
+          "name": "Belgrade: Knight Exchange",
+          "moves": ["e4", "e5", "Nf3", "Nc6", "Nc3", "Nf6", "d4", "exd4", "Nd5", "Nxd5", "exd5", "Nb8", "c4"],
+          "notes": { "10": "5...Nxd5 trades the strong knight.", "12": "6...Nb8 retreats to regroup." }
+        },
+        {
+          "id": "bc5",
+          "name": "Belgrade: Bishop Check Line",
+          "moves": ["e4", "e5", "Nf3", "Nc6", "Nc3", "Nf6", "d4", "exd4", "Nd5", "Bc5", "Bg5"],
+          "notes": { "10": "5...Bc5 develops and eyes d4.", "11": "6.Bg5 pins the f6-knight." }
+        }
+      ],
+      "notes": { "5": "3.Nc3 develops.", "7": "4.d4 opens the centre.", "9": "5.Nd5! is the Belgrade Gambit." },
+      "keyIdeas": ["Use the d5 outpost.", "Develop with Bf4 or Bg5.", "Recover the d4 pawn at the right time."],
+      "traps": ["Black can trade the d5 knight.", "Do not leave the centre pawn weak."]
+    },
+    {
+      "slug": "blackmar-diemer-gambit",
+      "name": "Blackmar-Diemer Gambit",
+      "eco": "D00",
+      "side": "white",
+      "family": "Blackmar-Diemer Gambit",
+      "style": ["Gambit", "Aggressive"],
+      "difficulty": "Advanced",
+      "popularity": 28,
+      "aliases": ["BDG", "Blackmar Diemer", "Diemer Gambit"],
+      "gambit": { "by": "white", "kind": "pawn", "sacrificed": "pawn", "acceptedMain": true, "classification": "Genuine gambit" },
+      "description": "White gives the e-pawn for rapid development and a direct attack on the kingside.",
+      "moves": ["d4", "d5", "e4", "dxe4", "Nc3", "Nf6", "f3", "exf3", "Nxf3", "g6", "Bc4", "Bg7", "O-O"],
+      "variations": [
+        {
+          "id": "declined",
+          "name": "Blackmar-Diemer: Declined",
+          "moves": ["d4", "d5", "e4", "dxe4", "Nc3", "Nf6", "f3", "e6", "fxe4", "Be7", "Bc4"],
+          "notes": { "8": "4...e6 declines the pawn but blocks the bishop.", "9": "5.fxe4 recovers the centre pawn." }
+        },
+        {
+          "id": "euwe",
+          "name": "Blackmar-Diemer: Euwe Line",
+          "moves": ["d4", "d5", "e4", "dxe4", "Nc3", "Nf6", "f3", "exf3", "Nxf3", "e6", "Bg5", "Be7", "Bd3"],
+          "notes": { "10": "5...e6 is the solid Euwe Defence.", "11": "6.Bg5 develops with pressure." }
+        }
+      ],
+      "notes": { "5": "3.Nc3 develops and attacks e4.", "7": "4.f3 offers the pawn.", "8": "4...exf3 accepts.", "9": "5.Nxf3 develops and supports the attack." },
+      "keyIdeas": ["Develop quickly with Bc4, O-O and Bg5.", "Use the f-file for the attack.", "Target the f7 and h7 squares."],
+      "traps": ["Black can return the pawn with ...e6.", "Do not attack before completing development."]
+    },
+    {
+      "slug": "queens-gambit-accepted",
+      "name": "Queen's Gambit Accepted",
+      "eco": "D20",
+      "side": "white",
+      "family": "Queen's Gambit",
+      "style": ["Gambit", "Positional"],
+      "difficulty": "Beginner",
+      "popularity": 74,
+      "aliases": ["QGA", "Queen's Gambit Accepted"],
+      "gambit": { "by": "white", "kind": "pawn", "sacrificed": "pawn", "acceptedMain": true, "classification": "Genuine gambit" },
+      "description": "Black captures on c4; White uses the open centre and rapid development to recover the pawn with a strong position.",
+      "moves": ["d4", "d5", "c4", "dxc4", "Nf3", "Nf6", "e3", "e6", "Bxc4", "c5", "O-O", "a6"],
+      "variations": [
+        {
+          "id": "classical",
+          "name": "Queen's Gambit Accepted: Classical",
+          "moves": ["d4", "d5", "c4", "dxc4", "Nf3", "Nf6", "e3", "e6", "Bxc4", "c5", "O-O", "a6", "Qe2"],
+          "notes": { "10": "5.Bxc4 recovers the pawn.", "11": "5...c5 challenges the centre." }
+        },
+        {
+          "id": "central",
+          "name": "Queen's Gambit Accepted: Central",
+          "moves": ["d4", "d5", "c4", "dxc4", "e4", "b5", "a4", "c6", "axb5", "cxb5", "Nc3"],
+          "notes": { "5": "3.e4 builds a broad centre.", "7": "4.a4 challenges the b5 pawn chain." }
+        },
+        {
+          "id": "slav-transposition",
+          "name": "Queen's Gambit Accepted: Slav Transposition",
+          "moves": ["d4", "d5", "c4", "c6", "Nf3", "Nf6", "Nc3", "dxc4", "a4", "Bf5"],
+          "notes": { "8": "4...dxc4 enters a Slav structure.", "9": "5.a4 stops ...b5." }
+        }
+      ],
+      "notes": { "3": "2.c4 is the Queen's Gambit.", "4": "2...dxc4 accepts.", "5": "3.Nf3 develops and controls the centre.", "9": "5.Bxc4 recovers the pawn." },
+      "keyIdeas": ["Recover the c4 pawn with Bxc4.", "Build the centre with e4.", "Develop before opening the position."],
+      "traps": ["Do not hold the pawn at the cost of development.", "Watch for ...b5 and ...c5 counterplay."]
+    },
+    {
+      "slug": "albin-countergambit",
+      "name": "Albin Countergambit",
+      "eco": "D08",
+      "side": "black",
+      "family": "Queen's Gambit",
+      "style": ["Gambit", "Aggressive"],
+      "difficulty": "Advanced",
+      "popularity": 26,
+      "aliases": ["Albin", "Albin Counter-Gambit"],
+      "gambit": { "by": "black", "kind": "pawn", "sacrificed": "pawn", "acceptedMain": true, "classification": "Countergambit" },
+      "description": "Black meets the Queen's Gambit with 2...e5, offering a pawn for a dangerous d4 wedge and active pieces.",
+      "moves": ["d4", "d5", "c4", "e5", "dxe5", "d4", "Nf3", "Nc6", "a3", "Be6", "Nbd2", "Qd7"],
+      "variations": [
+        {
+          "id": "g3-line",
+          "name": "Albin: g3 Line",
+          "moves": ["d4", "d5", "c4", "e5", "dxe5", "d4", "Nf3", "Nc6", "g3", "Be6", "Bg2", "Qd7"],
+          "notes": { "9": "5.g3 prepares to fianchetto against the d4 wedge.", "11": "6.Bg2 controls the long diagonal." }
+        },
+        {
+          "id": "declined",
+          "name": "Albin: Declined",
+          "moves": ["d4", "d5", "c4", "e5", "Nf3", "e4", "Nfd2", "Nc6", "e3", "f5"],
+          "notes": { "5": "3.Nf3 declines the e5 pawn.", "6": "3...e4 gains space." }
+        }
+      ],
+      "notes": { "4": "2...e5! is the Albin Countergambit.", "6": "3...d4 creates the wedge.", "8": "4...Nc6 develops and supports d4." },
+      "keyIdeas": ["Use the d4 pawn to cramp White.", "Develop with ...Nc6, ...Be6 and ...Qd7.", "Play for ...f5 and kingside space."],
+      "traps": ["The d4 pawn can become weak.", "Do not fall behind in development."]
+    },
+    {
+      "slug": "blumenfeld-gambit",
+      "name": "Blumenfeld Gambit",
+      "eco": "E10",
+      "side": "black",
+      "family": "Benoni",
+      "style": ["Gambit", "Positional"],
+      "difficulty": "Advanced",
+      "popularity": 18,
+      "aliases": ["Blumenfeld", "Benoni Gambit"],
+      "gambit": { "by": "black", "kind": "pawn", "sacrificed": "pawn", "acceptedMain": true, "classification": "Countergambit" },
+      "description": "Black offers the b-pawn in a Benoni structure for pressure on the queenside and the long diagonal.",
+      "moves": ["d4", "Nf6", "c4", "e6", "Nf3", "c5", "d5", "b5", "dxe6", "fxe6", "cxb5", "d5"],
+      "variations": [
+        {
+          "id": "declined",
+          "name": "Blumenfeld: Declined",
+          "moves": ["d4", "Nf6", "c4", "e6", "Nf3", "c5", "d5", "b5", "Bg5", "exd5", "cxd5"],
+          "notes": { "9": "5.Bg5 declines the b-pawn.", "10": "5...exd5 opens the centre." }
+        },
+        {
+          "id": "accepted-main",
+          "name": "Blumenfeld: Accepted",
+          "moves": ["d4", "Nf6", "c4", "e6", "Nf3", "c5", "d5", "b5", "dxe6", "fxe6", "cxb5", "d5", "e3"],
+          "notes": { "9": "5.dxe6 opens the position.", "11": "6.cxb5 wins the pawn." }
+        }
+      ],
+      "notes": { "8": "4...b5! is the Blumenfeld Gambit.", "9": "5.dxe6 accepts the challenge.", "10": "5...fxe6 opens the f-file for the bishop.", "12": "6...d5 strikes back in the centre." },
+      "keyIdeas": ["Use the b-file and long diagonal.", "Play ...d5 to open the centre.", "Target the c4 and e4 squares."],
+      "traps": ["White can decline with Bg5.", "The b-pawn must buy real activity."]
+    },
+    {
+      "slug": "englund-gambit",
+      "name": "Englund Gambit",
+      "eco": "A40",
+      "side": "black",
+      "family": "Englund Gambit",
+      "style": ["Gambit", "Aggressive"],
+      "difficulty": "Advanced",
+      "popularity": 8,
+      "aliases": ["Englund", "Queen's Pawn Countergambit"],
+      "gambit": { "by": "black", "kind": "pawn", "sacrificed": "pawn", "acceptedMain": true, "classification": "Countergambit" },
+      "description": "A sharp 1...e5 countergambit against 1.d4, offering a pawn for quick development and tactics.",
+      "moves": ["d4", "e5", "dxe5", "Nc6", "Nf3", "Qe7", "Bf4", "Qb4+", "Bd2", "Qxb2", "Nc3"],
+      "variations": [
+        {
+          "id": "declined",
+          "name": "Englund: Declined",
+          "moves": ["d4", "e5", "dxe5", "Nc6", "Nf3", "Qe7", "Nc3", "Nxe5"],
+          "notes": { "7": "4.Nc3 allows ...Nxe5.", "8": "4...Nxe5 recovers the pawn." }
+        },
+        {
+          "id": "bishop-check",
+          "name": "Englund: Bishop Check",
+          "moves": ["d4", "e5", "dxe5", "Nc6", "Nf3", "Qe7", "Bf4", "Qb4+", "Nc3"],
+          "notes": { "8": "4...Qb4+ checks and targets b2.", "9": "5.Nc3 blocks and develops." }
+        }
+      ],
+      "notes": { "2": "1...e5! is the Englund Gambit.", "3": "2.dxe5 accepts.", "4": "2...Nc6 develops and attacks e5.", "6": "3...Qe7 prepares ...Qb4+." },
+      "keyIdeas": ["Use queen checks to create tactics.", "Target b2 and the centre.", "Develop with ...Nc6 and ...Bb4."],
+      "traps": ["Black can lose time with the queen.", "White may return the pawn for a solid position."]
+    },
+    {
+      "slug": "froms-gambit",
+      "name": "From's Gambit",
+      "eco": "A02",
+      "side": "black",
+      "family": "Bird's Opening",
+      "style": ["Gambit", "Aggressive"],
+      "difficulty": "Advanced",
+      "popularity": 12,
+      "aliases": ["From", "From's", "Bird's Gambit"],
+      "gambit": { "by": "black", "kind": "pawn", "sacrificed": "pawn", "acceptedMain": true, "classification": "Countergambit" },
+      "description": "Black answers Bird's Opening with 1...e5, offering a pawn for a fast attack on the weakened kingside.",
+      "moves": ["f4", "e5", "fxe5", "d6", "exd6", "Bxd6", "Nf3", "g5", "d4", "g4", "Ne5"],
+      "variations": [
+        {
+          "id": "declined",
+          "name": "From's Gambit: Declined",
+          "moves": ["f4", "e5", "fxe5", "d5", "e3", "Nc6", "Nf3", "Bg4"],
+          "notes": { "4": "3...d5 declines the pawn and opens the centre.", "8": "5...Bg4 develops with pressure." }
+        },
+        {
+          "id": "g5-main",
+          "name": "From's Gambit: Main Line",
+          "moves": ["f4", "e5", "fxe5", "d6", "exd6", "Bxd6", "Nf3", "g5", "d4", "g4", "Ng5"],
+          "notes": { "8": "4...g5 attacks the knight and grabs space.", "10": "5...g4 drives the knight again." }
+        }
+      ],
+      "notes": { "2": "1...e5! is From's Gambit.", "3": "2.fxe5 accepts.", "4": "2...d6 challenges the e5 pawn.", "8": "4...g5 attacks the f3-knight." },
+      "keyIdeas": ["Use the g-pawn to harass the knight.", "Attack the weakened e1-h4 diagonal.", "Develop with ...Bg4 and ...Nc6."],
+      "traps": ["Do not overextend the kingside pawns.", "White can return the pawn with e3."]
+    },
+    {
+      "slug": "staunton-gambit",
+      "name": "Staunton Gambit",
+      "eco": "A82",
+      "side": "white",
+      "family": "Dutch Defence",
+      "style": ["Gambit", "Aggressive"],
+      "difficulty": "Intermediate",
+      "popularity": 24,
+      "aliases": ["Staunton", "Dutch Gambit"],
+      "gambit": { "by": "white", "kind": "pawn", "sacrificed": "pawn", "acceptedMain": true, "classification": "Genuine gambit" },
+      "description": "White immediately challenges the Dutch with 2.e4, offering a pawn for a lead in development and open lines.",
+      "moves": ["d4", "f5", "e4", "fxe4", "Nc3", "Nf6", "Bg5", "e6", "Bxf6", "Qxf6", "Nxe4"],
+      "variations": [
+        {
+          "id": "accepted",
+          "name": "Staunton Gambit: Accepted",
+          "moves": ["d4", "f5", "e4", "fxe4", "Nc3", "Nf6", "f3", "exf3", "Nxf3", "d5", "Bd3"],
+          "notes": { "7": "4.f3 attacks e4 immediately.", "9": "5.Nxf3 recovers the pawn with development." }
+        },
+        {
+          "id": "declined",
+          "name": "Staunton Gambit: Declined",
+          "moves": ["d4", "f5", "e4", "e6", "Nc3", "d5", "e5", "c5"],
+          "notes": { "4": "2...e6 declines the pawn.", "7": "4.e5 gains space in the centre." }
+        }
+      ],
+      "notes": { "3": "2.e4! is the Staunton Gambit.", "4": "2...fxe4 accepts.", "5": "3.Nc3 develops and attacks e4.", "7": "4.Bg5 develops and pressures the knight." },
+      "keyIdeas": ["Develop quickly against the Dutch.", "Use the e4 pawn as a target.", "Castle and open the centre."],
+      "traps": ["Black can hold the extra pawn with ...e6.", "Do not allow ...d5 to free Black's game."]
+    },
+    {
+      "slug": "icelandic-gambit",
+      "name": "Icelandic Gambit",
+      "eco": "B01",
+      "side": "black",
+      "family": "Scandinavian",
+      "style": ["Gambit", "Aggressive"],
+      "difficulty": "Advanced",
+      "popularity": 14,
+      "aliases": ["Icelandic", "Scandinavian Gambit"],
+      "gambit": { "by": "black", "kind": "pawn", "sacrificed": "pawn", "acceptedMain": true, "classification": "Countergambit" },
+      "description": "Black offers the e-pawn in the Scandinavian for fast development and pressure on the centre.",
+      "moves": ["e4", "d5", "exd5", "Nf6", "c4", "e6", "dxe6", "Bxe6", "Nf3", "Be7"],
+      "variations": [
+        {
+          "id": "declined",
+          "name": "Icelandic Gambit: Declined",
+          "moves": ["e4", "d5", "exd5", "Nf6", "c4", "Nxd5", "Nf3", "Bf5", "Be2"],
+          "notes": { "6": "3...Nxd5 declines the gambit.", "8": "4...Bf5 develops actively." }
+        },
+        {
+          "id": "main-line",
+          "name": "Icelandic Gambit: Main Line",
+          "moves": ["e4", "d5", "exd5", "Nf6", "c4", "e6", "dxe6", "Bxe6", "Nf3", "Nc6"],
+          "notes": { "6": "3...e6! is the Icelandic Gambit.", "8": "4...Bxe6 develops and recovers the pawn." }
+        }
+      ],
+      "notes": { "4": "2...Nf6 attacks d5.", "6": "3...e6 offers the e-pawn.", "8": "4...Bxe6 develops quickly." },
+      "keyIdeas": ["Develop with ...Bxe6 and ...Be7.", "Use the open lines for piece play.", "Pressure the c4 and e4 squares."],
+      "traps": ["White can decline with ...Nxd5 lines.", "Do not fall behind in development."]
+    },
+    {
+      "slug": "sicilian-wing-gambit",
+      "name": "Sicilian Wing Gambit",
+      "eco": "B20",
+      "side": "white",
+      "family": "Sicilian",
+      "style": ["Gambit", "Aggressive"],
+      "difficulty": "Intermediate",
+      "popularity": 12,
+      "aliases": ["Wing Gambit", "Sicilian Wing"],
+      "gambit": { "by": "white", "kind": "pawn", "sacrificed": "pawn", "acceptedMain": true, "classification": "Genuine gambit" },
+      "description": "White offers the b-pawn on move two against the Sicilian to open the b-file and gain central space.",
+      "moves": ["e4", "c5", "b4", "cxb4", "a3", "d5", "exd5", "Qxd5", "Nf3", "e5", "axb4"],
+      "variations": [
+        {
+          "id": "accepted",
+          "name": "Wing Gambit: Accepted",
+          "moves": ["e4", "c5", "b4", "cxb4", "a3", "bxa3", "Nxa3", "Nc6", "Nf3", "d6", "Bc4"],
+          "notes": { "6": "3...bxa3 accepts the second pawn.", "7": "4.Nxa3 develops and opens the b-file." }
+        },
+        {
+          "id": "declined",
+          "name": "Wing Gambit: Declined",
+          "moves": ["e4", "c5", "b4", "e6", "bxc5", "Bxc5", "Nf3", "Nf6"],
+          "notes": { "4": "2...e6 declines the b-pawn.", "5": "3.bxc5 opens the queenside." }
+        }
+      ],
+      "notes": { "3": "2.b4! is the Wing Gambit.", "4": "2...cxb4 accepts.", "5": "3.a3 attacks the b4 pawn.", "7": "4.exd5 opens the centre and attacks the queen." },
+      "keyIdeas": ["Open the b-file and a-file.", "Develop with Nf3, Bc4 and O-O.", "Use the extra central space."],
+      "traps": ["Black can decline with ...e6.", "Do not lose time chasing the b-pawn."]
+    },
+    {
+      "slug": "rousseau-gambit",
+      "name": "Rousseau Gambit",
+      "eco": "C50",
+      "side": "black",
+      "family": "Italian Game",
+      "style": ["Gambit", "Aggressive"],
+      "difficulty": "Intermediate",
+      "popularity": 10,
+      "aliases": ["Rousseau", "Italian Countergambit"],
+      "gambit": { "by": "black", "kind": "pawn", "sacrificed": "pawn", "acceptedMain": true, "classification": "Countergambit" },
+      "description": "Black meets the Italian with 3...f5, offering a pawn for a quick strike at e4 and the centre.",
+      "moves": ["e4", "e5", "Nf3", "Nc6", "Bc4", "f5", "d3", "fxe4", "dxe4", "Nf6", "Nc3"],
+      "variations": [
+        {
+          "id": "accepted",
+          "name": "Rousseau: Accepted",
+          "moves": ["e4", "e5", "Nf3", "Nc6", "Bc4", "f5", "exf5", "e4", "Ng5", "Nf6"],
+          "notes": { "7": "4.exf5 accepts the pawn.", "8": "4...e4 gains space and attacks the knight." }
+        },
+        {
+          "id": "declined",
+          "name": "Rousseau: Declined",
+          "moves": ["e4", "e5", "Nf3", "Nc6", "Bc4", "f5", "d3", "d6", "Nc3", "Nf6"],
+          "notes": { "7": "4.d3 declines the pawn and supports e4.", "8": "4...d6 prepares ...fxe4." }
+        }
+      ],
+      "notes": { "6": "3...f5! is the Rousseau Gambit.", "8": "4...fxe4 attacks the centre.", "10": "5...Nf6 develops with pressure." },
+      "keyIdeas": ["Use the e4 pawn to cramp White.", "Develop with ...Nf6 and ...Be7.", "Attack the e4 and c4 squares."],
+      "traps": ["Black's king can become exposed.", "White can accept with exf5 and challenge the centre."]
+    },
+    {
+      "slug": "schliemann-gambit",
+      "name": "Schliemann Gambit",
+      "eco": "C63",
+      "side": "black",
+      "family": "Ruy Lopez",
+      "style": ["Gambit", "Aggressive"],
+      "difficulty": "Advanced",
+      "popularity": 30,
+      "aliases": ["Schliemann", "Jaenisch Gambit", "Ruy Lopez Countergambit"],
+      "gambit": { "by": "black", "kind": "pawn", "sacrificed": "pawn", "acceptedMain": true, "classification": "Countergambit" },
+      "description": "Black answers the Ruy Lopez with 3...f5, offering a pawn for active play against e4.",
+      "moves": ["e4", "e5", "Nf3", "Nc6", "Bb5", "f5", "d3", "fxe4", "dxe4", "Nf6", "O-O", "Bc5"],
+      "variations": [
+        {
+          "id": "main-line",
+          "name": "Schliemann: Main Line",
+          "moves": ["e4", "e5", "Nf3", "Nc6", "Bb5", "f5", "Nc3", "fxe4", "Nxe4", "d5"],
+          "notes": { "7": "4.Nc3 accepts the challenge.", "8": "4...fxe4 opens the f-file.", "10": "5...d5 strikes the centre." }
+        },
+        {
+          "id": "jaenisch",
+          "name": "Schliemann: Jaenisch",
+          "moves": ["e4", "e5", "Nf3", "Nc6", "Bb5", "f5", "d4", "fxe4", "Nxe5", "Nxe5"],
+          "notes": { "7": "4.d4 opens the centre at once.", "9": "5.Nxe5 wins a pawn but allows counterplay." }
+        }
+      ],
+      "notes": { "6": "3...f5! is the Schliemann Gambit.", "8": "4...fxe4 attacks the centre.", "12": "6...Bc5 develops and eyes g1." },
+      "keyIdeas": ["Use the f-file and e4 pawn.", "Develop with ...Nf6 and ...Bc5.", "Attack the white centre."],
+      "traps": ["The e4 pawn can become weak.", "White's d4 break can open the centre dangerously."]
+    },
+    {
+      "slug": "marshall-attack",
+      "name": "Marshall Attack",
+      "eco": "C89",
+      "side": "black",
+      "family": "Ruy Lopez",
+      "style": ["Gambit", "Aggressive"],
+      "difficulty": "Advanced",
+      "popularity": 46,
+      "aliases": ["Marshall", "Marshall Gambit", "Ruy Lopez Marshall"],
+      "gambit": { "by": "black", "kind": "pawn", "sacrificed": "pawn", "acceptedMain": true, "classification": "Countergambit" },
+      "description": "Black sacrifices the d5 pawn in the Ruy Lopez for a lasting kingside attack with the pieces.",
+      "moves": ["e4", "e5", "Nf3", "Nc6", "Bb5", "a6", "Ba4", "Nf6", "O-O", "Be7", "Re1", "b5", "Bb3", "O-O", "c3", "d5", "exd5", "Nxd5", "Nxe5", "Nxe5", "Rxe5", "c6"],
+      "variations": [
+        {
+          "id": "anti-marshall",
+          "name": "Marshall: Anti-Marshall",
+          "moves": ["e4", "e5", "Nf3", "Nc6", "Bb5", "a6", "Ba4", "Nf6", "O-O", "Be7", "Re1", "b5", "Bb3", "O-O", "a4"],
+          "notes": { "15": "8.a4 avoids the Marshall Attack." }
+        },
+        {
+          "id": "main-continuation",
+          "name": "Marshall: Main Continuation",
+          "moves": ["e4", "e5", "Nf3", "Nc6", "Bb5", "a6", "Ba4", "Nf6", "O-O", "Be7", "Re1", "b5", "Bb3", "O-O", "c3", "d5", "exd5", "Nxd5", "Nxe5", "Nxe5", "Rxe5", "c6", "d4"],
+          "notes": { "16": "8...d5! is the Marshall Gambit.", "22": "11...c6 prepares ...Bd6 and ...Qh4." }
+        }
+      ],
+      "notes": { "16": "8...d5 offers the d-pawn.", "17": "9.exd5 accepts.", "18": "9...Nxd5 recaptures and opens the e-file.", "19": "10.Nxe5 opens the attack.", "20": "10...Nxe5 trades the knight.", "22": "11...c6 prepares ...Bd6 and ...Qh4." },
+      "keyIdeas": ["Use the open e-file and bishop pair.", "Play ...Bd6 and ...Qh4.", "Attack before White consolidates."],
+      "traps": ["White can avoid the Marshall with 8.a4.", "The attack must justify the pawn."]
+    }
+  ]
+}

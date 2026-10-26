@@ -1,0 +1,15 @@
+{
+  "fen": "qpq1Pppp/qPnq1bpb/2qnR1q1/1p1Bp2b/QqQ1Q1Bp/pQpb1Qpq/PbPQQRN1/1P1P1P1P w - - 0 1",
+  "occupied": 46,
+  "method": "grid",
+  "score": 1245,
+  "_pieces": 46,
+  "uncertain": [
+    "b1",
+    "c2",
+    "d1",
+    "d2",
+    "f1",
+    "h1"
+  ]
+}

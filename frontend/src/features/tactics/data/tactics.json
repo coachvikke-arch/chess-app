@@ -1,0 +1,2186 @@
+[
+  {
+    "id": 1,
+    "slug": "fork",
+    "category": "Basic Tactics",
+    "title": "Fork",
+    "tags": [
+      "fork",
+      "knight",
+      "check"
+    ],
+    "fen": "3q3k/8/8/4N3/8/8/8/6K1 w - - 0 1",
+    "highlights": [
+      {
+        "square": "d8",
+        "color": "red"
+      },
+      {
+        "square": "h8",
+        "color": "red"
+      },
+      {
+        "square": "f7",
+        "color": "orange"
+      },
+      {
+        "square": "e5",
+        "color": "green"
+      }
+    ],
+    "arrows": [
+      {
+        "from": "e5",
+        "to": "f7"
+      },
+      {
+        "from": "f7",
+        "to": "d8"
+      },
+      {
+        "from": "f7",
+        "to": "h8"
+      }
+    ],
+    "caption": "Nf7+ one piece, two targets",
+    "whatItIs": "A knight jumps to f7 with check, hitting the king and the queen at the same time.",
+    "whyItWins": "The king must move out of check first. Then you take the queen for free.",
+    "doThis": "Look for knight jumps that hit the king and a big piece at once. Knights fork best.",
+    "solution": [
+      "Nf7+"
+    ],
+    "opponentReplies": []
+  },
+  {
+    "id": 2,
+    "slug": "pin",
+    "category": "Basic Tactics",
+    "title": "Pin",
+    "tags": [
+      "pin",
+      "bishop"
+    ],
+    "fen": "4k3/8/2n5/8/8/8/8/5BK1 w - - 0 1",
+    "highlights": [
+      {
+        "square": "e8",
+        "color": "red"
+      },
+      {
+        "square": "c6",
+        "color": "red"
+      },
+      {
+        "square": "b5",
+        "color": "orange"
+      }
+    ],
+    "arrows": [
+      {
+        "from": "f1",
+        "to": "b5"
+      },
+      {
+        "from": "b5",
+        "to": "e8"
+      }
+    ],
+    "caption": "Bb5 pins the knight to the king",
+    "whatItIs": "The bishop takes aim along the diagonal and traps the knight in front of its own king.",
+    "whyItWins": "A pinned piece cannot move, so it can never block a check or run away with anything.",
+    "doThis": "Find lines where your piece, an enemy piece and their king sit in a straight line.",
+    "solution": [
+      "Bb5"
+    ],
+    "opponentReplies": []
+  },
+  {
+    "id": 3,
+    "slug": "skewer",
+    "category": "Basic Tactics",
+    "title": "Skewer",
+    "tags": [
+      "skewer",
+      "rook",
+      "check"
+    ],
+    "fen": "8/8/8/4k2q/8/8/8/R5K1 w - - 0 1",
+    "highlights": [
+      {
+        "square": "h5",
+        "color": "red"
+      },
+      {
+        "square": "e5",
+        "color": "orange"
+      },
+      {
+        "square": "a5",
+        "color": "green"
+      }
+    ],
+    "arrows": [
+      {
+        "from": "a1",
+        "to": "a5"
+      },
+      {
+        "from": "a5",
+        "to": "e5"
+      },
+      {
+        "from": "e5",
+        "to": "h5"
+      }
+    ],
+    "caption": "Ra5+ king moves, Rxh5",
+    "whatItIs": "A rook checks the king, and the same line runs on to the queen behind him.",
+    "whyItWins": "The king must step away, which opens the whole rank. The rook then takes the queen.",
+    "doThis": "Check along a rank or file and see if a valuable piece is hiding behind the king.",
+    "solution": [
+      "Ra5+"
+    ],
+    "opponentReplies": []
+  },
+  {
+    "id": 4,
+    "slug": "discovered-attack",
+    "category": "Basic Tactics",
+    "title": "Discovered Attack",
+    "tags": [
+      "discoveredAttack",
+      "bishop"
+    ],
+    "fen": "q6k/8/8/8/8/8/B7/R3K3 w - - 0 1",
+    "highlights": [
+      {
+        "square": "a8",
+        "color": "red"
+      },
+      {
+        "square": "a2",
+        "color": "green"
+      },
+      {
+        "square": "b3",
+        "color": "orange"
+      }
+    ],
+    "arrows": [
+      {
+        "from": "a2",
+        "to": "b3"
+      },
+      {
+        "from": "a1",
+        "to": "a8"
+      }
+    ],
+    "caption": "Bb3 clears the file, Ra1 wins the queen",
+    "whatItIs": "Your own piece was blocking a line. Move it aside and the piece behind suddenly attacks.",
+    "whyItWins": "The rook could not move while its own bishop stood in the way. Now the queen is loose.",
+    "doThis": "Before you move, check what your own pieces are hiding. Stepping aside often attacks twice.",
+    "solution": [
+      "Bb3"
+    ],
+    "opponentReplies": []
+  },
+  {
+    "id": 5,
+    "slug": "discovered-check",
+    "category": "Basic Tactics",
+    "title": "Discovered Check",
+    "tags": [
+      "discoveredCheck",
+      "bishop"
+    ],
+    "fen": "k7/8/8/8/8/8/B7/R6K w - - 0 1",
+    "highlights": [
+      {
+        "square": "a8",
+        "color": "red"
+      },
+      {
+        "square": "a2",
+        "color": "green"
+      },
+      {
+        "square": "b3",
+        "color": "orange"
+      }
+    ],
+    "arrows": [
+      {
+        "from": "a2",
+        "to": "b3"
+      },
+      {
+        "from": "a1",
+        "to": "a8"
+      }
+    ],
+    "caption": "Bb3+ uncovers the rook’s check",
+    "whatItIs": "The bishop steps aside and the rook behind it suddenly gives check along the file.",
+    "whyItWins": "Black had no legal move while the bishop blocked the file. The check comes from nowhere.",
+    "doThis": "If one of your pieces sits in front of a line to the enemy king, moving it may be a check.",
+    "solution": [
+      "Bb3+"
+    ],
+    "opponentReplies": []
+  },
+  {
+    "id": 6,
+    "slug": "double-check",
+    "category": "Basic Tactics",
+    "title": "Double Check",
+    "tags": [
+      "doubleCheck",
+      "bishop"
+    ],
+    "fen": "k7/8/B7/8/8/8/8/R6K w - - 0 1",
+    "highlights": [
+      {
+        "square": "a8",
+        "color": "red"
+      },
+      {
+        "square": "b7",
+        "color": "orange"
+      },
+      {
+        "square": "a6",
+        "color": "green"
+      }
+    ],
+    "arrows": [
+      {
+        "from": "a6",
+        "to": "b7"
+      },
+      {
+        "from": "a1",
+        "to": "a8"
+      },
+      {
+        "from": "b7",
+        "to": "a8"
+      }
+    ],
+    "caption": "Bb7+ two pieces give check at once",
+    "whatItIs": "One move makes two different pieces check the king. That is called double check.",
+    "whyItWins": "Only the king can move, because no single piece can block two separate lines at once.",
+    "doThis": "After your move, count how many enemy pieces are checking. Two means the king must move.",
+    "solution": [
+      "Bb7+"
+    ],
+    "opponentReplies": []
+  },
+  {
+    "id": 7,
+    "slug": "double-attack",
+    "category": "Basic Tactics",
+    "title": "Double Attack",
+    "tags": [
+      "doubleAttack",
+      "queen"
+    ],
+    "fen": "3q3k/8/8/4r3/8/8/8/2Q3K1 w - - 0 1",
+    "highlights": [
+      {
+        "square": "d8",
+        "color": "red"
+      },
+      {
+        "square": "e5",
+        "color": "red"
+      },
+      {
+        "square": "g5",
+        "color": "orange"
+      },
+      {
+        "square": "c1",
+        "color": "green"
+      }
+    ],
+    "arrows": [
+      {
+        "from": "c1",
+        "to": "g5"
+      },
+      {
+        "from": "g5",
+        "to": "e5"
+      },
+      {
+        "from": "g5",
+        "to": "d8"
+      }
+    ],
+    "caption": "Qg5 hits the queen and the rook",
+    "whatItIs": "The queen lands where one move threatens two different pieces at the same time.",
+    "whyItWins": "Black can only save one of them. The other falls to the queen.",
+    "doThis": "Check every square your piece can reach for two targets at once.",
+    "solution": [
+      "Qg5"
+    ],
+    "opponentReplies": []
+  },
+  {
+    "id": 8,
+    "slug": "removing-the-defender",
+    "category": "Basic Tactics",
+    "title": "Removing the Defender",
+    "tags": [
+      "removingDefender",
+      "bishop"
+    ],
+    "fen": "6k1/8/6n1/R3q3/8/3B4/8/6K1 w - - 0 1",
+    "highlights": [
+      {
+        "square": "e5",
+        "color": "red"
+      },
+      {
+        "square": "g6",
+        "color": "orange"
+      },
+      {
+        "square": "d3",
+        "color": "green"
+      },
+      {
+        "square": "a5",
+        "color": "green"
+      }
+    ],
+    "arrows": [
+      {
+        "from": "d3",
+        "to": "g6"
+      },
+      {
+        "from": "a5",
+        "to": "e5"
+      }
+    ],
+    "caption": "Bxg6 the knight guards the queen",
+    "whatItIs": "The knight on g6 protects the black queen. White takes the knight first, not the queen.",
+    "whyItWins": "With the knight gone nothing defends the queen, so the rook simply takes it next move.",
+    "doThis": "Before you win a piece, find the enemy piece that saves it. Remove that one first.",
+    "solution": [
+      "Bxg6",
+      "Rxe5"
+    ],
+    "opponentReplies": [
+      "Kh8"
+    ]
+  },
+  {
+    "id": 9,
+    "slug": "deflection",
+    "category": "Basic Tactics",
+    "title": "Deflection",
+    "tags": [
+      "deflection",
+      "bishop"
+    ],
+    "fen": "4k3/2bppp2/8/4q2Q/8/8/8/R5K1 w - - 0 1",
+    "highlights": [
+      {
+        "square": "e8",
+        "color": "red"
+      },
+      {
+        "square": "e5",
+        "color": "red"
+      },
+      {
+        "square": "c7",
+        "color": "orange"
+      },
+      {
+        "square": "h5",
+        "color": "green"
+      }
+    ],
+    "arrows": [
+      {
+        "from": "a1",
+        "to": "a8"
+      },
+      {
+        "from": "c7",
+        "to": "d8"
+      },
+      {
+        "from": "h5",
+        "to": "e5"
+      }
+    ],
+    "caption": "Ra8+ drags the bishop away, Qxe5 wins",
+    "whatItIs": "The bishop is the only thing guarding the queen. White forces it to step out of the way.",
+    "whyItWins": "Blocking the check on d8 means the bishop leaves c7, and the queen is suddenly free.",
+    "doThis": "When a piece is defended, ask what would happen if that defender stood somewhere else.",
+    "solution": [
+      "Ra8+",
+      "Qxe5"
+    ],
+    "opponentReplies": [
+      "Bd8"
+    ]
+  },
+  {
+    "id": 10,
+    "slug": "decoy",
+    "category": "Basic Tactics",
+    "title": "Decoy",
+    "tags": [
+      "decoy",
+      "rook",
+      "check"
+    ],
+    "fen": "4k2q/8/8/8/8/8/8/RK6 w - - 0 1",
+    "highlights": [
+      {
+        "square": "e8",
+        "color": "red"
+      },
+      {
+        "square": "h8",
+        "color": "red"
+      },
+      {
+        "square": "a8",
+        "color": "orange"
+      },
+      {
+        "square": "a1",
+        "color": "green"
+      }
+    ],
+    "arrows": [
+      {
+        "from": "a1",
+        "to": "a8"
+      },
+      {
+        "from": "a8",
+        "to": "h8"
+      }
+    ],
+    "caption": "Ra8+ the king is dragged off the queen",
+    "whatItIs": "A check pulls the king away from the queen he was protecting, and the queen is left hanging.",
+    "whyItWins": "The king must leave the eighth rank, and none of its escapes still guard h8.",
+    "doThis": "When a piece is guarded by the king, check the king. He has to step away from it.",
+    "solution": [
+      "Ra8+",
+      "Rxh8"
+    ],
+    "opponentReplies": [
+      "Kd7"
+    ]
+  },
+  {
+    "id": 11,
+    "slug": "interference",
+    "category": "Basic Tactics",
+    "title": "Interference",
+    "tags": [
+      "interference",
+      "knight"
+    ],
+    "fen": "4k3/8/8/r3q3/8/2N5/8/4R1K1 w - - 0 1",
+    "highlights": [
+      {
+        "square": "e5",
+        "color": "red"
+      },
+      {
+        "square": "d5",
+        "color": "orange"
+      },
+      {
+        "square": "c3",
+        "color": "green"
+      }
+    ],
+    "arrows": [
+      {
+        "from": "c3",
+        "to": "d5"
+      },
+      {
+        "from": "e1",
+        "to": "e5"
+      }
+    ],
+    "caption": "Nd5! the knight steps in front of the rook",
+    "whatItIs": "The knight jumps onto the fifth rank, between the black rook and the black queen.",
+    "whyItWins": "The rook can no longer guard the queen, so the white rook simply picks the queen up.",
+    "doThis": "If two enemy pieces are working together, put one of your pieces between them.",
+    "solution": [
+      "Nd5",
+      "Rxe5"
+    ],
+    "opponentReplies": [
+      "Kd8"
+    ]
+  },
+  {
+    "id": 12,
+    "slug": "overloading",
+    "category": "Basic Tactics",
+    "title": "Overloading",
+    "tags": [
+      "overloading",
+      "knight"
+    ],
+    "fen": "k7/8/8/8/3n4/8/8/2R1R1K1 w - - 0 1",
+    "highlights": [
+      {
+        "square": "c6",
+        "color": "red"
+      },
+      {
+        "square": "e6",
+        "color": "red"
+      },
+      {
+        "square": "d4",
+        "color": "orange"
+      },
+      {
+        "square": "c1",
+        "color": "green"
+      }
+    ],
+    "arrows": [
+      {
+        "from": "c1",
+        "to": "c6"
+      }
+    ],
+    "caption": "Rc6 the knight is doing two jobs",
+    "whatItIs": "One black knight guards two squares, so it cannot be in both places at once.",
+    "whyItWins": "Black cannot move the knight and still cover the other square, so one of them falls.",
+    "doThis": "Count the jobs one enemy piece is doing. Attack the square it cannot cover.",
+    "solution": [
+      "Rc6"
+    ],
+    "opponentReplies": []
+  },
+  {
+    "id": 13,
+    "slug": "hanging-piece",
+    "category": "Basic Tactics",
+    "title": "Hanging Piece",
+    "tags": [
+      "hangingPiece",
+      "rook"
+    ],
+    "fen": "4k3/8/8/8/8/8/8/q3R1K1 w - - 0 1",
+    "highlights": [
+      {
+        "square": "a1",
+        "color": "red"
+      },
+      {
+        "square": "e1",
+        "color": "green"
+      }
+    ],
+    "arrows": [
+      {
+        "from": "e1",
+        "to": "a1"
+      }
+    ],
+    "caption": "Rxa1 the queen has no friends",
+    "whatItIs": "A piece is worth a lot and nothing is protecting it. That is a hanging piece.",
+    "whyItWins": "The rook simply moves across the empty first rank and picks the queen up.",
+    "doThis": "At the start of every game ask which of your pieces has no defender at all.",
+    "solution": [
+      "Rxa1"
+    ],
+    "opponentReplies": []
+  },
+  {
+    "id": 14,
+    "slug": "trapped-piece",
+    "category": "Basic Tactics",
+    "title": "Trapped Piece",
+    "tags": [
+      "trappedPiece",
+      "queen"
+    ],
+    "fen": "4k2n/8/8/8/8/8/2Q5/5K2 w - - 0 1",
+    "highlights": [
+      {
+        "square": "h8",
+        "color": "red"
+      },
+      {
+        "square": "f7",
+        "color": "orange"
+      },
+      {
+        "square": "g6",
+        "color": "orange"
+      },
+      {
+        "square": "c2",
+        "color": "green"
+      }
+    ],
+    "arrows": [
+      {
+        "from": "c2",
+        "to": "f5"
+      },
+      {
+        "from": "f5",
+        "to": "f7"
+      },
+      {
+        "from": "f5",
+        "to": "g6"
+      }
+    ],
+    "caption": "Qf5! the knight has nowhere left to go",
+    "whatItIs": "The queen covers both squares the knight could run to, so it is stuck on h8 for good.",
+    "whyItWins": "A knight that cannot move is worth nothing, and the black king has to carry the game alone.",
+    "doThis": "Push enemy pieces towards the edge, then cover the few squares they have left.",
+    "solution": [
+      "Qf5"
+    ],
+    "opponentReplies": [
+      "Ke7"
+    ]
+  },
+  {
+    "id": 15,
+    "slug": "x-ray-attack",
+    "category": "Basic Tactics",
+    "title": "X-Ray Attack",
+    "tags": [
+      "xRayAttack",
+      "queen"
+    ],
+    "fen": "3q3k/8/8/8/8/8/8/3Q2K1 w - - 0 1",
+    "highlights": [
+      {
+        "square": "d8",
+        "color": "red"
+      },
+      {
+        "square": "d5",
+        "color": "orange"
+      },
+      {
+        "square": "d1",
+        "color": "green"
+      }
+    ],
+    "arrows": [
+      {
+        "from": "d1",
+        "to": "d5"
+      },
+      {
+        "from": "d5",
+        "to": "d8"
+      }
+    ],
+    "caption": "Qd5 sees straight through to d8",
+    "whatItIs": "You can see a valuable piece right through another piece, as if the blocker were glass.",
+    "whyItWins": "Stepping onto the line attacks the piece behind, even though something stands in the way.",
+    "doThis": "Look straight through pieces. A clear line of sight is often the whole point of a quiet move.",
+    "solution": [
+      "Qd5"
+    ],
+    "opponentReplies": []
+  },
+  {
+    "id": 16,
+    "slug": "zwischenzug",
+    "category": "Forcing Moves",
+    "title": "Zwischenzug",
+    "tags": [
+      "zwischenzug",
+      "check",
+      "inBetween"
+    ],
+    "fen": "4k3/8/8/3q4/8/3B4/8/3R2K1 w - - 0 1",
+    "highlights": [
+      {
+        "square": "d5",
+        "color": "red"
+      },
+      {
+        "square": "b5",
+        "color": "orange"
+      },
+      {
+        "square": "d3",
+        "color": "green"
+      }
+    ],
+    "arrows": [
+      {
+        "from": "d3",
+        "to": "b5"
+      },
+      {
+        "from": "d1",
+        "to": "d5"
+      }
+    ],
+    "caption": "Bb5+ check first, then Rxd5+ wins the queen",
+    "whatItIs": "A check played in the middle of a plan, before the main threat is finished.",
+    "whyItWins": "A check has to be answered, so it buys a free tempo to take the piece you wanted.",
+    "doThis": "When your plan needs two moves, check first. The answer is forced, so you keep control.",
+    "solution": [
+      "Bb5+",
+      "Rxd5+"
+    ],
+    "opponentReplies": [
+      "Kd8"
+    ]
+  },
+  {
+    "id": 17,
+    "slug": "desperado",
+    "category": "Forcing Moves",
+    "title": "Desperado",
+    "tags": [
+      "desperado",
+      "pawn",
+      "rook"
+    ],
+    "fen": "8/8/8/8/8/2k5/P7/R5K1 w - - 0 1",
+    "highlights": [
+      {
+        "square": "c3",
+        "color": "red"
+      },
+      {
+        "square": "c1",
+        "color": "orange"
+      },
+      {
+        "square": "a2",
+        "color": "green"
+      }
+    ],
+    "arrows": [
+      {
+        "from": "a1",
+        "to": "c1"
+      },
+      {
+        "from": "a2",
+        "to": "a5"
+      }
+    ],
+    "caption": "Rc1+ chase the king, then a4 and a5 run",
+    "whatItIs": "You chase the enemy king with checks so a pawn that is far away can still race past him.",
+    "whyItWins": "The king is always being pushed, so he never gets the chance to catch the pawn as it walks home.",
+    "doThis": "Drive the enemy king to the edge with checks, then send a passed pawn after him.",
+    "solution": [
+      "Rc1+",
+      "a4",
+      "a5"
+    ],
+    "opponentReplies": [
+      "Kd4",
+      "Kd3"
+    ]
+  },
+  {
+    "id": 18,
+    "slug": "sacrifice",
+    "category": "Forcing Moves",
+    "title": "Sacrifice",
+    "tags": [
+      "sacrifice",
+      "pawn"
+    ],
+    "fen": "4kR2/8/5q2/4P3/8/8/8/4K3 w - - 0 1",
+    "highlights": [
+      {
+        "square": "f6",
+        "color": "red"
+      },
+      {
+        "square": "e5",
+        "color": "green"
+      }
+    ],
+    "arrows": [
+      {
+        "from": "e5",
+        "to": "f6"
+      }
+    ],
+    "caption": "exf6+! a pawn is thrown at the queen",
+    "whatItIs": "A piece you do not mind losing is given away on purpose to win something much bigger.",
+    "whyItWins": "The pawn is gone for good, but White has taken a whole queen. That trade is never close.",
+    "doThis": "Give material away only when the enemy king cannot touch it. Then the trade is nearly free.",
+    "solution": [
+      "exf6+"
+    ],
+    "opponentReplies": []
+  },
+  {
+    "id": 19,
+    "slug": "clearance-sacrifice",
+    "category": "Forcing Moves",
+    "title": "Clearance Sacrifice",
+    "tags": [
+      "clearanceSacrifice",
+      "bishop",
+      "rook"
+    ],
+    "fen": "6k1/5ppp/8/8/8/8/5PPP/1B3RK1 w - - 0 1",
+    "highlights": [
+      {
+        "square": "g7",
+        "color": "red"
+      },
+      {
+        "square": "b1",
+        "color": "green"
+      },
+      {
+        "square": "g1",
+        "color": "orange"
+      }
+    ],
+    "arrows": [
+      {
+        "from": "b1",
+        "to": "g6"
+      },
+      {
+        "from": "f1",
+        "to": "d1"
+      }
+    ],
+    "caption": "Bg6! fxg6 the h-file opens",
+    "whatItIs": "A piece is thrown away on purpose to empty a square or a line for another piece.",
+    "whyItWins": "Taking the bishop is forced, the g-pawn steps out of the diagonal, and the rook is free to attack.",
+    "doThis": "Ask which square you need empty, then find a piece willing to die for it.",
+    "solution": [
+      "Bg6",
+      "Rd1"
+    ],
+    "opponentReplies": [
+      "fxg6"
+    ]
+  },
+  {
+    "id": 20,
+    "slug": "windmill",
+    "category": "Forcing Moves",
+    "title": "Windmill",
+    "tags": [
+      "windmill",
+      "rook",
+      "checking"
+    ],
+    "fen": "k7/1pp5/8/8/8/8/8/R6K w - - 0 1",
+    "highlights": [
+      {
+        "square": "a8",
+        "color": "red"
+      },
+      {
+        "square": "a7",
+        "color": "orange"
+      },
+      {
+        "square": "b7",
+        "color": "orange"
+      },
+      {
+        "square": "a1",
+        "color": "green"
+      }
+    ],
+    "arrows": [
+      {
+        "from": "a1",
+        "to": "a7"
+      },
+      {
+        "from": "a7",
+        "to": "a8"
+      }
+    ],
+    "caption": "Ra7+ Kb8 Rxb7+ the king runs out of squares",
+    "whatItIs": "A rook checks, the king shuffles between two squares, and the rook collects as it goes.",
+    "whyItWins": "The king has only two squares to shuffle between, so the rook can keep checking and taking.",
+    "doThis": "When a king has no good squares, repeat the check and collect something each time.",
+    "solution": [
+      "Ra7+",
+      "Rxb7+"
+    ],
+    "opponentReplies": [
+      "Kb8"
+    ]
+  },
+  {
+    "id": 21,
+    "slug": "back-rank-mate",
+    "category": "Mating Patterns",
+    "title": "Back Rank Mate",
+    "tags": [
+      "backRankMate",
+      "rook",
+      "mateIn1"
+    ],
+    "fen": "6k1/5ppp/8/8/8/8/8/R5K1 w - - 0 1",
+    "highlights": [
+      {
+        "square": "g8",
+        "color": "red"
+      },
+      {
+        "square": "a8",
+        "color": "orange"
+      },
+      {
+        "square": "a1",
+        "color": "green"
+      },
+      {
+        "square": "f7",
+        "color": "orange"
+      },
+      {
+        "square": "g7",
+        "color": "orange"
+      },
+      {
+        "square": "h7",
+        "color": "orange"
+      }
+    ],
+    "arrows": [
+      {
+        "from": "a1",
+        "to": "a8"
+      },
+      {
+        "from": "a8",
+        "to": "g8"
+      }
+    ],
+    "caption": "Ra8# the king is boxed in by his own pawns",
+    "whatItIs": "The rook checks along the back rank, where the king cannot escape because its own pawns block it.",
+    "whyItWins": "Every square next to the king is either attacked or filled by a black pawn. There is no answer.",
+    "doThis": "Look for a king that has not moved. Its own pawns are a wall you can check over.",
+    "solution": [
+      "Ra8#"
+    ],
+    "opponentReplies": []
+  },
+  {
+    "id": 22,
+    "slug": "smothered-mate",
+    "category": "Mating Patterns",
+    "title": "Smothered Mate",
+    "tags": [
+      "smotheredMate",
+      "knight",
+      "mateIn1"
+    ],
+    "fen": "6rk/6pp/8/6N1/8/8/8/6K1 w - - 0 1",
+    "highlights": [
+      {
+        "square": "h8",
+        "color": "red"
+      },
+      {
+        "square": "g8",
+        "color": "red"
+      },
+      {
+        "square": "g7",
+        "color": "red"
+      },
+      {
+        "square": "h7",
+        "color": "red"
+      },
+      {
+        "square": "f7",
+        "color": "orange"
+      },
+      {
+        "square": "g5",
+        "color": "green"
+      }
+    ],
+    "arrows": [
+      {
+        "from": "g5",
+        "to": "f7"
+      },
+      {
+        "from": "f7",
+        "to": "h8"
+      }
+    ],
+    "caption": "Nf7# the rook and pawns box the king in",
+    "whatItIs": "A knight gives mate, and the king cannot move because its own pieces fill every square.",
+    "whyItWins": "A knight check cannot be blocked, so the only escape would have to be a square, and there is none.",
+    "doThis": "A smothered mate needs a rook boxed in near a corner. Then look for a knight jump to f7 or h7.",
+    "solution": [
+      "Nf7#"
+    ],
+    "opponentReplies": []
+  },
+  {
+    "id": 23,
+    "slug": "scholars-mate",
+    "category": "Mating Patterns",
+    "title": "Scholar's Mate",
+    "tags": [
+      "scholarsMate",
+      "queen",
+      "mateIn2",
+      "opening"
+    ],
+    "fen": "rnbqkbnr/pppp1ppp/2n5/4p3/2B5/5Q2/PPPP1PPP/RNB1K2R w - - 0 1",
+    "highlights": [
+      {
+        "square": "e8",
+        "color": "red"
+      },
+      {
+        "square": "f7",
+        "color": "red"
+      },
+      {
+        "square": "f3",
+        "color": "orange"
+      },
+      {
+        "square": "c4",
+        "color": "green"
+      }
+    ],
+    "arrows": [
+      {
+        "from": "f3",
+        "to": "f7"
+      },
+      {
+        "from": "f7",
+        "to": "e8"
+      }
+    ],
+    "caption": "Qxf7# mate in two",
+    "whatItIs": "The classic four move finish. Play Bc4, then Qf3, and the queen is aimed at f7.",
+    "whyItWins": "The king cannot help defend f7 and cannot run away, because the bishop already covers e8.",
+    "doThis": "Memorise the pattern: Bc4, Qf3, and then Qxf7 wins. Look for it in every opening.",
+    "solution": [
+      "Qxf7#"
+    ],
+    "opponentReplies": []
+  },
+  {
+    "id": 24,
+    "slug": "fools-mate",
+    "category": "Mating Patterns",
+    "title": "Fool's Mate",
+    "tags": [
+      "foolsMate",
+      "queen",
+      "blunder",
+      "opening"
+    ],
+    "fen": "rnbqkbnr/pppp1ppp/8/4p3/6P1/5P2/PPPPP2P/RNBQKBNR b - - 0 1",
+    "highlights": [
+      {
+        "square": "e1",
+        "color": "red"
+      },
+      {
+        "square": "d8",
+        "color": "orange"
+      },
+      {
+        "square": "h4",
+        "color": "orange"
+      },
+      {
+        "square": "g4",
+        "color": "orange"
+      }
+    ],
+    "arrows": [
+      {
+        "from": "d8",
+        "to": "h4"
+      }
+    ],
+    "caption": "Qh4# the pawn moves made this possible",
+    "whatItIs": "Black mates in one move. White lost because his own pawns boxed his king in.",
+    "whyItWins": "The f-pawn moved away, so the queen has a free diagonal straight into the corner.",
+    "doThis": "Never move f3 or f4 early, and keep a piece near e1. This mate is White’s own fault.",
+    "solution": [
+      "Qh4#"
+    ],
+    "opponentReplies": []
+  },
+  {
+    "id": 25,
+    "slug": "anastasias-mate",
+    "category": "Mating Patterns",
+    "title": "Anastasia's Mate",
+    "tags": [
+      "anastasiasMate",
+      "knight",
+      "rook"
+    ],
+    "fen": "R7/7k/4NPpp/8/8/8/8/6K1 w - - 0 1",
+    "highlights": [
+      {
+        "square": "h7",
+        "color": "red"
+      },
+      {
+        "square": "g8",
+        "color": "orange"
+      },
+      {
+        "square": "g7",
+        "color": "orange"
+      },
+      {
+        "square": "e6",
+        "color": "green"
+      }
+    ],
+    "arrows": [
+      {
+        "from": "e6",
+        "to": "f8"
+      },
+      {
+        "from": "f8",
+        "to": "h7"
+      },
+      {
+        "from": "a8",
+        "to": "h8"
+      }
+    ],
+    "caption": "Nf8+ the king is walled in by its own pawns",
+    "whatItIs": "The king is already trapped on h7, and a knight jumps in to give the mate.",
+    "whyItWins": "The rook covers h8, the pawn covers g7, and the two black pawns block the rest.",
+    "doThis": "Spot a king boxed by its own men. Then look for a knight jump that nothing can stop.",
+    "solution": [
+      "Nf8+"
+    ],
+    "opponentReplies": []
+  },
+  {
+    "id": 26,
+    "slug": "arabian-mate",
+    "category": "Mating Patterns",
+    "title": "Arabian Mate",
+    "tags": [
+      "arabianMate",
+      "knight",
+      "rook"
+    ],
+    "fen": "7k/7p/3N4/8/8/8/8/1K4R1 w - - 0 1",
+    "highlights": [
+      {
+        "square": "h8",
+        "color": "red"
+      },
+      {
+        "square": "g8",
+        "color": "orange"
+      },
+      {
+        "square": "g7",
+        "color": "orange"
+      },
+      {
+        "square": "d6",
+        "color": "green"
+      }
+    ],
+    "arrows": [
+      {
+        "from": "d6",
+        "to": "f7"
+      },
+      {
+        "from": "f7",
+        "to": "h8"
+      },
+      {
+        "from": "g1",
+        "to": "g8"
+      }
+    ],
+    "caption": "Nf7# the rook walls off g8, the knight mates",
+    "whatItIs": "A rook and a knight work together to mate a king stuck on the edge of the board.",
+    "whyItWins": "The rook covers the escape squares along the edge, so only the knight can give the final check.",
+    "doThis": "Push the king to the rim, then switch between rook and knight to finish.",
+    "solution": [
+      "Nf7#"
+    ],
+    "opponentReplies": []
+  },
+  {
+    "id": 27,
+    "slug": "bodens-mate",
+    "category": "Mating Patterns",
+    "title": "Boden's Mate",
+    "tags": [
+      "bodensMate",
+      "bishops",
+      "queen"
+    ],
+    "fen": "4q2k/7p/8/3B2B1/8/8/8/6K1 w - - 0 1",
+    "highlights": [
+      {
+        "square": "h8",
+        "color": "red"
+      },
+      {
+        "square": "g8",
+        "color": "orange"
+      },
+      {
+        "square": "h7",
+        "color": "orange"
+      },
+      {
+        "square": "g5",
+        "color": "green"
+      }
+    ],
+    "arrows": [
+      {
+        "from": "g5",
+        "to": "f6"
+      },
+      {
+        "from": "f6",
+        "to": "h8"
+      },
+      {
+        "from": "d5",
+        "to": "g8"
+      }
+    ],
+    "caption": "Bf6# two bishops cross around the king",
+    "whatItIs": "Two bishops on crossing diagonals box the king in and deliver mate between them.",
+    "whyItWins": "One bishop checks and the other covers g8, so the king has no square left to run to.",
+    "doThis": "Bishops are strongest when their diagonals cross around the enemy king.",
+    "solution": [
+      "Bf6#"
+    ],
+    "opponentReplies": []
+  },
+  {
+    "id": 28,
+    "slug": "hook-mate",
+    "category": "Mating Patterns",
+    "title": "Hook Mate",
+    "tags": [
+      "hookMate",
+      "rook",
+      "pawn"
+    ],
+    "fen": "7k/5ppp/8/8/8/8/8/R5K1 w - - 0 1",
+    "highlights": [
+      {
+        "square": "h8",
+        "color": "red"
+      },
+      {
+        "square": "g8",
+        "color": "red"
+      },
+      {
+        "square": "a7",
+        "color": "orange"
+      },
+      {
+        "square": "a1",
+        "color": "green"
+      }
+    ],
+    "arrows": [
+      {
+        "from": "a1",
+        "to": "a7"
+      },
+      {
+        "from": "a7",
+        "to": "g7"
+      }
+    ],
+    "caption": "Ra7! Kg8 Ra8# the rook and the pawns hook the king",
+    "whatItIs": "The rook comes in beside a pawn and the two of them hook the king against the wall.",
+    "whyItWins": "The pawn covers g6, so the king cannot step down the g-file, and the rook covers the rank.",
+    "doThis": "Rook plus pawn is often enough. Drive the king to the wall and use the pawn to seal it.",
+    "solution": [
+      "Ra7",
+      "Ra8#"
+    ],
+    "opponentReplies": [
+      "Kg8"
+    ]
+  },
+  {
+    "id": 29,
+    "slug": "epaulette-mate",
+    "category": "Mating Patterns",
+    "title": "Epaulette Mate",
+    "tags": [
+      "epauletteMate",
+      "queen"
+    ],
+    "fen": "3rkr2/8/3P4/8/7Q/8/8/6K1 w - - 0 1",
+    "highlights": [
+      {
+        "square": "e8",
+        "color": "red"
+      },
+      {
+        "square": "d8",
+        "color": "red"
+      },
+      {
+        "square": "f8",
+        "color": "red"
+      },
+      {
+        "square": "e7",
+        "color": "orange"
+      },
+      {
+        "square": "h4",
+        "color": "green"
+      }
+    ],
+    "arrows": [
+      {
+        "from": "h4",
+        "to": "e7"
+      },
+      {
+        "from": "e7",
+        "to": "e8"
+      }
+    ],
+    "caption": "Qe7# mate between the guards",
+    "whatItIs": "The queen mates while the king’s own two rooks sit beside him like epaulettes.",
+    "whyItWins": "The rooks on d8 and f8 are the king’s own walls, so it cannot step out of the way.",
+    "doThis": "When a king is guarded, check it from straight in front. Its own guards become the walls.",
+    "solution": [
+      "Qe7#"
+    ],
+    "opponentReplies": []
+  },
+  {
+    "id": 30,
+    "slug": "dovetail-mate",
+    "category": "Mating Patterns",
+    "title": "Dovetail Mate",
+    "tags": [
+      "dovetailMate",
+      "queen"
+    ],
+    "fen": "6k1/5ppp/4N3/8/8/8/8/3Q2K1 w - - 0 1",
+    "highlights": [
+      {
+        "square": "h8",
+        "color": "red"
+      },
+      {
+        "square": "g7",
+        "color": "orange"
+      },
+      {
+        "square": "g8",
+        "color": "orange"
+      },
+      {
+        "square": "e6",
+        "color": "green"
+      }
+    ],
+    "arrows": [
+      {
+        "from": "d1",
+        "to": "d8"
+      },
+      {
+        "from": "d8",
+        "to": "g7"
+      }
+    ],
+    "caption": "Qd8+ Kh8 Qxg7# the king is caught in a V",
+    "whatItIs": "The queen mates in the middle of the board, and the king’s escapes fail in a V shape.",
+    "whyItWins": "The queen takes g7 and the knight protects it, while the king’s own pawns close the other squares.",
+    "doThis": "A queen in the centre is worth more than on the edge. Check where the king can go and cover it.",
+    "solution": [
+      "Qd8#"
+    ],
+    "opponentReplies": []
+  },
+  {
+    "id": 31,
+    "slug": "greek-gift",
+    "category": "Mating Patterns",
+    "title": "Greek Gift",
+    "tags": [
+      "greekGift",
+      "queen",
+      "sacrifice"
+    ],
+    "fen": "5rk1/5ppp/8/8/8/5N1Q/8/6K1 w - - 0 1",
+    "highlights": [
+      {
+        "square": "g8",
+        "color": "red"
+      },
+      {
+        "square": "h7",
+        "color": "red"
+      },
+      {
+        "square": "h3",
+        "color": "orange"
+      },
+      {
+        "square": "f3",
+        "color": "green"
+      }
+    ],
+    "arrows": [
+      {
+        "from": "h3",
+        "to": "h7"
+      },
+      {
+        "from": "f3",
+        "to": "g5"
+      }
+    ],
+    "caption": "Qxh7+ Kxh7 the knight lands with check",
+    "whatItIs": "You hand over the queen on h7, on purpose, purely to drag the king out of the corner.",
+    "whyItWins": "The king must take, because that is the only square left. Then it is loose in the open.",
+    "doThis": "Sacrifice on h7 when the king has no good square. It buys the whole kingside for one queen.",
+    "solution": [
+      "Qxh7+",
+      "Ng5+"
+    ],
+    "opponentReplies": [
+      "Kxh7"
+    ]
+  },
+  {
+    "id": 32,
+    "slug": "legals-mate",
+    "category": "Mating Patterns",
+    "title": "Legal's Mate",
+    "tags": [
+      "legalsMate",
+      "rook",
+      "bishop",
+      "opening"
+    ],
+    "fen": "3qkr2/3p4/3p2P1/8/2B5/2N5/8/R5KR w - - 0 1",
+    "highlights": [
+      {
+        "square": "e7",
+        "color": "red"
+      },
+      {
+        "square": "f7",
+        "color": "red"
+      },
+      {
+        "square": "d5",
+        "color": "orange"
+      },
+      {
+        "square": "c3",
+        "color": "green"
+      }
+    ],
+    "arrows": [
+      {
+        "from": "c4",
+        "to": "f7"
+      },
+      {
+        "from": "c3",
+        "to": "d5"
+      }
+    ],
+    "caption": "Bxf7+ Ke7 Nd5# the knight seals it",
+    "whatItIs": "A bishop check drives the king out, and a knight jumps in to mate on the new square.",
+    "whyItWins": "The king has no safe square left and nothing can take the knight on d5.",
+    "doThis": "A bishop check can push a king out of the way, and then a knight jump usually finishes it.",
+    "solution": [
+      "Bf7+",
+      "Nd5#"
+    ],
+    "opponentReplies": [
+      "Ke7"
+    ]
+  },
+  {
+    "id": 33,
+    "slug": "opera-mate",
+    "category": "Mating Patterns",
+    "title": "Opera Mate",
+    "tags": [
+      "operaMate",
+      "rook",
+      "bishop"
+    ],
+    "fen": "3rkr2/1pP1pp2/2b5/3B4/8/5N2/5PPP/2KR4 w - - 0 1",
+    "highlights": [
+      {
+        "square": "e8",
+        "color": "red"
+      },
+      {
+        "square": "d8",
+        "color": "red"
+      },
+      {
+        "square": "d5",
+        "color": "orange"
+      },
+      {
+        "square": "f3",
+        "color": "green"
+      }
+    ],
+    "arrows": [
+      {
+        "from": "d5",
+        "to": "c6"
+      },
+      {
+        "from": "d1",
+        "to": "d8"
+      }
+    ],
+    "caption": "Bxc6 bxc6 Rxd8# the rook finishes it",
+    "whatItIs": "A bishop goes deep to clear the path, then a rook delivers mate along the back rank.",
+    "whyItWins": "Black must recapture with the c-pawn, which opens the d-file for the rook to come home.",
+    "doThis": "Sometimes a piece is best used to remove a blocker so a long-range piece can do the mating.",
+    "solution": [
+      "Bxc6+",
+      "Rxd8#"
+    ],
+    "opponentReplies": [
+      "bxc6"
+    ]
+  },
+  {
+    "id": 34,
+    "slug": "pillsburys-mate",
+    "category": "Mating Patterns",
+    "title": "Pillsbury's Mate",
+    "tags": [
+      "pillsburysMate",
+      "queen",
+      "bishop"
+    ],
+    "fen": "4k3/1p1ppppp/8/4B3/8/8/8/RQ4KR w - - 0 1",
+    "highlights": [
+      {
+        "square": "e8",
+        "color": "red"
+      },
+      {
+        "square": "b8",
+        "color": "orange"
+      },
+      {
+        "square": "d8",
+        "color": "orange"
+      },
+      {
+        "square": "f8",
+        "color": "orange"
+      },
+      {
+        "square": "e5",
+        "color": "green"
+      }
+    ],
+    "arrows": [
+      {
+        "from": "b1",
+        "to": "b7"
+      },
+      {
+        "from": "b7",
+        "to": "b8"
+      }
+    ],
+    "caption": "Qxb7! Qb8# the queen walks in",
+    "whatItIs": "The queen goes deep, takes on b7, and mates on b8, protected by the bishop on e5.",
+    "whyItWins": "The bishop already covers b8, so the queen can sit there and give mate safely.",
+    "doThis": "Send the queen into the corner. If your own bishop guards that square, the mate is free.",
+    "solution": [
+      "Qxb7",
+      "Qb8#"
+    ],
+    "opponentReplies": [
+      "Kd8"
+    ]
+  },
+  {
+    "id": 35,
+    "slug": "ladder-mate",
+    "category": "Mating Patterns",
+    "title": "Ladder Mate",
+    "tags": [
+      "ladderMate",
+      "rook"
+    ],
+    "fen": "8/6pk/6pp/8/8/8/8/R6K w - - 0 1",
+    "highlights": [
+      {
+        "square": "h7",
+        "color": "red"
+      },
+      {
+        "square": "g8",
+        "color": "red"
+      },
+      {
+        "square": "a7",
+        "color": "orange"
+      },
+      {
+        "square": "a1",
+        "color": "green"
+      }
+    ],
+    "arrows": [
+      {
+        "from": "a1",
+        "to": "a7"
+      },
+      {
+        "from": "a7",
+        "to": "g7"
+      }
+    ],
+    "caption": "Ra7+ Kg8 Ra8+ the king walks into the corner",
+    "whatItIs": "A rook pushes the king along the board one square at a time, until there is nowhere left to go.",
+    "whyItWins": "Each check takes one square away. The king is herded along the edge into a final mate.",
+    "doThis": "When the king has no good squares, keep checking with the rook and shrink his board.",
+    "solution": [
+      "Ra7",
+      "Ra8+"
+    ],
+    "opponentReplies": [
+      "Kg8"
+    ]
+  },
+  {
+    "id": 36,
+    "slug": "underpromotion",
+    "category": "Endgame Tactics",
+    "title": "Underpromotion",
+    "tags": [
+      "underpromotion",
+      "pawn",
+      "knight"
+    ],
+    "fen": "8/pP6/k1K5/p7/8/8/8/8 w - - 0 1",
+    "highlights": [
+      {
+        "square": "a6",
+        "color": "red"
+      },
+      {
+        "square": "b8",
+        "color": "orange"
+      },
+      {
+        "square": "b7",
+        "color": "green"
+      }
+    ],
+    "arrows": [
+      {
+        "from": "b7",
+        "to": "b8"
+      },
+      {
+        "from": "b8",
+        "to": "a6"
+      }
+    ],
+    "caption": "b8=N# the knight checks where queens cannot",
+    "whatItIs": "A pawn reaches the last rank but becomes a knight instead of the usual queen.",
+    "whyItWins": "The knight on b8 checks a6; the white king and black pawns leave it no escape. A queen on b8 would not check.",
+    "doThis": "Promote to a knight when the queen would be captured or would not give mate straight away.",
+    "solution": [
+      "b8=N#"
+    ],
+    "opponentReplies": []
+  },
+  {
+    "id": 37,
+    "slug": "stalemate-trick",
+    "category": "Endgame Tactics",
+    "title": "Stalemate Trick",
+    "tags": [
+      "stalemate",
+      "stalemateTrick",
+      "king"
+    ],
+    "fen": "7k/8/8/6Q1/8/8/8/6K1 w - - 0 1",
+    "highlights": [
+      {
+        "square": "h8",
+        "color": "red"
+      },
+      {
+        "square": "g8",
+        "color": "orange"
+      },
+      {
+        "square": "h7",
+        "color": "orange"
+      },
+      {
+        "square": "g7",
+        "color": "orange"
+      },
+      {
+        "square": "g5",
+        "color": "green"
+      }
+    ],
+    "arrows": [
+      {
+        "from": "g5",
+        "to": "g6"
+      }
+    ],
+    "caption": "Qg6! no legal move, but it is not check",
+    "whatItIs": "The queen covers all three squares around the king without ever giving check.",
+    "whyItWins": "That is stalemate, and the game ends in a draw. Use it when you are losing to force one.",
+    "doThis": "Check every escape square. If none is left but you are not giving check, that is stalemate.",
+    "solution": [
+      "Qg6"
+    ],
+    "opponentReplies": []
+  },
+  {
+    "id": 38,
+    "slug": "zugzwang",
+    "category": "Endgame Tactics",
+    "title": "Zugzwang",
+    "tags": [
+      "zugzwang",
+      "king",
+      "pawn"
+    ],
+    "fen": "8/8/8/7k/7P/6K1/8/8 w - - 0 1",
+    "highlights": [
+      {
+        "square": "h5",
+        "color": "red"
+      },
+      {
+        "square": "h4",
+        "color": "red"
+      },
+      {
+        "square": "g3",
+        "color": "green"
+      }
+    ],
+    "arrows": [
+      {
+        "from": "g3",
+        "to": "f3"
+      }
+    ],
+    "caption": "Kf3! being forced to move is the disadvantage",
+    "whatItIs": "White has only a king left, and every move he makes loses ground.",
+    "whyItWins": "Every king move lets the black king nearer the pawn. White must step aside and hold on.",
+    "doThis": "With pawns only, ask who has to move next. Whoever does is often the one who gets squeezed.",
+    "solution": [
+      "Kf3"
+    ],
+    "opponentReplies": [
+      "Kg6"
+    ]
+  },
+  {
+    "id": 39,
+    "slug": "opposition",
+    "category": "Endgame Tactics",
+    "title": "Opposition",
+    "tags": [
+      "opposition",
+      "king",
+      "pawn"
+    ],
+    "fen": "8/4k3/8/4K3/8/8/4P3/8 w - - 0 1",
+    "highlights": [
+      {
+        "square": "e6",
+        "color": "red"
+      },
+      {
+        "square": "e7",
+        "color": "orange"
+      },
+      {
+        "square": "e2",
+        "color": "green"
+      }
+    ],
+    "arrows": [
+      {
+        "from": "e5",
+        "to": "d5"
+      },
+      {
+        "from": "d5",
+        "to": "d6"
+      }
+    ],
+    "caption": "Kd5! taking the opposition",
+    "whatItIs": "Two kings face each other with one square between them. Whoever holds that square wins.",
+    "whyItWins": "By stepping sideways, White keeps his king in front of the pawn and walks it up the board.",
+    "doThis": "With one king and one pawn, get your king in front of the pawn, not level with it.",
+    "solution": [
+      "Kd5",
+      "e4"
+    ],
+    "opponentReplies": [
+      "Kd7"
+    ]
+  },
+  {
+    "id": 40,
+    "slug": "perpetual-check",
+    "category": "Endgame Tactics",
+    "title": "Perpetual Check",
+    "tags": [
+      "perpetualCheck",
+      "checking",
+      "king"
+    ],
+    "fen": "7k/5pp1/8/8/8/8/8/R6K w - - 0 1",
+    "highlights": [
+      {
+        "square": "h8",
+        "color": "red"
+      },
+      {
+        "square": "a8",
+        "color": "orange"
+      },
+      {
+        "square": "a1",
+        "color": "green"
+      }
+    ],
+    "arrows": [
+      {
+        "from": "a1",
+        "to": "a8"
+      },
+      {
+        "from": "a8",
+        "to": "h8"
+      }
+    ],
+    "caption": "Ra8+ Kg7 Ra7+ the checks never stop",
+    "whatItIs": "Instead of trying to win, you keep giving check so the game can never be lost.",
+    "whyItWins": "A player who is being checked cannot make threats, so the position is always a draw.",
+    "doThis": "If you are short of material, check your way to a draw. Safety first, points second.",
+    "solution": [
+      "Ra8+",
+      "Ra7"
+    ],
+    "opponentReplies": [
+      "Kh7",
+      "Kg8"
+    ]
+  },
+  {
+    "id": 41,
+    "slug": "lucena-position",
+    "category": "Endgame Tactics",
+    "title": "Lucena Position",
+    "tags": [
+      "lucenaPosition",
+      "rook",
+      "building"
+    ],
+    "fen": "1K6/P1P5/8/1k6/8/r7/8/3R4 w - - 0 1",
+    "highlights": [
+      {
+        "square": "b5",
+        "color": "red"
+      },
+      {
+        "square": "d5",
+        "color": "orange"
+      },
+      {
+        "square": "a7",
+        "color": "green"
+      },
+      {
+        "square": "c7",
+        "color": "green"
+      }
+    ],
+    "arrows": [
+      {
+        "from": "d1",
+        "to": "d5"
+      },
+      {
+        "from": "d5",
+        "to": "d6"
+      }
+    ],
+    "caption": "Rd5+ the rook must build the bridge",
+    "whatItIs": "The classic rook and pawn endgame. The rook has to get in front of its pawn to make a bridge.",
+    "whyItWins": "The white king is cut off and cannot help, so the rook alone must build the winning position.",
+    "doThis": "Get the rook in front of the pawn first. Without that bridge the pawn is worth nothing.",
+    "solution": [
+      "Rd5+",
+      "Rd6"
+    ],
+    "opponentReplies": [
+      "Kc4"
+    ]
+  },
+  {
+    "id": 42,
+    "slug": "philidor-position",
+    "category": "Endgame Tactics",
+    "title": "Philidor Position",
+    "tags": [
+      "philidorPosition",
+      "rook",
+      "defence"
+    ],
+    "fen": "8/8/8/8/4pk2/R7/7r/4K3 w - - 0 1",
+    "highlights": [
+      {
+        "square": "f4",
+        "color": "red"
+      },
+      {
+        "square": "e4",
+        "color": "red"
+      },
+      {
+        "square": "b3",
+        "color": "orange"
+      },
+      {
+        "square": "a3",
+        "color": "green"
+      }
+    ],
+    "arrows": [
+      {
+        "from": "a3",
+        "to": "b3"
+      },
+      {
+        "from": "b3",
+        "to": "c3"
+      }
+    ],
+    "caption": "Rb3! hold the third rank",
+    "whatItIs": "The weaker rook stays on the third rank and fences the stronger king out.",
+    "whyItWins": "The king cannot use e3, and the rook stays ready to meet the pawn or check from behind.",
+    "doThis": "Keep your rook on the third rank until the pawn advances, then check the king from behind.",
+    "solution": [
+      "Rb3"
+    ],
+    "opponentReplies": []
+  },
+  {
+    "id": 43,
+    "slug": "quiet-move",
+    "category": "Other",
+    "title": "Quiet Move",
+    "tags": [
+      "quietMove",
+      "threat",
+      "improvement"
+    ],
+    "fen": "7k/8/8/3q4/Q7/8/8/6K1 w - - 0 1",
+    "highlights": [
+      {
+        "square": "d7",
+        "color": "red"
+      },
+      {
+        "square": "d5",
+        "color": "orange"
+      },
+      {
+        "square": "a4",
+        "color": "green"
+      }
+    ],
+    "arrows": [
+      {
+        "from": "a4",
+        "to": "d7"
+      },
+      {
+        "from": "d7",
+        "to": "d5"
+      }
+    ],
+    "caption": "Qd7 no check, no capture, better square",
+    "whatItIs": "A move with no check and no capture, played because it improves where your piece stands.",
+    "whyItWins": "From d7 the queen guards the seventh rank, so Black cannot safely take anything there.",
+    "doThis": "Ask which square your piece would most like to stand on, and play a move that gets it there.",
+    "solution": [
+      "Qd7"
+    ],
+    "opponentReplies": []
+  },
+  {
+    "id": 44,
+    "slug": "pawn-breakthrough",
+    "category": "Other",
+    "title": "Pawn Breakthrough",
+    "tags": [
+      "pawnBreakthrough",
+      "pawn",
+      "passedPawn"
+    ],
+    "fen": "8/1pp5/2P5/PP6/8/8/k7/2K5 w - - 0 1",
+    "highlights": [
+      {
+        "square": "b6",
+        "color": "red"
+      },
+      {
+        "square": "c7",
+        "color": "red"
+      },
+      {
+        "square": "b5",
+        "color": "orange"
+      },
+      {
+        "square": "a5",
+        "color": "green"
+      },
+      {
+        "square": "c6",
+        "color": "green"
+      }
+    ],
+    "arrows": [
+      {
+        "from": "b5",
+        "to": "b6"
+      },
+      {
+        "from": "c7",
+        "to": "b6"
+      },
+      {
+        "from": "c6",
+        "to": "c7"
+      }
+    ],
+    "caption": "b6! cxb6 then c7 breaks through",
+    "whatItIs": "Two pawns side by side push forward. Black cannot stop both, and one gets through.",
+    "whyItWins": "If Black takes the wrong pawn, the other one walks straight to the last rank and queens.",
+    "doThis": "With pawns next to each other, push one to force the capture, then race the other.",
+    "solution": [
+      "b6",
+      "c7"
+    ],
+    "opponentReplies": [
+      "cxb6"
+    ]
+  },
+  {
+    "id": 45,
+    "slug": "battery",
+    "category": "Other",
+    "title": "Battery",
+    "tags": [
+      "battery",
+      "queen",
+      "bishop"
+    ],
+    "fen": "2b1k3/8/8/8/8/8/6B1/3Q2K1 w - - 0 1",
+    "highlights": [
+      {
+        "square": "e8",
+        "color": "red"
+      },
+      {
+        "square": "c8",
+        "color": "red"
+      },
+      {
+        "square": "d7",
+        "color": "orange"
+      },
+      {
+        "square": "d1",
+        "color": "green"
+      }
+    ],
+    "arrows": [
+      {
+        "from": "d1",
+        "to": "d2"
+      },
+      {
+        "from": "d2",
+        "to": "d7"
+      },
+      {
+        "from": "g2",
+        "to": "d5"
+      }
+    ],
+    "caption": "Qd2 queen and bishop on one line",
+    "whatItIs": "Two heavy pieces line up on the same diagonal, so they shoot through each other.",
+    "whyItWins": "The bishop covers e8, so when the queen arrives on d7 the king cannot step out of the way.",
+    "doThis": "Put your queen and bishop on the same line early. Together they are stronger than either alone.",
+    "solution": [
+      "Qd2"
+    ],
+    "opponentReplies": []
+  }
+]

@@ -1,0 +1,25 @@
+const path = require('path');
+const BACKEND = path.join(__dirname, '..', '..', 'backend');
+require(path.join(BACKEND, 'node_modules', 'dotenv')).config({ path: path.join(BACKEND, '.env') });
+const { Client } = require(path.join(BACKEND, 'node_modules', 'pg'));
+const c = new Client({ connectionString: process.env.DATABASE_URL });
+c.connect().then(async () => {
+  const r = await c.query('SELECT data FROM imported_game_analysis WHERE game_id = 94683 ORDER BY created_at DESC LIMIT 1');
+  const d = r.rows[0].data;
+  console.log('analysisVersion:', d.analysisVersion);
+  console.log('schemaVersion:', d.schemaVersion);
+  console.log('gameSource:', d.gameSource, '| gameId:', d.gameId);
+  console.log('initialFen:', String(d.initialFen).slice(0, 40));
+  console.log('moveCount:', d.moveCount);
+  const an = d.analysis;
+  console.log('analysis keys:', Object.keys(an).join(','));
+  console.log('analysis.moves isArray:', Array.isArray(an.moves), '| len:', an.moves && an.moves.length);
+  console.log('analysis.white:', JSON.stringify(an.white));
+  console.log('analysis.black:', JSON.stringify(an.black));
+  const row0 = an.moves && an.moves[0];
+  console.log('row0 keys:', row0 ? Object.keys(row0).join(',') : null);
+  console.log('row0:', JSON.stringify(row0));
+  const sig = (an.moves || []).find((m) => m.verdict === 'brilliant' || m.sigma);
+  console.log('brilliant/sigma row:', JSON.stringify(sig));
+  await c.end();
+}).catch((e) => { console.error('ERR', e.message); process.exit(1); });

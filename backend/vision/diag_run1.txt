@@ -1,0 +1,58 @@
+page page.png  1500x2283  13 board(s) located
+
+=== geometry / validation of every located board ===
+board                    bbox  side                   grid                     validate
+board_001        (68,205,377)   377            ox9 oy7 s46                     ACCEPTED
+board_002       (546,204,377)   377           ox12 oy8 s45                     ACCEPTED
+board_003      (1023,203,377)   377            ox9 oy7 s45                     ACCEPTED
+board_004        (71,699,377)   377           ox9 oy12 s45                     ACCEPTED
+board_005       (549,698,377)   377           ox9 oy11 s45                     ACCEPTED
+board_006      (1026,696,377)   377            ox9 oy9 s45                     ACCEPTED
+board_007       (27,1194,377)   377          ox12 oy11 s45                     ACCEPTED
+board_008      (552,1193,377)   377            ox9 oy7 s46                     ACCEPTED
+board_009     (1029,1191,377)   377           ox11 oy9 s45                     ACCEPTED
+Traceback (most recent call last):
+board_010       (77,1689,377)   377           ox9 oy12 s45                     ACCEPTED
+board_011      (555,1688,377)   377            ox9 oy9 s45                     ACCEPTED
+board_012     (1032,1687,377)   377            ox9 oy7 s45                     ACCEPTED
+board_013       (77,1879,377)   377            ox9 oy2 s46                     ACCEPTED
+
+=== per-square diagnostic (misclassified only) ===
+board       sq truth   fgpx     ink   mean    std   contr   vec  predicted
+board_001   f2    wP      0     0.0  212.0    7.1  0.0939 False      empty
+board_003   h7    wQ      0     0.0  232.8   17.8  0.0458 False      empty
+board_003   c3    wB      0     0.0  202.7   11.8  0.1691 False      empty
+board_003   h3    wP      0     0.0  235.7   16.8  0.0339 False      empty
+board_004   d8    wR      0     0.0  218.2   14.7  0.1059 False      empty
+board_004   e7    wP      0     0.0  216.4   13.2  0.1202 False      empty
+board_005   g7    bP      0     0.0  212.5   16.6  0.1362 False      empty
+board_006   a2    wP      0     0.0  226.3   31.5  0.0764 False      empty
+board_007   f6    bP      0     0.0  238.8   12.9  0.0254 False      empty
+board_008   a8    bN      0     0.0  231.2   20.2  0.0562 False      empty
+board_008   f8    bK      0     0.0  204.4   18.4  0.1519 False      empty
+board_008   g8    bB      0     0.0  233.4   19.1  0.0436 False      empty
+board_008   h8    bP      0     0.0  204.8   18.1  0.1597 False      empty
+board_008   h7    bP     27  0.0128  233.5   25.1  0.7234 False      empty
+board_008   e3    wQ      0     0.0  201.5   13.1  0.1674 False      empty
+board_009   a3    bR    349  0.1723  175.5   64.6  0.8044  True         wR
+board_009   h3    wB     49  0.0242  226.5   36.4   0.681  True         wP
+board_009   g2    wP      6   0.003  229.8   29.1  0.6865 False      empty
+board_011   h7 empty    430  0.2123  192.2   79.3  0.8217  True         bP
+board_011   e6    bB      0     0.0  239.5   10.9  0.0264 False      empty
+board_011   f6    bP    437  0.2158  175.3   63.0   0.754  True         bB
+board_012   f6    wQ    446  0.2202  159.3   62.8  0.7944  True         bQ
+board_012   c2    wB    107  0.0528  217.4   44.4  0.6823  True         wP
+board_012   f2    wK      0     0.0  203.1   15.9  0.1675 False      empty
+board_012   g2    wP    114  0.0563  210.7   52.5  0.7497  True         wK
+board_012   h2 empty     47  0.0232  203.3   35.6  0.6931  True         wP
+board_013  -- labelled INVALID (clipped: only 4 ranks visible, bottom of board cut off)
+
+26 misclassified square(s); artifacts in regress_debug/<board>/
+  true white piece read as EMPTY : 10
+  true black piece read as EMPTY : 8
+  true EMPTY read as a piece     : 2
+  no vector at all (preprocessing erased the glyph): 18
+  File "C:\Users\MANIVEL M\Downloads\Files\chess-academy\backend\vision\diag_squares.py", line 211, in <module>
+    cv2.imwrite(os.path.join(outdir, f'{base}.png'), big)
+                             ^^^^^^
+NameError: name 'outdir' is not defined

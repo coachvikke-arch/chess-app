@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en" class="light">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content" />
+    <meta name="theme-color" content="#EAF3F5" />
+    <meta name="application-name" content="MATE ZONE CHESS ACADEMY" />
+    <meta name="apple-mobile-web-app-title" content="MATE ZONE" />
+    <title>MATE ZONE CHESS ACADEMY</title>
+    <!-- Paint the app background BEFORE the stylesheet loads so the browser
+         never shows a white frame between HTML parse and CSS application
+         (and again while React hydrates #root). Matches --ink-950, the
+         light-theme page background in index.css. -->
+    <style>
+      html, body, #root { background-color: #EAF3F5; }
+    </style>
+    <meta
+      name="description"
+      content="MATE ZONE CHESS ACADEMY is an online chess academy: structured opening courses, live coaching, puzzles, game analysis, tournaments and play against bots."
+    />
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>♞</text></svg>" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="MATE ZONE CHESS ACADEMY" />
+    <meta property="og:title" content="MATE ZONE CHESS ACADEMY" />
+    <meta
+      property="og:description"
+      content="Structured opening courses, live coaching, puzzles, game analysis, tournaments and play against bots — all in one place."
+    />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="MATE ZONE CHESS ACADEMY" />
+    <meta
+      name="twitter:description"
+      content="Structured opening courses, live coaching, puzzles, game analysis, tournaments and play against bots — all in one place."
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Quicksand:wght@500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <script>
+      (function () {
+        try {
+          var t = localStorage.getItem('knightpath-theme');
+          if (t !== 'light' && t !== 'dark') {
+            t = 'light';
+          }
+          document.documentElement.setAttribute('data-theme', t);
+        } catch (e) {
+          document.documentElement.setAttribute('data-theme', 'light');
+        }
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>

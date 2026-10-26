@@ -1,0 +1,65 @@
+fen: 6k1/6p1/5q2/1p5R/1P6/P5P1/2P3KP/8 w - - 0 1
+a8: empty 0.00
+b8: empty 0.00
+c8: empty 0.00
+d8: empty 0.00
+e8: empty 0.00
+f8: empty 0.00
+h8: empty 0.00
+a7: empty 0.00
+b7: empty 0.00
+c7: empty 0.00
+d7: empty 0.00
+e7: empty 0.00
+f7: empty 0.00
+h7: empty 0.00
+a6: empty 0.00
+b6: empty 0.00
+c6: empty 0.00
+d6: empty 0.00
+e6: empty 0.00
+g6: empty 0.00
+h6: empty 0.00
+a5: empty 0.00
+c5: empty 0.00
+d5: empty 0.00
+e5: empty 0.00
+f5: empty 0.00
+g5: empty 0.00
+a4: empty 0.00
+c4: empty 0.00
+d4: empty 0.00
+e4: empty 0.00
+f4: empty 0.00
+g4: empty 0.00
+h4: empty 0.00
+b3: empty 0.00
+c3: empty 0.00
+d3: empty 0.00
+e3: empty 0.00
+f3: empty 0.00
+h3: empty 0.00
+a2: empty 0.00
+b2: empty 0.00
+d2: empty 0.00
+e2: empty 0.00
+f2: empty 0.00  TRUTH=wK
+a1: empty 0.00
+b1: empty 0.00
+c1: empty 0.00
+d1: empty 0.00
+e1: empty 0.00
+f1: empty 0.00
+g1: empty 0.00
+h1: empty 0.00
+g8: bK 0.48  needsReview
+g7: bP 0.97
+f6: bQ 0.72  TRUTH=wQ
+b5: bP 0.94
+h5: wR 0.85
+b4: wP 0.88
+a3: wP 0.90
+g3: wP 0.92
+c2: wP 0.54  needsReview  TRUTH=wB
+g2: wK 0.84  TRUTH=wP
+h2: wP 0.88

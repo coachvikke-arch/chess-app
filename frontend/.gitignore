@@ -1,0 +1,6 @@
+.vercel
+.env*
+# Generated from node_modules by scripts/copy-stockfish.mjs during npm install.
+# The full net is 113 MB, over GitHub's 100 MB per-file limit.
+public/stockfish.wasm
+public/stockfish-lite.wasm
