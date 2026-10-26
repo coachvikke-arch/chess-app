@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useRef, useState, useId } from 'react';
 import { createPortal } from 'react-dom';
 import { Chess } from 'chess.js';
-import ChessBoard from './ChessBoard';
 import EvalBar from './EvalBar';
+import ResponsiveBoard from './ResponsiveBoard';
 import { useToast } from './Toast';
 import { useOverlayHistory } from '../hooks/useOverlayHistory';
+import useMediaQuery from '../hooks/useMediaQuery';
+import { formatEvalScore } from '../lib/evalDisplay';
 import { parsePgn, formatDate } from '../utils/pgnTools';
 import { describeGameEnd } from '../lib/chessReplay';
 import { reviewMetaFor } from '../utils/gameReview';
@@ -37,58 +39,6 @@ import Button from './Button';
  * the board starts; it is a MOVE COUNT (the position after that many moves),
  * which is what makes "the selected brilliant move is already on the board" true.
  */
-
-/* Fit the board square to the space the card actually has.
- *
- * The card is FULL SCREEN now, so the board is bounded by BOTH axes: the
- * column's width and the column's height (minus the frame around the board and
- * the nav row under it). The board is measured by the column, so it follows the
- * viewport on both a phone (height-bound) and a desktop without ever being cut
- * off — and the nav row with the copy and Analyze buttons always stays on
- * screen.
- *
- * The frame is the themed band around the squares: `remC` (20-46px, scaled
- * with the board) plus a 13px border/padding on each side — the same math
- * ChessBoard uses. It grows with the board, so the size is solved by a couple
- * of converging passes rather than a fixed guess. */
-const NAV_ALLOWANCE = 52;
-
-/* Room reserved to the LEFT of the board for the shared 36px eval bar plus its
- * gap. Subtracted from the column before the board is fitted, so the bar can
- * never push the board past the column or out of the modal on a phone. */
-const EVAL_VIEWER_SLOT = 46;
-
-/* The board is deliberately drawn LARGER than the space it fits into (the
- * request was "make the board 20% bigger"). A board that is only as big as the
- * free space leaves a wide empty margin on a desktop screen, where the card is
- * now full-screen; a bigger board fills it.
- *
- * Because the bigger board can be taller than the column, the column scrolls
- * (the board is never cropped — the whole board is always reachable) and the
- * nav row under it is pinned, so the move controls stay where they are. */
-const BOARD_SCALE = 1.2;
-
-const frameRemC = (bw) => Math.min(46, Math.max(20, Math.round(bw * 0.082)));
-const frameOf = (bw) => 2 * (frameRemC(bw) + 13) + 26;
-
-function fitBoardToColumn(col, row) {
-  let bw = Math.min(col, row > 0 ? row : Infinity, 900);
-  for (let i = 0; i < 5; i += 1) {
-    const frame = frameOf(bw);
-    const byWidth = col - frame;
-    const byHeight = row > 0 ? row - frame - NAV_ALLOWANCE : Infinity;
-    const next = Math.min(byWidth, byHeight, 900);
-    if (Math.abs(next - bw) < 2) { bw = next; break; }
-    bw = next;
-  }
-  const fitted = Math.max(180, bw);
-  /* 20% bigger, but never wider than the column: a board wider than its
-     column would be CROPPED, while a board taller than the column simply
-     scrolls (the column is a scroll box and the nav row is pinned). So the
-     width is a hard limit and the height is not. */
-  const byWidth = Math.max(180, col - frameOf(fitted));
-  return Math.round(Math.min(fitted * BOARD_SCALE, byWidth));
-}
 
 /** Copy the game as a real PGN — full tag pairs plus the custom-start FEN —
  *  so it pastes into Chess.com / Lichess / ChessBase with its identity intact.
@@ -253,9 +203,12 @@ export default function GameViewerCard({ game = null,   gameRef = null,   resolv
   const [error, setError] = useState(null);
   const revToken = useRef(0);
   const unmounted = useRef(false);
-  const boardColRef = useRef(null);
-  const [boardWidth, setBoardWidth] = useState(320);
+  const isMobileBoard = useMediaQuery('(max-width: 900px)');
   const { state: pgnCopied, copy: copyPgn } = useCopyPgn(gameData, parsed.moves, parsed.initFen);
+  /* The score sheet can be folded away on a phone so the board alone owns the
+     screen; the board's width never depends on this (it is measured from its
+     own column), so folding it never resizes the board. */
+  const [sheetOpen, setSheetOpen] = useState(true);
 
   useEffect(() => {
     // React StrictMode (dev) runs effects mount→cleanup→mount on the same
@@ -268,36 +221,6 @@ export default function GameViewerCard({ game = null,   gameRef = null,   resolv
   /* Warm the NNUE pool as soon as the viewer opens so the first "Analyze
      locally" click doesn't stall on the engine download/compile. */
   useEffect(() => { try { warmReviewEngine(); } catch { /* best effort */ } }, []);
-
-  /* Size the board to its actual column (frame-aware) so the modal never cuts
-     off the board on narrower screens. Re-runs when `loadState` settles: a card
-     opened from Brilliant Moves mounts in a loading state with NO board column,
-     so a mount-only measure reads the 340px fallback and the board stays small
-     until the next manual resize. A ResizeObserver on the column (not just
-     window resize) also absorbs late layout shifts — web fonts, the modal
-     scrollbar appearing, the side panel wrapping. */
-  useEffect(() => {
-    const measure = () => {
-      const box = boardColRef.current ? boardColRef.current.getBoundingClientRect() : null;
-      const col = box ? box.width : 340;
-      const row = box ? box.height : 0;
-      setBoardWidth((prev) => {
-        const next = fitBoardToColumn(Math.max(0, col - EVAL_VIEWER_SLOT), row);
-        return prev === next ? prev : next;
-      });
-    };
-    measure();
-    let ro = null;
-    if (typeof ResizeObserver !== 'undefined' && boardColRef.current) {
-      ro = new ResizeObserver(measure);
-      ro.observe(boardColRef.current);
-    }
-    window.addEventListener('resize', measure);
-    return () => {
-      ro?.disconnect();
-      window.removeEventListener('resize', measure);
-    };
-  }, [loadState]);
 
   function go(idx, animate = true, source = 'viewer-nav') {
     /* Loading a game/position is not a move: any effect from the previous
@@ -550,6 +473,26 @@ export default function GameViewerCard({ game = null,   gameRef = null,   resolv
     , document.body);
   }
 
+  /* Compact player rows that sit immediately above and below the board on a
+     phone, matching the board's orientation. They are hidden on desktop, where
+     the score sheet already names both players. */
+  const topSide = orientation === 'white' ? 'black' : 'white';
+  const bottomSide = orientation === 'white' ? 'white' : 'black';
+  const renderSeat = (side, pos) => {
+    const name = side === 'white' ? whiteLabel : blackLabel;
+    const accValue = accuracyForSide(side);
+    return (
+      <div className={`cp-seat cp-seat--${pos}`}>
+        <span className="cp-seat-dot" aria-hidden="true">{side === 'white' ? '⚪' : '⚫'}</span>
+        <span className="cp-seat-name" title={name}>{name}</span>
+        {accValue != null && <span className="cp-seat-acc">{accValue}%</span>}
+        {pos === 'top' && isMobileBoard && (
+          <span className="cp-seat-eval" title="Evaluation">{formatEvalScore(evalCp, evalMate)}</span>
+        )}
+      </div>
+    );
+  };
+
   return createPortal(
     <div className="cp-viewer-overlay" onClick={onClose}>
       <div className="cp-viewer" onClick={(e) => e.stopPropagation()}>
@@ -570,30 +513,30 @@ export default function GameViewerCard({ game = null,   gameRef = null,   resolv
         </div>
 
         <div className="cp-viewer-body">
-          <div ref={boardColRef} className="cp-viewer-board">
+          <div className="cp-viewer-board">
+            {renderSeat(topSide, 'top')}
             <div className="cp-viewer-board-row">
-              {/* The shared Game Review bar, immediately left of the board and
-                  exactly one square-area tall, so it shrinks with the board and
-                  flips with it. */}
-              <EvalBar
-                evaluation={evalCp}
-                mate={evalMate}
-                orientation={orientation}
-                /* Stretch to the board's REAL rendered height: the themed frame
-                   adds a band around the squares, so a square-width bar would
-                   stop short of the board it belongs to. */
-                height="auto"
-              />
-              {/* The board is wrapped in its own flex box so the row measures
-                  the themed frame exactly. ChessBoard's root is an inline-block,
-                  which would otherwise add a line-box descender under the board
-                  and leave the stretched bar ~7px longer than the board. */}
-              <div className="cp-viewer-board-slot">
-                <ChessBoard
+              <div className="cp-board-fit">
+                {/* The shared Game Review bar, immediately left of the board and
+                    exactly one square-area tall. On a phone it becomes a thin
+                    10px strip without its internal label — the score moves to
+                    the compact chip in the top seat row — so the board keeps the
+                    full screen width. */}
+                <EvalBar
+                  evaluation={evalCp}
+                  mate={evalMate}
+                  orientation={orientation}
+                  height="auto"
+                  width={isMobileBoard ? 10 : undefined}
+                  showLabel={!isMobileBoard}
+                />
+                <ResponsiveBoard
+                  className="cp-board-responsive"
+                  maxWidth={560}
+                  frameless={isMobileBoard}
                   game={board.current}
                   mode="analysis"
                   orientation={orientation}
-                  boardWidth={boardWidth}
                   interactive={false}
                   customArrows={lineArrows}
                   /* This card's board answers to a named host, so a move effect
@@ -610,6 +553,7 @@ export default function GameViewerCard({ game = null,   gameRef = null,   resolv
                 />
               </div>
             </div>
+            {renderSeat(bottomSide, 'bottom')}
 
             <div className="cp-nav">
               <button className="cp-nav-btn" disabled={moveIndex === 0} onClick={() => go(0)} title="Start">⏮</button>
@@ -642,6 +586,15 @@ export default function GameViewerCard({ game = null,   gameRef = null,   resolv
                 <span className="cp-score-badge">
                   {moveCount} {moveCount === 1 ? 'move' : 'moves'}
                 </span>
+                <button
+                  className="cp-nav-btn cp-sheet-toggle"
+                  aria-expanded={sheetOpen}
+                  aria-controls="cp-score-body"
+                  onClick={() => setSheetOpen((v) => !v)}
+                  title={sheetOpen ? 'Hide the score sheet' : 'Show the score sheet'}
+                >
+                  {sheetOpen ? '▾' : '▸'}
+                </button>
                 {/* Copy PGN — an icon button, NOT a text button. The head row
                      wraps (see .cp-score-head-side), so a labelled button made it
                      wrap onto a second line and knocked the badge and Analyze out
@@ -670,6 +623,8 @@ export default function GameViewerCard({ game = null,   gameRef = null,   resolv
               </div>
             </div>
 
+            {sheetOpen && (
+              <>
             {/* Result and why the game ended. */}
             <p className="cp-score-result">
               <b>{endInfo.result}</b>
@@ -692,7 +647,7 @@ export default function GameViewerCard({ game = null,   gameRef = null,   resolv
                 <span className="text-black/55">accuracy</span>
               </div>
             )}
-            <div className="cp-score" role="list" aria-label="Game moves" ref={scoreRef}>
+            <div className="cp-score" id="cp-score-body" role="list" aria-label="Game moves" ref={scoreRef}>
               {parsed.moves.length === 0 ? (
                 <p className="cp-mv-empty">No moves recorded for this game.</p>
               ) : (
@@ -737,6 +692,8 @@ export default function GameViewerCard({ game = null,   gameRef = null,   resolv
                 </>
               )}
             </div>
+              </>
+            )}
           </div>
         </div>
       </div>

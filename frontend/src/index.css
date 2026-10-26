@@ -4290,48 +4290,120 @@ body {
   gap: 0.6rem;
 }
 
-/* The board and the bar that belongs to it. The bar is positioned against the
-   BOARD, not against the column, so the board really is centred and the bar
-   keeps a gap of its own beside it. */
-.gr-board-slot {
-  position: relative;
+/* The board and its eval bar share one fitted row: the bar reserves a fixed
+   lane and ResponsiveBoard takes the rest (capped at 560px on desktop). */
+.gr-board-fit {
   display: flex;
-  align-items: flex-start;
+  align-items: stretch;
+  gap: 0.6rem;
+  width: 100%;
+  max-width: 606px; /* 560 board + 36 bar + 10 gap */
+  margin: 0 auto;
+  min-width: 0;
+}
+.gr-board-responsive { flex: 1 1 auto; min-width: 0; }
+/* Compact player rows: phone only — the score sheet names both players
+   everywhere. */
+.gr-seat { display: none; }
+.gr-moves-toggle {
+  width: 28px;
+  height: 28px;
+  min-width: 28px;
+  border-radius: 8px;
+  border: 1px solid rgba(25, 189, 242, 0.3);
+  background: rgba(255, 255, 255, 0.8);
+  color: #0369a1;
+  font-size: 0.9rem;
+  line-height: 1;
 }
 
-.gr-board-slot .gr-eval {
-  position: absolute;
-  right: calc(100% + 1rem);
-  top: 0;
+@media (max-width: 900px) {
+  /* Tabs scroll sideways instead of wrapping or widening the page. */
+  .gr-tabs {
+    max-width: 100%;
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    scrollbar-width: none;
+  }
+  .gr-tabs::-webkit-scrollbar { display: none; }
+  .gr-board-col { gap: 6px; }
+  .gr-board-glow { width: 100%; max-width: 100%; }
+  .gr-board-row { justify-content: stretch; }
+  .gr-board-fit { max-width: none; gap: 8px; }
+  .gr-seat {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: #171717;
+  }
+  .gr-seat-dot { flex: 0 0 auto; }
+  .gr-seat-name {
+    min-width: 0;
+    flex: 1 1 auto;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .gr-seat-acc {
+    flex: 0 0 auto;
+    font-size: 0.7rem;
+    color: #0369a1;
+    font-variant-numeric: tabular-nums;
+  }
+  .gr-seat-eval {
+    flex: 0 0 auto;
+    padding: 0.1rem 0.45rem;
+    border-radius: 999px;
+    border: 1px solid rgba(25, 189, 242, 0.3);
+    background: #fff;
+    font-size: 0.7rem;
+    font-variant-numeric: tabular-nums;
+  }
+  /* One row of ≥44px targets; it wraps cleanly instead of overflowing. */
+  .gr-nav { gap: 6px; }
+  .gr-nav-btn {
+    flex: 1 1 44px;
+    min-width: 44px;
+    height: auto;
+    min-height: 44px;
+  }
+  .gr-nav-count { flex: 0 0 auto; align-self: center; }
+  /* The move panel is a solid, clipped card; its sticky header and rows share
+     the one scroll box. */
+  .gr-moves-card {
+    overflow: hidden;
+    border-radius: 16px;
+    background: #f8fdff;
+    padding: 10px;
+  }
+  .gr-moves-toggle { width: 44px; height: 44px; min-width: 44px; }
+  .gr-movelist {
+    max-height: 38dvh;
+    overscroll-behavior: contain;
+    padding-bottom: max(2px, env(safe-area-inset-bottom, 0px));
+  }
+  .gr-mvhead { z-index: 5; }
 }
-.gr-eval {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.4rem;
+
+@media (max-width: 480px) {
+  /* The board is the primary content on a phone. Trim the shell + page gutters
+     around the Review page so the board can use nearly the whole viewport
+     (the max-width guard stops a root-font rounding slip from causing a
+     horizontal scrollbar). */
+  .chess-page.gr-page {
+    padding-left: 8px;
+    padding-right: 8px;
+    margin-left: -15px;
+    margin-right: -15px;
+    max-width: 100vw;
+  }
 }
-.gr-eval .eval-bar-wrap { min-height: 0; } /* height is set inline to match the board */
-.gr-eval-cap {
-  font-size: 0.68rem;
-  font-variant-numeric: tabular-nums;
-  color: rgba(82, 82, 82, 0.72);
-  min-width: 3.4rem;
-  text-align: center;
-  background: rgba(255, 255, 255, 0.55);
-  border: 1px solid rgba(25, 189, 242, 0.2);
-  border-radius: 999px;
-  padding: 0.14rem 0.45rem;
-}
-/* On mobile the review board mirrors the play-arena layout: the board row is
-   constrained to the column width and centered, with a slimmer eval cap so the
-   whole row (eval + board) fits the phone comfortably. */
-@media (max-width: 767px) {
-  .gr-board-col > .gr-board-glow { width: 100%; max-width: 100%; }
-  .gr-eval .gr-eval-cap { min-width: 2.2rem; padding: 0.1rem 0.3rem; font-size: 0.6rem; }
-  /* There is no room beside a phone-sized board for a bar parked outside the
-     flow, so it goes back in beside it. */
-  .gr-board-slot .gr-eval { position: static; }
-  .gr-board-slot { gap: 0.5rem; }
+
+@media (min-width: 901px) {
+  .gr-moves-card { overflow: hidden; }
 }
 .gr-nav-btn--on {
   border-color: rgba(25, 189, 242, 0.6);
@@ -8878,24 +8950,15 @@ button.live-drill-move:hover { border-color: rgba(117, 223, 255, 0.45); }
   align-items: stretch;
   justify-content: center;
   gap: 10px;
+  /* The column centres its children, so without an explicit width this row
+     shrink-wraps to the eval bar and the ResponsiveBoard inside it would be
+     measured at 0px. */
+  width: 100%;
   max-width: 100%;
 }
 /* `height="auto"` on EvalBar makes the bar fill the row's cross size, which is
    the board's real rendered height (frame included). */
 .cp-viewer-board-row > .eval-bar-stack { align-self: stretch; }
-/* A flex box, not a bare block: the board root is an inline-block, so a block
-   wrapper adds a line-box descender underneath and the row would be taller than
-   the board itself. */
-.cp-viewer-board-slot {
-  display: flex;
-  align-items: flex-start;
-  min-width: 0;
-}
-/* ChessBoard's root carries an inline `display:inline-block`; as a flex item in
-   the slot it still lays its frame out in a line box and keeps the descender.
-   Blockifying that inner wrapper via flex is what makes the slot report the
-   frame's exact height. */
-.cp-viewer-board-slot > div { display: flex !important; }
 
 .cp-viewer-body > div:first-child { min-width: 0; min-height: 0; max-width: 100%; }
 /* The board column sits a touch lower than the side panel. */
@@ -11862,8 +11925,8 @@ button.live-drill-move:hover { border-color: rgba(117, 223, 255, 0.45); }
 }
 .spec-browse-cell {
   flex: none;
-  width: 320px;
-  max-width: 82vw;
+  width: min(340px, 88vw);
+  max-width: none;
   cursor: pointer;
   border-radius: 14px;
   transition: transform 0.15s, box-shadow 0.15s;
@@ -18732,4 +18795,334 @@ body,
 @media (prefers-reduced-motion: reduce) {
   .ab-tool-tile { transition: none; }
   .mz-modal-layer, .mz-modal { animation: none; }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   Responsive board wrapper (Game Review page + imported-game card)
+   ══════════════════════════════════════════════════════════════════════════ */
+.responsive-board {
+  box-sizing: border-box;
+  min-width: 0;
+  margin-left: auto;
+  margin-right: auto;
+}
+.responsive-board-placeholder {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  border-radius: 16px;
+  background: rgba(148, 163, 184, 0.12);
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   Spectate students / Watch classmates — one fixed-height modal.
+   Header is OUTSIDE the only scroll area and opaque; the board is isolated in
+   its own paint layer so pieces can never be drawn over the header.
+   ══════════════════════════════════════════════════════════════════════════ */
+.spec-browse-overlay {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+  padding: 0;
+  overflow: hidden;
+}
+.spec-browse-overlay .spec-browse-card {
+  width: 100%;
+  max-width: 100%;
+  height: 100vh;
+  height: 100dvh;
+  max-height: 100dvh;
+  margin: 0 auto;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: 0;
+  box-sizing: border-box;
+}
+/* Solid, opaque, above everything the body can paint. */
+.spec-browse-overlay .spec-head {
+  position: relative;
+  flex: 0 0 auto;
+  z-index: 100;
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 0;
+  border-bottom: 1px solid rgba(17, 21, 23, 0.13);
+  background: #f7f4ec;
+  isolation: isolate;
+}
+.spec-browse-overlay .spec-head .spec-close {
+  position: relative;
+  z-index: 110;
+  flex: 0 0 auto;
+  width: 40px;
+  min-width: 40px;
+  height: 40px;
+  min-height: 40px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  border: 1px solid rgba(17, 21, 23, 0.16);
+  background: #ffffff;
+  color: #111517;
+}
+.spec-browse-overlay .spec-head .spec-close:hover { background: #f1eee6; }
+.spec-browse-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  position: relative;
+  z-index: 0;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 8px 12px max(12px, env(safe-area-inset-bottom, 0px));
+  box-sizing: border-box;
+}
+.spec-browse-body .spec-browse-view {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.spec-browse-body .spec-browse-gamebar {
+  flex: 0 0 auto;
+  margin: 4px 0 8px;
+  min-width: 0;
+}
+.spec-browse-body .spec-browse-gamename {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Board: its own paint layer, so nothing inside it can escape over the
+   header. `touch-action: pan-y` keeps vertical swipes scrolling the body. */
+.spec-board-wrap {
+  position: relative;
+  isolation: isolate;
+  z-index: 0;
+  overflow: hidden;
+  border-radius: 16px;
+  contain: paint;
+  margin: 0 auto;
+  flex: 0 0 auto;
+  max-width: 100%;
+  touch-action: pan-y;
+  box-sizing: border-box;
+}
+.spec-board-wrap .chess-board-frame { pointer-events: none; }
+.spec-board-wrap .rem-lab { display: none; }
+.spec-coords {
+  position: absolute;
+  z-index: 1;
+  pointer-events: none;
+}
+.spec-coord {
+  position: absolute;
+  z-index: 1;
+  font-size: 10px;
+  line-height: 1;
+  font-weight: 800;
+  opacity: 0.6;
+  pointer-events: none;
+  color: #14212b;
+  user-select: none;
+}
+/* Player rows: name ellipsizes, clock never moves. */
+.spec-player-row { min-width: 0; gap: 8px; box-sizing: border-box; }
+.spec-pname {
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.spec-clock {
+  flex: 0 0 auto;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+/* The moves card owns its radius/background; only the sheet inside scrolls. */
+.spec-bare .spec-moves-col {
+  box-sizing: border-box;
+  overflow: hidden;
+  border-radius: 16px;
+  background: #ffffff;
+  border: 1px solid rgba(17, 21, 23, 0.1);
+  padding: 8px 6px 6px;
+}
+.spec-bare .spec-move-list {
+  max-height: 40vh;
+  max-height: 40dvh;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  padding: 0 2px max(4px, env(safe-area-inset-bottom, 0px));
+  border: none;
+  border-radius: 0;
+  background: #ffffff;
+  box-sizing: border-box;
+}
+.spec-bare .spec-score-head {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  margin: 0 0 4px;
+  padding: 8px 2px 7px;
+  background: #ffffff;
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.08);
+}
+.spec-move-row { min-width: 0; box-sizing: border-box; }
+.spec-move {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+@media (min-width: 901px) {
+  .spec-browse-overlay { padding: 4vh 4vw; }
+  .spec-browse-overlay .spec-browse-card {
+    width: min(1150px, 100%);
+    height: auto;
+    max-height: 92dvh;
+    padding: 14px 18px 18px;
+    border-radius: 18px;
+    border: 1px solid rgba(17, 21, 23, 0.12);
+  }
+  .spec-browse-overlay .spec-head {
+    margin: -14px -18px 0;
+    padding: 12px 18px 10px;
+    border-radius: 18px 18px 0 0;
+  }
+  .spec-browse-body { padding: 8px 0 0; }
+}
+
+/* ── GameViewerCard: one responsive board for every width ──────────────────
+   The board is measured from its own column by ResponsiveBoard, so it fills a
+   phone's width exactly and caps at 560px beside the score sheet on desktop.
+   The eval bar reserves a fixed 10px (mobile) / 36px (desktop) lane and the
+   board takes the rest — the pair can never overflow the card. */
+.cp-board-fit {
+  display: flex;
+  /* Stretch, so the `height="auto"` eval bar takes the board's full height. */
+  align-items: stretch;
+  gap: 10px;
+  width: 100%;
+  /* 560px play area + its themed frame + the 36px eval lane + gap. */
+  max-width: 732px;
+  margin: 0 auto;
+  min-width: 0;
+}
+.cp-board-responsive { flex: 1 1 auto; min-width: 0; }
+/* Player rows exist for the phone layout only; desktop reads them from the
+   score sheet already. */
+.cp-seat { display: none; }
+
+@media (max-width: 900px) {
+  .cp-viewer { padding: 0; }
+  /* The title and close button are outside the scrolling body and paint above
+     it, so the board can never slide over the ✕. */
+  .cp-viewer-head {
+    flex: 0 0 auto;
+    position: relative;
+    z-index: 100;
+    margin: 0;
+    padding: 10px 12px;
+    background: #fffdf7;
+    border-bottom: 1px solid rgba(201, 168, 31, 0.35);
+    isolation: isolate;
+  }
+  .cp-viewer-close {
+    width: 40px;
+    height: 40px;
+    min-width: 40px;
+    display: grid;
+    place-items: center;
+  }
+  .cp-viewer-body {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 8px 10px max(10px, env(safe-area-inset-bottom, 0px));
+    box-sizing: border-box;
+  }
+  .cp-viewer-board {
+    width: 100%;
+    overflow: visible;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 0;
+  }
+  .cp-viewer-board-row { width: 100%; justify-content: stretch; }
+  .cp-board-fit { max-width: none; gap: 8px; }
+  .cp-seat {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: #22282b;
+  }
+  .cp-seat-dot { flex: 0 0 auto; }
+  .cp-seat-name {
+    min-width: 0;
+    flex: 1 1 auto;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .cp-seat-acc {
+    flex: 0 0 auto;
+    font-size: 0.7rem;
+    font-variant-numeric: tabular-nums;
+    color: #6b5a22;
+  }
+  .cp-seat-eval {
+    flex: 0 0 auto;
+    padding: 0.1rem 0.45rem;
+    border-radius: 999px;
+    border: 1px solid rgba(201, 168, 31, 0.4);
+    background: #fff;
+    font-size: 0.7rem;
+    font-variant-numeric: tabular-nums;
+  }
+  /* The score sheet scrolls as ONE element: its sticky header and the move
+     rows stay in the same scroll container. */
+  .cp-viewer-side { max-height: none; overflow: visible; }
+  .cp-score {
+    max-height: 38dvh;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding-bottom: max(2px, env(safe-area-inset-bottom, 0px));
+  }
+  .cp-score-row--head { z-index: 5; }
+  .cp-score-head { flex-wrap: wrap; }
+  .cp-accuracy { flex-wrap: wrap; }
+  .cp-nav {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 2px;
+    position: static;
+    padding: 0;
+    background: none;
+  }
+  .cp-nav-btn {
+    flex: 1 1 44px;
+    width: auto;
+    min-width: 44px;
+    height: 44px;
+    min-height: 44px;
+  }
+  .cp-nav-count { flex: 0 0 auto; min-width: 64px; align-self: center; }
+  .cp-viewer-title,
+  .cp-viewer-sub { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 }

@@ -3,6 +3,7 @@ import Button from '../../components/Button';
 import { useLiveClass } from '../../context/LiveClassContext';
 import { getWatchableGames } from '../../services/liveClassApi';
 import SpectatorBoard from '../SpectatorBoard';
+import { fitBoardWidth } from '../ResponsiveBoard';
 import { on } from '../../services/socket';
 
 const sessionKey = (s) => `${s.type}-${s.gameId || s.key}`;
@@ -70,6 +71,7 @@ export default function WatchClassmatesModal({ onClose }) {
   const [error, setError] = useState('');
   const viewRef = useRef(null);
   const [viewW, setViewW] = useState(0);
+  const [viewH, setViewH] = useState(0);
 
   const refresh = useCallback(async () => {
     if (!classId) return;
@@ -146,12 +148,22 @@ export default function WatchClassmatesModal({ onClose }) {
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
 
+  /* The modal owns the screen while it is open. */
+  useEffect(() => {
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = prev; };
+  }, []);
+
   /* Measure the detail viewer for a big-but-square board. */
   useEffect(() => {
     if (!selected) return undefined;
     const el = viewRef.current;
     if (!el) return undefined;
-    const measure = () => setViewW(el.clientWidth);
+    const measure = () => {
+      setViewW(el.clientWidth);
+      setViewH(window.innerHeight);
+    };
     measure();
     let ro;
     if (typeof ResizeObserver !== 'undefined') {
@@ -159,15 +171,20 @@ export default function WatchClassmatesModal({ onClose }) {
       ro.observe(el);
     }
     window.addEventListener('resize', measure);
+    window.addEventListener('orientationchange', measure);
     return () => {
       ro?.disconnect();
       window.removeEventListener('resize', measure);
+      window.removeEventListener('orientationchange', measure);
     };
   }, [selectedKey, selected]);
 
   const boardW = viewW > 0
-    ? Math.max(220, Math.round(Math.min(720, viewW - 24)))
-    : 420;
+    ? fitBoardWidth(
+      Math.min(viewW, (typeof window !== 'undefined' ? window.innerWidth * 0.92 : viewW)),
+      { max: 720, maxHeight: (viewH || 800) * 0.55 },
+    )
+    : 294;
 
   return (
     <div className="spec-overlay spec-browse-overlay" onClick={onClose}>
@@ -184,61 +201,71 @@ export default function WatchClassmatesModal({ onClose }) {
           <button type="button" className="spec-close" onClick={onClose} aria-label="Close" title="Close">✕</button>
         </div>
 
-        {!selected ? (
-          <>
-            <div className="spec-browse-bar">
-              <span className="spec-browse-sub">
-                {loading ? 'Loading…' : `${sessions.length} game${sessions.length === 1 ? '' : 's'} to watch`}
-              </span>
-              <Button type="button" variant="secondary" size="sm" onClick={refresh} title="Refresh">↻ Refresh</Button>
-            </div>
-            {!spectateEnabled || selfGameStatus === 'playing' ? (
-              <p className="spec-area-empty spec-browse-empty">
-                {selfGameStatus === 'playing'
-                  ? 'You are back on a board — finish your game to watch classmates again.'
-                  : 'Watching classmates is turned off for this class.'}
-              </p>
-            ) : error ? (
-              <p className="spec-area-empty spec-browse-empty">{error}</p>
-            ) : sessions.length === 0 && !loading ? (
-              <p className="spec-area-empty spec-browse-empty">No classmates are playing right now</p>
-            ) : (
-              <div className="spec-browse-row">
-                {sessions.map((s) => (
-                  <div
-                    key={sessionKey(s)}
-                    className="spec-browse-cell"
-                    role="button"
-                    tabIndex={0}
-                    title={`Watch ${s.whiteName} vs ${s.blackName}`}
-                    aria-label={`Watch ${s.whiteName} versus ${s.blackName}`}
-                    onClick={() => setSelectedKey(sessionKey(s))}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ' ') setSelectedKey(sessionKey(s));
-                    }}
-                  >
-                    <SpectatorBoard session={s} embedded compact lockBlackTop />
-                  </div>
-                ))}
+        <div className="spec-browse-body">
+          {!selected ? (
+            <>
+              <div className="spec-browse-bar">
+                <span className="spec-browse-sub">
+                  {loading ? 'Loading…' : `${sessions.length} game${sessions.length === 1 ? '' : 's'} to watch`}
+                </span>
+                <Button type="button" variant="secondary" size="sm" onClick={refresh} title="Refresh">↻ Refresh</Button>
               </div>
-            )}
-          </>
-        ) : (
-          <div className="spec-browse-view" ref={viewRef}>
-            <div className="spec-browse-gamebar">
-              <Button type="button" variant="secondary" size="sm" onClick={() => setSelectedKey(null)} aria-label="Back to classmates" title="Back to classmates">← Back</Button>
-              <span className="spec-browse-gamename">⚪ {selected.whiteName} vs ⚫ {selected.blackName}</span>
-              <span className="live-session-live">LIVE</span>
+              {!spectateEnabled || selfGameStatus === 'playing' ? (
+                <p className="spec-area-empty spec-browse-empty">
+                  {selfGameStatus === 'playing'
+                    ? 'You are back on a board — finish your game to watch classmates again.'
+                    : 'Watching classmates is turned off for this class.'}
+                </p>
+              ) : error ? (
+                <p className="spec-area-empty spec-browse-empty">{error}</p>
+              ) : sessions.length === 0 && !loading ? (
+                <p className="spec-area-empty spec-browse-empty">No classmates are playing right now</p>
+              ) : (
+                <div className="spec-browse-row">
+                  {sessions.map((s) => (
+                    <div
+                      key={sessionKey(s)}
+                      className="spec-browse-cell"
+                      role="button"
+                      tabIndex={0}
+                      title={`Watch ${s.whiteName} vs ${s.blackName}`}
+                      aria-label={`Watch ${s.whiteName} versus ${s.blackName}`}
+                      onClick={() => setSelectedKey(sessionKey(s))}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') setSelectedKey(sessionKey(s));
+                      }}
+                    >
+                      <SpectatorBoard
+                        key={`card-${sessionKey(s)}`}
+                        session={s}
+                        embedded
+                        compact
+                        autoFlip={false}
+                        defaultOrientation="white"
+                      />
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
+          ) : (
+            <div className="spec-browse-view" ref={viewRef}>
+              <div className="spec-browse-gamebar">
+                <Button type="button" variant="secondary" size="sm" onClick={() => setSelectedKey(null)} aria-label="Back to classmates" title="Back to classmates">← Back</Button>
+                <span className="spec-browse-gamename">⚪ {selected.whiteName} vs ⚫ {selected.blackName}</span>
+                <span className="live-session-live">LIVE</span>
+              </div>
+              <SpectatorBoard
+                key={selectedKey}
+                session={selected}
+                boardWidth={boardW}
+                bare
+                defaultOrientation="white"
+                onClose={onClose}
+              />
             </div>
-            <SpectatorBoard
-              session={selected}
-              boardWidth={viewW > 0 ? boardW : 294}
-              bare
-              lockBlackTop
-              onClose={onClose}
-            />
-          </div>
-        )}
+          )}
+        </div>
       </div>
     </div>
   );

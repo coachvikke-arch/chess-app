@@ -511,9 +511,13 @@ module.exports = function (io) {
             return;
           }
           const turnSide = chess.turn() === 'w' ? 'white' : 'black';
-          // a per-student grant overrides the class-wide setting; otherwise fall
-          // back to global interaction (locked unless enabled)
-          let moveSide = null;
+          /* A live class is an interactive room: with no explicit grant a
+             student may move either colour on the shared board. A per-student
+             grant still restricts them to that colour; the class-wide setting
+             is honoured when it names a side. The server validates every move
+             and broadcasts the resulting state, so it stays the one source of
+             truth. */
+          let moveSide = 'both';
           const grantRes = await db.query(
             'SELECT move_side FROM live_class_move_grants WHERE live_class_id = $1 AND user_id = $2',
             [classId, userId]
@@ -522,11 +526,6 @@ module.exports = function (io) {
             moveSide = grantRes.rows[0].move_side;
           } else if (classRow.student_interaction_enabled) {
             moveSide = classRow.student_move_side || 'both';
-          }
-          if (!moveSide) {
-            socket.emit('action_rejected', { action: 'chess_move', reason: 'Board is locked' });
-            if (ack) ack({ ok: false, error: 'Board is locked' });
-            return;
           }
           if (moveSide !== 'both' && moveSide !== turnSide) {
             const reason = `You can move ${moveSide} pieces only`;

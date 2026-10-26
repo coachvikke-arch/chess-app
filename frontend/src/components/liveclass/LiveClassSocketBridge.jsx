@@ -23,7 +23,7 @@ import { normalizeRoster } from '../../utils/liveRoster';
  * Renders nothing.
  */
 export default function LiveClassSocketBridge({ classId, onSocketError }) {
-  const { replaceParticipants, setConnection, setRemoteReview, setViewIndex, isInstructor, setSpectateEnabled, setSelfGameStatus } = useLiveClass();
+  const { replaceParticipants, setConnection, setRemoteReview, setViewIndex, isInstructor, setSpectateEnabled, setSelfGameStatus, setChessState, setClassMeta } = useLiveClass();
 
   useEffect(() => {
     if (!classId) return undefined;
@@ -33,6 +33,14 @@ export default function LiveClassSocketBridge({ classId, onSocketError }) {
     const handleInit = (payload) => {
       if (payload?.classId != null && Number(payload.classId) !== Number(classId)) return;
       replaceParticipants(normalizeRoster(payload?.roster));
+      /* The server's board snapshot on (re)join: a refresh or reconnect must
+         show the live position, not whatever the HTTP boot had — and the coach
+         picks up moves students made while they were disconnected. */
+      if (payload?.chessState?.fen) setChessState(payload.chessState);
+      /* Class status can change while this tab is open (scheduled → live). */
+      if (payload?.classStatus) {
+        setClassMeta((prev) => (prev ? { ...prev, status: payload.classStatus } : prev));
+      }
       /* Rejoining mid-review: put the room-wide review (and, for the instructor
          who leads it, their own step-back) back on screen. */
       const review = payload?.review && payload.review.fen && payload.review.to != null
@@ -78,7 +86,7 @@ export default function LiveClassSocketBridge({ classId, onSocketError }) {
     };
     /* onSocketError is a state setter from the parent and stable in practice;
        classId/replaceParticipants/setConnection are stable from context. */
-  }, [classId, replaceParticipants, setConnection, setRemoteReview, setViewIndex, isInstructor, onSocketError]);
+  }, [classId, replaceParticipants, setConnection, setRemoteReview, setViewIndex, isInstructor, onSocketError, setChessState, setClassMeta]);
 
   /* "Watch classmates" state, fed straight from the classroom's own game
      lifecycle events. Kept in a separate effect so the join/roster effect above

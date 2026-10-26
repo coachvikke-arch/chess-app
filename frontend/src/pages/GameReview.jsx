@@ -3,7 +3,9 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { Chess } from 'chess.js';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../components/Toast';
-import ChessBoard from '../components/ChessBoard';
+import ResponsiveBoard from '../components/ResponsiveBoard';
+import useMediaQuery from '../hooks/useMediaQuery';
+import { formatEvalScore } from '../lib/evalDisplay';
 import useVisibleEffectHost from '../hooks/useVisibleEffectHost';
 import SetupBoardButton from '../components/SetupBoardButton';
 import { Page, Card } from '../components/ui';
@@ -153,6 +155,8 @@ export default function GameReview() {
   const [fen, setFen] = useState(gameRef.current.fen());
   const [lastMove, setLastMove] = useState(null);
   const [orientation, setOrientation] = useState('white');
+  const isMobileBoard = useMediaQuery('(max-width: 900px)');
+  const [movesOpen, setMovesOpen] = useState(true);
 
   const [state, setState] = useState(STATE.empty);
   const [progress, setProgress] = useState(0);
@@ -201,7 +205,6 @@ export default function GameReview() {
   });
   const [liveEval, setLiveEval] = useState(null);      // { pawns, score, mate, depth, bestUci, fen }
   const [engineBusy, setEngineBusy] = useState(false);
-  const [engineReady, setEngineReady] = useState(false); // NNUE pool booted in background
   const [engineDiag, setEngineDiag] = useState('');      // last engine health note (boot failure, blocked worker)
   const engineToken = useRef(0);
 
@@ -353,12 +356,8 @@ export default function GameReview() {
          only — no search runs and no result depends on it, so classifications
          are untouched. ── */
   useEffect(() => {
-    let alive = true;
-    warmLiteEngine()
-      .then(() => { if (alive) setEngineReady(true); })
-      .catch(() => { /* pool may also boot lazily on first search */ });
+    warmLiteEngine().catch(() => { /* pool may also boot lazily on first search */ });
     warmReviewEngine().catch(() => { /* same — lazily boots on first review search */ });
-    return () => { alive = false; };
   }, []);
 
   /* ─── restore a saved review session on mount (after refresh or returning
@@ -1170,6 +1169,12 @@ export default function GameReview() {
      there in the textarea. */
   const whiteName = String(players.white || pgnPlayerName(pgnText, 'White') || '').trim() || 'White';
   const blackName = String(players.black || pgnPlayerName(pgnText, 'Black') || '').trim() || 'Black';
+  /* Compact player rows above/below the board, following its orientation. They
+     are shown on a phone only; the score sheet names both players everywhere. */
+  const topSide = orientation === 'white' ? 'black' : 'white';
+  const bottomSide = orientation === 'white' ? 'white' : 'black';
+  const seatName = (side) => (side === 'white' ? whiteName : blackName);
+  const seatAcc = (side) => review?.[side]?.accuracy ?? null;
   const scoreRows = useMemo(
     () => buildScoreRows(moves, fenStartsBlack(initialFen)),
     [moves, initialFen],
@@ -1380,20 +1385,10 @@ export default function GameReview() {
   }
 
   /* ========================= RENDER ========================= */
-  /* Board must fit the column with the eval bar beside it. The themed frame
-     adds ≈ 2·remC + 30 around the play area (frame band floors at 20px for
-     small boards). The 110 covers the page side padding (~46px), the eval
-     column (~44px, the 36px bar plus its gap) and the row gap + breathing
-     room (~18px). The Student shell shows its 240px sidebar from md up. */
-  const boardW = (() => {
-    if (typeof window === 'undefined') return 356;
-    const iw = window.innerWidth;
-    const shell = !isAdmin && iw >= 768 ? 288 : 0;
-    const budget = Math.min(560, iw - shell - 110);
-    let w = (budget - 30) / 1.164;
-    if (w < 244) w = budget - 70;
-    return Math.round(Math.max(140, Math.min(356, w)));
-  })();
+  /* The board is sized by ResponsiveBoard from its own column, so it fills a
+     phone's width exactly and caps at 560px beside the review panel on desktop.
+     The eval bar reserves a fixed lane (10px on a phone, 36px on desktop) and
+     the board takes the rest — the pair can never overflow the page. */
 
   /* The live analysis read-out, shared by the "analyzing" state and the brief
      "loaded" gap before the first engine callback. One definition so the two
@@ -1414,8 +1409,24 @@ export default function GameReview() {
       </p>
     </div>
   );
+
+  const renderSeat = (side, pos) => {
+    const name = seatName(side);
+    const accValue = seatAcc(side);
+    return (
+      <div className={`gr-seat gr-seat--${pos}`}>
+        <span className="gr-seat-dot" aria-hidden="true">{side === 'white' ? '⚪' : '⚫'}</span>
+        <span className="gr-seat-name" title={name}>{name}</span>
+        {accValue != null && <span className="gr-seat-acc">{accValue}%</span>}
+        {pos === 'top' && isMobileBoard && (
+          <span className="gr-seat-eval" title="Evaluation">{formatEvalScore(evalCp, evalMate)}</span>
+        )}
+      </div>
+    );
+  };
+
   return (
-    <Page title="Game Review" piece="♚" sub="Post-game analysis — every move classified by Stockfish." wide>
+    <Page title="Game Review" piece="♚" sub="Post-game analysis — every move classified by Stockfish." wide className="gr-page">
       <div className="gr-tabs" role="tablist">
         <button
           type="button"
@@ -1507,62 +1518,55 @@ export default function GameReview() {
       <div className="gr-layout">
         {/* ═════════════ BOARD ═════════════ */}
         <div className="gr-board-col">
+          {renderSeat(topSide, 'top')}
           {/* board + live eval bar */}
           <div className="gr-board-glow">
             <div className="gr-board-row">
-              {/* The board is CENTRED in the column; the eval bar (the "pipe")
-                  is lifted out of the flow and parked in the space to its left,
-                  with a gap of its own, so it can never push the board off
-                  centre. */}
-              <div className="gr-board-slot">
-                <div className="gr-eval">
+              <div className="gr-board-fit">
                 {/* The bar and its label share one box: the bar clips its fills
                     to the rounded ends, the label sits beside it and may
-                    overhang — a boxed value is wider than the track. */}
+                    overhang — a boxed value is wider than the track. On a phone
+                    it becomes a thin 10px strip and the score moves to the chip
+                    in the top seat row, so the board keeps the full width. */}
                 <EvalBar
                   evaluation={evalCp}
                   mate={evalMate}
                   orientation={orientation}
-                  height={boardW}
+                  height="auto"
+                  width={isMobileBoard ? 10 : undefined}
+                  showLabel={!isMobileBoard}
                 />
-                {/* Under the bar: only the engine's transient state. The score
-                    lives inside the bar now, and the search depth ("d18") is
-                    not shown here any more. */}
-                {engineOn && engineBusy && !liveEval ? (
-                  <div className="gr-eval-cap" title="Position evaluation">
-                    {engineReady ? '…' : 'warming…'}
-                  </div>
-                ) : null}
-              </div>
-              <ChessBoard
-                game={gameRef.current}
-                mode="analysis"
-                orientation={orientation}
-                boardWidth={boardW}
-                interactive
-                showLegalMoves
-                onMove={onBoardMove}
-                engineOn={engineOn}
-                customArrows={arrows}
-                lastMove={lastMove}
-                reviewVerdictColor={reviewMetaFor(curVerdict)?.color || null}
-                moveBadge={moveBadge}
-                /* Named, so a step (keyboard, move-list click, jump) plays its
-                   effect on THIS board even when another board was touched
-                   last. */
-                moveEffectHostId={reviewBoardHostId}
-                /* Always empty now that only the best-move arrow is drawn —
-                   see `rankedArrows`. Passed explicitly so the prop is not
-                   accidentally reintroduced with the old three-arrow logic. */
-                lineBadges={rankedArrows}
-                /* Raw board — no plinth/ornament frame. The review grid is
-                   dense, and the decorative band around the board ate space the
-                   position itself needs. */
-                frameless
-              />
+                <ResponsiveBoard
+                  className="gr-board-responsive"
+                  maxWidth={560}
+                  game={gameRef.current}
+                  mode="analysis"
+                  orientation={orientation}
+                  interactive
+                  showLegalMoves
+                  onMove={onBoardMove}
+                  engineOn={engineOn}
+                  customArrows={arrows}
+                  lastMove={lastMove}
+                  reviewVerdictColor={reviewMetaFor(curVerdict)?.color || null}
+                  moveBadge={moveBadge}
+                  /* Named, so a step (keyboard, move-list click, jump) plays its
+                     effect on THIS board even when another board was touched
+                     last. */
+                  moveEffectHostId={reviewBoardHostId}
+                  /* Always empty now that only the best-move arrow is drawn —
+                     see `rankedArrows`. Passed explicitly so the prop is not
+                     accidentally reintroduced with the old three-arrow logic. */
+                  lineBadges={rankedArrows}
+                  /* Raw board — no plinth/ornament frame. The review grid is
+                     dense, and the decorative band around the board ate space
+                     the position itself needs. */
+                  frameless
+                />
               </div>
             </div>
           </div>
+          {renderSeat(bottomSide, 'bottom')}
 
           {/* The Best/Great/Good word legend that used to sit here is gone, and so are the
               2nd and 3rd arrows: the board now draws the engine's best move only.
@@ -1625,13 +1629,25 @@ export default function GameReview() {
               <span className="gr-moves-head-right">
                 {result && <span className="gr-score-result">{result}</span>}
                 <span className="gr-moves-count">{activeLen}</span>
+                {moves.length > 0 && (
+                  <button
+                    type="button"
+                    className="gr-moves-toggle"
+                    aria-expanded={movesOpen}
+                    aria-controls="gr-moves-list"
+                    onClick={() => setMovesOpen((v) => !v)}
+                    title={movesOpen ? 'Hide the moves panel' : 'Show the moves panel'}
+                  >
+                    {movesOpen ? '▾' : '▸'}
+                  </button>
+                )}
               </span>
             </div>
-            {moves.length === 0 ? (
+            {movesOpen && (moves.length === 0 ? (
               <p className="gr-moves-empty">No moves — paste a PGN on the right, or open a review link.</p>
             ) : (
               <>
-                <div className="gr-movelist" role="list" aria-label="Game moves" ref={movelistRef}>
+                <div className="gr-movelist" id="gr-moves-list" role="list" aria-label="Game moves" ref={movelistRef}>
                   {/* the replay sheet's header: number | White | Black, on the
                       same grid as the rows below it. */}
                   <div className="gr-mvhead" role="row">
@@ -1731,7 +1747,7 @@ export default function GameReview() {
                   </div>
                 )}
               </>
-            )}
+            ))}
           </div>
         </div>
 

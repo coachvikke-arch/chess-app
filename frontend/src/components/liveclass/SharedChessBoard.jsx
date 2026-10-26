@@ -333,13 +333,17 @@ export default function SharedChessBoard({ drill = null, drillStatus = null, onD
   }, [infoCardEl]);
 
   /* The current user's effective move side:
-     - a per-student grant wins,
-     - else the class-wide setting when global interaction is on,
-     - else locked (no moving). */
+     - a per-student grant wins (coach restricted this student to one colour),
+     - else the class-wide side when it is explicitly on,
+     - else, in a LIVE class, both colours — students share the board with the
+       coach by default; the server remains the source of truth and validates
+       every move,
+     - else locked (class not live). */
   const myMoveSide = useMemo(() => {
     const mine = (moveGrants || []).find((g) => g.userId === user?.id);
     if (mine?.moveSide) return mine.moveSide;
     if (classMeta?.studentInteractionEnabled) return classMeta?.studentMoveSide || 'both';
+    if (classMeta?.status === 'live') return 'both';
     return null;
   }, [moveGrants, user, classMeta]);
   const canInteract = isInstructor || myMoveSide !== null;
@@ -540,15 +544,31 @@ export default function SharedChessBoard({ drill = null, drillStatus = null, onD
     const san = move?.san || '';
     if (busyRef.current) return;
     setBestArrow(null); // any move instantly clears the engine suggestion
+    const optimisticFen = game.fen();
     setMoves(game.history().slice());
-    setFen(game.fen());
+    setFen(optimisticFen);
     setLastMove({ from: move.from, to: move.to, san });
-    emit('chess_move', { classId: classMeta.id, from: move.from, to: move.to, promotion: move.promotion }, (res) => {
+    const payload = { classId: classMeta.id, from: move.from, to: move.to, promotion: move.promotion };
+    emit('chess_move', payload, (res) => {
       if (res && res.ok === false) {
-        // server rejected → reload authoritative state
+        // server rejected → revert the optimistic move and reload the UI state
         flash(res.error || 'Illegal move');
-        if (gameRef.current) {
-          try { gameRef.current.undo(); } catch (_) {}
+        const liveGame = gameRef.current;
+        /* Only undo if the board still shows OUR optimistic move. If another
+           player's move broadcast arrived while this one was in flight, the
+           board already holds the authoritative position and undoing it would
+           delete their move. */
+        if (liveGame && liveGame.fen() === optimisticFen) {
+          try {
+            liveGame.undo();
+            setFen(liveGame.fen());
+            setMoves(liveGame.history().slice());
+            const history = liveGame.history({ verbose: true });
+            const prevMove = history[history.length - 1] || null;
+            setLastMove(prevMove ? { from: prevMove.from, to: prevMove.to, san: prevMove.san } : null);
+          } catch (_) {
+            setFen(liveGame.fen());
+          }
         }
       } else if (res && res.broadcast) {
         applyAuthoritative(res.broadcast);

@@ -29,10 +29,10 @@ export function Reveal({ children, delay = 0, className = '' }) {
   );
 }
 
-export function Page({ title, piece = '♞', sub, children, wide }) {
+export function Page({ title, piece = '♞', sub, children, wide, className = '' }) {
   usePageTitle(title);
   return (
-    <div className={`chess-page ${wide ? 'chess-page-wide' : ''}`}>
+    <div className={`chess-page ${wide ? 'chess-page-wide' : ''}${className ? ` ${className}` : ''}`}>
       {(title || sub) && (
         <header className="chess-page-head">
           <h1 className="chess-page-title">

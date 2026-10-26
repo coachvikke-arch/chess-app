@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Button from '../components/Button';
 import { Chess } from 'chess.js';
 import ChessBoard from './ChessBoard';
+import { framedOuterWidth, frameRemC, fitBoardWidth } from './ResponsiveBoard';
 import { buildScoreRows, gameStartsBlack } from '../lib/scoreSheet';
 import { useBoardWidth } from '../pages/Library';
 import {
@@ -14,7 +15,13 @@ import {
   onSpecEnd,
 } from '../services/socket';
 
-function fmtClock(ms, forceFloor) {
+/* Unlimited games use a sentinel base (9999 minutes) so they never count down.
+   Printing that sentinel as a real clock produced "166:38:54"; the sentinel is
+   an infinity, not a duration. */
+const UNLIMITED_BASE_MINUTES = 9999;
+
+function fmtClock(ms, forceFloor, unlimited) {
+  if (unlimited) return '∞';
   const s = Math.max(0, ms / 1000);
   const secs = forceFloor ? Math.floor(s) : Math.ceil(s);
   const h = Math.floor(secs / 3600);
@@ -63,21 +70,27 @@ function resultLabel(status, result, reason, whiteName, blackName) {
  * Renders a read-only board, both clocks, the SAN move list and the result;
  * live-updates arrive over the socket.
  */
-export default function SpectatorBoard({ session, boardWidth = 380, onClose, onBack, embedded = false, bare = false, boardCap = 460, lockBlackTop = false, compact = false }) {
+export default function SpectatorBoard({ session, boardWidth = 380, onClose, onBack, embedded = false, bare = false, boardCap = 460, lockBlackTop = false, compact = false, defaultOrientation = 'white', autoFlip = true }) {
   const [snap, setSnap] = useState(() => seed(session));
   const [boardRef, fittedWidth] = useBoardWidth();
   const gameRef = useRef(null);
   const [autoOrientation, setAutoOrientation] = useState(null); // follows side to move in embedded cards
   const [manualOrientation, setManualOrientation] = useState(null); // manual flip wins once used
-  const orientationRef = useRef('black');
+  const orientationRef = useRef(defaultOrientation);
+  const moveListRef = useRef(null);
+  const prevMoveCount = useRef(0);
   const [tick, setTick] = useState(0);
 
   const { gameId, key } = session;
   const isOnline = session.type === 'online';
   /* Embedded grid cards fill their column: the measured width (capped by
      boardCap) instead of the old fixed 340, so the desktop card reads big.
-     Compact row boards are a fixed small square — names + clocks only. */
-  const boardW = compact ? 300 : embedded ? Math.max(340, Math.min(fittedWidth, boardCap)) : boardWidth;
+     Compact row boards are a small square fitted to their cell — a fixed 300px
+     square plus the themed frame was wider than the cell and overflowed it. */
+  const compactCell = typeof window !== 'undefined' ? Math.min(340, window.innerWidth * 0.88) : 340;
+  const boardW = compact
+    ? fitBoardWidth(compactCell, { max: 300 })
+    : embedded ? Math.max(340, Math.min(fittedWidth, boardCap)) : boardWidth;
 
   /* controlled Chess instance rebuilding as new snapshots arrive */
   useEffect(() => {
@@ -142,6 +155,7 @@ export default function SpectatorBoard({ session, boardWidth = 380, onClose, onB
       turn: c.turn || pl.turn || 'white',
       serverNow: pl.serverNow || Date.now(),
       incrementSeconds: pl.incrementSeconds ?? c.incrementSeconds ?? 0,
+      baseMinutes: pl.baseMinutes ?? c.baseMinutes ?? null,
     });
   }
 
@@ -157,6 +171,7 @@ export default function SpectatorBoard({ session, boardWidth = 380, onClose, onB
       pgn: s.pgn ?? prev.pgn,
       serverNow: s.serverNow || Date.now(),
       incrementSeconds: s.incrementSeconds ?? prev.incrementSeconds,
+      baseMinutes: s.baseMinutes ?? prev.baseMinutes,
     }));
   }
 
@@ -175,6 +190,7 @@ export default function SpectatorBoard({ session, boardWidth = 380, onClose, onB
       level: s.level || null,
       serverNow: s.serverNow || Date.now(),
       incrementSeconds: s.incrementSeconds ?? s.clock?.incrementSeconds ?? 0,
+      baseMinutes: s.baseMinutes ?? s.clock?.baseMinutes ?? null,
     };
   }
 
@@ -187,8 +203,10 @@ export default function SpectatorBoard({ session, boardWidth = 380, onClose, onB
     [snap]
   );
 
-  /* locked top-black view (classroom single-game spectate): black is always
-     on top, so no auto-rotate and no flip — the arrangement is the contract. */
+  /* locked top-black view (legacy callers): black is always on top, so no
+     auto-rotate and no flip — the arrangement is the contract. Everyone else
+     starts WHITE at the bottom, which is what a spectator expects: files a–h
+     left-to-right and rank 8 on top. */
   const orientation = lockBlackTop ? 'black' : (manualOrientation || autoOrientation || orientationRef.current);
   const flip = () => {
     if (lockBlackTop) return;
@@ -198,14 +216,23 @@ export default function SpectatorBoard({ session, boardWidth = 380, onClose, onB
     setTick((x) => x + 1);
   };
 
-  /* embedded cards auto-rotate so the side to move is at the bottom */
+  /* A newly selected game may need a different viewer side. Reset the manual
+     flip so the new game opens on its intended orientation. */
   useEffect(() => {
     if (lockBlackTop) return;
+    orientationRef.current = defaultOrientation;
+    setManualOrientation(null);
+    setAutoOrientation(null);
+  }, [defaultOrientation, lockBlackTop]);
+
+  /* embedded cards auto-rotate so the side to move is at the bottom */
+  useEffect(() => {
+    if (lockBlackTop || !autoFlip) return;
     if (!embedded || manualOrientation || snap.status !== 'active') return;
     const next = snap.turn === 'black' ? 'black' : 'white';
     orientationRef.current = next;
     setAutoOrientation((prev) => (prev === next ? prev : next));
-  }, [embedded, manualOrientation, snap.turn, snap.status]);
+  }, [embedded, manualOrientation, snap.turn, snap.status, lockBlackTop, autoFlip]);
 
   const history = useMemo(() => (gameRef.current ? gameRef.current.history() : []), [snap.pgn, snap.fen, tick]); // eslint-disable-line react-hooks/exhaustive-deps
   const scoreRows = useMemo(
@@ -219,7 +246,28 @@ export default function SpectatorBoard({ session, boardWidth = 380, onClose, onB
   const turnGlyph = snap.turn === 'white' ? '⚪' : '⚫';
   const finished = snap.status === 'finished';
   const floor = (snap.incrementSeconds || 0) === 0 && finished;
+  const unlimited = Number(snap.baseMinutes) >= UNLIMITED_BASE_MINUTES;
   const sub = snap.level ? ` · ${snap.level}` : '';
+
+  /* New live move: scroll ONLY the score sheet. scrollIntoView() would also
+     scroll the modal/page under it, which is what made the whole screen jump
+     on every move. */
+  useEffect(() => {
+    const el = moveListRef.current;
+    if (el && history.length > prevMoveCount.current) {
+      el.scrollTo({ top: el.scrollHeight });
+    }
+    prevMoveCount.current = history.length;
+  }, [history.length]);
+
+  /* coordinate labels: ranks at each edge square's top-left, files at the
+     bottom-right of the bottom rank. They live over the play area, not the
+     frame, so they can never collide with a piece. */
+  const sq = boardW / 8;
+  const framePad = frameRemC(boardW) + 16; // band + frame padding/borders
+  const fileLetters = orientation === 'white' ? 'abcdefgh' : 'hgfedcba';
+  const rankNumbers = orientation === 'white' ? [8, 7, 6, 5, 4, 3, 2, 1] : [1, 2, 3, 4, 5, 6, 7, 8];
+  const boardOuter = framedOuterWidth(boardW);
 
   return (
     <div className={`${embedded ? 'spec-embed' : bare ? 'spec-bare' : 'spec-overlay'}${compact ? ' spec-compact' : ''}`} role="dialog" aria-modal={embedded || bare ? 'false' : 'true'} aria-label="Spectate game">
@@ -242,30 +290,53 @@ export default function SpectatorBoard({ session, boardWidth = 380, onClose, onB
           <div
             className={`spec-board-col${embedded && orientation === 'black' ? ' spec-flipped' : ''}`}
             ref={embedded ? boardRef : undefined}
-            style={bare ? { width: boardW, maxWidth: '100%', margin: '0 auto' } : undefined}
+            style={bare ? { width: boardOuter, maxWidth: '100%', margin: '0 auto' } : undefined}
           >
             {/* top row = side AWAY from viewer, bottom row = side to move (bottom) */}
             <div className={`spec-player-row ${snap.turn === (orientation === 'white' ? 'black' : 'white') && !finished ? 'spec-nl' : ''}`}>
               <span className="spec-pname">{orientation === 'white' ? snap.blackName : snap.whiteName} <span className="spec-glyph">{orientation === 'white' ? '⚫' : '⚪'}</span>{snap.turn === (orientation === 'white' ? 'black' : 'white') && !finished ? ' · to move' : ''}</span>
               <span className={`spec-clock ${snap.turn === (orientation === 'white' ? 'black' : 'white') && !finished ? 'spec-clock-run' : ''}`}>
-                {fmtClock(liveRemaining(orientation === 'white' ? 'black' : 'white'), floor)}
+                {fmtClock(liveRemaining(orientation === 'white' ? 'black' : 'white'), floor, unlimited)}
               </span>
             </div>
-            <ChessBoard
-              game={gameRef.current || undefined}
-              fen={fen}
-              orientation={orientation}
-              boardWidth={boardW}
-              interactive={false}
-              engineOn={false}
-              lastMove={last ? { from: last.from, to: last.to } : null}
-              highlightLastMove
-            />
+            <div className="spec-board-wrap" style={{ width: boardOuter, maxWidth: '100%' }}>
+              <ChessBoard
+                game={gameRef.current || undefined}
+                fen={fen}
+                orientation={orientation}
+                boardWidth={boardW}
+                interactive={false}
+                engineOn={false}
+                lastMove={last ? { from: last.from, to: last.to } : null}
+                highlightLastMove
+              />
+              {/* Coordinates over the edge squares only. The board's own band
+                  labels are hidden here; these cannot overlap a piece because
+                  every label is pinned to a square corner. */}
+              <div
+                className="spec-coords"
+                aria-hidden="true"
+                style={{ left: framePad, top: framePad, width: boardW, height: boardW }}
+              >
+                {rankNumbers.map((rank, j) => (
+                  <span key={`r${rank}`} className="spec-coord" style={{ top: j * sq + 2, left: 2 }}>{rank}</span>
+                ))}
+                {fileLetters.split('').map((file, i) => (
+                  <span
+                    key={`f${file}`}
+                    className="spec-coord"
+                    style={{ left: (i + 1) * sq - 2, bottom: 2, transform: 'translateX(-100%)' }}
+                  >
+                    {file}
+                  </span>
+                ))}
+              </div>
+            </div>
             {/* bottom row = viewer's side (side to move when rotated) */}
             <div className={`spec-player-row ${snap.turn === orientation && !finished ? 'spec-nl' : ''}`}>
               <span className="spec-pname">{orientation === 'white' ? snap.whiteName : snap.blackName} <span className="spec-glyph">{orientation === 'white' ? '⚪' : '⚫'}</span>{snap.turn === orientation && !finished ? ' · to move' : ''}</span>
               <span className={`spec-clock ${snap.turn === orientation && !finished ? 'spec-clock-run' : ''}`}>
-                {fmtClock(liveRemaining(orientation), floor)}
+                {fmtClock(liveRemaining(orientation), floor, unlimited)}
               </span>
             </div>
             <Button type="button" variant="secondary" size="sm" onClick={flip} style={lockBlackTop ? { display: 'none' } : undefined}>⇅ Flip board</Button>
@@ -273,10 +344,10 @@ export default function SpectatorBoard({ session, boardWidth = 380, onClose, onB
 
           <div
             className="spec-moves-col"
-            style={bare ? { width: boardW, maxWidth: '100%', margin: '0 auto' } : undefined}
+            style={bare ? { width: boardOuter, maxWidth: '100%', margin: '0 auto' } : undefined}
           >
             <div className="spec-moves-title">♘ Moves <span className="spec-moves-count">{history.length}</span></div>
-            <div className="spec-move-list" role="table" aria-label={`${whiteName} versus ${blackName} score sheet`}>
+            <div className="spec-move-list" role="table" aria-label={`${whiteName} versus ${blackName} score sheet`} ref={moveListRef}>
               {/* A score sheet carries the players' names in the sheet itself, not just
                   above the board: with 64 moves to scroll you must be able to see who
                   played each side without scrolling back up. Sticky inside the scroll
