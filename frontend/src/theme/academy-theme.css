@@ -615,6 +615,298 @@ tbody tr:hover {
   border-color: #fcd34d;
 }
 
+/* ── reward-style podium ───────────────────────────────────────────────────
+   The three champion cards wear the Academy "Permanent reward unlocked" card
+   look: a 135deg cream-to-sky glass surface, a thin metal border with a soft
+   rank-coloured outer glow and an inner white highlight, a rounded icon tile
+   on the left, the rank eyebrow above a serif player name, and a rank pill in
+   the top-right corner. Only the rank accents change between cards.
+
+   The modifier lives on the podium (not on the shared .lb-pcard), so the
+   dashboard's own position card keeps its existing styling. */
+.lb-podium--reward {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: nowrap;
+  gap: 18px;
+  margin: 26px 0 30px;
+}
+.lb-podium--reward .lb-pcard {
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex: 1 1 0;
+  min-width: 0;
+  max-width: 380px;
+  padding: 22px;
+  border-radius: 30px;
+  border: 1.5px solid var(--lb-rank-border);
+  background: var(--lb-bg);
+  color: #16242d;
+  text-align: left;
+  overflow: hidden;
+  box-sizing: border-box;
+  box-shadow:
+    inset 0 0 0 1.5px rgba(255, 255, 255, 0.62),
+    0 0 26px var(--lb-rank-glow),
+    0 16px 34px rgba(15, 23, 42, 0.1);
+  backdrop-filter: blur(14px) saturate(120%);
+  -webkit-backdrop-filter: blur(14px) saturate(120%);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.lb-podium--reward .lb-pcard:hover {
+  transform: translateY(-3px);
+  box-shadow:
+    inset 0 0 0 1.5px rgba(255, 255, 255, 0.75),
+    0 0 32px var(--lb-rank-glow),
+    0 20px 40px rgba(15, 23, 42, 0.14);
+}
+
+/* Rank 1 sits slightly taller and carries the strongest glow. */
+.lb-podium--reward .lb-pcard.lb-gold {
+  padding-top: 26px;
+  padding-bottom: 26px;
+  transform: translateY(-10px);
+  box-shadow:
+    inset 0 0 0 1.5px rgba(255, 255, 255, 0.7),
+    0 0 34px rgba(243, 210, 122, 0.62),
+    0 0 74px rgba(243, 210, 122, 0.24),
+    0 18px 38px rgba(120, 84, 10, 0.14);
+}
+.lb-podium--reward .lb-pcard.lb-gold:hover {
+  transform: translateY(-14px);
+  box-shadow:
+    inset 0 0 0 1.5px rgba(255, 255, 255, 0.82),
+    0 0 42px rgba(243, 210, 122, 0.7),
+    0 0 88px rgba(243, 210, 122, 0.28),
+    0 22px 44px rgba(120, 84, 10, 0.18);
+}
+
+/* Rank palettes: border, accent text, tile tint and the glass gradient. */
+.lb-podium--reward .lb-pcard.lb-gold {
+  --lb-rank: #a86400;
+  --lb-rank-border: rgba(243, 210, 122, 0.92);
+  --lb-rank-glow: rgba(243, 210, 122, 0.5);
+  --lb-rank-tile: rgba(252, 211, 77, 0.32);
+  --lb-bg:
+    radial-gradient(circle at 6% 0%, rgba(255, 214, 90, 0.26), transparent 44%),
+    radial-gradient(circle at 96% 112%, rgba(125, 211, 252, 0.22), transparent 46%),
+    linear-gradient(135deg, #fffaf0 0%, #f7f7f1 48%, #e9f5fc 100%);
+}
+.lb-podium--reward .lb-pcard.lb-silver {
+  --lb-rank: #6b7785;
+  --lb-rank-border: rgba(199, 206, 214, 0.95);
+  --lb-rank-glow: rgba(199, 206, 214, 0.55);
+  --lb-rank-tile: rgba(203, 213, 225, 0.55);
+  --lb-bg:
+    radial-gradient(circle at 6% 0%, rgba(255, 255, 255, 0.6), transparent 45%),
+    radial-gradient(circle at 96% 112%, rgba(186, 205, 222, 0.32), transparent 48%),
+    linear-gradient(135deg, #fffdf8 0%, #f4f7f9 46%, #e4eef7 100%);
+}
+.lb-podium--reward .lb-pcard.lb-bronze {
+  --lb-rank: #8a4b1f;
+  --lb-rank-border: rgba(217, 160, 115, 0.95);
+  --lb-rank-glow: rgba(217, 160, 115, 0.5);
+  --lb-rank-tile: rgba(247, 211, 180, 0.6);
+  --lb-bg:
+    radial-gradient(circle at 6% 0%, rgba(255, 236, 214, 0.6), transparent 45%),
+    radial-gradient(circle at 96% 112%, rgba(240, 190, 150, 0.28), transparent 48%),
+    linear-gradient(135deg, #fffaf4 0%, #fbf2e9 46%, #f6e2d1 100%);
+}
+
+.lb-podium--reward .lb-pcard-icon {
+  flex: 0 0 80px;
+  width: 80px;
+  height: 80px;
+  display: grid;
+  place-items: center;
+  border-radius: 22px;
+  border: 1.5px solid var(--lb-rank-border);
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.92), var(--lb-rank-tile));
+  color: var(--lb-rank);
+  box-shadow:
+    0 10px 22px var(--lb-rank-glow),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+.lb-podium--reward .lb-pcard-icon svg {
+  width: 42px;
+  height: 42px;
+}
+
+.lb-podium--reward .lb-pcard-copy {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.lb-podium--reward .lb-pcard-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+.lb-podium--reward .lb-pcard-eyebrow {
+  margin: 0;
+  min-width: 0;
+  font-size: 0.6rem;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  line-height: 1.25;
+  text-transform: uppercase;
+  color: #0a6aa1;
+  /* Three cards across leave the top row only ~115px beside the pill, so the
+     third card's "SECOND RUNNER-UP" wraps. Balance splits it at the space
+     instead of after the hyphen ("SECOND RUNNER-" / "UP"). */
+  text-wrap: balance;
+}
+.lb-podium--reward .lb-pcard-pill {
+  flex: 0 0 auto;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1.5px solid var(--lb-rank-border);
+  background: rgba(255, 255, 255, 0.72);
+  color: var(--lb-rank);
+  font-size: 0.66rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  line-height: 1.2;
+  white-space: nowrap;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.06);
+}
+.lb-podium--reward .lb-pcard-title {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  min-width: 0;
+  font-family: 'Noto Serif', 'Playfair Display', Georgia, 'Times New Roman', serif;
+  font-size: 1.16rem;
+  font-weight: 700;
+  line-height: 1.25;
+  color: #16242d;
+}
+.lb-podium--reward .lb-pcard-name {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.lb-podium--reward .lb-pcard-title .lb-badges {
+  flex: 0 0 auto;
+}
+.lb-podium--reward .lb-pcard-desc {
+  margin: 0;
+  font-size: 0.8rem;
+  font-weight: 600;
+  line-height: 1.4;
+  color: #5b7183;
+  overflow-wrap: anywhere;
+}
+.lb-podium--reward .lb-pcard-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px 12px;
+  margin-top: 4px;
+  font-size: 0.64rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: #5b7183;
+}
+.lb-podium--reward .lb-pcard-stats b {
+  margin-right: 3px;
+  font-size: 0.7rem;
+  color: #16242d;
+}
+
+/* Below 1200px three reward cards would squeeze the copy into the pill, so they
+   stack full width — champion first, then runners-up — which also gives the
+   phone its required 1st/2nd/3rd order. */
+@media (max-width: 1200px) {
+  .lb-podium--reward {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 14px;
+    margin: 18px 0 24px;
+  }
+  .lb-podium--reward .lb-pcard,
+  .lb-podium--reward .lb-pcard.lb-gold {
+    flex: 0 0 auto;
+    width: 100%;
+    max-width: none;
+    padding: 20px;
+    transform: none;
+  }
+  .lb-podium--reward .lb-pcard.lb-gold {
+    order: -1;
+  }
+  .lb-podium--reward .lb-pcard:hover,
+  .lb-podium--reward .lb-pcard.lb-gold:hover {
+    transform: none;
+  }
+}
+@media (max-width: 640px) {
+  .lb-podium--reward {
+    gap: 12px;
+    margin: 14px 0 18px;
+  }
+  .lb-podium--reward .lb-pcard,
+  .lb-podium--reward .lb-pcard.lb-gold {
+    gap: 13px;
+    padding: 17px;
+    border-radius: 26px;
+  }
+  .lb-podium--reward .lb-pcard-icon {
+    flex-basis: 66px;
+    width: 66px;
+    height: 66px;
+    border-radius: 19px;
+  }
+  .lb-podium--reward .lb-pcard-icon svg {
+    width: 34px;
+    height: 34px;
+  }
+  .lb-podium--reward .lb-pcard-title {
+    font-size: 1.05rem;
+  }
+  .lb-podium--reward .lb-pcard-eyebrow {
+    font-size: 0.56rem;
+    letter-spacing: 0.14em;
+  }
+  .lb-podium--reward .lb-pcard-pill {
+    font-size: 0.6rem;
+    padding: 3px 9px;
+  }
+  .lb-podium--reward .lb-pcard-desc {
+    font-size: 0.76rem;
+  }
+  .lb-podium--reward .lb-pcard-stats {
+    font-size: 0.6rem;
+  }
+}
+@media (max-width: 380px) {
+  .lb-podium--reward .lb-pcard,
+  .lb-podium--reward .lb-pcard.lb-gold {
+    gap: 10px;
+    padding: 14px;
+  }
+  .lb-podium--reward .lb-pcard-icon {
+    flex-basis: 58px;
+    width: 58px;
+    height: 58px;
+    border-radius: 16px;
+  }
+  .lb-podium--reward .lb-pcard-icon svg {
+    width: 30px;
+    height: 30px;
+  }
+}
+
+
 /* Inline player-name accents hard-coded to #60a5fa (2.5:1 on white). */
 .lb-uname,
 .lb-elo2 {
