@@ -1,6 +1,6 @@
 import StudentAvatar from './StudentAvatar';
 
-const RANK_META = {
+export const RANK_META = {
   1: { cls: 'lb-gold', eyebrow: 'Champion', pill: '1st Place' },
   2: { cls: 'lb-silver', eyebrow: 'Runner-up', pill: '2nd Place' },
   3: { cls: 'lb-bronze', eyebrow: 'Second runner-up', pill: '3rd Place' },
@@ -8,7 +8,7 @@ const RANK_META = {
 
 /* Crown for the champion; a medal for the two runners-up. Both are drawn with
    `currentColor`, so the tile's rank colour paints them. */
-function RankIcon({ rank }) {
+export function RankIcon({ rank }) {
   if (rank === 1) {
     return (
       <svg viewBox="0 0 24 24" aria-hidden="true" fill="currentColor">

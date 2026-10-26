@@ -5,6 +5,7 @@ import { joinExternalClass } from '../services/liveClassApi';
 import { Stat, Card, Spinner } from '../components/ui';
 import RatingCard from '../components/RatingCard';
 import StudentAvatar from '../components/StudentAvatar';
+import { RANK_META, RankIcon } from '../components/ChampionsPodium';
 import { useAuth } from '../context/AuthContext';
 import GmQuoteStrip from '../components/GmQuoteStrip';
 import DashboardTournaments from '../features/tournaments/DashboardTournaments';
@@ -243,50 +244,42 @@ function RatingTrendCard() {
   );
 }
 
-/** Podium-styled "my position" card shown in the dashboard top-right corner. */
-function LeaderboardPositionCard({ me, total, fill }) {
+/** Dashboard "my position" card — the same reward-glass podium card as the
+ *  leaderboard, showing the signed-in student's own rank and Rapid ELO. */
+function LeaderboardPositionCard({ me, total }) {
   if (!me) return null;
-  const cls = me.rank === 1 ? 'lb-gold' : me.rank === 2 ? 'lb-silver' : me.rank === 3 ? 'lb-bronze' : '';
-  const glow = me.rank <= 3 ? `mixed-glow mixed-glow--rank-${me.rank}` : '';
-  const tier = me.rank <= 3 ? ['♔', '♕', '♖'][me.rank - 1] : '♙';
-  const medalGlyph = me.rank === 1 ? '👑' : me.rank === 2 ? '🥈' : me.rank === 3 ? '🥉' : null;
+  const meta = RANK_META[me.rank];
+  const ratingText = me.rapidRating == null
+    ? 'No rapid games yet'
+    : `${me.rapidRating} RAPID ELO`;
   return (
-    <div className="lb-podium lb-podium-dash">
-      <div className={`lb-pcard lb-compact lb-dash-card ${cls} ${glow}`} style={{ width: '100%', maxWidth: 'none', margin: 0, height: fill ? '100%' : 'auto', animation: 'fade-up .5s both' }}>
-        <span className="lb-tier">{tier}</span>
-        <div className="lb-avatar">
-          {me.profile_image ? (
-            <img src={me.profile_image} alt="" className="lb-photo" />
-          ) : (
-            <StudentAvatar
-              config={me.avatar_config}
-              seed={`student_${me.student_id || ''}`}
-              size={56}
-              className="lb-dash-avatar-svg"
-            />
-          )}
-          {medalGlyph && (
-            <span className={`lb-dash-medal ${me.rank === 1 ? 'lb-crown' : 'lb-medal'}`}>
-              {medalGlyph}
-            </span>
-          )}
-        </div>
-        <div className="lb-dash-info">
-          <div className="lb-name">
-            <span className="lb-dash-name-text" title={me.name}>{me.name}</span>
-            <span className="lb-badge" title="You">⚑</span>
-          </div>
-          <div className="lb-elo lb-dash-rank">
-            <b>#{me.rank}</b> <span className="lb-dash-total">of {total} students</span>
-          </div>
-          <div className="lb-elo lb-dash-rating">
-            {/* Rapid, not the common rating — Rapid is the champion ladder. */}
-            {me.rapidRating == null ? (
-              <span style={{ opacity: 0.5 }}>No rapid games yet</span>
+    <div className="lb-podium lb-podium--reward lb-podium--dash">
+      <div className={`lb-pcard lb-dash-card ${meta?.cls || ''}`} style={{ animation: 'fade-up .5s both' }}>
+        <div className="lb-pcard-icon">
+          <span className="lb-pcard-media">
+            {me.profile_image ? (
+              <img src={me.profile_image} alt="" loading="lazy" />
             ) : (
-              <>RAPID ELO <b>{me.rapidRating}</b></>
+              <StudentAvatar
+                config={me.avatar_config}
+                seed={`student_${me.student_id || ''}`}
+                size={80}
+                rounded={false}
+              />
             )}
+          </span>
+          {meta && <span className="lb-pcard-rankbadge"><RankIcon rank={me.rank} /></span>}
+        </div>
+        <div className="lb-pcard-copy">
+          <div className="lb-pcard-top">
+            <p className="lb-pcard-eyebrow">{meta ? meta.eyebrow : 'Your position'}</p>
+            <span className="lb-pcard-pill">{meta ? meta.pill : `#${me.rank}`}</span>
           </div>
+          <h3 className="lb-pcard-title">
+            <span className="lb-pcard-name" title={me.name}>{me.name}</span>
+            <span className="lb-badge" title="You">⚑</span>
+          </h3>
+          <p className="lb-pcard-desc">Rank #{me.rank} of {total} students · {ratingText}</p>
         </div>
       </div>
     </div>
@@ -507,7 +500,7 @@ export default function StudentDashboard() {
             <RatingCard />
           </div>
           <Link to="/student/leaderboard" className="relative block h-full cursor-pointer">
-            <LeaderboardPositionCard me={myPosition} total={leaders.length} fill />
+            <LeaderboardPositionCard me={myPosition} total={leaders.length} />
           </Link>
         </div>
       ) : (
