@@ -1,3 +1,5 @@
+import StudentAvatar from './StudentAvatar';
+
 const RANK_META = {
   1: { cls: 'lb-gold', eyebrow: 'Champion', pill: '1st Place' },
   2: { cls: 'lb-silver', eyebrow: 'Runner-up', pill: '2nd Place' },
@@ -46,9 +48,11 @@ export function PlayerBadges({ row }) {
 
 /**
  * Top-3 champion podium — the three cards wear the Academy reward-card look:
- * a cream-to-sky glass surface, a rank-coloured border/glow, a rounded icon
+ * a cream-to-sky glass surface, a rank-coloured border/glow, a rounded profile
  * tile on the left, an uppercase eyebrow above the serif player name and a
- * rank pill in the top-right corner.
+ * rank pill in the top-right corner. The tile shows the student's uploaded
+ * photo and falls back to their generated chess avatar; a small rank badge
+ * keeps the crown/medal on the corner of the tile.
  *
  * `elo` lets a caller choose WHICH rating the card advertises. The Leaderboard
  * passes the rapid pool (the overall-champion ladder). `peak` must be the
@@ -104,7 +108,21 @@ export default function ChampionsPodium({
             className={`lb-pcard ${meta.cls} lb-pcard--rank-${rank}`}
             style={{ animation: `fade-up .5s ${(rank - 1) * 0.12}s both` }}
           >
-            <div className="lb-pcard-icon"><RankIcon rank={rank} /></div>
+            <div className="lb-pcard-icon">
+              <span className="lb-pcard-media">
+                {p.profile_image ? (
+                  <img src={p.profile_image} alt="" loading="lazy" />
+                ) : (
+                  <StudentAvatar
+                    config={p.avatar_config}
+                    seed={`student_${p.student_id || ''}`}
+                    size={80}
+                    rounded={false}
+                  />
+                )}
+              </span>
+              <span className="lb-pcard-rankbadge"><RankIcon rank={rank} /></span>
+            </div>
             <div className="lb-pcard-copy">
               <div className="lb-pcard-top">
                 <p className="lb-pcard-eyebrow">{meta.eyebrow}</p>
