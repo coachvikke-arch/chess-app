@@ -41,7 +41,6 @@ export const adminLinks = [
 
 export const studentLinks = [
   { to: '/student/dashboard', label: 'Dashboard', icon: '♕' },
-  { to: '/student/puzzles', label: 'Puzzles', icon: '♟', feature: 'puzzle_trainer' },
   { to: '/student/homework', label: 'Homework', icon: '📋', feature: 'puzzle_trainer' },
   { to: '/openings', label: 'Openings', icon: '♞', feature: 'opening_library' },
   { to: '/student/openings', label: 'Academy', icon: '♘', feature: 'piece_lessons' },
