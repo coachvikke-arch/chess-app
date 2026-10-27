@@ -12,5 +12,6 @@ vision
 *.log
 server.log.err
 *.png
+!src/assets/certificate-template.png
 *.pkl
 tmp_*
