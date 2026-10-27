@@ -547,7 +547,7 @@ export default function StudentDashboard() {
               </p>
             </div>
           </div>
-          <Button to="/student/puzzles" variant="primary" size="md" className="!py-2 !px-5 text-sm shrink-0">
+          <Button to="/student/homework" variant="primary" size="md" className="!py-2 !px-5 text-sm shrink-0">
             Solve now →
           </Button>
         </div>
