@@ -68,13 +68,19 @@ function levelTitle(levelNo) {
 /** Certificate title for a finished tournament. */
 function tournamentTitle({ tournamentName, rank }) {
   const place = ordinal(rank);
-  if (!tournamentName) return place ? `Tournament achievement · ${place} place` : 'Tournament achievement';
-  return place ? `${tournamentName} — ${place} place` : tournamentName;
+  const name = tournamentName || 'Tournament';
+  return place ? `${name} - ${place} Place` : `${name} - Participant`;
 }
 
 /** "LEVEL 5" — the exact string on the ribbon and inside the medallion. */
 function levelBanner(levelNo) {
   return `LEVEL ${levelNo}`;
+}
+
+/** "1ST PLACE" / "PARTICIPANT" — the tournament ribbon and medallion text. */
+function tournamentBanner(rank) {
+  const place = ordinal(rank);
+  return place ? `${place.toUpperCase()} PLACE` : 'PARTICIPANT';
 }
 
 /**
@@ -99,11 +105,13 @@ function buildCertificateContent({ certificate, student, settings }) {
   /* One value, used by the ribbon, the medallion, the description and the
      information row. */
   const banner = isTournament
-    ? (cert.rank ? ordinal(cert.rank).toUpperCase() : 'FINISHED')
+    ? tournamentBanner(cert.rank)
     : levelBanner(level);
 
   const description1 = isTournament
-    ? 'This certificate recognizes the achievement in a finalised tournament'
+    ? (cert.score
+      ? `This certificate recognizes the achievement of ${cert.score} in a finalised tournament`
+      : 'This certificate recognizes the achievement in a finalised tournament')
     : 'This certificate recognizes the successful completion of the required training,';
 
   /* The emphasised tail of line 2 is carried as weighted segments so the
@@ -132,7 +140,9 @@ function buildCertificateContent({ certificate, student, settings }) {
       { text: description2Tail, bold: true },
     ],
 
-    info_level: `Level : Level ${level}`,
+    info_level: isTournament
+      ? `Result : ${ordinal(cert.rank) ? `${ordinal(cert.rank)} Place` : 'Participant'}`
+      : `Level : Level ${level}`,
     info_date: `Date : ${issued}`,
 
     /* ── not printed: kept for the UI, the WhatsApp message and the log ── */
@@ -144,6 +154,8 @@ function buildCertificateContent({ certificate, student, settings }) {
     meta: [issued ? `Issued ${issued}` : '', cert.certificate_no || ''].filter(Boolean).join('   ·   '),
     _academy: ACADEMY,
     _issued: issued,
+    _score: isTournament ? (cert.score || '') : '',
+    _position: isTournament ? (cert.rank ?? null) : null,
     _badge: band ? `${BADGE_ICONS[band.level] || '♙'} ${band.badge}` : null,
     _tier: band ? `${band.name} · tier ${band.level}` : null,
   };

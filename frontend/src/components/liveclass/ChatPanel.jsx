@@ -15,14 +15,7 @@ function prefetchCourseFiles() {
 import LiveMoveHistory from './LiveMoveHistory';
 import ClassroomLeaderboard from './ClassroomLeaderboard';
 import ClassAssignmentsPanel from './ClassAssignmentsPanel';
-
-function formatTime(iso) {
-  try {
-    return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  } catch {
-    return '';
-  }
-}
+import { formatTime } from '../../utils/formatTime';
 
 /* A stable, client-generated id for a message that has not reached the server
    yet. It is echoed back on the saved copy so the optimistic bubble can be
@@ -43,7 +36,7 @@ export function UnreadBadge({ count }) {
 }
 
 export default function ChatPanel({ asMobilePanel = false, panelVisible = true, onUnreadChange = null }) {
-  const { classMeta, isInstructor, permissions, chat, appendChat, setChat, privateChat, appendPrivateChat, setPrivateChat, participants, upsertParticipant, removeParticipant, replaceParticipants, activityByStudent, setStudentActivity, bulkSetActivity, clearStudentActivity } = useLiveClass();
+  const { classMeta, setClassMeta, isInstructor, permissions, chat, appendChat, setChat, privateChat, appendPrivateChat, setPrivateChat, participants, upsertParticipant, removeParticipant, replaceParticipants, activityByStudent, setStudentActivity, bulkSetActivity, clearStudentActivity } = useLiveClass();
   const { user } = useAuth();
   const me = user ? Number(user.id) : null;
   /* Which student thread the instructor last had open, remembered per class so a
@@ -527,6 +520,26 @@ export default function ChatPanel({ asMobilePanel = false, panelVisible = true, 
     });
   }
 
+  /* The class-wide stop. It flips the SAME stored switch the Board tools
+     "Students move" chip uses, so the two controls can never disagree: the
+     server persists it, rejects student moves while it is off, and the
+     `interaction_changed` echo keeps every tab in step. Applied optimistically
+     and reverted if the server refuses. */
+  function toggleAllStudentMoves() {
+    const next = !classMeta?.studentInteractionEnabled;
+    setClassMeta((prev) => (prev ? { ...prev, studentInteractionEnabled: next } : prev));
+    /* The switch lives inside the classroom's `chess_control` channel, the same
+       one the board's own "Students move" chip uses - there is no standalone
+       socket event for it, so a raw `toggle_interaction` emit never reached the
+       server and the DB stayed on while the button turned green. */
+    emit('chess_control', { classId: classMeta.id, action: 'toggle_interaction', payload: { enabled: next } }, (res) => {
+      if (res?.ok === false) {
+        setClassMeta((prev) => (prev ? { ...prev, studentInteractionEnabled: !next } : prev));
+        setError(res.error || 'Could not update student moves');
+      }
+    });
+  }
+
   /* The colours a move grant can carry - the same white/black/both the board
      already understands. Each student holds at most one, so a colour already
      spoken for is offered disabled, and revoking frees it for someone else. */
@@ -562,6 +575,19 @@ export default function ChatPanel({ asMobilePanel = false, panelVisible = true, 
         <span>👥 Participants ({inRoom.length})</span>
         {isInstructor && <span className="live-participants-hint">admins can grant/remove</span>}
       </div>
+      {isInstructor && (
+        <button
+          type="button"
+          className={`live-stop-btn ${classMeta?.studentInteractionEnabled ? 'is-stop' : 'is-allow'}`}
+          onClick={toggleAllStudentMoves}
+          aria-pressed={!classMeta?.studentInteractionEnabled}
+          title={classMeta?.studentInteractionEnabled
+            ? 'Block every student from moving pieces (server-enforced)'
+            : 'Let students move pieces again'}
+        >
+          {classMeta?.studentInteractionEnabled ? '⛔ Stop all students' : '▶ Allow students'}
+        </button>
+      )}
       <ul className="live-participants-list">
         {roster.length === 0 && <li className="live-participants-empty">No participants yet.</li>}
         {roster.map((p) => {

@@ -349,6 +349,10 @@ export default function SharedChessBoard({ drill = null, drillStatus = null, onD
        every move,
      - else locked (class not live). */
   const myMoveSide = useMemo(() => {
+    /* "Students move: Off" (the instructor's Stop all students button) is a
+       hard stop for every student, grants included — the server rejects the
+       move too, this only keeps the board from offering it. */
+    if (classMeta?.studentInteractionEnabled === false) return null;
     const mine = (moveGrants || []).find((g) => g.userId === user?.id);
     if (mine?.moveSide) return mine.moveSide;
     if (classMeta?.studentInteractionEnabled) return classMeta?.studentMoveSide || 'both';
@@ -1375,7 +1379,9 @@ const DRAWN_ARROW_COLOR = 'rgba(0, 255, 0, 0.7)';
                         : myMoveSide
                           ? `You can move ${myMoveSide} pieces`
                           : 'You can move the pieces'
-                    : 'Viewing instructor demo'}
+                    : classMeta?.studentInteractionEnabled === false
+                      ? 'Student moves are off — the coach has the board'
+                      : 'Viewing instructor demo'}
                 {drillActive
                   ? ' · your own attempts — the class board is untouched'
                   : !permissions.canDrawAnnotations && ' · annotations view-only'}
@@ -1567,7 +1573,9 @@ const DRAWN_ARROW_COLOR = 'rgba(0, 255, 0, 0.7)';
             )}
             <button type="button" className="live-icobtn has-label" onClick={flip} title="Flip board" aria-label="Flip board"><span aria-hidden="true">⇅</span><span className="live-tool-label">Flip board</span></button>
             {permissions.canControlBoard && !drillActive && (
-              <>
+              /* Prev / Next / Brain are one control cluster: stepping through
+                 the game, not three unrelated tools. */
+              <div className="live-tool-group">
                 <button type="button" className="live-movenav-btn has-label" onClick={viewPrev} disabled={!canViewPrev} title="Previous move"><span aria-hidden="true">◀</span><span className="live-tool-label">Prev</span></button>
                 <button type="button" className="live-movenav-btn has-label" onClick={viewNext} disabled={!canViewNext} title="Next move"><span aria-hidden="true">▶</span><span className="live-tool-label">Next</span></button>
                 <button
@@ -1580,7 +1588,7 @@ const DRAWN_ARROW_COLOR = 'rgba(0, 255, 0, 0.7)';
                   <span aria-hidden="true">{bestThinking ? '⏳' : '🧠'}</span>
                   <span className="live-tool-label">Brain</span>
                 </button>
-              </>
+              </div>
             )}
           </div>
           {isInstructor && (
@@ -1595,35 +1603,37 @@ const DRAWN_ARROW_COLOR = 'rgba(0, 255, 0, 0.7)';
               left the student reading "Viewing instructor demo" with nothing
               to tell them why. Only the side picker needs interaction to be on. */}
           {isInstructor && (
-            <span className="live-side-toggle">
-              <span className="live-side-toggle-label">Students move:</span>
-              <button
-                type="button"
-                className={`live-chip ${classMeta?.studentInteractionEnabled ? 'live-chip-on' : ''}`}
-                onClick={() => sendControl('toggle_interaction', { enabled: !classMeta?.studentInteractionEnabled })}
-                title={classMeta?.studentInteractionEnabled
-                  ? 'Stop students moving the pieces'
-                  : 'Let students move the pieces on this board'}
-              >
-                {classMeta?.studentInteractionEnabled ? 'On' : 'Off'}
-              </button>
-            </span>
-          )}
-          {isInstructor && classMeta?.studentInteractionEnabled && (
-            <span className="live-side-toggle">
-              <span className="live-side-toggle-label">Which side:</span>
-              {['both', 'white', 'black'].map((side) => (
+            <div className="live-tool-rows">
+              <div className="live-tool-row">
+                <span className="live-side-toggle-label">Students move:</span>
                 <button
                   type="button"
-                  key={side}
-                  className={`live-chip ${studentMoveSide === side ? 'live-chip-on' : ''}`}
-                  onClick={() => sendControl('set_move_side', { side })}
-                  title={`Students move ${side === 'both' ? 'either side' : side}`}
+                  className={`live-chip ${classMeta?.studentInteractionEnabled ? 'live-chip-on' : ''}`}
+                  onClick={() => sendControl('toggle_interaction', { enabled: !classMeta?.studentInteractionEnabled })}
+                  title={classMeta?.studentInteractionEnabled
+                    ? 'Stop students moving the pieces'
+                    : 'Let students move the pieces on this board'}
                 >
-                  {side === 'both' ? 'Both' : side}
+                  {classMeta?.studentInteractionEnabled ? 'On' : 'Off'}
                 </button>
-              ))}
-            </span>
+              </div>
+              {classMeta?.studentInteractionEnabled && (
+                <div className="live-tool-row">
+                  <span className="live-side-toggle-label">Which side:</span>
+                  {['both', 'white', 'black'].map((side) => (
+                    <button
+                      type="button"
+                      key={side}
+                      className={`live-chip ${studentMoveSide === side ? 'live-chip-on' : ''}`}
+                      onClick={() => sendControl('set_move_side', { side })}
+                      title={`Students move ${side === 'both' ? 'either side' : side}`}
+                    >
+                      {side === 'both' ? 'Both' : side}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           )}
         </div>
         )}

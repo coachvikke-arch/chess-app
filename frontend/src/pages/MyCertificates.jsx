@@ -1,10 +1,17 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Page, Card, Chip, Spinner } from '../components/ui';
 import CertificateInline from '../components/CertificateInline';
+import CertificateModal from '../components/CertificateModal';
 import { listMyCertificates } from '../services/certificatesApi';
 import Pagination, { PAGE_SIZE } from '../components/Pagination';
 import { usePagination } from '../hooks/usePagination';
 import Button from '../components/Button';
+
+const TYPE_TABS = [
+  ['all', 'All'],
+  ['level', 'Level'],
+  ['tournament', 'Tournament'],
+];
 
 /*
  * My Certificates — the certificate section in the student's own sidebar.
@@ -26,9 +33,16 @@ export default function MyCertificates() {
   const [error, setError] = useState('');
   /* Which certificate is drawn inside the page (the "Show in page" toggle). */
   const [inlineId, setInlineId] = useState(null);
+  const [typeFilter, setTypeFilter] = useState('all');
+  const [tournamentView, setTournamentView] = useState(null);
   const listTopRef = useRef(null);
 
-  const pager = usePagination(certificates, PAGE_SIZE, { scrollRef: listTopRef });
+  const filtered = certificates.filter((c) => typeFilter === 'all' || c.type === typeFilter);
+
+  const pager = usePagination(filtered, PAGE_SIZE, {
+    resetKeys: [typeFilter],
+    scrollRef: listTopRef,
+  });
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -71,12 +85,28 @@ export default function MyCertificates() {
         {student?.name && <span className="text-xs text-ivory-500">Issued to {student.name}</span>}
       </div>
 
+      <div className="mt-4 flex items-center gap-2 overflow-x-auto" role="tablist" aria-label="Certificate type">
+        {TYPE_TABS.map(([key, label]) => (
+          <button
+            key={key}
+            type="button"
+            role="tab"
+            aria-selected={typeFilter === key}
+            onClick={() => setTypeFilter(key)}
+            className={`kt-tab shrink-0 ${typeFilter === key ? 'active' : ''}`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
       <div ref={listTopRef} className="mt-4 space-y-3">
-        {certificates.length === 0 && (
+        {filtered.length === 0 && (
           <Card>
             <p className="chess-empty">
-              No certificates yet. They are issued automatically when you complete a
-              level or finish on a tournament podium.
+              {certificates.length === 0
+                ? 'No certificates yet. They are issued automatically when you complete a level or finish a tournament.'
+                : `No ${typeFilter} certificates yet.`}
             </p>
           </Card>
         )}
@@ -88,8 +118,8 @@ export default function MyCertificates() {
                 <h3 className="font-display font-bold text-ivory-200">{c.title}</h3>
                 <p className="text-xs text-ivory-500 mt-1">
                   {c.certificateNo} · issued {new Date(c.issuedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
-                  {c.preview?._badge ? ` · ${c.preview._badge}` : ''}
-                  {c.tournamentName ? ` · ${c.tournamentName}` : ''}
+                  {c.type !== 'tournament' && c.preview?._badge ? ` · ${c.preview._badge}` : ''}
+                  {c.type === 'tournament' && c.score ? ` · ${c.score}` : ''}
                 </p>
                 <div className="flex flex-wrap gap-2 mt-2">
                   <Chip tone="gold">{c.type === 'tournament' ? 'Tournament' : `Level ${c.levelNo ?? ''}`.trim()}</Chip>
@@ -98,21 +128,33 @@ export default function MyCertificates() {
               </div>
 
               <div className="flex flex-wrap gap-2">
-                {c.fileUrl && (
-                  <Button variant="secondary" size="sm" className="!px-3 !py-1 text-xs" href={c.fileUrl} download>
-                    Download
+                {c.type === 'tournament' ? (
+                  <Button
+                    type="button"
+                    variant="secondary" size="sm" className="!px-3 !py-1 text-xs"
+                    onClick={() => setTournamentView(c)}
+                  >
+                    View certificate
                   </Button>
+                ) : (
+                  <>
+                    {c.fileUrl && (
+                      <Button variant="secondary" size="sm" className="!px-3 !py-1 text-xs" href={c.fileUrl} download>
+                        Download
+                      </Button>
+                    )}
+                    <Button
+                      type="button"
+                      variant={inlineId === c.id ? 'primary' : 'secondary'}
+                      size="sm"
+                      className="!px-3 !py-1 text-xs"
+                      aria-pressed={inlineId === c.id}
+                      onClick={() => setInlineId((id) => (id === c.id ? null : c.id))}
+                    >
+                      {inlineId === c.id ? 'Hide from page' : 'Show in page'}
+                    </Button>
+                  </>
                 )}
-                <Button
-                  type="button"
-                  variant={inlineId === c.id ? 'primary' : 'secondary'}
-                  size="sm"
-                  className="!px-3 !py-1 text-xs"
-                  aria-pressed={inlineId === c.id}
-                  onClick={() => setInlineId((id) => (id === c.id ? null : c.id))}
-                >
-                  {inlineId === c.id ? 'Hide from page' : 'Show in page'}
-                </Button>
               </div>
             </div>
 
@@ -134,6 +176,20 @@ export default function MyCertificates() {
         onPageChange={pager.setPage}
         itemLabel="certificates"
       />
+
+      {tournamentView && (
+        <CertificateModal
+          open
+          onClose={() => setTournamentView(null)}
+          certificate={{
+            playerName: tournamentView.studentName || student?.name || '',
+            tournamentName: tournamentView.tournamentName || tournamentView.title,
+            position: tournamentView.position ?? tournamentView.rank ?? null,
+            score: tournamentView.score || '',
+            date: tournamentView.issuedAt,
+          }}
+        />
+      )}
     </Page>
   );
 }

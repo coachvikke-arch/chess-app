@@ -1,5 +1,7 @@
+import Button from '../../components/Button';
+
 /* Live leaderboard for any format. */
-export default function StandingsTable({ standings, format, meId, completed }) {
+export default function StandingsTable({ standings, format, meId, completed, onCertificate }) {
   if (!standings || !standings.length) {
     return <div className="tn-empty"><span className="big">♟</span>No players yet.</div>;
   }
@@ -16,6 +18,7 @@ export default function StandingsTable({ standings, format, meId, completed }) {
             <th className="num">W</th><th className="num">D</th><th className="num">L</th>
             {swiss && <th className="num" title="Sum of opponents' scores">Buchholz</th>}
             {arena && <th className="num" title="Games where the player went berserk">⚡</th>}
+            {onCertificate && <th />}
           </tr>
         </thead>
         <tbody>
@@ -34,6 +37,7 @@ export default function StandingsTable({ standings, format, meId, completed }) {
               <td className="num">{s.wins}</td><td className="num">{s.draws}</td><td className="num">{s.losses}</td>
               {swiss && <td className="num">{Number.isInteger(s.buchholz) ? s.buchholz : s.buchholz.toFixed(1)}</td>}
               {arena && <td className="num">{s.berserks || 0}</td>}
+              {onCertificate && <td className="num"><Button variant="secondary" size="sm" onClick={() => onCertificate(s)}>Certificate</Button></td>}
             </tr>
           ))}
         </tbody>

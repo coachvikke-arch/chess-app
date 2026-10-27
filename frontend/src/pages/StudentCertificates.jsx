@@ -1,15 +1,26 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { Page, Card, Chip, Spinner } from '../components/ui';
 import { useToast } from '../components/Toast';
 import CertificatePreviewModal from '../components/CertificatePreviewModal';
 import CertificateInline from '../components/CertificateInline';
+import CertificateModal from '../components/CertificateModal';
+import Pagination, { PAGE_SIZE } from '../components/Pagination';
+import { usePagination } from '../hooks/usePagination';
 import {
   listStudentCertificates, generate, markSent, issue, fetchCertificateFile,
 } from '../services/certificatesApi';
 import { shareCertificate, openWhatsApp, canShareFiles } from '../utils/certificateShare';
 import Button from '../components/Button';
 import { formatPhoneDisplay } from '../utils/phone';
+
+/* Level completions and tournament achievements live in the same list; the tab
+   only narrows it, it does not switch to a different source. */
+const TYPE_TABS = [
+  ['all', 'All'],
+  ['level', 'Level'],
+  ['tournament', 'Tournament'],
+];
 
 /*
  * One student's certificates.
@@ -39,6 +50,20 @@ export default function StudentCertificates() {
   const [preview, setPreview] = useState(null);
   /* Which certificate is drawn inline on the page ("Show in page"). */
   const [inlineId, setInlineId] = useState(null);
+  const [typeFilter, setTypeFilter] = useState('all');
+  /* The tournament artwork is rendered in the browser, not read from the PDF. */
+  const [tournamentView, setTournamentView] = useState(null);
+  const listTopRef = useRef(null);
+
+  const filtered = useMemo(
+    () => (typeFilter === 'all' ? certificates : certificates.filter((c) => c.type === typeFilter)),
+    [certificates, typeFilter]
+  );
+
+  const pager = usePagination(filtered, PAGE_SIZE, {
+    resetKeys: [typeFilter],
+    scrollRef: listTopRef,
+  });
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -158,19 +183,22 @@ export default function StudentCertificates() {
   async function onIssueTournament() {
     const name = window.prompt('Tournament id (see the tournaments page):');
     if (!name) return;
-    const rankRaw = window.prompt('Finishing position (1 = winner):');
+    const rankRaw = window.prompt('Finishing position (1 = winner). Leave blank for Participant:');
     if (rankRaw === null) return;
-    const rank = Number(rankRaw);
-    if (!Number.isInteger(rank) || rank < 1) {
-      showToast('The finishing position must be 1 or more.', { tone: 'error', title: 'Invalid position' });
+    const rank = rankRaw.trim() === '' ? null : Number(rankRaw);
+    if (rank !== null && (!Number.isInteger(rank) || rank < 1)) {
+      showToast('The finishing position must be 1 or more, or blank for Participant.', { tone: 'error', title: 'Invalid position' });
       return;
     }
+    const scoreRaw = window.prompt('Score as shown in the standings (e.g. 5.5 / 7). Leave blank to omit:');
+    if (scoreRaw === null) return;
     try {
       const res = await issue({
         studentId: Number(studentId),
         type: 'tournament',
         tournamentId: Number(name),
         rank,
+        score: scoreRaw.trim() || undefined,
       });
       if (res.created) {
         showToast(`${res.certificate.certificateNo} issued.`, { tone: 'success', title: 'Certificate issued' });
@@ -224,6 +252,21 @@ export default function StudentCertificates() {
         </Button>
       </div>
 
+      <div className="mt-4 flex items-center gap-2 overflow-x-auto" role="tablist" aria-label="Certificate type">
+        {TYPE_TABS.map(([key, label]) => (
+          <button
+            key={key}
+            type="button"
+            role="tab"
+            aria-selected={typeFilter === key}
+            onClick={() => setTypeFilter(key)}
+            className={`kt-tab shrink-0 ${typeFilter === key ? 'active' : ''}`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
       {blocked.length > 0 && (
         <Card className="mt-4">
           <h2 className="chess-card-title"><span className="chess-card-piece">⚠</span><span className="flex-1">Cannot be sent</span></h2>
@@ -238,27 +281,29 @@ export default function StudentCertificates() {
         </Card>
       )}
 
-      <div className="mt-4 space-y-3">
-        {certificates.length === 0 && (
+      <div ref={listTopRef} className="mt-4 space-y-3">
+        {filtered.length === 0 && (
           <Card>
             <p className="chess-empty">
-              No certificates yet. They are issued automatically when this student
-              completes a level or finishes on a tournament podium.
+              {certificates.length === 0
+                ? 'No certificates yet. They are issued automatically when this student completes a level or finishes a tournament.'
+                : `No ${typeFilter} certificates for this student.`}
             </p>
           </Card>
         )}
 
-        {certificates.map((c) => (
+        {pager.currentItems.map((c) => (
           <Card key={c.id}>
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div className="min-w-0">
                 <h3 className="font-display font-bold text-ivory-200">{c.title}</h3>
                 <p className="text-xs text-ivory-500 mt-1">
                   {c.certificateNo} · issued {new Date(c.issuedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
-                  {c.preview?._badge ? ` · ${c.preview._badge}` : ''}
-                  {c.tournamentName ? ` · ${c.tournamentName}` : ''}
+                  {c.type !== 'tournament' && c.preview?._badge ? ` · ${c.preview._badge}` : ''}
+                  {c.type === 'tournament' && c.score ? ` · ${c.score}` : ''}
                 </p>
                 <div className="flex flex-wrap gap-2 mt-2">
+                  {c.type === 'tournament' && <Chip tone="gold">Tournament</Chip>}
                   {c.status === 'sent' ? (
                     <Chip tone="green">
                       Sent{c.sendCount > 1 ? ` ×${c.sendCount}` : ''}
@@ -277,20 +322,32 @@ export default function StudentCertificates() {
               </div>
 
               <div className="flex flex-wrap gap-2">
-                <Button type="button" variant="secondary" size="sm" className="!px-3 !py-1 text-xs" onClick={() => setPreview(c)}>
-                  Preview
-                </Button>
-                <Button
-                  type="button"
-                  variant={inlineId === c.id ? 'primary' : 'secondary'}
-                  size="sm"
-                  className="!px-3 !py-1 text-xs"
-                  aria-pressed={inlineId === c.id}
-                  onClick={() => setInlineId((id) => (id === c.id ? null : c.id))}
-                >
-                  {inlineId === c.id ? 'Hide from page' : 'Show in page'}
-                </Button>
-                {c.fileUrl ? (
+                {c.type === 'tournament' ? (
+                  <Button
+                    type="button"
+                    variant="secondary" size="sm" className="!px-3 !py-1 text-xs"
+                    onClick={() => setTournamentView(c)}
+                  >
+                    View certificate
+                  </Button>
+                ) : (
+                  <Button type="button" variant="secondary" size="sm" className="!px-3 !py-1 text-xs" onClick={() => setPreview(c)}>
+                    Preview
+                  </Button>
+                )}
+                {c.type !== 'tournament' && (
+                  <Button
+                    type="button"
+                    variant={inlineId === c.id ? 'primary' : 'secondary'}
+                    size="sm"
+                    className="!px-3 !py-1 text-xs"
+                    aria-pressed={inlineId === c.id}
+                    onClick={() => setInlineId((id) => (id === c.id ? null : c.id))}
+                  >
+                    {inlineId === c.id ? 'Hide from page' : 'Show in page'}
+                  </Button>
+                )}
+                {c.type !== 'tournament' && c.fileUrl && (
                   <>
                     <Button variant="secondary" size="sm" className="!px-3 !py-1 text-xs" href={c.fileUrlAbsolute || c.fileUrl} target="_blank" rel="noopener noreferrer">
                       Open PDF
@@ -299,7 +356,8 @@ export default function StudentCertificates() {
                       Download
                     </Button>
                   </>
-                ) : (
+                )}
+                {!c.fileUrl && (
                   <Button
                     type="button"
                     variant="primary" size="sm" className="!px-3 !py-1 text-xs"
@@ -340,7 +398,32 @@ export default function StudentCertificates() {
         ))}
       </div>
 
+      <Pagination
+        currentPage={pager.currentPage}
+        totalPages={pager.totalPages}
+        totalItems={pager.totalItems}
+        onPageChange={pager.setPage}
+        itemLabel="certificates"
+      />
+
       {preview && <CertificatePreviewModal certificate={preview} onClose={() => setPreview(null)} />}
+
+      {/* Tournament achievements use the tournament artwork, rendered in the
+          browser from the same fields the certificate was issued for. Level
+          certificates keep their existing artwork/PDF flow above. */}
+      {tournamentView && (
+        <CertificateModal
+          open
+          onClose={() => setTournamentView(null)}
+          certificate={{
+            playerName: tournamentView.studentName || student?.name || '',
+            tournamentName: tournamentView.tournamentName || tournamentView.title,
+            position: tournamentView.position ?? tournamentView.rank ?? null,
+            score: tournamentView.score || '',
+            date: tournamentView.issuedAt,
+          }}
+        />
+      )}
     </Page>
   );
 }

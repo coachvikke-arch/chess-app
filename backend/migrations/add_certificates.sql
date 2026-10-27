@@ -62,9 +62,14 @@ CREATE TABLE IF NOT EXISTS certificates (
   title          VARCHAR(200) NOT NULL,
 
   -- Finishing position for a tournament certificate, NULL for a level one.
+  -- NULL on a tournament certificate means "Participant" (outside the top three).
   rank           INTEGER,
   level_no       INTEGER,                       -- completed level, NULL for tournaments
   tournament_id  INTEGER REFERENCES tournaments(id) ON DELETE CASCADE,
+
+  -- Tournament points as the final standings showed them, e.g. '5.5 / 7'.
+  -- Printed on the certificate and shown in the list; NULL for level ones.
+  score          VARCHAR(20),
 
   issued_at      TIMESTAMP NOT NULL DEFAULT NOW(),
   certificate_no VARCHAR(30) NOT NULL,
@@ -121,6 +126,10 @@ ALTER TABLE certificates ADD COLUMN IF NOT EXISTS file_error TEXT;
 -- Added after the first revision: how many times the certificate has been sent, so
 -- a resend is visible in the record rather than overwriting the first attempt.
 ALTER TABLE certificates ADD COLUMN IF NOT EXISTS send_count INTEGER NOT NULL DEFAULT 0;
+
+-- Added after the first revision: the tournament score ('5.5 / 7'), so the
+-- certificate can be re-rendered with the result it was actually awarded for.
+ALTER TABLE certificates ADD COLUMN IF NOT EXISTS score VARCHAR(20);
 
 -- Who last changed the settings (audit trail on an academy-owned document).
 ALTER TABLE certificate_settings ADD COLUMN IF NOT EXISTS updated_by INTEGER REFERENCES users(id) ON DELETE SET NULL;

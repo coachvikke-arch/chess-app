@@ -35,6 +35,7 @@
     "test:feature-gate": "node --test scripts/test-feature-gate-role-map.js",
     "db:certificates": "node run_migration_certificates.js",
     "backfill:certificates": "node scripts/backfill_certificates.js",
+    "backfill:tournament-certificates": "node scripts/backfillTournamentCerts.js",
     "test:certificates": "node --test scripts/test-certificates.js",
     "db:sigma": "node run_migration_sigma_moves.js",
     "backfill:sigma": "node scripts/backfill_sigma_moves.js",

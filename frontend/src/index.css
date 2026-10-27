@@ -7164,6 +7164,47 @@ button.live-drill-move:hover { border-color: rgba(117, 223, 255, 0.45); }
   margin-bottom: 6px;
 }
 .live-participants-hint { font-size: 0.6rem; font-weight: 400; color: rgba(125, 162, 196, 0.7); }
+/* Instructor-only kill switch at the top of the roster: red while students can
+   move (the action is "stop"), green once they are stopped (the action is
+   "allow"). Same switch as the Board tools chip, so one click changes both. */
+.live-stop-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  min-height: 34px;
+  margin: 0 0 7px;
+  padding: 7px 10px;
+  border: 1px solid transparent;
+  border-radius: 0.5rem;
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  line-height: 1.15;
+  cursor: pointer;
+  transition: filter 0.15s ease, transform 0.1s ease;
+}
+.live-stop-btn.is-stop {
+  background: #dc2626;
+  border-color: #b91c1c;
+  box-shadow: 0 2px 10px rgba(220, 38, 38, 0.35);
+}
+.live-stop-btn.is-allow {
+  background: #16a34a;
+  border-color: #15803d;
+  box-shadow: 0 2px 10px rgba(22, 163, 74, 0.3);
+}
+.live-stop-btn:hover { filter: brightness(1.08); }
+.live-stop-btn:active { transform: translateY(1px); }
+.live-stop-btn:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+/* Same readability-pass problem as Open Video: the chat panel forces
+   #111517 !important on every button inside it, so the red/green fill needs
+   its white label declared with !important and a selector that out-ranks it. */
+.live-room .live-chat-panel .live-participants--tab .live-stop-btn {
+  color: #fff !important;
+}
 /* The merged Participants panel: roster + move grants in one list. It is a
    bounded flex column and ONLY the list scrolls, so a class of 40 can never
    stretch the panel or push the board / chat / chip bar out of place. */
@@ -19087,4 +19128,125 @@ body,
   .cp-nav-count { flex: 0 0 auto; min-width: 64px; align-self: center; }
   .cp-viewer-title,
   .cp-viewer-sub { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+}
+
+/* ── Board tools card: one tile grid, so the buttons stop scattering ────────
+   Every control is the same height, the icon and its label are centred in the
+   same column, and the gaps match. Prev/Next/Brain share one grouped row and
+   the students-move switch gets its own row under the grid. Scoped to
+   `.live-board-side` so the header chips elsewhere are untouched. */
+.live-board-side .live-board-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  width: 100%;
+  gap: 7px;
+  align-items: stretch;
+  margin: 0;
+}
+/* Every tile in the card is the same size, including Prev/Next/Brain. The
+   `.live-room` + child-combinator selectors are deliberate: the older rail
+   rules (`.live-room .live-board-side .live-icobtn { height: 48px }`,
+   `.live-room .live-movenav-btn { height: 48px }`) out-rank a two-class
+   selector, so a plain `.live-board-side ...` block left the tiles at 48px
+   and the navigation trio at 46px. */
+.live-room .live-board-side .live-board-grid > button,
+.live-room .live-board-side .live-tool-group > button {
+  width: 100%;
+  max-width: none;
+  height: 54px;
+  min-height: 54px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  padding: 6px 4px;
+  border-radius: 0.55rem;
+  font-size: 1.02rem;
+  line-height: 1;
+  text-align: center;
+}
+.live-board-side .live-tool-label {
+  display: block;
+  width: 100%;
+  font-size: 0.58rem;
+  font-weight: 700;
+  line-height: 1.1;
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.live-tool-group {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 7px;
+}
+.live-room .live-board-side .live-tool-group > button {
+  font-size: 0.92rem;
+}
+.live-tool-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  margin-top: 2px;
+}
+.live-tool-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  min-height: 30px;
+  padding: 6px 8px;
+  border-radius: 0.5rem;
+  background: rgba(25, 189, 242, 0.08);
+  border: 1px solid rgba(25, 189, 242, 0.22);
+}
+.live-tool-row .live-side-toggle-label {
+  flex: 1 1 auto;
+  margin: 0;
+  line-height: 1.2;
+}
+.live-tool-row .live-chip { flex: none; }
+@media (max-width: 900px) {
+  /* The instructor card goes full width under 900px, so three tiles per row
+     reads as a compact keypad. The student card stays a narrow side rail.
+     Prev/Next/Brain get the same height so the card still reads as a grid. */
+  .live-board-side:not(.live-board-side-student) .live-board-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .live-room .live-board-side:not(.live-board-side-student) .live-board-grid > button,
+  .live-room .live-board-side:not(.live-board-side-student) .live-tool-group > button { height: 58px; min-height: 58px; }
+}
+
+/* ── "Open Video" — the one mixed-colour action in the room ─────────────────
+   The external-meeting link is a different kind of action from every other
+   header control (it leaves the academy), so it wears the brand's mixed
+   gradient instead of the flat blue. White label on the gradient, and the
+   hover is a brightness lift plus a tiny scale so it still reads as a button. */
+.live-room .live-open-video.app-btn {
+  background: linear-gradient(135deg, #7c3aed, #ec4899, #f59e0b);
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  /* The room's readability pass paints every link/button ink-dark with
+     !important; a filled action has to opt back out or the label vanishes. */
+  color: #ffffff !important;
+  border-radius: 0.6rem;
+  box-shadow: 0 6px 16px rgba(124, 58, 237, 0.32);
+  text-shadow: 0 1px 2px rgba(60, 20, 80, 0.35);
+  transition: filter 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
+}
+.live-room .live-open-video.app-btn:hover {
+  filter: brightness(1.1);
+  transform: translateY(-1px) scale(1.02);
+  box-shadow: 0 8px 22px rgba(236, 72, 153, 0.38);
+}
+.live-room .live-open-video.app-btn:active {
+  transform: translateY(0) scale(0.99);
+  filter: brightness(0.98);
+}
+.live-room .live-open-video.app-btn:focus-visible {
+  outline: 2px solid #f59e0b;
+  outline-offset: 2px;
+}
+@media (max-width: 640px) {
+  .live-room .live-open-video.app-btn { min-height: 40px; }
 }

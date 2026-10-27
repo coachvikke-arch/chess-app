@@ -13,12 +13,36 @@ import RoundsPanel from '../features/tournaments/RoundsPanel';
 import TournamentFormModal from '../features/tournaments/TournamentFormModal';
 import AddPlayersModal from '../features/tournaments/AddPlayersModal';
 import ManualPairingPanel from '../features/tournaments/ManualPairingPanel';
+import CertificateModal from '../components/CertificateModal';
+import CertificateBatchModal from '../components/CertificateBatchModal';
 import {
   FORMAT_META, STATUS_META, countdown, downloadText, fmtDateTime, standingsCsv, timeControlLabel, useNow,
 } from '../features/tournaments/tournamentUtils';
 import '../features/tournaments/tournaments.css';
 import Button from '../components/Button';
 import usePageTitle from '../hooks/usePageTitle';
+
+const gamesPlayed = (s) => Number(s?.wins || 0) + Number(s?.draws || 0) + Number(s?.losses || 0);
+
+function scoreText(standing, tournament) {
+  const points = Number(standing.score);
+  if (!Number.isFinite(points)) return '';
+  const shown = Number.isInteger(points) ? String(points) : points.toFixed(1);
+  /* Swiss events carry a configured round count; arenas and knockouts do not,
+     so fall back to the games the player actually finished. */
+  const rounds = Number(tournament.rounds) || gamesPlayed(standing);
+  return rounds ? `${shown} / ${rounds}` : shown;
+}
+
+function certificateFor(standing, tournament) {
+  return {
+    playerName: standing.name,
+    tournamentName: tournament.name,
+    position: tournament.status === 'completed' ? Number(standing.rank) || null : null,
+    score: scoreText(standing, tournament),
+    date: tournament.completedAt || tournament.endTime || tournament.startTime || new Date().toISOString(),
+  };
+}
 
 /* One tournament: standings, rounds / bracket, players. Coaches (admin) also get
    the controls; students get Join / Leave / Play. ->  /admin|student/tournaments/:id */
@@ -41,6 +65,8 @@ export default function TournamentDetail() {
   const [editing, setEditing] = useState(false);
   const [adding, setAdding] = useState(false);
   const [audit, setAudit] = useState(null);
+  const [certificate, setCertificate] = useState(null);
+  const [batchCertificates, setBatchCertificates] = useState(null);
   const timer = useRef(null);
 
   const load = useCallback(() => {
@@ -90,6 +116,11 @@ export default function TournamentDetail() {
 
   const { tournament: t, standings, rounds, players, myGame, myRegistration, waiting, nextRoundAt } = data;
   const myStanding = standings.find((s) => Number(s.playerId) === me);
+  const podium = standings
+    .filter((s) => Number(s.rank) > 0)
+    .slice()
+    .sort((a, b) => Number(a.rank) - Number(b.rank))
+    .slice(0, 3);
   const fm = FORMAT_META[t.format];
   const st = STATUS_META[t.status];
   const registered = myRegistration && myRegistration.status === 'active';
@@ -126,6 +157,9 @@ export default function TournamentDetail() {
 
         <div className="tn-actions">
           <Button variant="secondary" size="md" onClick={() => navigate(`${base}/tournaments`)}>← All tournaments</Button>
+          {!admin && t.status === 'completed' && myStanding && gamesPlayed(myStanding) > 0 && (
+            <Button variant="primary" size="md" onClick={() => setCertificate(certificateFor(myStanding, t))}>My certificate</Button>
+          )}
           {admin && t.status === 'upcoming' && <>
             <Button variant="primary" size="md" disabled={busy} onClick={() => confirmRun('Start this tournament now?', () => setTournamentStatus(tid, 'active'), 'Tournament started')}>▶ Start</Button>
             <Button variant="secondary" size="md" onClick={() => setEditing(true)}>Edit</Button>
@@ -194,8 +228,14 @@ export default function TournamentDetail() {
           <div className="tn-actions" style={{ justifyContent: 'flex-end', marginBottom: 8 }}>
             <Button variant="secondary" size="sm" onClick={() => downloadText(`${t.name.replace(/\W+/g, '-')}-standings.csv`, standingsCsv(standings, t.format))}>Download CSV</Button>
             <Button variant="secondary" size="sm" onClick={() => window.print()}>Print report</Button>
+            {admin && t.status === 'completed' && podium.length > 0 && (
+              <Button variant="primary" size="sm" onClick={() => setBatchCertificates(podium.map((s) => certificateFor(s, t)))}>Download all certificates</Button>
+            )}
           </div>
-          <StandingsTable standings={standings} format={t.format} meId={me} completed={t.status === 'completed'} />
+          <StandingsTable
+            standings={standings} format={t.format} meId={me} completed={t.status === 'completed'}
+            onCertificate={admin ? (s) => setCertificate(certificateFor(s, t)) : undefined}
+          />
         </div>
       )}
 
@@ -259,6 +299,8 @@ export default function TournamentDetail() {
 
       {editing && <TournamentFormModal tournament={t} onClose={() => setEditing(false)} onSaved={() => { setEditing(false); load(); }} />}
       {adding && <AddPlayersModal tournamentId={tid} existingIds={players.filter((p) => p.status === 'active').map((p) => p.id)} onClose={() => setAdding(false)} onAdded={(d) => { setAdding(false); setData(d); }} />}
+      {certificate && <CertificateModal open onClose={() => setCertificate(null)} certificate={certificate} />}
+      {batchCertificates && <CertificateBatchModal open onClose={() => setBatchCertificates(null)} certificates={batchCertificates} />}
     </div>
   );
 }

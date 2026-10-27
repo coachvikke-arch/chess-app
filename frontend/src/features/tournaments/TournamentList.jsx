@@ -91,6 +91,9 @@ export default function TournamentList({ admin }) {
                 {t.format === 'swiss' && t.rounds ? <span className="tn-chip">{t.rounds} rounds</span> : null}
                 {t.format === 'arena' && t.durationMinutes ? <span className="tn-chip">{t.durationMinutes} min</span> : null}
                 {!admin && t.myStatus === 'active' && <span className="tn-chip live">You're in</span>}
+                {!admin && t.status === 'completed' && t.myStatus === 'active' && (
+                  <span className="tn-chip blue">Certificate</span>
+                )}
               </div>
               <div className="tn-foot">
                 <span>{t.status === 'completed' && t.winnerName ? `🏆 ${t.winnerName}` : t.startTime ? fmtDateTime(t.startTime) : 'No start time'}</span>

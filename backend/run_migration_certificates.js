@@ -39,6 +39,7 @@ const db = require('./src/config/database');
       'certificates.id', 'certificates.student_id', 'certificates.type',
       'certificates.title', 'certificates.rank', 'certificates.level_no',
       'certificates.tournament_id', 'certificates.issued_at', 'certificates.certificate_no',
+      'certificates.score',
       'certificates.file_url', 'certificates.file_error', 'certificates.status',
       'certificates.sent_at', 'certificates.sent_by', 'certificates.send_count',
       'certificates.created_at', 'certificates.updated_at',

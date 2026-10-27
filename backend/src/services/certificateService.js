@@ -6,6 +6,7 @@ const { buildCertificateContent, levelTitle, tournamentTitle, ordinal } = requir
 const { saveCertificatePdf } = require('./certificatePdf');
 const { nextCertificateNo } = require('./certificateNumber');
 const { LEVELS } = require('./ratingService');
+const L = require('./tournamentLogic');
 const { APP_NAME } = require('../config/brand');
 
 /**
@@ -152,8 +153,8 @@ async function insertCertificate(payload) {
   try {
     const { rows } = await db.query(
       `INSERT INTO certificates
-         (student_id, type, title, rank, level_no, tournament_id, issued_at, certificate_no, status)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'pending')
+         (student_id, type, title, rank, level_no, tournament_id, score, issued_at, certificate_no, status)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'pending')
        RETURNING *`,
       [
         payload.student_id,
@@ -162,6 +163,7 @@ async function insertCertificate(payload) {
         payload.rank ?? null,
         payload.level_no ?? null,
         payload.tournament_id ?? null,
+        payload.score ?? null,
         issuedAt,
         certificateNo,
       ]
@@ -184,9 +186,16 @@ async function insertCertificate(payload) {
  *
  * @returns {Promise<{ok: boolean, fileUrl: string|null, error: string|null, certificate: object}>}
  */
-async function generateFile(cert, { student, settings }) {
+async function generateFile(cert, { student, settings, tournamentName }) {
   try {
-    const content = buildCertificateContent({ certificate: cert, student, settings });
+    /* The tournament name is a join, not a column on `certificates`, so callers
+       that already have it hand it over; otherwise the description would fall
+       back to a generic "the tournament". */
+    const content = buildCertificateContent({
+      certificate: tournamentName ? { ...cert, tournament_name: tournamentName } : cert,
+      student,
+      settings,
+    });
     const fileUrl = await saveCertificatePdf(cert, { content });
     const { rows } = await db.query(
       `UPDATE certificates SET file_url = $2, file_error = NULL, updated_at = NOW()
@@ -249,16 +258,22 @@ async function issueLevelCertificates({ studentId, levels, issuedAt }) {
 }
 
 /**
- * Issue a tournament-achievement certificate for a finishing position.
+ * Issue a tournament-achievement certificate by hand.
+ *
+ * `rank` is the finishing position (1 = winner). NULL is a Participant
+ * certificate, which is what the automatic path issues for everyone outside the
+ * top three.
  *
  * @returns {Promise<object|null>} the row created, or null when already issued
  */
-async function issueTournamentCertificate({ studentId, tournamentId, tournamentName, rank, issuedAt }) {
+async function issueTournamentCertificate({
+  studentId, tournamentId, tournamentName, rank, score, issuedAt,
+}) {
   const student = await getStudent(studentId);
   if (!student) return null;
 
-  const place = Number(rank);
-  if (!Number.isInteger(place) || place < 1) {
+  const place = rank == null || rank === '' ? null : Number(rank);
+  if (place !== null && (!Number.isInteger(place) || place < 1)) {
     throw new Error(`Tournament certificate needs a finishing position of 1 or more, got ${rank}`);
   }
 
@@ -268,6 +283,7 @@ async function issueTournamentCertificate({ studentId, tournamentId, tournamentN
     title: tournamentTitle({ tournamentName, rank: place }),
     rank: place,
     tournament_id: tournamentId,
+    score: score || null,
     issued_at: issuedAt,
   });
   if (!cert) return null;
@@ -275,8 +291,139 @@ async function issueTournamentCertificate({ studentId, tournamentId, tournamentN
   const settings = await getSettings();
   /* As above: hand back the post-generation row, so a caller that immediately
      reports "certificate issued" is not describing a row whose PDF failed. */
-  const generated = await generateFile(cert, { student, settings });
+  const generated = await generateFile(cert, { student, settings, tournamentName });
   return generated.certificate;
+}
+
+/** '5.5 / 7' — the score as the final standings printed it. */
+function scoreLabel(points, totalRounds) {
+  const n = Number(points) || 0;
+  const shown = Number.isInteger(n) ? String(n) : n.toFixed(1);
+  return totalRounds ? `${shown} / ${totalRounds}` : shown;
+}
+
+/**
+ * Create or refresh every participant's certificate for a completed tournament.
+ *
+ * This is the automatic path: it runs after the tournament is marked completed,
+ * and again from the backfill script for events finished before this existed.
+ * It is IDEMPOTENT on (student_id, tournament_id):
+ *
+ *   • a player who already has a certificate keeps the same certificate number
+ *     and send status — only the position, score, title and issue date are
+ *     refreshed, so a corrected standing updates the certificate instead of
+ *     issuing a second one;
+ *   • the PDF is only re-rendered when something actually changed (or the
+ *     previous generation failed), so repeated runs are cheap.
+ *
+ * Everyone who played at least one game gets a certificate. The top three carry
+ * their placing; the rest are Participants with `rank = NULL`.
+ *
+ * @returns {Promise<{created: number, updated: number, skipped: number}>}
+ */
+async function generateTournamentCertificates(tournamentId) {
+  const id = Number(tournamentId);
+  const empty = { created: 0, updated: 0, skipped: 0 };
+  if (!Number.isInteger(id) || id <= 0) return empty;
+
+  const t = (await db.query('SELECT * FROM tournaments WHERE id = $1', [id])).rows[0];
+  if (!t || t.status !== 'completed') return empty;
+
+  /* tournament_registrations.student_id is a USERS id, while
+     certificates.student_id is a STUDENTS id — the join below is what bridges
+     the two. A registration with no student profile cannot be certified. */
+  const { rows: players } = await db.query(
+    `SELECT u.id, u.name,
+            COALESCE(s.current_rating, 1000)::int AS rating,
+            tr.seed,
+            s.id AS student_id
+       FROM tournament_registrations tr
+       JOIN users u ON u.id = tr.student_id
+       LEFT JOIN students s ON s.user_id = u.id
+      WHERE tr.tournament_id = $1`,
+    [id]
+  );
+  const { rows: pairings } = await db.query(
+    'SELECT * FROM tournament_pairings WHERE tournament_id = $1', [id]
+  );
+
+  const standings = L.computeStandings(t.format, players, pairings, {
+    totalRounds: t.format === 'knockout' ? t.rounds : null,
+  });
+
+  /* computeStandings returns only the columns the pairing rules need, so the
+     users-id → students-id bridge is kept here, keyed by the player id. */
+  const studentIdOf = new Map(players.map((p) => [String(p.id), p.student_id]));
+
+  const totalRounds = Number(t.rounds) || Number(t.current_round) || 0;
+  const issuedAt = t.completed_at ? new Date(t.completed_at) : new Date();
+  const settings = await getSettings();
+  const out = { ...empty };
+
+  for (const s of standings) {
+    const studentId = studentIdOf.get(String(s.playerId));
+    /* A certificate is for taking part. A registration with no completed game
+       (withdrawn, never paired, bye only) is not an achievement. */
+    if (!studentId || !(s.games > 0)) {
+      out.skipped += 1;
+      continue;
+    }
+
+    const position = s.rank <= 3 ? s.rank : null;
+    const score = scoreLabel(s.score, totalRounds);
+    const title = tournamentTitle({ tournamentName: t.name, rank: position });
+
+    const existing = (await db.query(
+      'SELECT * FROM certificates WHERE student_id = $1 AND tournament_id = $2',
+      [studentId, id]
+    )).rows[0];
+
+    let cert = existing;
+    let needsRender = false;
+
+    if (existing) {
+      const changed =
+        (existing.rank ?? null) !== position
+        || (existing.score || '') !== score
+        || existing.title !== title
+        || new Date(existing.issued_at).getTime() !== issuedAt.getTime();
+
+      if (changed) {
+        cert = (await db.query(
+          `UPDATE certificates
+              SET title = $2, rank = $3, score = $4, issued_at = $5, updated_at = NOW()
+            WHERE id = $1 RETURNING *`,
+          [existing.id, title, position, score, issuedAt]
+        )).rows[0];
+        needsRender = true;
+      }
+      out.updated += 1;
+    } else {
+      cert = await insertCertificate({
+        student_id: studentId,
+        type: CERT_TYPES.tournament,
+        title,
+        rank: position,
+        tournament_id: id,
+        score,
+        issued_at: issuedAt,
+      });
+      if (!cert) {
+        /* Lost an insert race to a simultaneous run: the other run owns it. */
+        out.skipped += 1;
+        continue;
+      }
+      out.created += 1;
+      needsRender = true;
+    }
+
+    if (needsRender || !cert.file_url || cert.file_error) {
+      const student = { name: s.name, phone: null };
+      await generateFile(cert, { student, settings, tournamentName: t.name });
+    }
+  }
+
+  return out;
 }
 
 /**
@@ -287,13 +434,19 @@ async function issueTournamentCertificate({ studentId, tournamentId, tournamentN
  * certificate.
  */
 async function regenerate(id) {
-  const { rows } = await db.query(`SELECT * FROM certificates WHERE id = $1`, [id]);
+  const { rows } = await db.query(
+    `SELECT c.*, t.name AS tournament_name
+       FROM certificates c
+       LEFT JOIN tournaments t ON t.id = c.tournament_id
+      WHERE c.id = $1`,
+    [id]
+  );
   const cert = rows[0];
   if (!cert) return null;
 
   const student = await getStudent(cert.student_id);
   const settings = await getSettings();
-  return generateFile(cert, { student, settings });
+  return generateFile(cert, { student, settings, tournamentName: cert.tournament_name });
 }
 
 /* ── Delivery ────────────────────────────────────────────────────────────*/
@@ -380,6 +533,8 @@ module.exports = {
   generateFile,
   issueLevelCertificates,
   issueTournamentCertificate,
+  generateTournamentCertificates,
+  scoreLabel,
   regenerate,
   markSent,
   deliveryFor,

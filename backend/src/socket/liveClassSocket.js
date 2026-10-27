@@ -563,21 +563,28 @@ module.exports = function (io) {
             return;
           }
           const turnSide = chess.turn() === 'w' ? 'white' : 'black';
-          /* A live class is an interactive room: with no explicit grant a
-             student may move either colour on the shared board. A per-student
-             grant still restricts them to that colour; the class-wide setting
-             is honoured when it names a side. The server validates every move
-             and broadcasts the resulting state, so it stays the one source of
-             truth. */
-          let moveSide = 'both';
+          /* The class-wide switch is a hard stop: "Students move: Off" (the
+             Stop all students button) must block every student, grants
+             included, and it is enforced HERE rather than only by the client so
+             a stale tab or a hand-written emit cannot move pieces. */
+          if (!classRow.student_interaction_enabled) {
+            const reason = 'Student moves are turned off by the coach';
+            socket.emit('action_rejected', { action: 'chess_move', reason });
+            if (ack) ack({ ok: false, error: reason });
+            return;
+          }
+          /* With the switch on, a per-student grant still restricts that
+             student to one colour; otherwise the class-wide side applies, and
+             students share the board with the coach. The server validates every
+             move and broadcasts the resulting state, so it stays the one source
+             of truth. */
+          let moveSide = classRow.student_move_side || 'both';
           const grantRes = await db.query(
             'SELECT move_side FROM live_class_move_grants WHERE live_class_id = $1 AND user_id = $2',
             [classId, userId]
           );
           if (grantRes.rows.length > 0 && grantRes.rows[0].move_side) {
             moveSide = grantRes.rows[0].move_side;
-          } else if (classRow.student_interaction_enabled) {
-            moveSide = classRow.student_move_side || 'both';
           }
           if (moveSide !== 'both' && moveSide !== turnSide) {
             const reason = `You can move ${moveSide} pieces only`;

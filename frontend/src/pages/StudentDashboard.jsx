@@ -430,10 +430,7 @@ export default function StudentDashboard() {
 
       <GmQuoteStrip variant="dark" />
 
-      {/* Tournaments — live from /api/tournaments */}
-      <DashboardTournaments role="student" />
-
-      {/* Upcoming live meetings (classroom) — kept directly below Tournaments */}
+      {/* Upcoming live meetings (classroom) */}
       {meetings.filter((m) => !['completed', 'cancelled'].includes(m.live_status)).length > 0 && (
         <div className="mb-8">
           <div className="flex items-center justify-between mb-3">
@@ -576,6 +573,9 @@ export default function StudentDashboard() {
 
         <RatingTrendCard />
       </div>
+
+      {/* Tournaments — live from /api/tournaments; last card on the dashboard */}
+      <DashboardTournaments role="student" />
     </div>
   );
 }

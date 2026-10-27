@@ -500,6 +500,17 @@ async function completeTx(client, t, after, io) {
     }
     rt.emitTournament(io, t.id, 'tournament.completed', { winnerId: winner });
   });
+  /* Certificates are issued after the commit, from the stored final standings.
+     Lazy require: certificateService imports certificateContent the same way the
+     rating path does, and a certificate failure must never undo a completed
+     tournament — it leaves file_error on the row for the admin to regenerate. */
+  after.push(async () => {
+    try {
+      await require('./certificateService').generateTournamentCertificates(t.id);
+    } catch (err) {
+      console.error('[tournament] certificate generation failed:', err.message);
+    }
+  });
   return r.rows[0];
 }
 

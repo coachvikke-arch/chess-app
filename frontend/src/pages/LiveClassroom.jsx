@@ -19,6 +19,22 @@ import { setBotGameContext, clearBotGameContext, touchBotGameContext, BOT_CONTEX
 import { useFullHeight } from '../context/FullHeightContext';
 import Button from '../components/Button';
 import usePageTitle from '../hooks/usePageTitle';
+import { formatTime } from '../utils/formatTime';
+
+/* The stored schedule is a date column plus a separate "HH:mm:ss" string, so
+   joining them directly printed raw ISO next to a 24-hour clock. Build one
+   local Date from the two (the time is what the coach scheduled in their own
+   clock) and let the shared helper render it. */
+function scheduleLabel(meta) {
+  const raw = meta?.scheduledDate;
+  if (!raw) return '';
+  const date = new Date(raw);
+  if (Number.isNaN(date.getTime())) return '';
+  const match = /^(\d{1,2}):(\d{2})/.exec(String(meta?.startTime || ''));
+  if (!match) return formatTime(date, { dateOnly: true });
+  date.setHours(Number(match[1]), Number(match[2]), 0, 0);
+  return formatTime(date);
+}
 
 /* Boot screen states */
 const BOOT_LOADING = 'loading';
@@ -257,7 +273,7 @@ function ClassroomInner({ socketError }) {
     : connection === 'connected' ? 'Connected' : 'Connecting';
   const subtitle = [
     classMeta?.instructorName ? `Coach ${classMeta.instructorName}` : '',
-    [classMeta?.scheduledDate, classMeta?.startTime].filter(Boolean).join(' '),
+    scheduleLabel(classMeta),
   ].filter(Boolean).join(' · ');
 
   const boardArea = (
@@ -371,6 +387,7 @@ function ClassroomInner({ socketError }) {
               rel="noopener noreferrer"
               variant="secondary"
               size="sm"
+              className="live-open-video"
             >
               ▶ Open Video
             </Button>

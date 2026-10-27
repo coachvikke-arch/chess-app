@@ -70,10 +70,16 @@ function shape(req, row, settings) {
     type: row.type,
     title: row.title,
     rank: row.rank ?? null,
-    rankLabel: row.rank ? svc.ordinal(row.rank) : null,
+    /* `position` is the tournament-facing name for the same column; NULL means
+       Participant (outside the top three). */
+    position: row.rank ?? null,
+    rankLabel: row.rank
+      ? svc.ordinal(row.rank)
+      : (row.type === 'tournament' ? 'Participant' : null),
     levelNo: row.level_no ?? null,
     tournamentId: row.tournament_id ?? null,
     tournamentName: row.tournament_name || null,
+    score: row.score || null,
     issuedAt: row.issued_at,
     certificateNo: row.certificate_no,
     fileUrl: row.file_url,
@@ -83,6 +89,7 @@ function shape(req, row, settings) {
     fileError: row.file_error || null,
     needsGeneration: !row.file_url,
     status: row.status,
+    sendStatus: row.status,
     sentAt: row.sent_at,
     sentBy: row.sent_by,
     sentByName: row.sent_by_name || null,
@@ -345,7 +352,7 @@ exports.saveSettings = async (req, res) => {
  */
 exports.issue = async (req, res) => {
   try {
-    const { studentId, type, level, tournamentId, rank } = req.body || {};
+    const { studentId, type, level, tournamentId, rank, position, score } = req.body || {};
     const sid = Number(studentId);
     if (!Number.isInteger(sid) || sid <= 0) {
       return res.status(400).json({ message: 'studentId is required' });
@@ -362,11 +369,14 @@ exports.issue = async (req, res) => {
       const t = await db.query(`SELECT name FROM tournaments WHERE id = $1`, [tid]);
       if (!t.rows[0]) return res.status(404).json({ message: 'Tournament not found' });
 
+      /* A missing position is a Participant certificate, not an error: that is
+         what the automatic path issues outside the top three. */
       cert = await svc.issueTournamentCertificate({
         studentId: sid,
         tournamentId: tid,
         tournamentName: t.rows[0].name,
-        rank,
+        rank: rank ?? position,
+        score,
       });
     } else {
       const lvl = Number(level);
