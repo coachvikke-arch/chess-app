@@ -2228,7 +2228,9 @@ button.set-row:active {
 .ab-root {
   max-width: 1280px;
   margin: 0 auto;
-  padding: 0.75rem 0.75rem 2rem;
+  /* The page scrolls (see .admin-content-full:has(.ab-root)); keep the last
+     tool tile clear of the mobile browser bar and safe area. */
+  padding: 0.75rem 0.75rem calc(1.5rem + env(safe-area-inset-bottom, 0px));
 }
 
 /* header */
@@ -2936,7 +2938,7 @@ button.set-row:active {
   gap: 0.4rem;
   width: 280px;
   min-width: 0;
-  max-height: calc(100vh - 80px);
+  max-height: calc(100dvh - 80px);
   overflow-y: auto;
   position: sticky;
   top: 0.5rem;
@@ -4959,7 +4961,7 @@ body {
   }
 }
 
-/* ─────────────── Post-game result popup ─────────────── */
+/* ─────────────── Post-game result card ─────────────── */
 
 .pgr-overlay {
   position: fixed;
@@ -4968,269 +4970,347 @@ body {
   display: grid;
   place-items: center;
   padding: 16px;
-  background: rgba(23, 23, 23, 0.55);
+  background: rgba(8, 10, 14, 0.62);
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
-  animation: party-overlay-fade 0.3s ease both;
+  animation: pgr-overlay-in 180ms ease both;
   cursor: pointer;
+}
+@keyframes pgr-overlay-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 .pgr-card {
   position: relative;
   width: 100%;
-  max-width: 430px;
-  border-radius: 20px;
-  padding: 1.4rem 1.6rem 1.6rem;
-  background: linear-gradient(160deg, rgba(255, 255, 255, 0.99), rgba(224, 242, 254, 0.99));
-  border: 1.5px solid rgba(25, 189, 242, 0.6);
+  max-width: 560px;
+  box-sizing: border-box;
+  padding: 20px;
+  border-radius: 16px;
+  background: linear-gradient(180deg, #1a1d24 0%, #14161b 100%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
   box-shadow:
-    0 0 70px rgba(25, 189, 242, 0.2),
-    0 30px 90px rgba(23, 23, 23, 0.3),
-    inset 0 1px 0 rgba(255, 255, 255, 0.6);
-  animation: party-card-pop 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+    0 24px 60px rgba(0, 0, 0, 0.55),
+    0 2px 10px rgba(0, 0, 0, 0.35);
+  color: #e9edf2;
+  font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
   cursor: default;
-  max-height: calc(100vh - 32px);
+  max-height: calc(100dvh - 32px);
   overflow-y: auto;
+  animation: pgr-card-in 200ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  transition: transform 200ms ease, box-shadow 200ms ease;
+}
+@keyframes pgr-card-in {
+  from { opacity: 0; transform: translateY(6px) scale(0.99); }
+  to { opacity: 1; transform: none; }
+}
+/* Hover lift is a desktop pointer affordance only. */
+@media (hover: hover) and (pointer: fine) {
+  .pgr-card:hover {
+    transform: translateY(-2px);
+    box-shadow:
+      0 30px 70px rgba(0, 0, 0, 0.6),
+      0 3px 12px rgba(0, 0, 0, 0.38);
+  }
 }
 
-.pgr-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 0.35rem;
-}
-
+/* result-coloured hairline along the top edge, with a faint matching glow */
 .pgr-accent {
   position: absolute;
   top: 0;
   left: 0;
   right: 0;
-  height: 4px;
-  border-radius: 20px 20px 0 0;
+  height: 2px;
+  border-radius: 16px 16px 0 0;
+  background: linear-gradient(90deg, transparent, var(--pgr-accent, #9aa4b2), transparent);
   opacity: 0.9;
+  pointer-events: none;
+}
+.pgr-accent::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  box-shadow: 0 0 18px 2px var(--pgr-accent, #9aa4b2);
+  opacity: 0.25;
 }
 
-.pgr-header-piece {
-  font-size: 1.5rem;
-  color: rgba(29, 78, 216, 0.85);
-  animation: piece-glyph-spin 3s ease-in-out infinite;
+/* ── top row: time-control pill, result badge, close ── */
+.pgr-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.pgr-top-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.pgr-pill {
+  display: inline-flex;
+  align-items: center;
+  height: 24px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.04);
+  color: #b7bfcc;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.pgr-badge {
+  display: inline-flex;
+  align-items: center;
+  height: 24px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.04);
+  color: #b7bfcc;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.pgr-badge.is-win {
+  color: #4ade80;
+  border-color: rgba(74, 222, 128, 0.3);
+  background: rgba(74, 222, 128, 0.12);
+}
+.pgr-badge.is-loss {
+  color: #f87171;
+  border-color: rgba(248, 113, 113, 0.3);
+  background: rgba(248, 113, 113, 0.12);
+}
+.pgr-badge.is-draw {
+  color: #9aa4b2;
+  border-color: rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.06);
 }
 
 .pgr-close {
-  width: 32px;
-  height: 32px;
-  border-radius: 10px;
-  border: 1px solid rgba(25, 189, 242, 0.25);
-  background: rgba(25, 189, 242, 0.08);
-  color: rgba(82, 82, 82, 0.8);
-  font-size: 0.9rem;
-  line-height: 1;
-  cursor: pointer;
-  transition: background 0.2s, color 0.2s, border-color 0.2s;
-}
-.pgr-close:hover {
-  background: rgba(25, 189, 242, 0.16);
-  color: #0369a1;
-  border-color: rgba(25, 189, 242, 0.5);
-}
-
-.pgr-title {
-  font-size: 2rem;
-  font-weight: 800;
-  letter-spacing: 0.02em;
-  line-height: 1.1;
-  margin: 0 0 0.15rem;
-}
-
-.pgr-reason {
-  font-size: 0.92rem;
-  color: rgba(82, 82, 82, 0.6);
-  margin: 0 0 1.1rem;
-}
-
-/* coach avatar + feedback bubble */
-.pgr-coach {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.7rem;
-  margin-bottom: 1.1rem;
-}
-.pgr-coach-avatar {
-  flex-shrink: 0;
-  width: 58px;
-  height: 58px;
-  border-radius: 50%;
   display: grid;
   place-items: center;
-  font-size: 1.9rem;
-  background:
-    radial-gradient(circle at 30% 25%, rgba(255, 255, 255, 0.12), transparent 60%),
-    linear-gradient(150deg, rgba(25, 189, 242, 0.3), rgba(25, 189, 242, 0.35));
-  border: 1.5px solid rgba(25, 189, 242, 0.45);
-  box-shadow: 0 0 0 3px rgba(25, 189, 242, 0.12);
-}
-.pgr-coach-bubble {
-  flex: 1;
-  font-size: 0.85rem;
-  line-height: 1.45;
-  color: rgba(23, 23, 23, 0.85);
-  padding: 0.7rem 0.85rem;
-  border-radius: 0 14px 14px 14px;
-  background: rgba(25, 189, 242, 0.08);
-  border: 1px solid rgba(25, 189, 242, 0.18);
-}
-
-/* rating change after a rated player-vs-player game.
-   Sits between the move-quality stats and the action buttons. Only rendered at
-   all when the game was rated - bot games and practice games show nothing, since
-   there is no real rating behind them. */
-.pgr-rating {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.7rem;
-  flex-wrap: wrap;
-  margin: 0 0 1.15rem;
-  padding: 0.6rem 0.9rem;
-  border-radius: 12px;
-  background: rgba(25, 189, 242, 0.07);
-  border: 1px solid rgba(25, 189, 242, 0.16);
-}
-.pgr-rating-label {
-  font-size: 0.78rem;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: rgba(82, 82, 82, 0.62);
-}
-.pgr-rating-numbers {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  font-size: 0.92rem;
-  color: rgba(23, 23, 23, 0.72);
-  font-variant-numeric: tabular-nums;
-}
-.pgr-rating-numbers strong {
-  color: rgba(23, 23, 23, 0.92);
-}
-.pgr-rating-arrow {
-  opacity: 0.45;
-  font-size: 0.82rem;
-}
-.pgr-rating-delta {
-  font-size: 0.95rem;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  padding: 0.12rem 0.5rem;
+  width: 28px;
+  height: 28px;
   border-radius: 8px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: #8b93a1;
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 150ms ease, color 150ms ease;
 }
-.pgr-rating-delta.is-up {
-  color: #1a7f37;
-  background: rgba(26, 127, 55, 0.1);
+.pgr-close:hover {
+  background: rgba(255, 255, 255, 0.07);
+  color: #e9edf2;
 }
-.pgr-rating-delta.is-down {
-  color: #b42318;
-  background: rgba(180, 35, 24, 0.09);
-}
-
-/* The rating rows: one per player, listed under the rating label. */
-.pgr-rating-list {
-  list-style: none;
-  margin: 0.35rem 0 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
-  width: 100%;
+.pgr-close:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.35);
+  outline-offset: 1px;
 }
 
-.pgr-rating-row {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.6rem;
-  flex-wrap: wrap;
-}
-
-.pgr-rating-who {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.3rem;
-  font-size: 0.8rem;
+/* ── headline ── */
+.pgr-headline {
+  margin: 0;
+  font-size: 28px;
   font-weight: 700;
-  color: rgba(23, 23, 23, 0.72);
-  min-width: 6.5rem;
-  justify-content: flex-end;
+  line-height: 1.15;
+  letter-spacing: -0.01em;
+}
+.pgr-reason {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: #8b93a1;
 }
 
-/* move-quality stats */
-.pgr-stats {
-  margin-bottom: 1.15rem;
+/* ── players ── */
+.pgr-players {
+  margin-top: 20px;
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
 }
-.pgr-stats-label {
+.pgr-player-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.pgr-player {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+}
+.pgr-player + .pgr-player {
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 0;
+}
+/* the reader's own row, slightly raised */
+.pgr-player.is-me {
+  background: rgba(255, 255, 255, 0.04);
+}
+.pgr-dot {
+  flex-shrink: 0;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+.pgr-dot.is-white {
+  background: #e8edf3;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.35);
+}
+.pgr-dot.is-black {
+  background: #0b0d12;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.3);
+}
+.pgr-player-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 15px;
+  font-weight: 500;
+  color: #e9edf2;
+}
+.pgr-player-rating {
   display: inline-flex;
   align-items: center;
-  gap: 0.5rem;
-  font-size: 0.8rem;
-  color: rgba(82, 82, 82, 0.6);
-  padding: 0.45rem 0.8rem;
-  border-radius: 10px;
-  background: rgba(25, 189, 242, 0.08);
-  border: 1px dashed rgba(25, 189, 242, 0.3);
+  gap: 6px;
+  flex-shrink: 0;
+  white-space: nowrap;
+  font-size: 13px;
+  color: #8b93a1;
+  font-variant-numeric: tabular-nums;
 }
-.pgr-analyzing-dot {
+.pgr-player-rating strong {
+  color: #e9edf2;
+  font-weight: 600;
+}
+.pgr-player-arrow {
+  font-size: 12px;
+  opacity: 0.5;
+}
+.pgr-delta {
+  flex-shrink: 0;
+  min-width: 44px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  color: #9aa4b2;
+  background: rgba(255, 255, 255, 0.06);
+}
+.pgr-delta.is-up {
+  color: #4ade80;
+  background: rgba(74, 222, 128, 0.12);
+}
+.pgr-delta.is-down {
+  color: #f87171;
+  background: rgba(248, 113, 113, 0.12);
+}
+
+/* ── secondary actions ── */
+.pgr-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 20px;
+}
+.pgr-action {
+  flex: 1 1 auto;
+  min-height: 36px;
+  padding: 0 14px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.03);
+  color: #cfd5df;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 150ms ease, border-color 150ms ease;
+}
+.pgr-action:hover {
+  background: rgba(255, 255, 255, 0.07);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+/* ── footer: analysis status + view link ── */
+.pgr-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 24px;
+  margin-top: 20px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+}
+.pgr-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  color: #8b93a1;
+}
+.pgr-shimmer {
+  flex-shrink: 0;
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: #bff1ff;
-  animation: pgr-pulse 1s ease-in-out infinite;
+  background: linear-gradient(90deg, #4b5563, #e5e7eb, #4b5563);
+  background-size: 200% 100%;
+  animation: pgr-shimmer 1.2s linear infinite;
 }
-@keyframes pgr-pulse {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50% { opacity: 0.35; transform: scale(0.8); }
+@keyframes pgr-shimmer {
+  from { background-position: 200% 0; }
+  to { background-position: -200% 0; }
 }
-
-.pgr-stats-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
+.pgr-link {
+  flex-shrink: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--pgr-accent, #9aa4b2);
+  cursor: pointer;
+  transition: opacity 150ms ease;
 }
-.pgr-stat {
-  display: flex;
-  align-items: center;
-  gap: 0.3rem;
-  padding: 0.35rem 0.6rem;
-  border-radius: 10px;
-  background: rgba(25, 189, 242, 0.08);
-  border: 1px solid rgba(25, 189, 242, 0.18);
+.pgr-link:hover {
+  opacity: 0.8;
+  text-decoration: underline;
 }
-.pgr-stat-icon {
-  font-size: 1rem;
-  line-height: 1;
-}
-.pgr-stat-count {
-  font-weight: 800;
-  font-size: 1rem;
-  line-height: 1;
-}
-.pgr-stat-label {
-  font-size: 0.75rem;
-  color: rgba(82, 82, 82, 0.7);
-}
-
-/* secondary actions */
-.pgr-secondary {
-  display: flex;
-  gap: 0.5rem;
-  margin-top: 0.6rem;
+.pgr-link:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.35);
+  outline-offset: 2px;
+  border-radius: 4px;
 }
 
 @media (max-width: 480px) {
   .pgr-card {
-    padding: 1.1rem 1.1rem 1.3rem;
-    border-radius: 18px;
+    padding: 16px;
   }
-  .pgr-title { font-size: 1.7rem; }
+  .pgr-headline {
+    font-size: 24px;
+  }
+  .pgr-action {
+    flex: 1 1 100%;
+  }
 }
 
 /* ============================ DARK THEME ============================
@@ -18207,6 +18287,20 @@ body,
 
 .admin-content-full > * {
   height: 100%;
+}
+
+/* Play Arena is a document that grows past the viewport: board, player rows,
+   Moves panel and the tool tiles must all be reachable. Opting this page out of
+   the clipped full-height box keeps .admin-content as the ONE scroll container
+   instead of nesting a second scroller inside a hidden overflow. */
+.admin-content-full:has(.ab-root) {
+  height: auto;
+  overflow-y: auto;
+  overscroll-behavior: auto;
+}
+.admin-content-full:has(.ab-root) > * {
+  height: auto;
+  min-height: 100%;
 }
 
 @media (max-width: 1023px) {

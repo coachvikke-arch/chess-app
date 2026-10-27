@@ -1,9 +1,8 @@
 import { useEffect } from 'react';
 import { useOverlayHistory } from '../hooks/useOverlayHistory';
-import Button from './Button';
 
 /* ── rating rows ──────────────────────────────────────────────────────────────
- * The result card is the ONE card in the app now (the Play Arena's page board
+ * The result card is the ONE card in the app (the Play Arena's page board
  * and its full-screen Play Mode board show the same one), so the rating change
  * that used to live on the page-only card lives here.
  *
@@ -21,30 +20,33 @@ function ratingNumber(value) {
 function RatingDelta({ value }) {
   const n = Number(value);
   if (!Number.isFinite(n)) return null;
-  if (n > 0) return <span className="pgr-rating-delta is-up" title={`Gained ${n} rating points`}>+{n}</span>;
-  if (n < 0) return <span className="pgr-rating-delta is-down" title={`Lost ${Math.abs(n)} rating points`}>{n}</span>;
-  return <span className="pgr-rating-delta" title="Rating unchanged">0</span>;
+  if (n > 0) return <span className="pgr-delta is-up" title={`Gained ${n} rating points`}>+{n}</span>;
+  if (n < 0) return <span className="pgr-delta is-down" title={`Lost ${Math.abs(n)} rating points`}>{n}</span>;
+  return <span className="pgr-delta" title="Rating unchanged">0</span>;
 }
 
-function RatingRow({ name, before, after, change, color = 'white' }) {
+function RatingRow({ name, before, after, change, color = 'white', mine = false }) {
   const b = ratingNumber(before);
   const a = ratingNumber(after);
   const label = typeof name === 'string' && name.trim() ? name.trim() : 'Player';
   if (b === null || a === null) return null;
   return (
-    <li className="pgr-rating-row">
-      <span className="pgr-rating-who">
-        <span aria-hidden="true">{color === 'black' ? '⚫' : '⚪'}</span>
-        {label}
-      </span>
-      <span className="pgr-rating-numbers">
+    <li className={`pgr-player${mine ? ' is-me' : ''}`}>
+      <span className={`pgr-dot is-${color === 'black' ? 'black' : 'white'}`} aria-hidden="true" />
+      <span className="pgr-player-name" title={label}>{label}</span>
+      <span className="pgr-player-rating">
         {b}
-        <span className="pgr-rating-arrow" aria-hidden="true">→</span>
+        <span className="pgr-player-arrow" aria-hidden="true">→</span>
         <strong>{a}</strong>
       </span>
       <RatingDelta value={change} />
     </li>
   );
+}
+
+/* Mode labels carry glyphs ("🔄 Rematch", "♞ New game"); the card is text-only. */
+function plainLabel(label) {
+  return String(label || '').replace(/^[^\p{L}\p{N}]+/u, '').trim();
 }
 
 /*
@@ -55,21 +57,19 @@ function RatingRow({ name, before, after, change, color = 'white' }) {
  *  - title       : headline (e.g. "You Won!", "You Lost", "Draw")
  *  - reason      : subtitle (e.g. "by Checkmate", "by Resignation", "by Timeout")
  *  - tone        : 'win' | 'loss' | 'draw' → accent colour for the result
- *  - coach       : string — auto-generated coach feedback sentence
  *  - stats       : array of { icon, count, label, tone } move-quality rows (from analysis)
- *  - analyzing   : boolean — when true, stats show a lightweight "analysing" state
+ *  - analyzing   : boolean — when true the footer shows the analysing status
  *  - rating      : { rated, myName, myColor, ratingBefore, ratingAfter,
  *                    ratingChange, opponent: { name, ratingBefore, ratingAfter,
  *                    ratingChange }, opponentColor, timeControl, timeClassLabel }
  *  - onClose     : () => void — X / backdrop close (returns to board without navigating)
- *  - onReview    : () => void — primary action (navigates directly to the full Game Review)
- *  - secondary   : array of { label, onClick, primary? } — e.g. Rematch / New 10 min
- *  - avatar      : string — coach glyph/avatar (defaults to a chess coach piece)
+ *  - onReview    : () => void — "View analysis" (navigates to the full Game Review)
+ *  - secondary   : array of { label, onClick, primary? } — e.g. Rematch / New game
  */
 const TONES = {
-  win: { title: '#7bc96f', accent: 'rgba(123,201,111,0.14)', border: 'rgba(123,201,111,0.5)' },
-  loss: { title: '#f87171', accent: 'rgba(248,113,113,0.12)', border: 'rgba(248,113,113,0.45)' },
-  draw: { title: '#60a5fa', accent: 'rgba(227,173,78,0.12)', border: 'rgba(227,173,78,0.45)' },
+  win: { accent: '#4ade80', badge: 'Won' },
+  loss: { accent: '#f87171', badge: 'Lost' },
+  draw: { accent: '#9aa4b2', badge: 'Draw' },
 };
 
 export default function PostGameResultPopup({
@@ -77,11 +77,9 @@ export default function PostGameResultPopup({
   title = '',
   reason = '',
   tone = 'draw',
-  coach = '',
   stats = [],
   analyzing = false,
   rating = null,
-  avatar = '♞',
   onClose,
   onReview,
   secondary = [],
@@ -98,85 +96,51 @@ export default function PostGameResultPopup({
   if (!open) return null;
 
   const t = TONES[tone] || TONES.draw;
+  const headline = (title || 'Game over').replace(/!+$/, '');
+  const rated = !!(rating && rating.rated);
+  const timeLabel = rated
+    ? rating.timeClassLabel || (rating.timeControl ? `${rating.timeControl} rating` : null)
+    : null;
+  const summary = stats.slice(0, 3).map((s) => `${s.count} ${String(s.label).toLowerCase()}`).join(' · ');
 
   return (
     <div className="pgr-overlay" role="dialog" aria-modal="true" aria-label="Game result" onClick={onClose}>
       <div
         className="pgr-card"
         onClick={(e) => e.stopPropagation()}
-        style={{ borderColor: t.border, boxShadow: `0 0 70px ${t.accent}, 0 30px 90px rgba(0,0,0,0.75), inset 0 1px 0 rgba(255,255,255,0.08)` }}
+        style={{ '--pgr-accent': t.accent }}
       >
-        <span className="pgr-accent" style={{ background: t.title }} />
-        {/* header — X close only (no share) */}
-        <div className="pgr-header">
-          <span className="pgr-header-piece">♛</span>
-          <button
-            className="pgr-close"
-            onClick={onClose}
-            aria-label="Close result"
-            title="Close"
-          >
-            ✕
-          </button>
-        </div>
+        <span className="pgr-accent" aria-hidden="true" />
 
-        {/* result headline */}
-        <p className="pgr-title" style={{ color: t.title }}>{title || 'Game over'}</p>
-        {reason && <p className="pgr-reason">{reason}</p>}
-
-        {/* coach avatar + feedback */}
-        <div className="pgr-coach">
-          <span className="pgr-coach-avatar" aria-hidden="true">{avatar}</span>
-          <div className="pgr-coach-bubble">
-            {coach || 'Thanks for the game! Here is how it went.'}
+        {/* top row — time-control pill, result badge, close */}
+        <div className="pgr-top">
+          {timeLabel ? <span className="pgr-pill">{timeLabel}</span> : <span />}
+          <div className="pgr-top-right">
+            <span className={`pgr-badge is-${tone}`}>{t.badge}</span>
+            <button type="button" className="pgr-close" onClick={onClose} aria-label="Close result" title="Close">
+              ✕
+            </button>
           </div>
         </div>
 
-        {/* move-quality stats */}
-        <div className="pgr-stats">
-          {analyzing ? (
-            <div className="pgr-stats-label">
-              <span className="pgr-analyzing-dot" /> Analysing move quality…
-            </div>
-          ) : stats.length === 0 ? (
-            <div className="pgr-stats-label">
-              <span className="pgr-analyzing-dot" /> Not enough moves to grade.
-            </div>
-          ) : (
-            <div className="pgr-stats-row">
-              {stats.map((s) => (
-                <span key={s.label} className="pgr-stat">
-                  <span className="pgr-stat-icon" style={{ color: s.color }}>{s.icon}</span>
-                  <span className="pgr-stat-count" style={{ color: s.color }}>{s.count}</span>
-                  <span className="pgr-stat-label">{s.label}</span>
-                </span>
-              ))}
-            </div>
-          )}
-        </div>
+        {/* result headline */}
+        <p className="pgr-headline" style={{ color: t.accent }}>{headline}</p>
+        {reason && <p className="pgr-reason">{reason}</p>}
 
-        {/* rating change - rated player-vs-player games only.
+        {/* players + rating change — rated player-vs-player games only.
             Deliberately absent for bot games: a bot has no real rating, so there
             is no honest number to show. `rating` arrives as null/undefined there
-            and this renders nothing at all.
-
-            BOTH players are listed when the payload carries the opponent's
-            row: this card replaced the page-only result card, which showed
-            both sides. */}
-        {rating && rating.rated && (
-          <div className="pgr-rating" data-testid="pgr-rating">
-            <span className="pgr-rating-label">
-              {rating.timeClassLabel
-                || (rating.timeControl ? `${rating.timeControl} rating` : null)
-                || 'Rating'}
-            </span>
-            <ul className="pgr-rating-list">
+            and this renders nothing at all. */}
+        {rated && (
+          <div className="pgr-players" data-testid="pgr-rating">
+            <ul className="pgr-player-list">
               <RatingRow
                 name={rating.myName || 'You'}
                 before={rating.ratingBefore}
                 after={rating.ratingAfter}
                 change={rating.ratingChange}
                 color={rating.myColor === 'black' ? 'black' : 'white'}
+                mine
               />
               {rating.opponent && (
                 <RatingRow
@@ -191,29 +155,35 @@ export default function PostGameResultPopup({
           </div>
         )}
 
-        {/* primary action — Game Review */}
-        {onReview && (
-          <Button variant="primary" size="md" fullWidth className="mt-3" onClick={onReview}>
-            📊 Game Review
-          </Button>
-        )}
-
-        {/* secondary actions */}
+        {/* secondary actions — Rematch / New game / New 10 min */}
         {secondary.length > 0 && (
-          <div className="pgr-secondary">
+          <div className="pgr-actions">
             {secondary.map((b) => (
-              <Button
-                key={b.label}
-                variant={b.primary ? 'primary' : 'secondary'}
-                size="md"
-                fullWidth
-                onClick={b.onClick}
-              >
-                {b.label}
-              </Button>
+              <button key={b.label} type="button" className="pgr-action" onClick={b.onClick}>
+                {plainLabel(b.label)}
+              </button>
             ))}
           </div>
         )}
+
+        {/* analysis status */}
+        <div className="pgr-foot">
+          {analyzing ? (
+            <span className="pgr-status is-busy">
+              <span className="pgr-shimmer" aria-hidden="true" />
+              Analysing move quality…
+            </span>
+          ) : stats.length === 0 ? (
+            <span className="pgr-status">Not enough moves to grade.</span>
+          ) : (
+            <span className="pgr-status">{summary}</span>
+          )}
+          {!analyzing && onReview && (
+            <button type="button" className="pgr-link" onClick={onReview}>
+              View analysis <span aria-hidden="true">→</span>
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );

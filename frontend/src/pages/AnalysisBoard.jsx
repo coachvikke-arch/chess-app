@@ -2639,7 +2639,7 @@ export default function AnalysisBoard() {
              panel still fits the viewport at first paint instead of running
              off the bottom. Only the panel's own height changes — the board's
              top is unaffected, so this cannot feed back into the measurement. */
-          maxHeight: `calc(100vh - 80px - ${panelOffset}px)`,
+          maxHeight: `calc(100dvh - 80px - ${panelOffset}px)`,
         } : undefined}>
 
           {/* Tool tiles — one per option. Clicking one opens the shared
