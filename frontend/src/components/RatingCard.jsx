@@ -15,7 +15,7 @@ import { gameOutcome } from '../utils/charts';
  * answers 404 without a `students` row and logs console noise). A 404 (no
  * student record yet) is not an error — show the empty state instead.
  */
-export default function RatingCard() {
+export default function RatingCard({ cardClassName = '' }) {
   const { user } = useAuth();
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
@@ -35,14 +35,14 @@ export default function RatingCard() {
 
   if (error) {
     return (
-      <Card title="Rating & Badge" piece="♔">
+      <Card title="Rating & Badge" piece="♔" bodyClassName={cardClassName}>
         <p className="text-sm chess-error">{error}</p>
       </Card>
     );
   }
   if (!data) {
     return (
-      <Card title="Rating & Badge" piece="♔">
+      <Card title="Rating & Badge" piece="♔" bodyClassName={cardClassName}>
         <Spinner text="Loading rating…" />
       </Card>
     );
@@ -102,7 +102,7 @@ export default function RatingCard() {
     .slice(-formLimit);
 
   return (
-    <Card title="Rapid Rating & Badge" piece="♔" className="rating-card">
+    <Card title="Rapid Rating & Badge" piece="♔" className="rating-card" bodyClassName={cardClassName}>
       <div className="flex flex-wrap items-center gap-4">
         {/* Left — badge + rating */}
         <div className="flex items-center gap-3 min-w-0">

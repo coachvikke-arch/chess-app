@@ -47,10 +47,10 @@ export function Page({ title, piece = '♞', sub, children, wide, className = ''
   );
 }
 
-export function Card({ title, piece = '♞', children, className = '', hover, actions }) {
+export function Card({ title, piece = '♞', children, className = '', bodyClassName = '', hover, actions }) {
   return (
     <Reveal className={className}>
-      <div className={`chess-card ${hover ? 'chess-card-hover' : ''}`}>
+      <div className={`chess-card ${bodyClassName} ${hover ? 'chess-card-hover' : ''}`}>
         {title && (
           <h2 className="chess-card-title">
             <span className="chess-card-piece">{piece}</span>

@@ -250,12 +250,11 @@
   font-size: 1.15em;
   animation: piece-float 4s ease-in-out infinite;
 }
-/* The dashboard mounts this inside a `flex` row (StudentDashboard's
-   `<div className="h-full flex">`). Without a grow, the card is a flex item
-   sized to its CONTENT, so it hugs a narrow box on small screens instead of
-   filling the column. Let it fill the row. */
-.rating-card { display: flex; flex-direction: column; height: 100%; flex: 1 1 auto; min-width: 0; width: 100%; }
-.rating-card .chess-card { padding: 1rem 1.25rem; min-height: 190px; flex: 1; width: 100%; }
+/* Rating card box. On the dashboard it sits in the equal-sized `.dash-pair`
+   grid, which supplies its width and height; these rules only keep the card
+   itself a full-width flex column so the inner box fills whatever it is given. */
+.rating-card { display: flex; flex-direction: column; min-width: 0; }
+.rating-card .chess-card { padding: 1rem 1.25rem; flex: 1; width: 100%; }
 .rating-card .chess-card-title { margin-bottom: 0.5rem; }
 
 /* ------------------------------ login streak ------------------------------ */

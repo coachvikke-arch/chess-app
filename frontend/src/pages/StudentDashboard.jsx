@@ -252,7 +252,7 @@ function LeaderboardPositionCard({ me, total }) {
   const hasRating = me.rapidRating != null;
   return (
     <div className="lb-podium lb-podium--reward lb-podium--dash">
-      <div className={`lb-pcard ${meta?.cls || ''}`} style={{ animation: 'fade-up .5s both' }}>
+      <div className={`lb-pcard dash-pair__card ${meta?.cls || ''}`} style={{ animation: 'fade-up .5s both' }}>
         <div className="lb-pcard-icon">
           <span className="lb-pcard-media">
             {me.profile_image ? (
@@ -496,14 +496,13 @@ export default function StudentDashboard() {
         <LoginStreakCard streak={data.loginStreak?.streak ?? 0} lastLogin={data.loginStreak?.lastLogin ?? null} />
       </div>
 
-{/* Rating & position — rating expands, champion keeps its narrow size;
-          only the champion card goes to the leaderboard */}
+{/* Rating & position — an equal-sized pair: the grid below gives both cards
+          the same column width on desktop and the same row height at every
+          width, and only the shared `dash-pair__card` box sizes them. */}
 {myPosition ? (
-<div className="grid md:grid-cols-[1.35fr_1fr] gap-3 sm:gap-4 mb-10 items-stretch">
-          <div className="h-full flex">
-            <RatingCard />
-          </div>
-          <Link to="/student/leaderboard" className="relative block h-full cursor-pointer">
+<div className="dash-pair mb-10">
+          <RatingCard cardClassName="dash-pair__card" />
+          <Link to="/student/leaderboard" className="dash-pair__link" aria-label="Your position on the leaderboard">
             <LeaderboardPositionCard me={myPosition} total={leaders.length} />
           </Link>
         </div>

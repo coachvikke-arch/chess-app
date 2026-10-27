@@ -337,43 +337,144 @@ exports.saveStudentProgress = async (req, res) => {
 
 /* ══════════════════════ admin ══════════════════════ */
 
-/* GET /api/homework?page=1&limit=10 */
+/* The homework list's four visible states, derived from the assignment row and
+   its submissions rather than stored: a stored 'active' row with nobody assigned
+   is still a draft in every sense that matters to the coach, and "completed" is
+   a property of the whole class, not of the assignment record.
+
+     draft      saved but not assigned to students (no submissions at all)
+     completed  every assigned student has submitted
+     pending    assigned, but nobody has started a puzzle yet
+     active     assigned and at least one student has started, not all done
+
+   `started_count` counts a student who has solved anything OR whose submission
+   has moved past 'pending', so a student who opened homework and saved progress
+   is not reported as "not started". */
+const HOMEWORK_CTE = `
+  WITH base AS (
+    SELECT a.id, a.title, a.description, a.status, a.due_date, a.created_at,
+           a.max_attempts, a.puzzle_set_code, s.name AS set_name,
+           (SELECT COUNT(*)::int FROM assignment_puzzles ap
+             WHERE ap.assignment_id = a.id) AS puzzle_count,
+           (SELECT COUNT(*)::int FROM assignment_submissions sub
+             WHERE sub.assignment_id = a.id) AS student_count,
+           (SELECT COUNT(*)::int FROM assignment_submissions sub
+             WHERE sub.assignment_id = a.id
+               AND sub.status IN ('submitted','reviewed')) AS submitted_count,
+           (SELECT COUNT(*)::int FROM assignment_submissions sub
+             WHERE sub.assignment_id = a.id
+               AND (sub.progress_completed > 0
+                    OR sub.status IN ('in_progress','submitted','reviewed'))) AS started_count
+      FROM assignments a
+      LEFT JOIN sets s ON s.code = a.puzzle_set_code
+     WHERE a.type = 'puzzle_assignment'
+  ), filtered AS (
+    SELECT b.*,
+           CASE
+             WHEN b.status = 'draft' OR b.student_count = 0 THEN 'draft'
+             WHEN b.submitted_count >= b.student_count THEN 'completed'
+             WHEN b.started_count = 0 THEN 'pending'
+             ELSE 'active'
+           END AS derived_status
+      FROM base b`;
+
+const HOMEWORK_STATUSES = ['draft', 'active', 'pending', 'completed'];
+
+/* GET /api/homework?page=1&limit=10&status=&search=&classId=&studentId=&dueFrom=&dueTo=
+ *
+ * `status` is the derived state above; every other filter narrows the list
+ * independently, so the tab and the filter panel combine with AND. The per-tab
+ * counts are computed with those same filters applied (but NOT the status
+ * filter), which is what lets the tabs say "Draft 2" for the current class or
+ * date range instead of for the whole academy. */
 exports.listHomework = async (req, res) => {
   try {
     const { page, limit, offset } = pageParams(req.query);
 
+    const requested = String(req.query.status || '').toLowerCase();
+    const statusFilter = HOMEWORK_STATUSES.includes(requested) ? requested : null;
+
+    const params = [];
+    const where = [];
+
+    const search = String(req.query.search || '').trim();
+    if (search) {
+      params.push(`%${search}%`);
+      where.push(`b.title ILIKE $${params.length}`);
+    }
+
+    const classId = parseInt(req.query.classId, 10);
+    if (Number.isInteger(classId)) {
+      params.push(classId);
+      where.push(`EXISTS (
+        SELECT 1 FROM assignment_submissions sub
+          JOIN students st ON st.id = sub.student_id
+         WHERE sub.assignment_id = b.id AND st.group_id = $${params.length})`);
+    }
+
+    const studentId = parseInt(req.query.studentId, 10);
+    if (Number.isInteger(studentId)) {
+      params.push(studentId);
+      where.push(`EXISTS (
+        SELECT 1 FROM assignment_submissions sub
+         WHERE sub.assignment_id = b.id AND sub.student_id = $${params.length})`);
+    }
+
+    const dueFrom = String(req.query.dueFrom || '').trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(dueFrom)) {
+      params.push(dueFrom);
+      where.push(`b.due_date >= $${params.length}::date`);
+    }
+    const dueTo = String(req.query.dueTo || '').trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(dueTo)) {
+      params.push(dueTo);
+      where.push(`b.due_date <= $${params.length}::date`);
+    }
+
+    const filteredSql = `${HOMEWORK_CTE}${where.length ? `\n     WHERE ${where.join('\n       AND ')}` : ''}
+  )`;
+
+    const countsRes = await db.query(
+      `${filteredSql}
+       SELECT derived_status, COUNT(*)::int AS n
+         FROM filtered
+        GROUP BY derived_status`,
+      params
+    );
+    const counts = { all: 0, draft: 0, active: 0, pending: 0, completed: 0 };
+    for (const row of countsRes.rows) {
+      counts[row.derived_status] = row.n;
+      counts.all += row.n;
+    }
+
+    const pageParams2 = [...params];
+    let statusClause = '';
+    if (statusFilter) {
+      pageParams2.push(statusFilter);
+      statusClause = `WHERE derived_status = $${pageParams2.length}`;
+    }
+    pageParams2.push(limit);
+    const limitIdx = pageParams2.length;
+    pageParams2.push(offset);
+    const offsetIdx = pageParams2.length;
+
     const result = await db.query(
-      `SELECT a.id, a.title, a.description, a.status, a.due_date, a.created_at,
-              a.max_attempts, a.puzzle_set_code, s.name AS set_name,
-              (SELECT COUNT(*)::int FROM assignment_puzzles ap
-                WHERE ap.assignment_id = a.id) AS puzzle_count,
-              (SELECT COUNT(*)::int FROM assignment_submissions sub
-                WHERE sub.assignment_id = a.id) AS student_count,
-              (SELECT COUNT(*)::int FROM assignment_submissions sub
-                WHERE sub.assignment_id = a.id
-                  AND sub.status IN ('submitted','reviewed')) AS submitted_count,
-              COUNT(*) OVER()::int AS total_count
-         FROM assignments a
-         LEFT JOIN sets s ON s.code = a.puzzle_set_code
-        WHERE a.type = 'puzzle_assignment'
-        ORDER BY a.created_at DESC, a.id DESC
-        LIMIT $1 OFFSET $2`,
-      [limit, offset]
+      `${filteredSql}
+       SELECT * FROM filtered ${statusClause}
+        ORDER BY created_at DESC, id DESC
+        LIMIT $${limitIdx} OFFSET $${offsetIdx}`,
+      pageParams2
     );
 
-    let total = result.rows[0]?.total_count ?? null;
-    if (total == null) {
-      const count = await db.query(
-        `SELECT COUNT(*)::int AS n FROM assignments WHERE type = 'puzzle_assignment'`
-      );
-      total = count.rows[0]?.n ?? 0;
-    }
+    /* An out-of-range page (e.g. after narrowing a filter) has no rows to count,
+       so the total comes from the same tally the tabs use. */
+    const total = counts[statusFilter || 'all'];
 
     const items = result.rows.map((r) => ({
       assignmentId: r.id,
       title: r.title,
       description: r.description,
-      status: r.status,
+      status: r.derived_status,
       dueDate: r.due_date,
       createdAt: r.created_at,
       maxAttempts: r.max_attempts,
@@ -382,6 +483,7 @@ exports.listHomework = async (req, res) => {
       puzzleCount: r.puzzle_count,
       studentCount: r.student_count,
       submittedCount: r.submitted_count,
+      startedCount: r.started_count,
       completionPct: r.student_count > 0
         ? Math.round((r.submitted_count / r.student_count) * 100)
         : 0,
@@ -389,6 +491,7 @@ exports.listHomework = async (req, res) => {
 
     res.json({
       items,
+      counts,
       page,
       limit,
       total,

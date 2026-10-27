@@ -64,9 +64,16 @@ exports.listPuzzles = async (req, res) => {
       params.push(difficulty);
       whereParts.push(`difficulty = $${params.length}`);
     }
+    /* Optional set scoping, used by the homework assignment picker so a coach
+       can browse inside one set while still filtering by theme/difficulty. */
+    const setCode = String(req.query.setCode || '').trim();
+    if (setCode) {
+      params.push(setCode);
+      whereParts.push(`set_code = $${params.length}`);
+    }
     if (search) {
       params.push(`%${search}%`);
-      whereParts.push(`(fen ILIKE $${params.length} OR theme ILIKE $${params.length} OR lichess_id ILIKE $${params.length})`);
+      whereParts.push(`(fen ILIKE $${params.length} OR theme ILIKE $${params.length} OR lichess_id ILIKE $${params.length} OR COALESCE(title, '') ILIKE $${params.length})`);
     }
 
     // Admin/superadmin sees every puzzle. Students see all published puzzles (publish = visible to everyone).
@@ -102,7 +109,9 @@ exports.listPuzzles = async (req, res) => {
     const limitParam = dataParams.length;
     dataParams.push(offset);
     const result = await db.query(
-      `SELECT id, fen, theme, themes, difficulty, nb_plays, popularity, lichess_id, game_url, solution, is_published, explanation, created_at${selectExtra}
+      `SELECT id, fen, theme, themes, difficulty, nb_plays, popularity, lichess_id, game_url, solution, is_published, explanation, created_at,
+              title, set_code,
+              (SELECT name FROM sets WHERE sets.code = puzzles.set_code) AS set_name${selectExtra}
        FROM puzzles ${where}
        ORDER BY ${sortCol} DESC
        LIMIT $${limitParam} OFFSET $${dataParams.length}`,

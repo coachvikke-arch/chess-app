@@ -875,6 +875,88 @@ tbody tr:hover {
   color: #0a6aa1;
 }
 
+/* ── admin homework: status tabs ─────────────────────────────────────────
+   One horizontally scrollable row on phones, with no visible scrollbar; the
+   tabs themselves use the shared `.kt-tab` blue tab treatment. */
+.hw-tabs {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.hw-tabs::-webkit-scrollbar {
+  display: none;
+}
+.hw-tab-count {
+  display: inline-grid;
+  min-width: 1.25rem;
+  height: 1.05rem;
+  padding: 0 0.3rem;
+  place-items: center;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.08);
+  color: #475569;
+  font-size: 0.62rem;
+  font-weight: 800;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.hw-tab-count.is-active {
+  background: rgba(255, 255, 255, 0.24);
+  color: #ffffff;
+}
+
+/* ── dashboard rating + position: one equal-sized pair ────────────────────
+   Both cards are grid items of the same row, so the 1fr columns and
+   `align-items: stretch` make them the same width and height; on phones the
+   single column plus equal rows keeps them the same size there too. The shared
+   `dash-pair__card` box is the ONLY thing that sizes either card - no card
+   carries its own width, max-width, height or flex sizing. */
+.dash-pair {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-auto-rows: 1fr;
+  gap: 16px;
+  align-items: stretch;
+}
+.dash-pair > * {
+  min-width: 0;
+}
+@media (max-width: 640px) {
+  .dash-pair {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* The position card's grid item is the link that makes the whole card open the
+   leaderboard, so it must not add a box of its own. */
+.dash-pair__link {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+}
+
+.dash-pair .dash-pair__card {
+  width: 100%;
+  height: 100%;
+  min-height: 220px;
+  box-sizing: border-box;
+  display: flex;
+  /* The rating card stacks its heading above the rating + progress row. */
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 16px;
+  overflow-wrap: anywhere;
+}
+
+/* ...but the position card keeps its portrait-beside-copy layout: the shared
+   box only controls how large it is, not how its contents flow. */
+.lb-podium.lb-podium--reward.lb-podium--dash .lb-pcard.dash-pair__card {
+  flex-direction: row;
+  align-items: center;
+  gap: 16px;
+  min-height: 220px;
+  padding: 16px;
+}
 /* ── dashboard "my position" card ─────────────────────────────────────────
    A single card using the same recipe as the champion podium, sized to the
    dashboard's top-right slot: it fills the height of the Rating card beside it
@@ -893,7 +975,6 @@ tbody tr:hover {
   width: 100%;
   max-width: none;
   height: 100%;
-  min-height: 0;
   transform: none;
 }
 .lb-podium.lb-podium--reward.lb-podium--dash .lb-pcard:hover,
@@ -946,10 +1027,6 @@ tbody tr:hover {
 }
 
 @media (max-width: 640px) {
-  .lb-podium.lb-podium--reward.lb-podium--dash .lb-pcard {
-    height: auto;
-    min-height: 0;
-  }
   .lb-podium.lb-podium--reward.lb-podium--dash .lb-pcard-icon {
     flex-basis: 88px;
     width: 88px;
