@@ -15,19 +15,24 @@ const layout = require('../data/certificateLayout.json');
  * supply the artwork to draw on top of, plus the faces used for the dynamic
  * layer. Nothing here re-implements any part of the design.
  *
- * The artwork lives in the frontend bundle but the PDF is produced on the server,
- * so the backend reads it straight off disk rather than duplicating the binary.
- * CERTIFICATE_TEMPLATE_PATH overrides the location for deployments that keep
- * assets outside the repo (a mounted volume, a CDN-synced folder, ...).
+ * The artwork lives in the frontend bundle and is copied here as well. The copy
+ * is what a backend-only deploy (Railway builds from `backend/`) can actually
+ * read: its build context has no `frontend/`, so resolving into the sibling
+ * folder there finds nothing and every template/PDF request fails. Local runs
+ * prefer the frontend original so the two never drift during design work.
+ * CERTIFICATE_TEMPLATE_PATH overrides both for deployments that keep assets
+ * outside the repo (a mounted volume, a CDN-synced folder, ...).
  */
 
 const REPO_ROOT = path.resolve(__dirname, '..', '..', '..');
-const DEFAULT_TEMPLATE_PATH = path.join(REPO_ROOT, 'frontend', 'src', 'assets', layout.template.asset);
+const BUNDLED_TEMPLATE_PATH = path.join(__dirname, '..', 'assets', layout.template.asset);
+const REPO_TEMPLATE_PATH = path.join(REPO_ROOT, 'frontend', 'src', 'assets', layout.template.asset);
 
 function resolveTemplatePath() {
-  return process.env.CERTIFICATE_TEMPLATE_PATH
-    ? path.resolve(process.env.CERTIFICATE_TEMPLATE_PATH)
-    : DEFAULT_TEMPLATE_PATH;
+  if (process.env.CERTIFICATE_TEMPLATE_PATH) {
+    return path.resolve(process.env.CERTIFICATE_TEMPLATE_PATH);
+  }
+  return fs.existsSync(REPO_TEMPLATE_PATH) ? REPO_TEMPLATE_PATH : BUNDLED_TEMPLATE_PATH;
 }
 
 /** Absolute path to the certificate artwork, or throws with an actionable message. */
