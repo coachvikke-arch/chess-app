@@ -1,0 +1,20 @@
+# `railway up` must run from the repo root so the uploaded snapshot contains
+# `backend/`, which the mate-zone-api service's Root Directory (/backend) is
+# resolved against. Everything that belongs to the frontend or to local-only
+# data stays out of the upload.
+frontend
+.git
+node_modules
+**/node_modules
+backend/uploads
+backend/backups
+backend/dataset
+backend/debug_dataset
+backend/debug_dataset2
+backend/vision
+backend/.pytest_cache
+backend/.env
+backend/.env.*
+*.log
+backend/*.pkl
+backend/tmp_*
