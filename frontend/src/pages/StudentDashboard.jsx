@@ -249,12 +249,10 @@ function RatingTrendCard() {
 function LeaderboardPositionCard({ me, total }) {
   if (!me) return null;
   const meta = RANK_META[me.rank];
-  const ratingText = me.rapidRating == null
-    ? 'No rapid games yet'
-    : `${me.rapidRating} RAPID ELO`;
+  const hasRating = me.rapidRating != null;
   return (
     <div className="lb-podium lb-podium--reward lb-podium--dash">
-      <div className={`lb-pcard lb-dash-card ${meta?.cls || ''}`} style={{ animation: 'fade-up .5s both' }}>
+      <div className={`lb-pcard ${meta?.cls || ''}`} style={{ animation: 'fade-up .5s both' }}>
         <div className="lb-pcard-icon">
           <span className="lb-pcard-media">
             {me.profile_image ? (
@@ -263,7 +261,7 @@ function LeaderboardPositionCard({ me, total }) {
               <StudentAvatar
                 config={me.avatar_config}
                 seed={`student_${me.student_id || ''}`}
-                size={80}
+                size={112}
                 rounded={false}
               />
             )}
@@ -279,7 +277,13 @@ function LeaderboardPositionCard({ me, total }) {
             <span className="lb-pcard-name" title={me.name}>{me.name}</span>
             <span className="lb-badge" title="You">⚑</span>
           </h3>
-          <p className="lb-pcard-desc">Rank #{me.rank} of {total} students · {ratingText}</p>
+          <p className="lb-pcard-rating">
+            <b>{hasRating ? me.rapidRating : '—'}</b>
+            <span>Rapid ELO</span>
+          </p>
+          <p className="lb-pcard-desc">
+            {hasRating ? '' : 'No rapid games yet · '}Rank #{me.rank} of {total} students
+          </p>
         </div>
       </div>
     </div>

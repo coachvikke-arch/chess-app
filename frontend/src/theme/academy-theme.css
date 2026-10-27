@@ -901,10 +901,105 @@ tbody tr:hover {
   transform: none;
 }
 
+/* This card is the student's own profile tile, so the portrait and the ELO
+   readout get more room than on the three-up leaderboard podium. */
+.lb-podium.lb-podium--reward.lb-podium--dash .lb-pcard-icon {
+  flex-basis: 112px;
+  width: 112px;
+  height: 112px;
+  border-radius: 28px;
+}
+.lb-podium.lb-podium--reward.lb-podium--dash .lb-pcard-media {
+  border-radius: 23px;
+}
+.lb-podium.lb-podium--reward.lb-podium--dash .lb-pcard-rankbadge {
+  right: -9px;
+  bottom: -9px;
+  width: 34px;
+  height: 34px;
+}
+.lb-podium.lb-podium--reward.lb-podium--dash .lb-pcard-rankbadge svg {
+  width: 18px;
+  height: 18px;
+}
+.lb-podium.lb-podium--reward.lb-podium--dash .lb-pcard-rating {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 3px 0 1px;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.lb-podium.lb-podium--reward.lb-podium--dash .lb-pcard-rating b {
+  font-family: 'Noto Serif', 'Playfair Display', Georgia, 'Times New Roman', serif;
+  font-size: 2.05rem;
+  font-weight: 700;
+  letter-spacing: -0.015em;
+  color: #16242d;
+}
+.lb-podium.lb-podium--reward.lb-podium--dash .lb-pcard-rating span {
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #5b7183;
+}
+
 @media (max-width: 640px) {
   .lb-podium.lb-podium--reward.lb-podium--dash .lb-pcard {
     height: auto;
     min-height: 0;
+  }
+  .lb-podium.lb-podium--reward.lb-podium--dash .lb-pcard-icon {
+    flex-basis: 88px;
+    width: 88px;
+    height: 88px;
+    border-radius: 22px;
+  }
+  .lb-podium.lb-podium--reward.lb-podium--dash .lb-pcard-media {
+    border-radius: 18px;
+  }
+  .lb-podium.lb-podium--reward.lb-podium--dash .lb-pcard-rankbadge {
+    right: -7px;
+    bottom: -7px;
+    width: 28px;
+    height: 28px;
+  }
+  .lb-podium.lb-podium--reward.lb-podium--dash .lb-pcard-rankbadge svg {
+    width: 15px;
+    height: 15px;
+  }
+  .lb-podium.lb-podium--reward.lb-podium--dash .lb-pcard-rating b {
+    font-size: 1.7rem;
+  }
+  .lb-podium.lb-podium--reward.lb-podium--dash .lb-pcard-rating span {
+    font-size: 0.58rem;
+    letter-spacing: 0.12em;
+  }
+}
+
+@media (max-width: 380px) {
+  .lb-podium.lb-podium--reward.lb-podium--dash .lb-pcard-icon {
+    flex-basis: 76px;
+    width: 76px;
+    height: 76px;
+    border-radius: 19px;
+  }
+  .lb-podium.lb-podium--reward.lb-podium--dash .lb-pcard-media {
+    border-radius: 15px;
+  }
+  .lb-podium.lb-podium--reward.lb-podium--dash .lb-pcard-rankbadge {
+    right: -6px;
+    bottom: -6px;
+    width: 26px;
+    height: 26px;
+  }
+  .lb-podium.lb-podium--reward.lb-podium--dash .lb-pcard-rankbadge svg {
+    width: 14px;
+    height: 14px;
+  }
+  .lb-podium.lb-podium--reward.lb-podium--dash .lb-pcard-rating b {
+    font-size: 1.55rem;
   }
 }
 
