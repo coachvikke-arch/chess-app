@@ -263,6 +263,15 @@ export default function SharedChessBoard({ drill = null, drillStatus = null, onD
      already in progress — so the move list looked full while Prev/Next stayed
      dead. `null` forces the first snapshot to be applied. */
   const appliedFenRef = useRef(null);
+  /* Half-moves currently on the board's own instance — the fallback ordering
+     key for snapshots that carry no server revision (the HTTP boot). */
+  const boardPlyRef = useRef(0);
+  /* The last authoritative state applied, as the server's (epoch, rev). Used to
+     drop a replayed echo, a stale ack or a snapshot that was overtaken by live
+     moves while React was committing it — the class game is single-sourced
+     from the server and a state must never move the board backwards. Reset on
+     remount, so a refreshed page starts from whatever the server says now. */
+  const lastBoardRevRef = useRef(null);
   /* Last known CLASS position. Only meaningful while a drill owns the board,
      where it is what the board is restored to when the drill ends — the class
      does not pause for a student's solve. */
@@ -380,6 +389,33 @@ export default function SharedChessBoard({ drill = null, drillStatus = null, onD
   const [drillFinishing, setDrillFinishing] = useState(false);
   const drillRevealCancelRef = useRef(null);
 
+  /* True when `state` is not newer than what this board already shows.
+     A snapshot (join/boot) can be overtaken by live moves before React commits
+     it, and an ack can arrive after a later move's echo; applying either would
+     rewind the board. States without a revision (older server, or the HTTP
+     boot) fall back to comparing half-move counts for snapshots only. */
+  const isStaleState = useCallback((state, { snapshot = false } = {}) => {
+    if (!state) return true;
+    const last = lastBoardRevRef.current;
+    const rev = Number.isFinite(state.rev) ? state.rev : null;
+    if (rev != null && last && state.epoch && last.epoch === state.epoch) {
+      return rev <= last.rev;
+    }
+    if (rev == null && snapshot) {
+      const ply = Number.isFinite(state.ply)
+        ? state.ply
+        : (Array.isArray(state.moves) ? state.moves.length : null);
+      return ply != null && ply < boardPlyRef.current;
+    }
+    return false;
+  }, []);
+
+  const rememberBoardRev = useCallback((state) => {
+    if (Number.isFinite(state?.rev) && state?.epoch) {
+      lastBoardRevRef.current = { epoch: state.epoch, rev: state.rev };
+    }
+  }, []);
+
   /* Apply an authoritative state to the local instance (skip if identical). */
   const applyAuthoritative = useCallback((state) => {
     const liveGame = gameRef.current;
@@ -397,33 +433,54 @@ export default function SharedChessBoard({ drill = null, drillStatus = null, onD
          drill hand-off) replaces the move any effect belonged to. An echo of
          the position we already show changes nothing and keeps its effect. */
       if (positionChanged) clearMoveEffects('live-position');
+      boardPlyRef.current = liveGame.history().length;
       setFen(liveGame.fen());
       setMoves(liveGame.history().slice());
       setLastMove(state?.lastMove || null);
       // any authoritative position change instantly clears the engine suggestion
       setBestArrow(null);
     } catch (e) {
-      try { liveGame.load(START_FEN); setFen(liveGame.fen()); setMoves([]); } catch (_) {}
+      /* A malformed PGN must never wipe the board (it used to reset to the
+         starting position). Fall back to the FEN in the same payload and, if
+         even that is unusable, keep the current position until the next
+         authoritative update. */
+      console.warn('[live-board] could not apply authoritative state:', e?.message);
+      try {
+        if (state.fen && liveGame.fen() !== state.fen) liveGame.load(state.fen);
+        boardPlyRef.current = liveGame.history().length;
+        setFen(liveGame.fen());
+        setMoves(liveGame.history().slice());
+        setLastMove(state?.lastMove || null);
+        setBestArrow(null);
+      } catch (_) { /* keep what is on screen */ }
     } finally {
       busyRef.current = false;
     }
   }, []);
 
-  /* When the context chessState changes (from boot), apply it once. */
+  /* When the context chessState changes (the HTTP boot, then every join and
+     reconnect snapshot), apply it unless the board has already moved past it.
+     The board is single-sourced from the server: this also picks up the moves
+     a reconnecting student missed while their socket was down. */
   useEffect(() => {
     const incomingFen = chessState?.fen;
-    if (incomingFen && drillActive) {
+    if (!incomingFen) return;
+    if (drillActive) {
       /* Drill in progress: the class game keeps getting played, so keep the
          newest position parked for the hand-back rather than dropping it. */
       classFenRef.current = incomingFen;
-    } else if (incomingFen && appliedFenRef.current !== incomingFen) {
+      return;
+    }
+    if (isStaleState(chessState, { snapshot: true })) return;
+    if (appliedFenRef.current !== incomingFen) {
       applyAuthoritative(chessState);
       appliedFenRef.current = incomingFen;
-      classFenRef.current = incomingFen;
     }
-    if (chessState?.moves) setMoves(chessState.moves);
-    if (chessState?.annotations) setAnnotations(chessState.annotations);
-  }, [chessState, applyAuthoritative, drillActive]);
+    rememberBoardRev(chessState);
+    classFenRef.current = incomingFen;
+    if (chessState.moves) setMoves(chessState.moves);
+    if (chessState.annotations) setAnnotations(chessState.annotations);
+  }, [chessState, applyAuthoritative, drillActive, isStaleState, rememberBoardRev]);
 
   /* Set the last applied fen whenever fen changes from our own actions. */
   useEffect(() => {
@@ -433,6 +490,12 @@ export default function SharedChessBoard({ drill = null, drillStatus = null, onD
   }, [fen]);
 
   /* ── socket subscriptions ── */
+  /* Read by the handlers below so the subscriptions can be registered exactly
+     once per class. Depending on `drillActive` instead re-subscribed on every
+     drill start/end, which left a window where a live move reached no listener. */
+  const drillActiveRef = useRef(drillActive);
+  useEffect(() => { drillActiveRef.current = drillActive; }, [drillActive]);
+
   useEffect(() => {
     const offs = [
       on('chess_state_updated', (state) => {
@@ -442,11 +505,15 @@ export default function SharedChessBoard({ drill = null, drillStatus = null, onD
         setRemoteReview(null);
         /* Parked, not dropped: a drill owns the board, but the class keeps
            playing and the student must get that position back afterwards. */
-        if (drillActive) {
+        if (drillActiveRef.current) {
           classFenRef.current = state.fen;
           return;
         }
+        /* Already applied (our own move's echo) or older than the board (a
+           replayed update, or an ack for an earlier move): nothing to do. */
+        if (isStaleState(state)) return;
         applyAuthoritative(state);
+        rememberBoardRev(state);
         appliedFenRef.current = state.fen;
         classFenRef.current = state.fen;
         setFen((prev) => (prev !== state.fen ? state.fen : prev));
@@ -497,7 +564,7 @@ export default function SharedChessBoard({ drill = null, drillStatus = null, onD
       }),
     ];
     return () => offs.forEach((off) => off());
-  }, [applyAuthoritative, patchPermissions, isInstructor, drillActive, user?.id]);
+  }, [applyAuthoritative, patchPermissions, isInstructor, user?.id, isStaleState, rememberBoardRev]);
 
   /* Hand the board between the two positions that can own it. Entering a drill
      loads a private copy of the puzzle; leaving one restores the class game,
@@ -570,11 +637,18 @@ export default function SharedChessBoard({ drill = null, drillStatus = null, onD
             setFen(liveGame.fen());
           }
         }
-      } else if (res && res.broadcast) {
+      } else if (res && res.broadcast && !isStaleState(res.broadcast)) {
+        /* The room echo is the normal path (the sender is in the room too).
+           This ack is the safety net for a move emitted in the instant a socket
+           reconnects, before it has re-joined; a stale ack — its reply overtaken
+           by a newer move's echo — must never rewind the board. */
         applyAuthoritative(res.broadcast);
+        rememberBoardRev(res.broadcast);
+        appliedFenRef.current = res.broadcast.fen;
+        classFenRef.current = res.broadcast.fen;
       }
     });
-  }, [classMeta.id, flash, applyAuthoritative]);
+  }, [classMeta.id, flash, applyAuthoritative, isStaleState, rememberBoardRev]);
 
   /* ── drill move handling ──
      The rules are the homework trainer's, from utils/puzzleSolve.js, so a puzzle
@@ -833,10 +907,17 @@ export default function SharedChessBoard({ drill = null, drillStatus = null, onD
   const sendControl = useCallback((action, payload, onDone) => {
     emit('chess_control', { classId: classMeta.id, action, payload }, (res) => {
       if (res && res.ok === false) flash(res.error || 'Action failed');
-      else if (res && res.broadcast) applyAuthoritative(res.broadcast);
+      else if (res && res.broadcast && !isStaleState(res.broadcast)) {
+        /* Same rule as a move ack: the room echo is the normal path, and a
+           reply that was overtaken by a newer board state is ignored. */
+        applyAuthoritative(res.broadcast);
+        rememberBoardRev(res.broadcast);
+        appliedFenRef.current = res.broadcast.fen;
+        classFenRef.current = res.broadcast.fen;
+      }
       if (onDone) onDone(res);
     });
-  }, [classMeta.id, flash, applyAuthoritative]);
+  }, [classMeta.id, flash, applyAuthoritative, isStaleState, rememberBoardRev]);
 
   const handleUndo = useCallback(() => {
     if (moves.length === 0) return;

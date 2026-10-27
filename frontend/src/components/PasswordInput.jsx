@@ -1,14 +1,14 @@
 import { useState } from 'react';
 
 /**
- * Password input with a show/hide eye.
+ * The one password field used everywhere in the app.
  *
  * The eye is a real button inside the field (not a decoration) so it works with
  * the keyboard and is announced correctly. It is `type="button"` on purpose: a
  * plain button inside a form would submit it the moment someone peeked at their
  * password.
  */
-export default function PasswordField({
+export default function PasswordInput({
   value,
   onChange,
   className = 'chess-input mt-1.5',
@@ -16,12 +16,18 @@ export default function PasswordField({
   autoComplete,
   required = true,
   minLength,
+  style,
   ...rest
 }) {
   const [visible, setVisible] = useState(false);
 
+  /* Margins belong on the wrapper: the eye is absolutely positioned against it,
+   * so an `mt-*` left on the input would push the input out from under the eye. */
+  const wrapperClass = className.split(/\s+/).filter((c) => /^-?m[trblxy]?-/.test(c)).join(' ');
+  const inputClass = className.split(/\s+/).filter((c) => c && !/^-?m[trblxy]?-/.test(c)).join(' ');
+
   return (
-    <div className="relative">
+    <div className={`relative ${wrapperClass}`}>
       <input
         {...rest}
         type={visible ? 'text' : 'password'}
@@ -29,7 +35,10 @@ export default function PasswordField({
         minLength={minLength}
         value={value}
         onChange={onChange}
-        className={`${className} pr-12`}
+        className={inputClass}
+        /* `.chess-input` sets a shorthand padding in unlayered CSS, which beats
+         * any Tailwind `pr-*` utility, so the room for the eye is reserved here. */
+        style={{ paddingRight: '2.75rem', ...style }}
         placeholder={placeholder}
         autoComplete={autoComplete}
       />
@@ -41,7 +50,7 @@ export default function PasswordField({
         aria-pressed={visible}
         title={visible ? 'Hide password' : 'Show password'}
       >
-        {visible ? <EyeIcon /> : <EyeOffIcon />}
+        {visible ? <EyeOffIcon /> : <EyeIcon />}
       </button>
     </div>
   );

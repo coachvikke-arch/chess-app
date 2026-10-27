@@ -5,6 +5,7 @@ import { useToast } from '../components/Toast';
 import { Page, Card } from '../components/ui';
 import { homeForRole } from '../utils/roles';
 import Button from '../components/Button';
+import PasswordInput from '../components/PasswordInput';
 
 /**
  * The forced password change.
@@ -62,8 +63,7 @@ export default function ChangePassword() {
         <form onSubmit={submit} className="space-y-3">
           <label className="block">
             <span className="text-xs text-ivory-500">New password</span>
-            <input
-              type="password"
+            <PasswordInput
               required
               minLength={8}
               autoComplete="new-password"
@@ -75,8 +75,7 @@ export default function ChangePassword() {
           </label>
           <label className="block">
             <span className="text-xs text-ivory-500">Confirm new password</span>
-            <input
-              type="password"
+            <PasswordInput
               required
               minLength={8}
               autoComplete="new-password"

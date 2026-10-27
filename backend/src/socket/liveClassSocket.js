@@ -29,23 +29,56 @@ const classCache = new Map();
 
 const CLASS_CACHE_TTL_MS = 2 * 60 * 1000;
 
+/* One canonical key per class. Socket payloads are not consistent about the
+   type: `join-live-class` receives the id from the route (a STRING), while
+   `chess_move` / `chess_control` send `classMeta.id` (a NUMBER). Keying the map
+   by the raw value therefore produced TWO entries — and two independent
+   `Chess` instances — for the same class. Moves were applied to one while a
+   joiner was handed the other (empty) game, so a refresh, a reconnect or a late
+   join rewound the room to the starting position. Everything that keys per
+   class must go through here. */
+function classCacheKey(classId) {
+  return String(classId);
+}
+
 /* Serializes annotation read-modify-write cycles per class so concurrent
    board_annotation events (rapid or burst arrow draws) never lose updates. */
 const annotationQueues = new Map();
 function runAnnotationMutation(classId, fn) {
-  const prev = annotationQueues.get(classId) || Promise.resolve();
+  const key = classCacheKey(classId);
+  const prev = annotationQueues.get(key) || Promise.resolve();
   const run = Promise.resolve().then(fn);
-  annotationQueues.set(classId, run.then(() => {}, () => {}));
+  annotationQueues.set(key, run.then(() => {}, () => {}));
   return run;
 }
 
 function getClassCacheEntry(classId) {
-  let entry = classCache.get(classId);
+  const key = classCacheKey(classId);
+  let entry = classCache.get(key);
   if (!entry) {
-    entry = { chess: null, classRow: null, classRowFetchedAt: 0, redoStack: [] };
-    classCache.set(classId, entry);
+    entry = {
+      chess: null,
+      chessInit: null,
+      classRow: null,
+      classRowFetchedAt: 0,
+      redoStack: [],
+      /* Board revision: bumped by EVERY mutation (move, undo, redo, reset,
+         load, clear) so clients can order snapshots and echoes even when they
+         arrive out of order, and can drop a replayed/stale one. `epoch`
+         changes whenever this process re-creates the class entry, so a server
+         restart cannot make a fresh state look older than the old one. */
+      rev: 0,
+      epoch: `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+    };
+    classCache.set(key, entry);
   }
   return entry;
+}
+
+/** Marks a new authoritative board state; returns the new revision. */
+function nextBoardRevision(entry) {
+  entry.rev = (entry.rev || 0) + 1;
+  return entry.rev;
 }
 
 async function getClassRowCached(classId) {
@@ -62,30 +95,40 @@ async function getClassRowCached(classId) {
 async function getOrInitChess(classId) {
   const entry = getClassCacheEntry(classId);
   if (entry.chess) return entry.chess;
+  /* Concurrent first touches (two people joining at once, or a join racing a
+     move) must share ONE instance. Without this both callers see `chess: null`,
+     each builds its own game from the same DB row, and the loser's future
+     snapshots/broadcasts describe a board nobody else is playing on. */
+  if (!entry.chessInit) {
+    entry.chessInit = (async () => {
+      const chess = new Chess();
+      const stateRes = await db.query(
+        'SELECT fen, pgn FROM chess_game_states WHERE live_class_id = $1',
+        [classId]
+      );
 
-  const chess = new Chess();
-  const stateRes = await db.query(
-    'SELECT fen, pgn FROM chess_game_states WHERE live_class_id = $1',
-    [classId]
-  );
-
-  if (stateRes.rows.length > 0) {
-    const row = stateRes.rows[0];
-    try {
-      if (row.pgn && row.pgn.trim().length > 0) {
-        chess.loadPgn(row.pgn);
-      } else if (row.fen) {
-        chess.load(row.fen);
+      if (stateRes.rows.length > 0) {
+        const row = stateRes.rows[0];
+        try {
+          if (row.pgn && row.pgn.trim().length > 0) {
+            chess.loadPgn(row.pgn);
+          } else if (row.fen) {
+            chess.load(row.fen);
+          }
+        } catch (e) {
+          chess.load(START_FEN);
+        }
+      } else {
+        chess.load(START_FEN);
       }
-    } catch (e) {
-      chess.load(START_FEN);
-    }
-  } else {
-    chess.load(START_FEN);
-  }
 
-  entry.chess = chess;
-  return chess;
+      entry.chess = chess;
+      return chess;
+    })().finally(() => {
+      entry.chessInit = null;
+    });
+  }
+  return entry.chessInit;
 }
 
 async function persistChessState(classId, chess, lastMove) {
@@ -113,13 +156,22 @@ async function fetchMemberUserIds(classRow) {
   return await notifyStudentUserIds(classRow.id, classRow.group_id);
 }
 
-function buildChessStateBroadcast(chess, lastMove, moveNumber) {
+/* `moves`/`ply` describe the position; `rev`/`epoch` order it. A snapshot taken
+ * at join can reach the client after a newer live move (React commits them
+ * independently), and an older snapshot must never rewind the board. Receiving
+ * `entry` stamps the broadcast with the class's current revision — a snapshot
+ * does NOT bump it, only a mutation does. */
+function buildChessStateBroadcast(chess, lastMove, moveNumber, entry) {
+  const moves = chess.history();
   return {
     fen: chess.fen(),
     pgn: chess.pgn(),
     turn: chess.turn() === 'w' ? 'w' : 'b',
     lastMove: lastMove || null,
-    moveNumber: moveNumber || Math.ceil(chess.history().length / 2),
+    moveNumber: moveNumber || Math.ceil(moves.length / 2),
+    moves,
+    ply: moves.length,
+    ...(entry ? { rev: entry.rev || 0, epoch: entry.epoch } : {}),
   };
 }
 
@@ -357,8 +409,8 @@ module.exports = function (io) {
         let reviewSnapshot = null;
         try {
           const chess = await getOrInitChess(classId);
-          chessStateSnapshot = buildChessStateBroadcast(chess, null);
           const initEntry = getClassCacheEntry(classId);
+          chessStateSnapshot = buildChessStateBroadcast(chess, null, undefined, initEntry);
           reviewSnapshot = initEntry.reviewTo != null
             ? buildReviewBroadcast(chess, initEntry.reviewTo)
             : null;
@@ -552,12 +604,14 @@ module.exports = function (io) {
         }
 
         const lastMove = { from: move.from, to: move.to, san: move.san };
-        getClassCacheEntry(classId).redoStack.length = 0;
+        const entry = getClassCacheEntry(classId);
+        entry.redoStack.length = 0;
         /* A played move ends any review the room was being walked through. */
-        getClassCacheEntry(classId).reviewTo = null;
+        entry.reviewTo = null;
         await persistChessState(classId, chess, lastMove);
 
-        const broadcast = buildChessStateBroadcast(chess, lastMove);
+        nextBoardRevision(entry);
+        const broadcast = buildChessStateBroadcast(chess, lastMove, undefined, entry);
         io.to(`live-class:${classId}`).emit('chess_state_updated', broadcast);
         if (ack) ack({ ok: true, broadcast });
       } catch (err) {
@@ -604,7 +658,8 @@ module.exports = function (io) {
             const lastHist = history[history.length - 1];
             const lastMove = lastHist ? { from: lastHist.from, to: lastHist.to, san: lastHist.san } : null;
             await persistChessState(classId, chess, lastMove);
-            const broadcast = buildChessStateBroadcast(chess, lastMove);
+            nextBoardRevision(entry);
+            const broadcast = buildChessStateBroadcast(chess, lastMove, undefined, entry);
             io.to(`live-class:${classId}`).emit('chess_state_updated', broadcast);
             if (ack) ack({ ok: true, broadcast });
             return;
@@ -628,7 +683,8 @@ module.exports = function (io) {
             const lastHist = history[history.length - 1];
             const lastMove = lastHist ? { from: lastHist.from, to: lastHist.to, san: lastHist.san } : null;
             await persistChessState(classId, chess, lastMove);
-            const broadcast = buildChessStateBroadcast(chess, lastMove);
+            nextBoardRevision(entry);
+            const broadcast = buildChessStateBroadcast(chess, lastMove, undefined, entry);
             io.to(`live-class:${classId}`).emit('chess_state_updated', broadcast);
             if (ack) ack({ ok: true, broadcast });
             return;
@@ -639,7 +695,8 @@ module.exports = function (io) {
             entry.redoStack.length = 0;
             chess.reset();
             await persistChessState(classId, chess, null);
-            const broadcast = buildChessStateBroadcast(chess, null);
+            nextBoardRevision(entry);
+            const broadcast = buildChessStateBroadcast(chess, null, undefined, entry);
             io.to(`live-class:${classId}`).emit('chess_state_updated', broadcast);
             if (ack) ack({ ok: true, broadcast });
             return;
@@ -658,7 +715,8 @@ module.exports = function (io) {
             }
             entry.redoStack.length = 0;
             await persistChessState(classId, chess, null);
-            const broadcast = buildChessStateBroadcast(chess, null);
+            nextBoardRevision(entry);
+            const broadcast = buildChessStateBroadcast(chess, null, undefined, entry);
             io.to(`live-class:${classId}`).emit('chess_state_updated', broadcast);
             if (ack) ack({ ok: true, broadcast });
             return;
@@ -683,7 +741,8 @@ module.exports = function (io) {
               ? { from: pgnLast.from, to: pgnLast.to, san: pgnLast.san }
               : null;
             await persistChessState(classId, chess, pgnLastMove);
-            const pgnBroadcast = buildChessStateBroadcast(chess, pgnLastMove);
+            nextBoardRevision(entry);
+            const pgnBroadcast = buildChessStateBroadcast(chess, pgnLastMove, undefined, entry);
             io.to(`live-class:${classId}`).emit('chess_state_updated', pgnBroadcast);
             if (ack) ack({ ok: true, broadcast: pgnBroadcast });
             return;
@@ -744,7 +803,8 @@ module.exports = function (io) {
           case 'clear_board': {
             chess.clear();
             await persistChessState(classId, chess, null);
-            const broadcast = buildChessStateBroadcast(chess, null);
+            nextBoardRevision(entry);
+            const broadcast = buildChessStateBroadcast(chess, null, undefined, entry);
             io.to(`live-class:${classId}`).emit('chess_state_updated', broadcast);
             if (ack) ack({ ok: true, broadcast });
             return;

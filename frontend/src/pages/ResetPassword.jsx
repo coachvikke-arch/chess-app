@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { useToast } from '../components/Toast';
 import { Piece, Reveal } from '../components/ui';
 import Button from '../components/Button';
+import PasswordInput from '../components/PasswordInput';
 import usePageTitle from '../hooks/usePageTitle';
 import { APP_NAME } from '../config/brand';
 
@@ -97,8 +98,7 @@ export default function ResetPassword() {
                 <div className="grid md:grid-cols-2 gap-4">
                   <div>
                     <label className="text-sm font-medium text-ivory-300 block">New password</label>
-                    <input
-                      type="password"
+                    <PasswordInput
                       required
                       minLength={8}
                       value={form.newPassword}
@@ -110,8 +110,7 @@ export default function ResetPassword() {
                   </div>
                   <div>
                     <label className="text-sm font-medium text-ivory-300 block">Confirm password</label>
-                    <input
-                      type="password"
+                    <PasswordInput
                       required
                       minLength={8}
                       value={form.confirm}

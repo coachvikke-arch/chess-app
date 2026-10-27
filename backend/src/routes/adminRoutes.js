@@ -21,15 +21,6 @@ router.use(roleMiddleware('superadmin'));
    id="accounts". Same reason as /openings/library below. */
 router.get('/openings/library', ctrl.listOpeningsLibrary);
 
-/* ── Super Admin platform analytics ─────────────────────────────────────────
-   Platform-wide overview, growth, academy comparison, activity analytics,
-   system health and recent audit activity. All superadmin-only. */
-router.get('/platform/overview', ctrl.platformOverview);
-router.get('/platform/growth', ctrl.platformGrowth);
-router.get('/platform/academies', ctrl.platformAcademies);
-router.get('/platform/activity', ctrl.platformActivity);
-router.get('/platform/health', ctrl.platformHealth);
-
 /* Password help. These are superadmin-only because the whole router already is
    (line 8), and they expose no password material — they mint one-time reset
    codes so a locked-out user can choose their own new password. */

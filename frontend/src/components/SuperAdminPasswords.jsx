@@ -3,6 +3,7 @@ import api from '../services/api';
 import { Chip } from './ui';
 import { useToast } from './Toast';
 import Button from './Button';
+import PasswordInput from './PasswordInput';
 // Password help panel: list accounts, reset password or issue code.
 export default function SuperAdminPasswords() {
   const { showToast } = useToast();
@@ -109,9 +110,9 @@ export default function SuperAdminPasswords() {
             <p className="text-[11px] text-ivory-500 mt-2">Current password cannot be shown (bcrypt is one-way). Set a new one and tell it to the member.</p>
             <form onSubmit={directReset} className="mt-4 space-y-3">
               <div><label className="text-xs text-ivory-500">New password (min 8)</label>
-                <input type="password" className="chess-input mt-1" value={pw1} onChange={(e) => setPw1(e.target.value)} placeholder="••••••••" autoComplete="new-password" /></div>
+                <PasswordInput className="chess-input mt-1" value={pw1} onChange={(e) => setPw1(e.target.value)} placeholder="••••••••" autoComplete="new-password" /></div>
               <div><label className="text-xs text-ivory-500">Confirm password</label>
-                <input type="password" className="chess-input mt-1" value={pw2} onChange={(e) => setPw2(e.target.value)} placeholder="••••••••" autoComplete="new-password" /></div>
+                <PasswordInput className="chess-input mt-1" value={pw2} onChange={(e) => setPw2(e.target.value)} placeholder="••••••••" autoComplete="new-password" /></div>
               <Button disabled={resetting} variant="primary" size="md" fullWidth>{resetting ? 'Resetting…' : 'Set new password'}</Button>
             </form>
             <div className="mt-4 pt-4 border-t border-ivory-700/40">

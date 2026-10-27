@@ -7,8 +7,8 @@ import { FeatureAccessPanel } from './FeatureAccess';
 import { CoachReportsPanel } from './CoachReport';
 import SidebarOrder from './SidebarOrder';
 import SuperAdminPasswords from '../components/SuperAdminPasswords';
-import PlatformDashboard from './PlatformDashboard';
 import Button from '../components/Button';
+import PasswordInput from '../components/PasswordInput';
 import PhoneInput from '../components/PhoneInput';
 import { DEFAULT_DIAL, toE164 } from '../utils/phone';
 
@@ -18,7 +18,6 @@ import { DEFAULT_DIAL, toE164 } from '../utils/phone';
    ?section=, so the sidebar order decides their sequence out there while this
    array stays the console's own tab order. */
 const SECTIONS = [
-  { key: 'dashboard', label: '📊 Platform Dashboard' },
   { key: 'accounts', label: '♙ Register account' },
   { key: 'passwords', label: '♟ Passwords' },
   { key: 'features', label: '♜ Feature Access' },
@@ -271,9 +270,7 @@ export default function SuperAdmin() {
       <div className="min-h-screen">
         {[...visitedSections].map((key) => (
           <div key={key} hidden={key !== section}>
-            {key === 'dashboard' ? (
-              <PlatformDashboard />
-            ) : key === 'features' ? (
+            {key === 'features' ? (
               <FeatureAccessPanel />
             ) : key === 'sidebar' ? (
               <SidebarOrder />
@@ -330,10 +327,10 @@ export default function SuperAdmin() {
                 autoComplete="tel"
               />
               <LabeledField label="Password *" hint="At least 8 characters">
-                <input required type="password" className="chess-input" placeholder="••••••••" value={form.password} onChange={set('password')} />
+                <PasswordInput required autoComplete="new-password" className="chess-input" value={form.password} onChange={set('password')} />
               </LabeledField>
               <LabeledField label="Confirm password *">
-                <input required type="password" className="chess-input" placeholder="••••••••" value={form.confirmPassword} onChange={set('confirmPassword')} />
+                <PasswordInput required autoComplete="new-password" className="chess-input" value={form.confirmPassword} onChange={set('confirmPassword')} />
               </LabeledField>
             </div>
 

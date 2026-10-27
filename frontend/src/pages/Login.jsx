@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { useToast } from '../components/Toast';
 import { AUTH_MESSAGE_KEY } from '../services/api';
 import { Piece, Reveal } from '../components/ui';
-import PasswordField from '../components/PasswordField';
+import PasswordInput from '../components/PasswordInput';
 import AnimatedBoard from '../components/AnimatedBoard';
 import { homeForRole } from '../utils/roles';
 import Button from '../components/Button';
@@ -127,7 +127,7 @@ export default function Login() {
               </div>
               <div>
                 <label className="text-sm font-medium text-ivory-300 block text-left">Password</label>
-                <PasswordField
+                <PasswordInput
                   required
                   value={form.password}
                   onChange={(e) => setForm({ ...form, password: e.target.value })}
