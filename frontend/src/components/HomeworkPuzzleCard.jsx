@@ -4,6 +4,7 @@ import AnimatedBoard from './board/AnimatedBoard';
 import { Chip, Spinner } from './ui';
 import { getPieceTheme, buildCustomPieces } from '../config/pieceTheme';
 import { getBoardTheme, getBoardThemeStyles } from '../config/boardThemes';
+import { ornateSquareStyles } from '../config/ornateTheme';
 import { useAuth } from '../context/AuthContext';
 
 /* Static board preview using the user's board prefs (mirrors PuzzleCard). */
@@ -25,6 +26,7 @@ function MiniBoard({ fen, width }) {
       customPieces={customPieces}
       customDarkSquareStyle={themeStyles.darkSquareStyle || { backgroundColor: boardTheme.darkSq }}
       customLightSquareStyle={themeStyles.lightSquareStyle || { backgroundColor: boardTheme.lightSq }}
+      customSquareStyles={ornateSquareStyles(boardTheme) || undefined}
       customBoardStyle={themeStyles.boardStyle || { borderRadius: '10px', overflow: 'hidden', boxShadow: '0 8px 18px rgba(15,23,42,0.25)' }}
     />
   );

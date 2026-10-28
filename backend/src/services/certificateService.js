@@ -43,6 +43,7 @@ const FALLBACK_SETTINGS = {
   institute_name: APP_NAME,
   coach_name: '',
   logo_url: null,
+  participation_certificates: false,
 };
 
 /* ── Students ─────────────────────────────────────────────────────────────
@@ -89,6 +90,7 @@ async function getSettings() {
     institute_name: row.institute_name,
     coach_name: row.coach_name || '',
     logo_url: row.logo_url || null,
+    participation_certificates: Boolean(row.participation_certificates),
     updated_at: row.updated_at,
   };
 }
@@ -112,21 +114,29 @@ async function saveSettings(patch, userId) {
       patch.coach_name !== undefined ? String(patch.coach_name) : current.coach_name,
     logo_url:
       patch.logo_url !== undefined ? (patch.logo_url ? String(patch.logo_url) : null) : current.logo_url,
+    participation_certificates:
+      patch.participation_certificates !== undefined
+        ? Boolean(patch.participation_certificates)
+        : current.participation_certificates,
   };
 
   const { rows } = await db.query(
     `UPDATE certificate_settings
         SET message_template = $1, institute_name = $2, coach_name = $3, logo_url = $4,
-            updated_at = NOW(), updated_by = $5
+            participation_certificates = $6, updated_at = NOW(), updated_by = $5
       WHERE id = 1
       RETURNING *`,
-    [next.message_template, next.institute_name, next.coach_name, next.logo_url, userId || null]
+    [
+      next.message_template, next.institute_name, next.coach_name, next.logo_url,
+      userId || null, next.participation_certificates,
+    ]
   );
   return {
     message_template: rows[0].message_template,
     institute_name: rows[0].institute_name,
     coach_name: rows[0].coach_name || '',
     logo_url: rows[0].logo_url || null,
+    participation_certificates: Boolean(rows[0].participation_certificates),
     updated_at: rows[0].updated_at,
   };
 }
@@ -153,8 +163,9 @@ async function insertCertificate(payload) {
   try {
     const { rows } = await db.query(
       `INSERT INTO certificates
-         (student_id, type, title, rank, level_no, tournament_id, score, issued_at, certificate_no, status)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'pending')
+         (student_id, type, title, rank, level_no, tournament_id, score, points, rounds,
+          issued_at, certificate_no, status)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'pending')
        RETURNING *`,
       [
         payload.student_id,
@@ -164,6 +175,8 @@ async function insertCertificate(payload) {
         payload.level_no ?? null,
         payload.tournament_id ?? null,
         payload.score ?? null,
+        payload.points ?? null,
+        payload.rounds ?? null,
         issuedAt,
         certificateNo,
       ]
@@ -267,7 +280,7 @@ async function issueLevelCertificates({ studentId, levels, issuedAt }) {
  * @returns {Promise<object|null>} the row created, or null when already issued
  */
 async function issueTournamentCertificate({
-  studentId, tournamentId, tournamentName, rank, score, issuedAt,
+  studentId, tournamentId, tournamentName, rank, score, points, rounds, issuedAt,
 }) {
   const student = await getStudent(studentId);
   if (!student) return null;
@@ -284,6 +297,8 @@ async function issueTournamentCertificate({
     rank: place,
     tournament_id: tournamentId,
     score: score || null,
+    points: points === undefined ? null : points,
+    rounds: rounds === undefined ? null : rounds,
     issued_at: issuedAt,
   });
   if (!cert) return null;
@@ -370,7 +385,22 @@ async function generateTournamentCertificates(tournamentId) {
     }
 
     const position = s.rank <= 3 ? s.rank : null;
-    const score = scoreLabel(s.score, totalRounds);
+
+    /* The prize is for the top three. Participation certificates exist but are
+       opt-in (certificate_settings.participation_certificates), because issuing
+       one to every entrant turns an award into a mailshot. */
+    if (position === null && !settings.participation_certificates) {
+      out.skipped += 1;
+      continue;
+    }
+
+    const points = Math.round((Number(s.score) || 0) * 10) / 10;
+    /* Rounds actually played. An arena has no fixed round count — its equivalent
+       is games played, which is what "7 rounds" would otherwise misreport. */
+    const rounds = t.format === 'arena'
+      ? (Number(s.games) || 1)
+      : (totalRounds || Number(s.games) || 1);
+    const score = scoreLabel(s.score, rounds);
     const title = tournamentTitle({ tournamentName: t.name, rank: position });
 
     const existing = (await db.query(
@@ -385,15 +415,18 @@ async function generateTournamentCertificates(tournamentId) {
       const changed =
         (existing.rank ?? null) !== position
         || (existing.score || '') !== score
+        || Number(existing.points ?? NaN) !== points
+        || Number(existing.rounds ?? NaN) !== rounds
         || existing.title !== title
         || new Date(existing.issued_at).getTime() !== issuedAt.getTime();
 
       if (changed) {
         cert = (await db.query(
           `UPDATE certificates
-              SET title = $2, rank = $3, score = $4, issued_at = $5, updated_at = NOW()
+              SET title = $2, rank = $3, score = $4, points = $5, rounds = $6,
+                  issued_at = $7, updated_at = NOW()
             WHERE id = $1 RETURNING *`,
-          [existing.id, title, position, score, issuedAt]
+          [existing.id, title, position, score, points, rounds, issuedAt]
         )).rows[0];
         needsRender = true;
       }
@@ -406,6 +439,8 @@ async function generateTournamentCertificates(tournamentId) {
         rank: position,
         tournament_id: id,
         score,
+        points,
+        rounds,
         issued_at: issuedAt,
       });
       if (!cert) {
@@ -500,7 +535,11 @@ function deliveryFor(cert, student, settings, absoluteUrl) {
     : null;
 
   const blockers = [];
-  if (!cert.file_url) {
+  /* A tournament certificate is exported in the browser — the PNG the admin
+     sends is rasterised from the same artwork they previewed — so a missing
+     server-rendered PDF must not block sending it. Level certificates keep the
+     requirement: their PDF is the deliverable. */
+  if (cert.type !== 'tournament' && !cert.file_url) {
     blockers.push(
       cert.file_error
         ? `Certificate PDF could not be generated: ${cert.file_error}`

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Page, Card, Chip, Spinner } from '../components/ui';
 import CertificateInline from '../components/CertificateInline';
-import CertificateModal from '../components/CertificateModal';
+import TournamentCertificateModal from '../components/certificate/TournamentCertificateModal';
 import { listMyCertificates } from '../services/certificatesApi';
 import Pagination, { PAGE_SIZE } from '../components/Pagination';
 import { usePagination } from '../hooks/usePagination';
@@ -178,16 +178,16 @@ export default function MyCertificates() {
       />
 
       {tournamentView && (
-        <CertificateModal
+        <TournamentCertificateModal
           open
-          onClose={() => setTournamentView(null)}
+          readOnly
           certificate={{
-            playerName: tournamentView.studentName || student?.name || '',
+            ...tournamentView,
+            studentName: tournamentView.studentName || student?.name || '',
             tournamentName: tournamentView.tournamentName || tournamentView.title,
             position: tournamentView.position ?? tournamentView.rank ?? null,
-            score: tournamentView.score || '',
-            date: tournamentView.issuedAt,
           }}
+          onClose={() => setTournamentView(null)}
         />
       )}
     </Page>

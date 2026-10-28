@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import ChessBoard from '../components/ChessBoard';
 import BotAvatar from '../components/bots/BotAvatar';
@@ -17,6 +17,7 @@ import { analyzeGame, buildCoachMessage } from '../utils/gameAnalysis';
 import usePageTitle from '../hooks/usePageTitle';
 import { useFittedSquare } from '../hooks/useBoardWidth';
 import { revealAfterCheckmate } from '../effects/moveEffect';
+import FullHeightContext, { useFullHeight } from '../context/FullHeightContext';
 
 /**
  * /play/bot/:botId — a single bot match.
@@ -76,6 +77,19 @@ function Game({ bot, timeControl, colorChoice, navigate }) {
   const { user, settings, updateSetting, forBot, refresh } = useBotProgress();
   const engine = useStockfish({ ownsPool: true });
   const chatOn = settings.chat !== false;
+
+  /* Signed-in users play this inside their shell (see PlayLayout), so the page
+     fills the CONTENT area under the header rather than a browser viewport it
+     no longer owns. The shell's full-height mode is what gives that area a
+     definite height; without it the page would keep scrolling. Signed-out
+     visitors get no shell, and therefore keep the old viewport-height root. */
+  const inShell = useContext(FullHeightContext) != null;
+  const { requestFullHeight } = useFullHeight();
+  useEffect(() => {
+    if (!inShell) return undefined;
+    requestFullHeight(true);
+    return () => requestFullHeight(false);
+  }, [inShell, requestFullHeight]);
 
   /* 'random' is resolved ONCE here, so a rematch keeps the same sides unless
      the player explicitly asks to swap. */
@@ -298,7 +312,7 @@ function Game({ bot, timeControl, colorChoice, navigate }) {
        Deliberately NOT .play-mode-overlay: that class is position:fixed and
        would swallow the app shell, the floating back pill and the post-game
        popup that all still need to work here. */
-    <div className="flex h-screen flex-col overflow-hidden bg-ink-950 text-ivory-300 lg:flex-row">
+    <div className={`bot-game-root flex ${inShell ? 'h-full' : 'h-screen'} min-h-0 flex-col overflow-hidden bg-ink-950 text-ivory-300 lg:flex-row`}>
       {/* ── Panel ─────────────────────────────────────────────────────── */}
       {/* Deliberately NOT `.play-mode-panel`. That class hardcodes
           `width: 320px` and is declared AFTER @tailwind utilities in index.css,
@@ -580,7 +594,7 @@ function ResultPanel({ outcome, bot, playerColor, userName, record, onReview, ca
 /** Invalid / unknown bot id. */
 function BotNotFound({ requestedId }) {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-ink-900 px-4 text-ivory-100">
+    <div className="flex min-h-[60vh] items-center justify-center bg-ink-900 px-4 py-10 text-ivory-100">
       <div className="max-w-md space-y-4 rounded-2xl border border-ivory-700/40 bg-ink-800/70 p-6 text-center">
         <h1 className="text-xl font-bold">Bot not found</h1>
         <p className="text-sm text-ivory-400">

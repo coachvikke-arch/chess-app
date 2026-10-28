@@ -1,9 +1,10 @@
 const fs = require('fs');
 const path = require('path');
 const PDFDocument = require('pdfkit');
+const { spawnSync } = require('child_process');
 
 const {
-  layout, templatePath, registerFonts, requiresUnicodeFont, ascentEmFor, REFERENCE_ASCENT_EM,
+  layout, templatePath, templateImagePath, registerFonts, requiresUnicodeFont, ascentEmFor, REFERENCE_ASCENT_EM,
 } = require('../config/certificateAssets');
 const { isCertificateNo } = require('./certificateNumber');
 const { APP_NAME } = require('../config/brand');
@@ -307,6 +308,49 @@ function drawLogoField(doc, field, logoUrl) {
 }
 
 /**
+ * Render through the ReportLab recreation of the artwork.
+ *
+ * It needs python + reportlab + the subset fonts under `assets/`, which a
+ * Node-only host (Railway) does not provide. Any failure returns null so the
+ * caller can fall back to the pdfkit artwork renderer instead of failing the
+ * request.
+ *
+ * @returns {Buffer|null}
+ */
+function renderReportLabPdf({ content }) {
+  const scriptPath = path.join(__dirname, 'generate_certificate.py');
+  const assetsDir = path.join(__dirname, '..', 'assets');
+  const bgPath = path.join(assetsDir, 'cert', 'bg.png');
+  const bgAlt = path.join(assetsDir, 'certificate-template.png');
+  const bg = fs.existsSync(bgPath) ? bgPath : bgAlt;
+  const tmpOut = path.join(assetsDir, `cert_tmp_${Date.now()}_${Math.random().toString(36).slice(2)}.pdf`);
+  const name = content.name || 'Student';
+  let level = '1';
+  if (content.info_level) {
+    const m = content.info_level.match(/Level\s*(\d+)/i);
+    if (m) level = m[1];
+  } else if (content.ribbon_level) {
+    const m2 = content.ribbon_level.match(/(\d+)/);
+    if (m2) level = m2[1];
+  }
+  const dateStr = content.info_date
+    ? content.info_date.replace(/^Date\s*:\s*/i, '')
+    : (content._issued || '9 October 2026');
+
+  const py = spawnSync('python', [scriptPath, assetsDir, bg, tmpOut, name, level, dateStr], { encoding: 'utf8' });
+  const ok = py.status === 0 && fs.existsSync(tmpOut);
+  if (!ok) {
+    const detail = String(py.error ? py.error.message : py.stderr || py.stdout || '').trim();
+    console.warn('[certificates] ReportLab renderer unavailable:', detail.split('\n').pop() || 'unknown error');
+    try { fs.unlinkSync(tmpOut); } catch (e) {}
+    return null;
+  }
+  const buf = fs.readFileSync(tmpOut);
+  try { fs.unlinkSync(tmpOut); } catch (e) {}
+  return buf;
+}
+
+/**
  * Render a certificate to a PDF buffer.
  *
  * @param {object} args
@@ -315,50 +359,64 @@ function drawLogoField(doc, field, logoUrl) {
  */
 function renderCertificatePdf({ content }) {
   return new Promise((resolve, reject) => {
-    let doc;
     try {
-      doc = new PDFDocument({
-        size: 'A4',
-        layout: 'landscape',
-        margin: 0,
-        info: {
-          Title: [content.title, content.name].filter(Boolean).join(' — ') || 'Certificate',
-          Author: content.institute || APP_NAME,
-          Subject: content.title || 'Certificate',
-        },
-        compress: true,
-      });
-    } catch (err) {
-      reject(err);
-      return;
-    }
-
-    const chunks = [];
-    doc.on('data', (c) => chunks.push(c));
-    doc.on('end', () => resolve(Buffer.concat(chunks)));
-    doc.on('error', reject);
-
-    try {
-      const { fonts, unicodeFont } = registerFonts(doc);
-
-      /* 1. the academy's existing artwork, full page */
-      const bg = coverGeometry();
-      doc.image(templatePath(), bg.x, bg.y, { width: bg.w, height: bg.h });
-
-      /* 2. the variable data, in the measured blank zones */
-      for (const field of layout.fields) {
-        if (field.role === 'image') {
-          drawLogoField(doc, field, content.logo);
-          continue;
+      const tpl = templatePath();
+      if (tpl.toLowerCase().endsWith('.pdf')) {
+        const buf = renderReportLabPdf({ content });
+        if (buf) {
+          resolve(buf);
+          return;
         }
-        /* A rich field carries its weighted runs alongside its plain text, under
-           the `<key>_segments` name, so the layout file stays a pure description
-           of position and the content stays a pure description of wording. */
-        const segments = field.rich ? content[`${field.key}_segments`] : null;
-        drawTextField(doc, segments ? { ...field, segments } : field, content[field.key], fonts, unicodeFont);
+        console.warn('[certificates] using the pdfkit artwork renderer for this certificate');
+      }
+      
+      let doc;
+      try {
+        doc = new PDFDocument({
+          size: 'A4',
+          layout: 'landscape',
+          margin: 0,
+          info: {
+            Title: [content.title, content.name].filter(Boolean).join(' — ') || 'Certificate',
+            Author: content.institute || APP_NAME,
+            Subject: content.title || 'Certificate',
+          },
+          compress: true,
+        });
+      } catch (err) {
+        reject(err);
+        return;
       }
 
-      doc.end();
+      const chunks = [];
+      doc.on('data', (c) => chunks.push(c));
+      doc.on('end', () => resolve(Buffer.concat(chunks)));
+      doc.on('error', reject);
+
+      try {
+        const { fonts, unicodeFont } = registerFonts(doc);
+
+        /* 1. the academy's existing artwork, full page */
+        const bgGeom = coverGeometry();
+        doc.image(templateImagePath(), bgGeom.x, bgGeom.y, { width: bgGeom.w, height: bgGeom.h });
+
+        /* 2. the variable data, in the measured blank zones */
+        for (const field of layout.fields) {
+          if (field.role === 'image') {
+            drawLogoField(doc, field, content.logo);
+            continue;
+          }
+          /* A rich field carries its weighted runs alongside its plain text, under
+             the `<key>_segments` name, so the layout file stays a pure description
+             of position and the content stays a pure description of wording. */
+          const segments = field.rich ? content[`${field.key}_segments`] : null;
+          drawTextField(doc, segments ? { ...field, segments } : field, content[field.key], fonts, unicodeFont);
+        }
+
+        doc.end();
+      } catch (err) {
+        reject(err);
+      }
     } catch (err) {
       reject(err);
     }

@@ -7,7 +7,7 @@ import { useAuth } from '../context/AuthContext';
 import { useSound } from '../context/SoundContext';
 import { BOARD_THEMES, BOARD_THEMES_HIDDEN_IN_SETTINGS, getBoardTheme, getBoardThemeStyles } from '../config/boardThemes';
 import { PIECE_THEMES, PIECE_THEMES_HIDDEN_IN_SETTINGS, GLYPHS, getPieceTheme, pieceGlyphStyle, buildCustomPieces } from '../config/pieceTheme';
-import { marbledSquareStyle } from '../config/ornateTheme';
+import { ornateSquareStyles } from '../config/ornateTheme';
 import { BOARD_ANIMATION_PRESETS, useBoardAnimationId, setBoardAnimation } from '../config/boardAnimation';
 import { useShowLegalMoves, setShowLegalMoves } from '../config/legalMoves';
 import { setAllowPieceDrag, useAllowPieceDrag } from '../config/pieceDrag';
@@ -32,17 +32,7 @@ const PREVIEW_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
 /** Tiny static board preview for a specific theme + piece set. */
 export function ThemePreview({ themeId, pieceSet, size = 160 }) {
   const theme = getBoardTheme(themeId);
-  const marbleSquares = useMemo(() => {
-    if (!theme.ornate) return null;
-    const s = {};
-    for (let f = 0; f < 8; f++) {
-      for (let r = 0; r < 8; r++) {
-        const isDark = (f + r) % 2 === 0;
-        s['abcdefgh'[f] + (r + 1)] = marbledSquareStyle(isDark ? theme.darkSq : theme.lightSq, isDark, theme);
-      }
-    }
-    return s;
-  }, [theme]);
+  const marbleSquares = useMemo(() => ornateSquareStyles(theme), [theme]);
   const customPieces = useMemo(() => buildCustomPieces(getPieceTheme(pieceSet || 'cburnett')), [pieceSet]);
   const themeStyles = getBoardThemeStyles(theme);
   return (

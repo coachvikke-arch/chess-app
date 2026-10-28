@@ -5,6 +5,7 @@ import AnimatedBoard from './board/AnimatedBoard';
 import { fenToGrid, gridToFen, validPosition, START_FEN } from './BoardSetup';
 import { GLYPHS, PIECE_THEMES, pieceGlyphStyle, getPieceTheme, buildCustomPieces } from '../config/pieceTheme';
 import { getBoardTheme, getBoardThemeStyles } from '../config/boardThemes';
+import { ornateSquareStyles } from '../config/ornateTheme';
 import { useAuth } from '../context/AuthContext';
 import { useSound } from '../context/SoundContext';
 import Button from './Button';
@@ -533,7 +534,10 @@ export default function CustomizePositionModal({ initialFen, onApply, onClose })
                         showBoardNotation={false}
                         customDarkSquareStyle={themeStyles.darkSquareStyle || { backgroundColor: boardTheme.darkSq }}
                         customLightSquareStyle={themeStyles.lightSquareStyle || { backgroundColor: boardTheme.lightSq }}
-                        customSquareStyles={dropTarget ? { [dropTarget]: { backgroundColor: 'rgba(59, 130, 246, 0.45)' } } : {}}
+                        customSquareStyles={{
+                          ...(ornateSquareStyles(boardTheme) || {}),
+                          ...(dropTarget ? { [dropTarget]: { backgroundColor: 'rgba(59, 130, 246, 0.45)' } } : {}),
+                        }}
                         customBoardStyle={themeStyles.boardStyle || {
                           borderRadius: 10,
                           overflow: 'hidden',

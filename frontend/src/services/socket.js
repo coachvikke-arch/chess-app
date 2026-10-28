@@ -55,6 +55,13 @@ export function onGameUpdate(callback) {
   return () => s.off('game-update', callback);
 }
 
+/* Global "a live board just stopped being watchable" signal. Sent to every
+   authenticated client when a match finishes or aborts, so an open Live games
+   list can drop that one card immediately instead of waiting for its poll. */
+export function onLiveGamesChanged(callback) {
+  return on('live-games-changed', callback);
+}
+
 export function onGameInvite(callback) {
   const s = getSocket();
   if (!s) return () => {};

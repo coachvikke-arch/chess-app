@@ -6,6 +6,13 @@ const XP_PER_CORRECT = 10;
 const XP_LESSON_BONUS = 25;
 const XP_LEVEL_BONUS = 100;
 
+/* Coach/Admin/Super Admin accounts browse the academy in PREVIEW mode: every
+   level, lesson and badge is open, and nothing they click is written back as
+   progress, XP, streak or badges. `coach` is normally stored as `admin` —
+   keeping it listed costs nothing and covers accounts shaped either way. */
+const STAFF_ROLES = new Set(['superadmin', 'super_admin', 'admin', 'coach']);
+const isStaff = (user) => Boolean(user && STAFF_ROLES.has(String(user.role)));
+
 /* Hint penalty: fewer points for correct answers that used hints. */
 function xpForResult(correct, hintsUsed) {
   if (!correct) return 0;
@@ -80,8 +87,10 @@ async function lessonIsComplete(lesson, userId) {
   return { total, done, complete: total > 0 && done >= total };
 }
 
-/* Per-level progress + unlock state. */
-async function levelProgress(userId) {
+/* Per-level progress + unlock state. Staff preview reports every level as
+   open while still returning the REAL progress numbers, so the card can show
+   "0/5 lessons · 0%" next to a Coach access badge instead of a fake 100%. */
+async function levelProgress(userId, staff = false) {
   const out = [];
   for (let i = 0; i < LEVELS.length; i++) {
     const level = LEVELS[i];
@@ -94,7 +103,7 @@ async function levelProgress(userId) {
     }
     const pct = totalLessons ? Math.round((completedLessons / totalLessons) * 100) : 0;
     const prev = i > 0 ? out[i - 1] : null;
-    const unlocked = i === 0 || (prev && prev.pct >= level.unlockAfter);
+    const unlocked = staff || i === 0 || (prev && prev.pct >= level.unlockAfter);
     out.push({
       slug: level.slug,
       name: level.name,
@@ -106,6 +115,7 @@ async function levelProgress(userId) {
       completedLessons,
       pct,
       unlocked,
+      staffPreview: staff,
       unlockAfter: level.unlockAfter,
       lockedBy: unlocked ? null : prev ? prev.name : null,
       neededPct: unlocked ? 0 : level.unlockAfter,
@@ -262,13 +272,17 @@ async function awardLevelBonuses(userId, prevLevels) {
 /* ────────────────────────── GET / overview ────────────────────────── */
 exports.getOverview = async (req, res) => {
   try {
-    await ensureStats(req.user.id);
-    await applyBadges(req.user.id);
+    const staff = isStaff(req.user);
+    /* A staff preview must not create stats rows or award badges. */
+    if (!staff) {
+      await ensureStats(req.user.id);
+      await applyBadges(req.user.id);
+    }
     let levels;
     let stats;
     let badges;
     [levels, stats, badges] = await Promise.all([
-      levelProgress(req.user.id),
+      levelProgress(req.user.id, staff),
       getStats(req.user.id),
       db.query(
         `SELECT b.code, b.name, b.icon, b.description, b.xp_value,
@@ -291,8 +305,11 @@ exports.getOverview = async (req, res) => {
         icon: b.icon,
         description: b.description,
         xpValue: b.xp_value,
-        unlocked: !!b.unlocked_at,
+        /* Preview: every badge reads as unlocked for staff WITHOUT inserting a
+           user_academy_badges row — the flag is response-only. */
+        unlocked: staff || !!b.unlocked_at,
         unlockedAt: b.unlocked_at,
+        staffPreview: staff,
       })),
     });
   } catch (err) {
@@ -306,10 +323,11 @@ exports.getLevel = async (req, res) => {
     const level = findLevel(req.params.slug);
     if (!level) return res.status(404).json({ message: 'Level not found' });
 
-    await ensureStats(req.user.id);
-    const levels = await levelProgress(req.user.id);
+    const staff = isStaff(req.user);
+    if (!staff) await ensureStats(req.user.id);
+    const levels = await levelProgress(req.user.id, staff);
     const meta = levels.find((l) => l.slug === level.slug);
-    if (!meta.unlocked && level.slug !== 'beginner') {
+    if (!staff && !meta.unlocked && level.slug !== 'beginner') {
       return res.status(403).json({ message: `Complete ${meta.neededPct}% of the ${meta.lockedBy} level to unlock ${meta.name}.`, level: meta });
     }
 
@@ -342,8 +360,9 @@ exports.getLesson = async (req, res) => {
     const lesson = level && findLesson(level, req.params.lessonSlug);
     if (!lesson) return res.status(404).json({ message: 'Lesson not found' });
 
-    await ensureStats(req.user.id);
-    const levels = await levelProgress(req.user.id);
+    const staff = isStaff(req.user);
+    if (!staff) await ensureStats(req.user.id);
+    const levels = await levelProgress(req.user.id, staff);
     const meta = levels.find((l) => l.slug === level.slug);
     if (!meta.unlocked) {
       return res.status(403).json({ message: `Complete ${meta.neededPct}% of the ${meta.lockedBy} level to unlock ${meta.name}.` });
@@ -397,6 +416,19 @@ exports.completeExercise = async (req, res) => {
     const exercise = lesson && lessonExercises(lesson).find((e) => e.slug === exerciseSlug);
     if (!exercise) return res.status(404).json({ message: 'Exercise not found' });
 
+    /* Staff preview: acknowledge the answer so the lesson keeps working, but do
+       not record progress, XP, streak or badges for an admin account. */
+    if (isStaff(req.user)) {
+      return res.json({
+        preview: true,
+        xpEarned: 0,
+        streak: 0,
+        lessonCompletedNow: false,
+        newBadges: [],
+        levels: await levelProgress(req.user.id, true),
+      });
+    }
+
     await ensureStats(req.user.id);
     let prevLevels = await levelProgress(req.user.id);
     let wasComplete = (await lessonIsComplete({ ...lesson, levelSlug }, req.user.id)).complete;
@@ -438,6 +470,19 @@ exports.completeSession = async (req, res) => {
     const level = findLevel(levelSlug);
     const lesson = findLesson(level, lessonSlug);
     if (!lesson) return res.status(404).json({ message: 'Lesson not found' });
+
+    if (isStaff(req.user)) {
+      return res.json({
+        preview: true,
+        passed: total > 0 && correct / total >= 0.7,
+        correct,
+        total,
+        xpEarned: 0,
+        lessonCompletedNow: false,
+        newBadges: [],
+        levels: await levelProgress(req.user.id, true),
+      });
+    }
 
     await ensureStats(req.user.id);
     let prevLevels = await levelProgress(req.user.id);
@@ -494,7 +539,8 @@ exports.completeSession = async (req, res) => {
 /* ────────────────────────── GET / badges ────────────────────────── */
 exports.getBadges = async (req, res) => {
   try {
-    await ensureStats(req.user.id);
+    const staff = isStaff(req.user);
+    if (!staff) await ensureStats(req.user.id);
     const r = await db.query(
       `SELECT b.code, b.name, b.icon, b.description, b.xp_value, ub.unlocked_at
        FROM academy_badges b
@@ -502,7 +548,13 @@ exports.getBadges = async (req, res) => {
        ORDER BY b.xp_value ASC`,
       [req.user.id]
     );
-    res.json({ badges: r.rows.map((b) => ({ ...b, unlocked: !!b.unlocked_at })) });
+    res.json({
+      badges: r.rows.map((b) => ({
+        ...b,
+        unlocked: staff || !!b.unlocked_at,
+        staffPreview: staff,
+      })),
+    });
   } catch (err) {
     res.status(500).json({ message: 'Failed to load badges', error: err.message });
   }

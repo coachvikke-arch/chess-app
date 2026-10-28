@@ -130,6 +130,21 @@ function OpeningsLayout({ children }) {
     : <StudentAppShell>{children}</StudentAppShell>;
 }
 
+/**
+ * A single bot match belongs to the signed-in user's own section: the shared
+ * header (with its hamburger below 1024 px) and sidebar must stay reachable,
+ * so the match renders inside the caller's shell instead of as a standalone
+ * page. Signed-out visitors still get the plain full-screen board.
+ */
+function PlayLayout({ children }) {
+  const { user, loading } = useAuth();
+  if (loading) return <Spinner />;
+  if (!user) return children;
+  return isAdminRole(user.role)
+    ? <AdminAppShell>{children}</AdminAppShell>
+    : <StudentAppShell>{children}</StudentAppShell>;
+}
+
 /* The homepage header carries the full site navigation — these links are shown
    here and nowhere else (the in-app Navbar deliberately omits them). */
 const landingNavLinks = navLinks;
@@ -181,7 +196,7 @@ function LandingHeader() {
             {open ? '✕' : '☰'}
           </button>
 <Link
-              to="/"
+              to={user ? dashLink : '/'}
               onClick={() => setOpen(false)}
               className="flex items-center gap-2 sm:gap-2.5 min-w-0"
             >
@@ -390,7 +405,7 @@ export default function App() {
           <Route path="/play/bots" element={<BotsPage />} />
           {/* Dev-only: scrub/slow-mo the MoveEffect timeline. */}
           <Route path="/dev/move-effect" element={<MoveEffectDebug />} />
-          <Route path="/play/bot/:botId" element={<BotGamePage />} />
+          <Route path="/play/bot/:botId" element={<PlayLayout><BotGamePage /></PlayLayout>} />
 
           {/* Openings learning module — study, then practise. Order matters:
               /openings/practice would otherwise be swallowed by :slug.

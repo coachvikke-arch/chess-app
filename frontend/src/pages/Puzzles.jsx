@@ -5,7 +5,8 @@ import api from '../services/api';
 import PuzzlePlayer from '../components/PuzzlePlayer';
 import { pieceGlyph } from '../components/puzzle/PuzzlePopups';
 import { Page, Chip, ConfirmDialog, Spinner } from '../components/ui';
-import { useFittedBoardWidth, framedWidth } from '../hooks/useBoardWidth';
+import { useFittedBoardWidth, useFittedSquare, framedWidth } from '../hooks/useBoardWidth';
+import useMediaQuery from '../hooks/useMediaQuery';
 import { createTransitionGuard } from '../lib/puzzleTransition';
 import { revealAfterCheckmate } from '../effects/moveEffect';
 import {
@@ -16,6 +17,20 @@ import {
   assignmentSolvedCount,
 } from '../lib/assignmentFlow';
 import Button from '../components/Button';
+
+/* A stable empty line. Building `current.solution || []` inline made a fresh
+   array on every render, and the solver resets whenever the `solution` prop
+   changes identity — so a puzzle without a stored line could snap the board
+   back to its start position mid-solve. */
+const EMPTY_SOLUTION = [];
+
+/* Layout buckets that use the measured, height-aware solver layout: portrait
+   phones and short landscape screens. Mirrors the .hw-* media queries in
+   index.css — keep the two in sync, since the measurement refs are only
+   attached in these buckets. */
+const HW_COMPACT_QUERY =
+  '(max-width: 820px) and (orientation: portrait), ' +
+  '(max-width: 1100px) and (orientation: landscape) and (max-height: 700px)';
 
 const THEME_LABELS = {
   fork: 'Fork', pin: 'Pin', skewer: 'Skewer', sacrifice: 'Sacrifice',
@@ -37,6 +52,20 @@ const THEME_LABELS = {
 
 export default function Puzzles() {
   const boardWidth = useFittedBoardWidth(420);
+
+  /* ── homework board size ──────────────────────────────────────────────────
+   * The wide layout keeps the window-derived width the page always used (board
+   * and info panel side by side). The compact layout instead measures the box
+   * that is actually left over by the header, the nav row and the fixed-height
+   * panel — on BOTH axes — so the board is as large as the screen allows, stays
+   * square, and cannot resize when the panel's content changes or the next
+   * puzzle loads. The refs are attached only in that layout (see the JSX), so
+   * this measurement can never feed back into a container it also sizes.
+   */
+  const hwCompact = useMediaQuery(HW_COMPACT_QUERY);
+  const hwFit = useFittedSquare({ max: 420, min: 120 });
+  const hwBoardWidth = hwCompact ? hwFit.size : boardWidth;
+
   const { assignmentId } = useParams();
   const navigate = useNavigate();
   /* /student/homework/:assignmentId reuses this page as the solver. The only
@@ -804,21 +833,25 @@ export default function Puzzles() {
             <div className="hw-content">
               <div className="hw-row">
                 <div className="hw-col-left">
-                <div className="hw-board-wrap">
-                  <PuzzlePlayer
-                    key={`${current.id}-${boardKey}`}
-                    fen={current.fen}
-                    solution={current.solution || []}
-                    onSolved={handleSolved}
-                    onFailed={handleFailed}
-                    onCorrectMove={handleCorrectMove}
-                    fx={fx}
-                    boardWidth={boardWidth}
-                    interactive={!puzzleLocked}
-                    points={current?.points ?? 10}
-                    showStatus={false}
-                    showMoveStrip={false}
-                  />
+                {/* The board's slot. In the compact layout it is the measured
+                    box the board is fitted into; the fixed-height panel below
+                    reserves its own space, so neither can move the board. */}
+                <div className="hw-board-area" ref={hwCompact ? hwFit.areaRef : undefined}>
+                  <div className="hw-board-wrap" ref={hwCompact ? hwFit.fitRef : undefined}>
+                    <PuzzlePlayer
+                      fen={current.fen}
+                      solution={current.solution || EMPTY_SOLUTION}
+                      onSolved={handleSolved}
+                      onFailed={handleFailed}
+                      onCorrectMove={handleCorrectMove}
+                      fx={fx}
+                      boardWidth={hwBoardWidth}
+                      interactive={!puzzleLocked}
+                      points={current?.points ?? 10}
+                      showStatus={false}
+                      showMoveStrip={false}
+                    />
+                  </div>
                 </div>
                 <div className="hw-nav-row">
                   <Button
@@ -844,7 +877,7 @@ export default function Puzzles() {
               <div className="hw-col-right">
                 <div
                   className={`hw-panel ${(homeworkResult === 'solved' || homeworkAllDone === 'all' || homeworkAllDone === 'last') ? 'hw-panel--completed' : ''}`}
-                  style={{ '--hw-panel-h': `${framedWidth(boardWidth)}px` }}
+                  style={{ '--hw-panel-h': `${framedWidth(hwBoardWidth)}px` }}
                 >
                   <div className="hw-panel-top">
                     <div className="hw-panel-meta">

@@ -14,6 +14,27 @@ function emitToUser(io, userId, event, data) {
   io.to(`user:${userId}`).emit(event, data);
 }
 
+/* Every open "Live games" list must drop a match the moment it stops being
+   watchable. `game-update` is scoped to the two players and the game room, so a
+   third user browsing the arena never hears about the finish and keeps seeing a
+   dead board until the next poll. This broadcasts a neutral signal (id + status,
+   no names or result) to everyone; clients remove that one card and let their
+   next poll reconcile anything else. Repeated calls for the same finish (rating
+   hooks, retries) are collapsed for a few seconds. */
+const liveEndedSeen = new Map();
+function broadcastLiveEnded(io, row) {
+  if (!io || (row.status !== 'finished' && row.status !== 'aborted')) return;
+  const last = liveEndedSeen.get(row.id);
+  if (last && last.status === row.status && Date.now() - last.at < 10000) return;
+  const at = Date.now();
+  liveEndedSeen.set(row.id, { status: row.status, at });
+  const timer = setTimeout(() => {
+    if (liveEndedSeen.get(row.id)?.at === at) liveEndedSeen.delete(row.id);
+  }, 10000);
+  timer.unref?.();
+  io.emit('live-games-changed', { gameId: row.id, status: row.status });
+}
+
 function emitGameUpdate(req, gameId) {
   const io = req.app.get('io');
   if (!io) return;
@@ -28,6 +49,7 @@ function emitGameUpdate(req, gameId) {
     // Also notify each participant directly (in case they aren't in the game room yet)
     emitToUser(io, row.admin_id, 'game-update', wrapped);
     emitToUser(io, row.student_id, 'game-update', wrapped);
+    broadcastLiveEnded(io, row);
   }).catch(() => {});
 }
 
@@ -236,7 +258,9 @@ function onlineTcLabel(baseMin, incSec) {
 
 async function getGameRow(id) {
   const r = await db.query(
-    `SELECT g.*, au.name AS admin_name, su.name AS student_name
+    `SELECT g.*, au.name AS admin_name, su.name AS student_name,
+            au.profile_image AS admin_profile_image, au.avatar_config AS admin_avatar_config,
+            su.profile_image AS student_profile_image, su.avatar_config AS student_avatar_config
      FROM online_games g
      JOIN users au ON au.id = g.admin_id
      JOIN users su ON su.id = g.student_id
@@ -279,6 +303,18 @@ function clockState(row) {
 
 // Build a view of a match for a given viewer ({ role, id }).
 // The creator is stored in admin_id, the opponent in student_id — regardless of role.
+function playerProfile(row, side) {
+  const id = side === 'admin' ? row.admin_id : row.student_id;
+  const name = side === 'admin' ? row.admin_name : row.student_name;
+  if (id == null || !name) return null;
+  return {
+    id,
+    name,
+    profile_image: (side === 'admin' ? row.admin_profile_image : row.student_profile_image) || null,
+    avatar_config: (side === 'admin' ? row.admin_avatar_config : row.student_avatar_config) || null,
+  };
+}
+
 function payload(row, viewerRole, viewerId) {
   const isCreator = row.admin_id === viewerId;
   const myColor = isCreator ? row.admin_color : row.admin_color === 'white' ? 'black' : 'white';
@@ -302,6 +338,11 @@ function payload(row, viewerRole, viewerId) {
     // their own perspective (a user's stored position can differ from their role).
     meId: viewerId,
     myName: isCreator ? row.admin_name : row.student_name,
+    /* The player rows render a picture per side, scoped to the viewer: my photo
+       next to my colour, the opponent's next to theirs. A bot has no account to
+       photograph, so `opponentProfile` stays null and the UI draws its default. */
+    myProfile: playerProfile(row, isCreator ? 'admin' : 'student'),
+    opponentProfile: row.is_bot ? null : playerProfile(row, isCreator ? 'student' : 'admin'),
     opponentId: isCreator ? row.student_id : row.admin_id,
     canAccept: row.status === 'pending' && row.student_id === viewerId,
     canAbort: row.status === 'pending' && row.admin_id === viewerId,
@@ -433,8 +474,24 @@ exports.listUsers = async (req, res) => {
       }
     }
 
+    // The picker renders a card per player: the same photo/avatar the profile
+    // page uses, plus the per time-class rating the match will be played under.
+    // One LEFT JOIN per pool keeps the row unique (student_time_ratings is
+    // UNIQUE on student_id + time_class).
     const r = await db.query(
-      'SELECT id, name, email, role FROM users WHERE id <> $1 ORDER BY name ASC',
+      `SELECT u.id, u.name, u.email, u.role, u.profile_image, u.avatar_config,
+              rt_b.rating  AS bullet_rating,
+              rt_bl.rating AS blitz_rating,
+              rt_r.rating  AS rapid_rating,
+              rt_c.rating  AS classical_rating
+         FROM users u
+         LEFT JOIN students s ON s.user_id = u.id
+         LEFT JOIN student_time_ratings rt_b  ON rt_b.student_id = s.id AND rt_b.time_class = 'bullet'
+         LEFT JOIN student_time_ratings rt_bl ON rt_bl.student_id = s.id AND rt_bl.time_class = 'blitz'
+         LEFT JOIN student_time_ratings rt_r  ON rt_r.student_id = s.id AND rt_r.time_class = 'rapid'
+         LEFT JOIN student_time_ratings rt_c  ON rt_c.student_id = s.id AND rt_c.time_class = 'classical'
+        WHERE u.id <> $1
+        ORDER BY u.name ASC`,
       [req.user.id]
     );
     res.json(
@@ -639,7 +696,9 @@ exports.createGame = async (req, res) => {
     const target = await db.query('SELECT id FROM users WHERE id = $1', [studentId]);
     if (target.rows.length === 0) return res.status(404).json({ message: 'Player not found' });
 
-    const baseMin = Math.max(1, Math.min(60, Number(timeControl?.baseMinutes) || 5));
+    /* 360 = the picker's largest clock (5 h + 60 min). The old 60 ceiling
+       silently turned every 2 h–6 h challenge into a 1 h game. */
+    const baseMin = Math.max(1, Math.min(360, Number(timeControl?.baseMinutes) || 5));
     const incSec = Math.max(0, Math.min(60, Number(timeControl?.incrementSeconds) || 0));
     const startMs = baseMin * 60000;
 

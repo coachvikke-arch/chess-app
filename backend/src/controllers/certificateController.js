@@ -80,6 +80,10 @@ function shape(req, row, settings) {
     tournamentId: row.tournament_id ?? null,
     tournamentName: row.tournament_name || null,
     score: row.score || null,
+    /* The two numbers behind the score, kept typed: the description sentence
+       prints them ("6.5 points in 7 rounds") rather than the formatted score. */
+    points: row.points === null || row.points === undefined ? null : Number(row.points),
+    rounds: row.rounds === null || row.rounds === undefined ? null : Number(row.rounds),
     issuedAt: row.issued_at,
     certificateNo: row.certificate_no,
     fileUrl: row.file_url,
@@ -120,6 +124,44 @@ exports.template = async (req, res) => {
     });
   } catch (err) {
     res.status(500).json({ message: 'Failed to load certificate template', error: err.message });
+  }
+};
+
+/**
+ * GET /api/certificates?studentId=
+ *
+ * The collection form of the per-student list. Same handler body, so the shape
+ * cannot drift from /students/:studentId.
+ */
+exports.list = async (req, res) => {
+  try {
+    const studentId = Number(req.query.studentId);
+    if (!Number.isInteger(studentId) || studentId <= 0) {
+      return res.status(400).json({ message: 'studentId query parameter is required' });
+    }
+    return await sendStudentCertificates(req, res, studentId);
+  } catch (err) {
+    res.status(500).json({ message: 'Failed to load certificates', error: err.message });
+  }
+};
+
+/**
+ * GET /api/certificates/:id — one certificate, in the same shape the lists use.
+ *
+ * Mounted after every literal route (see certificateRoutes.js), or Express would
+ * read "/template" as an id.
+ */
+exports.getOne = async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id <= 0) {
+      return res.status(400).json({ message: 'Invalid certificate id' });
+    }
+    const { rows } = await db.query(`${CERT_SELECT} WHERE c.id = $1`, [id]);
+    if (!rows[0]) return res.status(404).json({ message: 'Certificate not found' });
+    res.json({ certificate: shape(req, rows[0], await svc.getSettings()) });
+  } catch (err) {
+    res.status(500).json({ message: 'Failed to load certificate', error: err.message });
   }
 };
 
@@ -331,9 +373,9 @@ exports.getSettings = async (req, res) => {
 /** PUT /api/certificates/settings */
 exports.saveSettings = async (req, res) => {
   try {
-    const { message_template, institute_name, coach_name, logo_url } = req.body || {};
+    const { message_template, institute_name, coach_name, logo_url, participation_certificates } = req.body || {};
     const settings = await svc.saveSettings(
-      { message_template, institute_name, coach_name, logo_url },
+      { message_template, institute_name, coach_name, logo_url, participation_certificates },
       req.user ? req.user.id : null
     );
     res.json({ settings });
@@ -352,7 +394,7 @@ exports.saveSettings = async (req, res) => {
  */
 exports.issue = async (req, res) => {
   try {
-    const { studentId, type, level, tournamentId, rank, position, score } = req.body || {};
+    const { studentId, type, level, tournamentId, rank, position, score, points, rounds } = req.body || {};
     const sid = Number(studentId);
     if (!Number.isInteger(sid) || sid <= 0) {
       return res.status(400).json({ message: 'studentId is required' });
@@ -377,6 +419,8 @@ exports.issue = async (req, res) => {
         tournamentName: t.rows[0].name,
         rank: rank ?? position,
         score,
+        points,
+        rounds,
       });
     } else {
       const lvl = Number(level);

@@ -1,5 +1,6 @@
 const db = require('../config/database');
 const rating = require('../services/ratingService');
+const champion = require('../services/overallChampionService');
 
 async function studentIdForUser(userId) {
   const r = await db.query('SELECT id FROM students WHERE user_id = $1', [userId]);
@@ -51,6 +52,32 @@ exports.coachView = async (req, res) => {
     res.json(rows);
   } catch (err) {
     res.status(500).json({ message: 'Failed to load coach rating view', error: err.message });
+  }
+};
+
+// GET /students/ratings/champions — the Overall Champion ladder.
+// Audience decides visibility, not the query string: staff see students who
+// opted out of the public board, everyone else does not.
+exports.champions = async (req, res) => {
+  try {
+    const role = String(req.user?.role || '');
+    const staff = role === 'admin' || role === 'superadmin' || role === 'super_admin' || role === 'coach';
+    const data = await champion.champions({ hidePrivate: !staff });
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ message: 'Failed to load the Overall Champion leaderboard', error: err.message });
+  }
+};
+
+// GET /students/ratings/champions/coach — the same ladder for staff. It sits
+// outside the `leaderboard` feature switch, mirroring /coach for ratings, so a
+// coach can always see their students' standings.
+exports.championsCoach = async (req, res) => {
+  try {
+    const data = await champion.champions({ hidePrivate: false });
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ message: 'Failed to load the Overall Champion leaderboard', error: err.message });
   }
 };
 

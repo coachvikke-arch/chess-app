@@ -70,6 +70,7 @@ export default function CertificateSettings() {
         institute_name: form.institute_name,
         coach_name: form.coach_name,
         logo_url: form.logo_url,
+        participation_certificates: Boolean(form.participation_certificates),
       });
       setForm(saved);
       showToast('Certificate settings saved. New certificates will use them.', {
@@ -167,6 +168,28 @@ export default function CertificateSettings() {
               PNG or JPEG only. A logo that cannot be read is skipped rather than
               failing the certificate.
             </p>
+          </Card>
+
+          <Card title="Tournament certificates" piece="♜">
+            <label className="flex items-start gap-3 cursor-pointer" htmlFor="cert-participation">
+              <input
+                id="cert-participation"
+                type="checkbox"
+                className="mt-1"
+                checked={Boolean(form.participation_certificates)}
+                onChange={(e) => set('participation_certificates', e.target.checked)}
+              />
+              <span>
+                <span className="block text-sm font-semibold text-ivory-200">
+                  Issue participation certificates
+                </span>
+                <span className="block text-xs text-ivory-500 mt-1 leading-relaxed">
+                  Off by default: only the top three finishers receive a tournament
+                  certificate. Turn this on to issue one to every player who
+                  completed at least one game.
+                </span>
+              </span>
+            </label>
           </Card>
 
           <Card title="Phone numbers" piece="☎">

@@ -99,9 +99,10 @@ test('the board opens the game named by ?game=', () => {
     'the deep-linked game must be re-scoped to the signed-in viewer');
   assert.match(boardCode, /applyOnlineRow\(\s*mine\s*\)/,
     'and actually applied to the board');
-  /* Only a real participant game may be opened. */
-  assert.match(boardCode, /\['active',\s*'finished'\]\.includes\(mine\.status\)/,
-    'only an active or finished game may be opened via the link');
+  /* Only a real participant game may be opened — pending is allowed because an
+     invite link opens the challenge it names. */
+  assert.match(boardCode, /\['active',\s*'finished',\s*'pending'\]\.includes\(mine\.status\)/,
+    'only a game the viewer is part of may be opened via the link');
 });
 
 test('a stale or foreign ?game= link cannot break the board', () => {

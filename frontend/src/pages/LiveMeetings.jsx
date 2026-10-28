@@ -6,6 +6,7 @@ import { Card, Spinner } from '../components/ui';
 import Pagination, { PAGE_SIZE } from '../components/Pagination';
 import { usePagination } from '../hooks/usePagination';
 import { formatTime12 } from '../utils/time';
+import { classDateParts, classDurationLabel } from '../utils/classTiming';
 import Button from '../components/Button';
 import usePageTitle from '../hooks/usePageTitle';
 
@@ -69,12 +70,111 @@ function SectionEmpty({ text }) {
   );
 }
 
+/* 12-hour clock without the leading zero: "03:30 PM" → "3:30 PM". */
+function clock12(value) {
+  return formatTime12(value, '').replace(/^0(?=\d)/, '');
+}
+
+/* What kind of room the class used. Shared by the live and completed cards so
+   the explanation can never drift between them. */
+function MeetingTypeNote({ isIntegrated, isExternal, usesClassroom }) {
+  if (isIntegrated) {
+    return (
+      <p className="text-xs text-gold-500/80 mt-1">
+        🖥 Integrated Live Classroom — opens right inside Mate Zone (board, chat and video in-app; no external link).
+      </p>
+    );
+  }
+  if (isExternal && usesClassroom) {
+    return (
+      <p className="text-xs text-gold-500/80 mt-1">
+        🎨 External meeting video (Zoom / Meet) — the app board and chat run here; the video opens via the external link.
+      </p>
+    );
+  }
+  return (
+    <p className="text-xs text-gold-500/80 mt-1">
+      🔗 External meeting link (Zoom / Meet) — opens completely outside the app.
+    </p>
+  );
+}
+
+/* A finished class: the date and its weekday lead, then who taught it, when it
+   ran and how long that was. Missing or unreadable timestamps simply drop their
+   row instead of printing "Invalid Date" or a fake duration. */
+function CompletedMeetingCard({ m }) {
+  const date = classDateParts(m.class_date);
+  const start = clock12(m.start_time);
+  const end = clock12(m.end_time);
+  const duration = classDurationLabel(m.start_time, m.end_time);
+  const isIntegrated = m.class_type === 'integrated';
+
+  return (
+    <Card title={m.title} piece="✓">
+      <div className="completed-class-date">
+        {date ? (
+          <>
+            <span className="completed-class-date-badge">{date.label}</span>
+            <span className="completed-class-weekday">{date.weekday}</span>
+          </>
+        ) : (
+          <span className="completed-class-date-empty">Date not recorded</span>
+        )}
+      </div>
+
+      <div className="completed-class-meta">
+        {m.coach_name && (
+          <p className="completed-class-meta-row">
+            <span aria-hidden="true">🧑‍🏫</span>
+            <span><strong className="text-gold-400">Coach:</strong> {m.coach_name}</span>
+          </p>
+        )}
+        {(start || end) && (
+          <p className="completed-class-meta-row">
+            <span aria-hidden="true">🕒</span>
+            <span>{start || '—'}{end ? ` – ${end}` : ''}</span>
+          </p>
+        )}
+        {duration && (
+          <p className="completed-class-meta-row">
+            <span aria-hidden="true">⏱</span>
+            <span><strong className="text-gold-400">Duration:</strong> {duration}</span>
+          </p>
+        )}
+        {m.topic && (
+          <p className="completed-class-meta-row">
+            <span aria-hidden="true">♟</span>
+            <span><strong className="text-gold-400">Topic:</strong> {m.topic}</span>
+          </p>
+        )}
+      </div>
+
+      {m.description && <p className="text-sm text-ivory-500 mt-2">{m.description}</p>}
+
+      <MeetingTypeNote
+        isIntegrated={isIntegrated}
+        isExternal={!isIntegrated}
+        usesClassroom={isIntegrated || m.classroom_enabled !== false}
+      />
+
+      <div className="mt-4 flex flex-wrap items-center gap-3">
+        <span className="text-[0.7rem] px-2.5 py-1 rounded-full border border-emerald-400/40 bg-emerald-500/10 text-emerald-600">
+          ✓ Completed
+        </span>
+      </div>
+    </Card>
+  );
+}
+
 function MeetingCard({ m }) {
   const ls = m.live_status;
   const isLive = ls === 'live' || ls === 'started';
   const isIntegrated = m.class_type === 'integrated';
   const usesClassroom = isIntegrated || m.classroom_enabled !== false;
   const isExternal = !isIntegrated;
+
+  if (ls === 'completed') return <CompletedMeetingCard m={m} />;
+
   return (
     <Card title={m.title} piece={isLive ? '🟢' : isIntegrated ? '🖥' : '🔗'}>
       <p className="text-sm text-ivory-500">
@@ -84,19 +184,7 @@ function MeetingCard({ m }) {
         <span className="text-gold-400">When:</span> {m.class_date} at {formatTime12(m.start_time, m.start_time)}
         {m.end_time && <span className="text-ivory-500"> → {formatTime12(m.end_time, m.end_time)}</span>}
       </p>
-      {isIntegrated ? (
-        <p className="text-xs text-gold-500/80 mt-1">
-          🖥 Integrated Live Classroom — opens right inside Mate Zone (board, chat and video in-app; no external link).
-        </p>
-      ) : isExternal && usesClassroom ? (
-        <p className="text-xs text-gold-500/80 mt-1">
-          🎨 External meeting video (Zoom / Meet) — the app board and chat run here; the video opens via the external link.
-        </p>
-      ) : (
-        <p className="text-xs text-gold-500/80 mt-1">
-          🔗 External meeting link (Zoom / Meet) — opens completely outside the app.
-        </p>
-      )}
+      <MeetingTypeNote isIntegrated={isIntegrated} isExternal={isExternal} usesClassroom={usesClassroom} />
       <div className="mt-4 flex flex-wrap items-center gap-3">
         {/* Same tab, like every other section. The classroom is an in-app route,
             so opening it in a new tab left the student with two copies of the app

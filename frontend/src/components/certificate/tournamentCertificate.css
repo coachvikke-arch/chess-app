@@ -1,0 +1,257 @@
+/* Tournament certificate — 1999 x 1414 stage. See TournamentCertificate.jsx. */
+
+.tcert-frame {
+  position: relative;
+  overflow: hidden;
+  flex: 0 0 auto;
+  background: #ffffff;
+  border-radius: 2px;
+}
+
+.tcert {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform-origin: top left;
+  overflow: hidden;
+  background: #fbfdff;
+  color: #111827;
+  font-family: 'Lato', 'Segoe UI', Helvetica, Arial, sans-serif;
+  line-height: 1.2;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── background ─────────────────────────────────────────────────────────── */
+
+.tcert-bg {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(125% 95% at 50% 42%, #f1f9fe 0%, #e9f4fb 48%, #dcedf9 100%);
+}
+
+/* Faint board: large squares, fading out well before the bands. */
+.tcert-checker {
+  position: absolute;
+  inset: 0;
+  background-image: repeating-conic-gradient(#ffffff 0% 25%, #dfeefa 0% 50%);
+  background-size: 283px 283px;
+  opacity: 0.3;
+  -webkit-mask-image: radial-gradient(92% 88% at 50% 45%, #000 22%, rgba(0, 0, 0, 0.45) 68%, transparent 100%);
+  mask-image: radial-gradient(92% 88% at 50% 45%, #000 22%, rgba(0, 0, 0, 0.45) 68%, transparent 100%);
+}
+
+.tcert-shapes {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.tcert-medal {
+  position: absolute;
+  left: 720px;
+  top: 960px;
+  width: 560px;
+  height: 400px;
+}
+
+/* ── type ───────────────────────────────────────────────────────────────── */
+
+.tcert-grad {
+  background-image: linear-gradient(93deg, #0b2a9e 0%, #1f49c8 48%, #4a6bff 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  font-family: 'Playfair Display', 'Lora', Georgia, 'Times New Roman', serif;
+  font-weight: 700;
+  text-align: center;
+  letter-spacing: 1px;
+}
+
+.tcert-brand {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 35px;
+  font-size: 128px;
+  line-height: 1.08;
+  letter-spacing: 2px;
+  /* The artwork's brand face is narrower than any web serif at this weight;
+     a mild horizontal squeeze keeps the wordmark the same width without
+     changing its height or stroke weight. */
+  transform: scaleX(0.95);
+  transform-origin: 50% 50%;
+}
+
+.tcert-sub {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 161px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 28px;
+}
+
+.tcert-sub-text {
+  font-size: 30px;
+  font-weight: 700;
+  letter-spacing: 13px;
+  color: #14215e;
+  /* letter-spacing adds a trailing gap; pull it back so the block stays centred */
+  text-indent: 13px;
+}
+
+.tcert-rule {
+  display: block;
+  width: 150px;
+  height: 3px;
+  background: #14215e;
+}
+
+.tcert-rule-long {
+  width: 200px;
+  height: 2px;
+  background: #101c44;
+}
+
+.tcert-title {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 217px;
+  font-size: 112px;
+  line-height: 1.05;
+  letter-spacing: 1px;
+  transform: scaleX(0.95);
+  transform-origin: 50% 50%;
+}
+
+.tcert-achievement {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 349px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 30px;
+}
+
+.tcert-achievement-text {
+  font-size: 38px;
+  font-weight: 400;
+  letter-spacing: 20px;
+  color: #101c44;
+  text-indent: 20px;
+}
+
+.tcert-diamond {
+  width: 15px;
+  height: 15px;
+  background: #142da0;
+  transform: rotate(45deg);
+  flex: 0 0 auto;
+}
+
+.tcert-presented {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 444px;
+  text-align: center;
+  font-size: 40px;
+  font-weight: 400;
+  color: #111827;
+}
+
+.tcert-name {
+  position: absolute;
+  left: 50%;
+  top: 555px;
+  transform: translateX(-50%) scaleX(0.84);
+  transform-origin: 50% 50%;
+  white-space: nowrap;
+  line-height: 1;
+  font-style: italic;
+  font-weight: 500;
+  letter-spacing: 0;
+  background-image: linear-gradient(95deg, #1436a8 0%, #2b55d6 55%, #4a6bff 100%);
+}
+
+.tcert-underline {
+  position: absolute;
+  left: 50%;
+  top: 746px;
+  width: 1010px;
+  height: 3px;
+  background: #111827;
+  transform: translateX(-50%);
+}
+
+.tcert-desc {
+  position: absolute;
+  left: 0;
+  right: 0;
+  text-align: center;
+  white-space: nowrap;
+  font-size: 34px;
+  line-height: 1.28;
+  font-weight: 400;
+  color: #1f2937;
+  letter-spacing: 0.2px;
+}
+
+.tcert-desc-inner { display: inline-block; }
+
+.tcert-desc-1 { top: 824px; }
+.tcert-desc-2 { top: 892px; }
+
+.tcert-em {
+  color: #142da0;
+  font-weight: 700;
+}
+
+/* ── signatures ─────────────────────────────────────────────────────────── */
+
+.tcert-sig {
+  position: absolute;
+  top: 1171px;
+  text-align: center;
+}
+
+.tcert-sig-left {
+  left: 416px;
+  width: 374px;
+}
+
+.tcert-sig-right {
+  left: 1209px;
+  width: 374px;
+}
+
+.tcert-sig-rule {
+  display: block;
+  width: 100%;
+  height: 2px;
+  background: #111827;
+  margin-bottom: 6px;
+}
+
+.tcert-sig-value {
+  display: block;
+  font-size: 44px;
+  line-height: 1.15;
+  color: #111827;
+  white-space: nowrap;
+}
+
+.tcert-sig-label {
+  display: block;
+  font-size: 30px;
+  line-height: 1.2;
+  color: #374151;
+}

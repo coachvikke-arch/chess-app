@@ -9,6 +9,8 @@ router.use(authMiddleware);
 
 // Order matters: specific static paths before the /:id routes.
 router.get('/leaderboard', requireFeature('leaderboard'), ctrl.leaderboard);
+router.get('/champions', requireFeature('leaderboard'), ctrl.champions);
+router.get('/champions/coach', roleMiddleware('admin'), ctrl.championsCoach);
 router.get('/analytics', requireFeature('leaderboard'), ctrl.analytics);
 router.get('/coach', roleMiddleware('admin'), ctrl.coachView);
 router.get('/levels', ctrl.levelTable);

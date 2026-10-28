@@ -75,17 +75,64 @@ AND (cl.meeting_url IS NOT NULL OR cl.class_type = 'integrated')
 
 exports.listClasses = async (req, res) => {
   try {
-    let from = 'FROM classes cl LEFT JOIN groups g ON g.id = cl.group_id';
+    /* `rl` is the roster a class actually teaches: the explicit class_students
+       list when there is one, otherwise the batch roster — the same scope
+       getClassDetail resolves. The Completed cards need it per row (names for
+       the avatars and for student-name search) without an N+1 fetch. */
+    let from = `FROM classes cl
+      LEFT JOIN groups g ON g.id = cl.group_id
+      LEFT JOIN users cu ON cu.id = cl.coach_id
+      LEFT JOIN LATERAL (
+        SELECT COALESCE(json_agg(roster.name ORDER BY roster.name), '[]'::json) AS student_list
+        FROM (
+          SELECT su.name
+            FROM class_students cs
+            JOIN students s ON s.id = cs.student_id
+            JOIN users su ON su.id = s.user_id
+           WHERE cs.class_id = cl.id
+          UNION
+          SELECT su2.name
+            FROM students s2
+            JOIN users su2 ON su2.id = s2.user_id
+           WHERE cl.group_id IS NOT NULL
+             AND s2.group_id = cl.group_id
+             AND NOT EXISTS (SELECT 1 FROM class_students cx WHERE cx.class_id = cl.id)
+        ) roster
+      ) rl ON TRUE`;
     const params = [];
+    const conditions = [];
     if (req.user.role === 'student') {
-      from += ` JOIN students st ON st.user_id = $1 WHERE
-          EXISTS (SELECT 1 FROM class_students cs WHERE cs.class_id = cl.id AND cs.student_id = st.id)
+      from += ' JOIN students st ON st.user_id = $1';
+      conditions.push(`(EXISTS (SELECT 1 FROM class_students cs WHERE cs.class_id = cl.id AND cs.student_id = st.id)
           OR (
             NOT EXISTS (SELECT 1 FROM class_students cs2 WHERE cs2.class_id = cl.id)
             AND (cl.group_id IS NULL OR cl.group_id = st.group_id)
-          )`;
+          ))`);
       params.push(req.user.id);
     }
+
+    /* Optional filters for the Completed section. Both are additive: a caller
+       that sends neither gets exactly the list it got before. `status` is
+       bound as a parameter, and `q` matches the title, topic, coach or any
+       student on the resolved roster. */
+    const statusFilter = String(req.query.status || '').trim();
+    if (statusFilter) {
+      params.push(statusFilter);
+      conditions.push(`cl.status = $${params.length}`);
+    }
+    const search = String(req.query.q || '').trim().slice(0, 80);
+    if (search) {
+      params.push(`%${search}%`);
+      const at = `$${params.length}`;
+      conditions.push(`(cl.title ILIKE ${at} OR cl.topic ILIKE ${at} OR cu.name ILIKE ${at} OR rl.student_list::text ILIKE ${at})`);
+    }
+    const whereSql = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+    /* Completed cards are ordered by when the class actually ended so the most
+       recently finished one leads. Every other list keeps date-then-time. */
+    const orderSql = statusFilter === 'completed'
+      ? `ORDER BY COALESCE(cl.ended_at, cl.class_date + cl.start_time) DESC NULLS LAST,
+           cl.class_date DESC, cl.start_time DESC`
+      : 'ORDER BY cl.class_date DESC, cl.start_time DESC';
 
     /* Unpaged callers (the student dashboard and every existing consumer) keep
        getting the flat array they always got. Pagination is opt-in via ?page or
@@ -100,7 +147,8 @@ exports.listClasses = async (req, res) => {
                JOIN users u ON u.id = s.user_id
                WHERE cs.class_id = cl.id) AS student_names
           ${from}
-          ORDER BY cl.class_date DESC, cl.start_time DESC`,
+          ${whereSql}
+          ${orderSql}`,
         params
       );
       return res.json(result.rows);
@@ -108,26 +156,43 @@ exports.listClasses = async (req, res) => {
 
     const limitRaw = parseInt(req.query.limit, 10);
     const limit = Number.isFinite(limitRaw) ? Math.min(Math.max(limitRaw, 1), 100) : 25;
-    const countResult = await db.query(`SELECT COUNT(*)::int AS total ${from}`, params);
+    const countResult = await db.query(`SELECT COUNT(*)::int AS total ${from} ${whereSql}`, params);
     const total = countResult.rows[0]?.total || 0;
     const totalPages = Math.max(1, Math.ceil(total / limit));
     const pageRaw = parseInt(req.query.page, 10);
     const page = Math.min(Math.max(Number.isFinite(pageRaw) ? pageRaw : 1, 1), totalPages);
 
     const result = await db.query(
-      `SELECT cl.*, g.name AS group_name,
+      `SELECT cl.*, g.name AS group_name, cu.name AS coach_name, rl.student_list,
           (SELECT COUNT(*) FROM class_students cs WHERE cs.class_id = cl.id) AS student_count,
           (SELECT string_agg(u.name, ', ' ORDER BY u.name)
              FROM class_students cs
              JOIN students s ON s.id = cs.student_id
              JOIN users u ON u.id = s.user_id
-             WHERE cs.class_id = cl.id) AS student_names
+             WHERE cs.class_id = cl.id) AS student_names,
+          CASE WHEN cl.started_at IS NOT NULL AND cl.ended_at IS NOT NULL
+               THEN GREATEST(0, ROUND(EXTRACT(EPOCH FROM (cl.ended_at - cl.started_at)) / 60)::int)
+          END AS actual_minutes,
+          CASE WHEN cl.end_time IS NOT NULL
+               THEN GREATEST(0, ROUND(EXTRACT(EPOCH FROM (
+                      CASE WHEN cl.end_time >= cl.start_time
+                           THEN cl.end_time - cl.start_time
+                           ELSE cl.end_time - cl.start_time + interval '24 hours'
+                      END
+                    )) / 60)::int)
+          END AS scheduled_minutes
         ${from}
-        ORDER BY cl.class_date DESC, cl.start_time DESC
+        ${whereSql}
+        ${orderSql}
         LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
       [...params, limit, (page - 1) * limit]
     );
-    res.json({ classes: result.rows, total, page, totalPages, limit });
+    const classes = result.rows.map(({ actual_minutes, scheduled_minutes, ...row }) => ({
+      ...row,
+      duration_minutes: actual_minutes != null ? actual_minutes : scheduled_minutes,
+      duration_source: actual_minutes != null ? 'actual' : scheduled_minutes != null ? 'scheduled' : null,
+    }));
+    res.json({ classes, total, page, totalPages, limit });
   } catch (err) {
     res.status(500).json({ message: 'Failed to list classes', error: err.message });
   }

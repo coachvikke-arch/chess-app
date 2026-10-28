@@ -131,6 +131,20 @@ ALTER TABLE certificates ADD COLUMN IF NOT EXISTS send_count INTEGER NOT NULL DE
 -- certificate can be re-rendered with the result it was actually awarded for.
 ALTER TABLE certificates ADD COLUMN IF NOT EXISTS score VARCHAR(20);
 
+-- Added with the tournament artwork: the two numbers behind that score, kept
+-- separately because the certificate sentence needs them as values
+-- ("6.5 points in 7 rounds"), not as one formatted string.
+--   points  the final standings total (6.5, 7, 0.5 …)
+--   rounds  rounds actually played; for an arena this is games played
+ALTER TABLE certificates ADD COLUMN IF NOT EXISTS points NUMERIC(4,1);
+ALTER TABLE certificates ADD COLUMN IF NOT EXISTS rounds INTEGER;
+
+-- Participation certificates are OFF unless the academy opts in: the default
+-- tournament certificate is for the top three, and issuing one to every entrant
+-- turned a prize into a mailshot.
+ALTER TABLE certificate_settings
+  ADD COLUMN IF NOT EXISTS participation_certificates BOOLEAN NOT NULL DEFAULT FALSE;
+
 -- Who last changed the settings (audit trail on an academy-owned document).
 ALTER TABLE certificate_settings ADD COLUMN IF NOT EXISTS updated_by INTEGER REFERENCES users(id) ON DELETE SET NULL;
 
@@ -240,6 +254,18 @@ BEGIN
       CHECK (rank IS NULL OR rank >= 1);
   END IF;
 
+  -- Points and rounds are printed on the certificate, so a nonsense value must be
+  -- rejected at the database rather than rendered as "NaN points".
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'certificates_points_valid') THEN
+    ALTER TABLE certificates ADD CONSTRAINT certificates_points_valid
+      CHECK (points IS NULL OR (points >= 0 AND points <= 100));
+  END IF;
+
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'certificates_rounds_valid') THEN
+    ALTER TABLE certificates ADD CONSTRAINT certificates_rounds_valid
+      CHECK (rounds IS NULL OR rounds >= 1);
+  END IF;
+
   -- A sent certificate must say when it was sent.
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'certificates_sent_at_required') THEN
     ALTER TABLE certificates ADD CONSTRAINT certificates_sent_at_required
@@ -292,3 +318,14 @@ ON CONFLICT (id) DO NOTHING;
 -- counted is left alone.
 -- ═══════════════════════════════════════════════════════════════════════════
 UPDATE certificates SET send_count = 1 WHERE status = 'sent' AND send_count < 1;
+
+-- `points`/`rounds` arrived after tournaments had already been certified. Recover
+-- them from the stored '5.5 / 7' score so those certificates can be re-rendered
+-- with the new sentence. The regex gate means a hand-typed score that is not of
+-- that shape is left alone rather than aborting the migration.
+UPDATE certificates
+   SET points = trim(split_part(score, '/', 1))::numeric,
+       rounds = NULLIF(trim(split_part(score, '/', 2)), '')::integer
+ WHERE type = 'tournament'
+   AND score ~ '^[0-9]+(\.[0-9]+)?[[:space:]]*/[[:space:]]*[0-9]+$'
+   AND (points IS NULL OR rounds IS NULL);

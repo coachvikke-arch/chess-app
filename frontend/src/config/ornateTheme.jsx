@@ -71,6 +71,26 @@ export function marbledSquareStyle(color, isDark, boardTheme) {
   };
 }
 
+/** Every square of an ornate board, keyed by square, ready for a board's
+    `customSquareStyles`. One helper so a marble board looks identical on the
+    player board, the Settings preview and the mini boards. Returns null for a
+    non-ornate theme, which then simply paints its two flat colours. */
+export function ornateSquareStyles(boardTheme) {
+  if (!boardTheme?.ornate) return null;
+  const styles = {};
+  for (let f = 0; f < 8; f++) {
+    for (let r = 0; r < 8; r++) {
+      const isDark = (f + r) % 2 === 0;
+      styles['abcdefgh'[f] + (r + 1)] = marbledSquareStyle(
+        isDark ? boardTheme.darkSq : boardTheme.lightSq,
+        isDark,
+        boardTheme
+      );
+    }
+  }
+  return styles;
+}
+
 /** Coordinate label style — cream/gold serif, subtle shadow (outside the board). */
 export const ORNATE_NOTATION_STYLE = {
   fontFamily: 'Georgia, "Times New Roman", serif',

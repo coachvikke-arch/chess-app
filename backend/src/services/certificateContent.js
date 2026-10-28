@@ -46,6 +46,73 @@ function ordinal(n) {
   return `${num}${suffix}`;
 }
 
+/** "6.5" / "7" — a trailing .0 is never printed. */
+function formatPoints(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return '';
+  return Number.isInteger(n) ? String(n) : String(n);
+}
+
+function pointsWord(value) {
+  return Number(value) === 1 ? 'point' : 'points';
+}
+
+function roundsWord(value) {
+  return Number(value) === 1 ? 'round' : 'rounds';
+}
+
+/**
+ * The two description lines for a tournament certificate, as weighted runs.
+ *
+ * The frontend keeps an identical copy in utils/tournamentCertificate.js; this
+ * one feeds the server-rendered PDF, and both must say the same thing. The
+ * bold runs carry the placing, the points and the rounds.
+ */
+function tournamentDescription({ tournamentName, rank, points, rounds, score }) {
+  let pts = points === null || points === undefined || points === '' ? null : Number(points);
+  let rnds = rounds === null || rounds === undefined || rounds === '' ? null : Number(rounds);
+
+  /* Rows issued before points/rounds were stored still carry '5.5 / 7'. */
+  if ((pts === null || rnds === null) && typeof score === 'string') {
+    const m = score.match(/(\d+(?:\.\d+)?)\s*\/\s*(\d+)/);
+    if (m) {
+      if (pts === null) pts = Number(m[1]);
+      if (rnds === null) rnds = Number(m[2]);
+    }
+  }
+
+  const event = String(tournamentName || '').trim() || 'the tournament';
+  const place = ordinal(rank);
+
+  const line1 = place
+    ? [
+      { text: 'For outstanding play and securing ', bold: false },
+      { text: `${place} place`, bold: true },
+      { text: ` in the ${event} tournament,`, bold: false },
+    ]
+    : [
+      { text: 'For outstanding play and participation in the ', bold: false },
+      { text: `${event} tournament,`, bold: true },
+    ];
+
+  const line2 = [];
+  if (pts === null && rnds === null) {
+    line2.push({ text: 'organized by Mate Zone Chess Academy.', bold: false });
+  } else {
+    line2.push({ text: 'scoring ', bold: false });
+    if (pts !== null) line2.push({ text: `${formatPoints(pts)} ${pointsWord(pts)}`, bold: true });
+    if (pts !== null && rnds !== null) line2.push({ text: ' in ', bold: false });
+    if (rnds !== null) line2.push({ text: `${rnds} ${roundsWord(rnds)}`, bold: true });
+    line2.push({ text: ', organized by Mate Zone Chess Academy.', bold: false });
+  }
+
+  return { line1, line2 };
+}
+
+function runsToText(runs) {
+  return runs.map((r) => r.text).join('');
+}
+
 /** The level band a `level_no` refers to. */
 function levelBand(levelNo) {
   const n = Number(levelNo);
@@ -108,23 +175,33 @@ function buildCertificateContent({ certificate, student, settings }) {
     ? tournamentBanner(cert.rank)
     : levelBanner(level);
 
+  const tournamentDesc = isTournament
+    ? tournamentDescription({
+      tournamentName: cert.tournament_name,
+      rank: cert.rank,
+      points: cert.points,
+      rounds: cert.rounds,
+      score: cert.score,
+    })
+    : null;
+
   const description1 = isTournament
-    ? (cert.score
-      ? `This certificate recognizes the achievement of ${cert.score} in a finalised tournament`
-      : 'This certificate recognizes the achievement in a finalised tournament')
+    ? runsToText(tournamentDesc.line1)
     : 'This certificate recognizes the successful completion of the required training,';
 
   /* The emphasised tail of line 2 is carried as weighted segments so the
      renderer can set it in bold while keeping the whole line optically centred.
      Built by slicing off a known suffix rather than by regex-stripping the middle,
      so the space before the emphasised words is never swallowed. */
-  const description2Tail = isTournament
-    ? `${cert.tournament_name || 'the tournament'} at ${ACADEMY.name}.`
-    : `Level ${level} at ${ACADEMY.name}.`;
-  const description2Head = isTournament
-    ? 'practice, and assessment in '
-    : 'practice, and assessment for ';
-  const description2 = description2Head + description2Tail;
+  const description2 = isTournament
+    ? runsToText(tournamentDesc.line2)
+    : `practice, and assessment for Level ${level} at ${ACADEMY.name}.`;
+  const description2Segments = isTournament
+    ? tournamentDesc.line2
+    : [
+      { text: 'practice, and assessment for ', bold: false },
+      { text: `Level ${level} at ${ACADEMY.name}.`, bold: true },
+    ];
 
   return {
     /* ── the dynamic layer, matching certificateLayout.json field keys ── */
@@ -135,10 +212,7 @@ function buildCertificateContent({ certificate, student, settings }) {
 
     description_line1: description1,
     description_line2: description2,
-    description_line2_segments: [
-      { text: description2Head, bold: false },
-      { text: description2Tail, bold: true },
-    ],
+    description_line2_segments: description2Segments,
 
     info_level: isTournament
       ? `Result : ${ordinal(cert.rank) ? `${ordinal(cert.rank)} Place` : 'Participant'}`
@@ -156,6 +230,8 @@ function buildCertificateContent({ certificate, student, settings }) {
     _issued: issued,
     _score: isTournament ? (cert.score || '') : '',
     _position: isTournament ? (cert.rank ?? null) : null,
+    _points: isTournament ? (cert.points ?? null) : null,
+    _rounds: isTournament ? (cert.rounds ?? null) : null,
     _badge: band ? `${BADGE_ICONS[band.level] || '♙'} ${band.badge}` : null,
     _tier: band ? `${band.name} · tier ${band.level}` : null,
   };
@@ -170,5 +246,6 @@ module.exports = {
   levelTitle,
   levelBanner,
   tournamentTitle,
+  tournamentDescription,
   buildCertificateContent,
 };

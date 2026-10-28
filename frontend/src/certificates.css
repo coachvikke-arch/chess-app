@@ -133,3 +133,56 @@
     height: 100vh;
   }
 }
+/* ── Tournament certificate cards ─────────────────────────────────────────
+   The artwork itself is 1999x1414 (see components/certificate/), so the card
+   shows a scaled live copy rather than a screenshot: the thumbnail IS the
+   certificate, which is why it can never disagree with the preview. */
+
+.cert-tcard {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+}
+
+.cert-tcard-main {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.cert-tcard-thumb {
+  flex: 0 0 auto;
+  padding: 0;
+  border: 1px solid var(--ivory-700);
+  border-radius: 0.6rem;
+  overflow: hidden;
+  background: #fff;
+  cursor: pointer;
+  box-shadow: 0 8px 22px -14px rgba(0, 0, 0, 0.6);
+  transition: box-shadow 140ms ease, transform 140ms ease;
+}
+
+.cert-tcard-thumb:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 12px 26px -14px rgba(0, 0, 0, 0.7);
+}
+
+.cert-tcard-thumb:focus-visible {
+  outline: 2px solid var(--gold-400);
+  outline-offset: 2px;
+}
+
+@media (max-width: 700px) {
+  .cert-tcard {
+    flex-direction: column;
+  }
+
+  .cert-tcard-thumb {
+    width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cert-tcard-thumb {
+    transition: none;
+  }
+}

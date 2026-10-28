@@ -5283,7 +5283,14 @@ body {
   }
 }
 
-/* ─────────────── Post-game result card ─────────────── */
+/* ─────────────── Post-game result card ───────────────
+   A compact HORIZONTAL summary sheet over the board:
+
+      [ result + reason ]   [ both players ]
+      [         actions in one wrapping row   ]
+
+   White by design: the result is a calm summary of the finished game, not a
+   second game surface. Green marks a win, red a loss, slate a draw. */
 
 .pgr-overlay {
   position: fixed;
@@ -5291,11 +5298,11 @@ body {
   z-index: 220;
   display: grid;
   place-items: center;
-  padding: 16px;
-  background: rgba(8, 10, 14, 0.62);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
-  animation: pgr-overlay-in 180ms ease both;
+  padding: 12px;
+  background: rgba(15, 23, 42, 0.45);
+  backdrop-filter: blur(5px);
+  -webkit-backdrop-filter: blur(5px);
+  animation: pgr-overlay-in 160ms ease both;
   cursor: pointer;
 }
 @keyframes pgr-overlay-in {
@@ -5305,334 +5312,276 @@ body {
 
 .pgr-card {
   position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
+  grid-template-areas:
+    "summary players"
+    "actions actions";
+  align-items: center;
+  gap: 10px 16px;
   width: 100%;
-  max-width: 560px;
-  box-sizing: border-box;
-  padding: 20px;
+  max-width: min(600px, calc(100vw - 24px));
+  max-height: calc(100dvh - 24px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 16px 18px;
+  background: #ffffff;
+  color: #0f172a;
+  border: 1px solid #e2e8f0;
   border-radius: 16px;
-  background: linear-gradient(180deg, #1a1d24 0%, #14161b 100%);
-  border: 1px solid rgba(255, 255, 255, 0.08);
   box-shadow:
-    0 24px 60px rgba(0, 0, 0, 0.55),
-    0 2px 10px rgba(0, 0, 0, 0.35);
-  color: #e9edf2;
+    0 18px 44px rgba(15, 23, 42, 0.2),
+    0 2px 8px rgba(15, 23, 42, 0.06);
   font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
   cursor: default;
-  max-height: calc(100dvh - 32px);
-  overflow-y: auto;
   animation: pgr-card-in 200ms cubic-bezier(0.22, 1, 0.36, 1) both;
-  transition: transform 200ms ease, box-shadow 200ms ease;
+}
+.pgr-card,
+.pgr-card * {
+  box-sizing: border-box;
 }
 @keyframes pgr-card-in {
-  from { opacity: 0; transform: translateY(6px) scale(0.99); }
+  from { opacity: 0; transform: translateY(6px) scale(0.995); }
   to { opacity: 1; transform: none; }
 }
-/* Hover lift is a desktop pointer affordance only. */
-@media (hover: hover) and (pointer: fine) {
-  .pgr-card:hover {
-    transform: translateY(-2px);
-    box-shadow:
-      0 30px 70px rgba(0, 0, 0, 0.6),
-      0 3px 12px rgba(0, 0, 0, 0.38);
-  }
+
+/* A caller that passes no player list (the bot game page) gets one wide
+   summary instead of an empty middle column. */
+.pgr-card.is-solo {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas:
+    "summary"
+    "actions";
 }
 
-/* result-coloured hairline along the top edge, with a faint matching glow */
-.pgr-accent {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 2px;
-  border-radius: 16px 16px 0 0;
-  background: linear-gradient(90deg, transparent, var(--pgr-accent, #9aa4b2), transparent);
-  opacity: 0.9;
-  pointer-events: none;
-}
-.pgr-accent::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  box-shadow: 0 0 18px 2px var(--pgr-accent, #9aa4b2);
-  opacity: 0.25;
-}
-
-/* ── top row: time-control pill, result badge, close ── */
-.pgr-top {
+/* ── left: the result ── */
+.pgr-summary {
+  grid-area: summary;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 16px;
+  gap: 10px;
+  min-width: 0;
 }
-.pgr-top-right {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.pgr-pill {
-  display: inline-flex;
-  align-items: center;
-  height: 24px;
-  padding: 0 10px;
-  border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: rgba(255, 255, 255, 0.04);
-  color: #b7bfcc;
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  white-space: nowrap;
-}
-.pgr-badge {
-  display: inline-flex;
-  align-items: center;
-  height: 24px;
-  padding: 0 10px;
-  border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: rgba(255, 255, 255, 0.04);
-  color: #b7bfcc;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  white-space: nowrap;
-}
-.pgr-badge.is-win {
-  color: #4ade80;
-  border-color: rgba(74, 222, 128, 0.3);
-  background: rgba(74, 222, 128, 0.12);
-}
-.pgr-badge.is-loss {
-  color: #f87171;
-  border-color: rgba(248, 113, 113, 0.3);
-  background: rgba(248, 113, 113, 0.12);
-}
-.pgr-badge.is-draw {
-  color: #9aa4b2;
-  border-color: rgba(255, 255, 255, 0.14);
-  background: rgba(255, 255, 255, 0.06);
-}
-
-.pgr-close {
+.pgr-hero-icon {
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
   display: grid;
   place-items: center;
-  width: 28px;
-  height: 28px;
-  border-radius: 8px;
-  border: 1px solid transparent;
-  background: transparent;
-  color: #8b93a1;
-  font-size: 12px;
-  line-height: 1;
-  cursor: pointer;
-  transition: background 150ms ease, color 150ms ease;
+  background: #f1f5f9;
+  color: #475569;
 }
-.pgr-close:hover {
-  background: rgba(255, 255, 255, 0.07);
-  color: #e9edf2;
+.pgr-hero-icon svg {
+  width: 22px;
+  height: 22px;
 }
-.pgr-close:focus-visible {
-  outline: 2px solid rgba(255, 255, 255, 0.35);
-  outline-offset: 1px;
-}
+.pgr-card.is-win .pgr-hero-icon { background: #dcfce7; color: #15803d; }
+.pgr-card.is-loss .pgr-hero-icon { background: #fee2e2; color: #b91c1c; }
+.pgr-card.is-draw .pgr-hero-icon { background: #f1f5f9; color: #475569; }
 
-/* ── headline ── */
-.pgr-headline {
+.pgr-summary-text {
+  min-width: 0;
+}
+.pgr-title {
   margin: 0;
-  font-size: 28px;
-  font-weight: 700;
+  font-size: 20px;
+  font-weight: 800;
   line-height: 1.15;
-  letter-spacing: -0.01em;
+  letter-spacing: -0.02em;
+  color: #0f172a;
 }
+.pgr-card.is-win .pgr-title { color: #15803d; }
+.pgr-card.is-loss .pgr-title { color: #b91c1c; }
 .pgr-reason {
-  margin: 4px 0 0;
-  font-size: 13px;
-  color: #8b93a1;
+  margin: 2px 0 0;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #64748b;
 }
 
-/* ── players ── */
+/* ── middle: both players ── */
 .pgr-players {
-  margin-top: 20px;
-  border-top: 1px solid rgba(255, 255, 255, 0.07);
-}
-.pgr-player-list {
+  grid-area: players;
   list-style: none;
   margin: 0;
   padding: 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 .pgr-player {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 10px 12px;
-  border-radius: 10px;
+  min-width: 0;
+  padding: 7px 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #f8fafc;
 }
-.pgr-player + .pgr-player {
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 0;
+.pgr-player.is-winner {
+  border-color: #bbf7d0;
+  background: #f0fdf4;
 }
-/* the reader's own row, slightly raised */
-.pgr-player.is-me {
-  background: rgba(255, 255, 255, 0.04);
-}
-.pgr-dot {
-  flex-shrink: 0;
-  width: 10px;
-  height: 10px;
+.pgr-player-avatar {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
   border-radius: 50%;
+  overflow: hidden;
+  background: #e2e8f0;
+  box-shadow: 0 0 0 2px #e2e8f0;
 }
-.pgr-dot.is-white {
-  background: #e8edf3;
-  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.35);
+.pgr-player-avatar.is-black {
+  background: #1e293b;
+  box-shadow: 0 0 0 2px #1e293b;
 }
-.pgr-dot.is-black {
-  background: #0b0d12;
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.3);
+.pgr-player-avatar > img,
+.pgr-player-avatar > svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.pgr-player-meta {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
 }
 .pgr-player-name {
-  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.25;
+  color: #0f172a;
+}
+.pgr-player-name-text {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 15px;
-  font-weight: 500;
-  color: #e9edf2;
+}
+.pgr-you {
+  flex: none;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: #dbeafe;
+  color: #1d4ed8;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.pgr-player-sub {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  line-height: 1.2;
+  color: #64748b;
+}
+.pgr-color-dot {
+  display: inline-block;
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+.pgr-color-dot.is-white {
+  background: #ffffff;
+  box-shadow: inset 0 0 0 1px #94a3b8;
+}
+.pgr-color-dot.is-black { background: #0f172a; }
+.pgr-player-side {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
 }
 .pgr-player-rating {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  flex-shrink: 0;
+  gap: 4px;
   white-space: nowrap;
-  font-size: 13px;
-  color: #8b93a1;
+  font-size: 11.5px;
+  color: #64748b;
   font-variant-numeric: tabular-nums;
 }
-.pgr-player-rating strong {
-  color: #e9edf2;
-  font-weight: 600;
-}
-.pgr-player-arrow {
-  font-size: 12px;
-  opacity: 0.5;
-}
+.pgr-rating-after { color: #0f172a; }
+.pgr-rating-arrow { color: #94a3b8; }
 .pgr-delta {
-  flex-shrink: 0;
-  min-width: 44px;
-  padding: 3px 8px;
+  min-width: 34px;
+  padding: 1px 6px;
   border-radius: 999px;
   text-align: center;
-  font-size: 12px;
-  font-weight: 700;
+  font-size: 11px;
+  font-weight: 800;
   font-variant-numeric: tabular-nums;
+  color: #475569;
+  background: #f1f5f9;
+}
+.pgr-delta.is-up { color: #15803d; background: #dcfce7; }
+.pgr-delta.is-down { color: #b91c1c; background: #fee2e2; }
+.pgr-result {
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 9.5px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
   white-space: nowrap;
-  color: #9aa4b2;
-  background: rgba(255, 255, 255, 0.06);
+  background: #f1f5f9;
+  color: #64748b;
 }
-.pgr-delta.is-up {
-  color: #4ade80;
-  background: rgba(74, 222, 128, 0.12);
-}
-.pgr-delta.is-down {
-  color: #f87171;
-  background: rgba(248, 113, 113, 0.12);
-}
+.pgr-result.is-winner { background: #dcfce7; color: #15803d; }
+.pgr-result.is-loser { background: #f1f5f9; color: #64748b; }
+.pgr-result.is-draw { background: #e2e8f0; color: #334155; }
 
-/* ── secondary actions ── */
+/* ── bottom: the actions ──
+   One wrapping row, right-aligned on desktop and stretched on a phone, so the
+   three small buttons never stack into a footer that eats the card. */
 .pgr-actions {
+  grid-area: actions;
   display: flex;
   flex-wrap: wrap;
+  justify-content: flex-end;
   gap: 8px;
-  margin-top: 20px;
-}
-.pgr-action {
-  flex: 1 1 auto;
-  min-height: 36px;
-  padding: 0 14px;
-  border-radius: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: rgba(255, 255, 255, 0.03);
-  color: #cfd5df;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background 150ms ease, border-color 150ms ease;
-}
-.pgr-action:hover {
-  background: rgba(255, 255, 255, 0.07);
-  border-color: rgba(255, 255, 255, 0.2);
-}
-
-/* ── footer: analysis status + view link ── */
-.pgr-foot {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  min-height: 24px;
-  margin-top: 20px;
   padding-top: 12px;
-  border-top: 1px solid rgba(255, 255, 255, 0.07);
+  border-top: 1px solid #f1f5f9;
 }
-.pgr-status {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
+.pgr-actions .app-btn {
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 13px;
-  color: #8b93a1;
-}
-.pgr-shimmer {
-  flex-shrink: 0;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: linear-gradient(90deg, #4b5563, #e5e7eb, #4b5563);
-  background-size: 200% 100%;
-  animation: pgr-shimmer 1.2s linear infinite;
-}
-@keyframes pgr-shimmer {
-  from { background-position: 200% 0; }
-  to { background-position: -200% 0; }
-}
-.pgr-link {
-  flex-shrink: 0;
-  padding: 0;
-  border: 0;
-  background: none;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--pgr-accent, #9aa4b2);
-  cursor: pointer;
-  transition: opacity 150ms ease;
-}
-.pgr-link:hover {
-  opacity: 0.8;
-  text-decoration: underline;
-}
-.pgr-link:focus-visible {
-  outline: 2px solid rgba(255, 255, 255, 0.35);
-  outline-offset: 2px;
-  border-radius: 4px;
 }
 
-@media (max-width: 480px) {
+@media (max-width: 640px) {
   .pgr-card {
-    padding: 16px;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      "summary"
+      "players"
+      "actions";
+    gap: 10px;
+    padding: 14px;
+    border-radius: 14px;
   }
-  .pgr-headline {
-    font-size: 24px;
-  }
-  .pgr-action {
-    flex: 1 1 100%;
-  }
+  .pgr-title { font-size: 18px; }
+  .pgr-actions { justify-content: stretch; }
+  .pgr-actions .app-btn { flex: 1 1 110px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pgr-overlay,
+  .pgr-card { animation: none; }
 }
 
 /* ============================ DARK THEME ============================
@@ -6216,6 +6165,388 @@ body {
 .live-meeting-tabs .live-tab:focus-visible {
   outline: 2px solid #2563eb;
   outline-offset: 2px;
+}
+
+/* ── Completed class card (student Live Meetings) ────────────────────────────
+   The finished class leads with the date it happened: a large highlighted badge
+   and its weekday, then coach, clock range and computed duration. Long names
+   and topics wrap instead of pushing the card wider than the screen. */
+.completed-class-date {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.7rem;
+  padding: 0.55rem 0.8rem;
+  border: 1px solid rgba(25, 189, 242, 0.32);
+  border-radius: 0.8rem;
+  background: linear-gradient(135deg, rgba(25, 189, 242, 0.14), rgba(25, 189, 242, 0.04));
+}
+.completed-class-date-badge {
+  font-family: var(--font-display, Georgia, serif);
+  font-size: 1.5rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  line-height: 1.15;
+  color: #0b7ea8;
+  white-space: nowrap;
+}
+.completed-class-weekday {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #557a86;
+  white-space: nowrap;
+}
+.completed-class-date-empty {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #7b8a90;
+}
+.completed-class-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin-top: 0.6rem;
+  min-width: 0;
+}
+.completed-class-meta-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.45rem;
+  min-width: 0;
+  font-size: 0.85rem;
+  line-height: 1.4;
+  color: var(--ivory-500);
+  overflow-wrap: anywhere;
+}
+.completed-class-meta-row > span:first-child {
+  flex: none;
+}
+.completed-class-meta-row > span:last-child {
+  min-width: 0;
+}
+
+/* ── Completed classes (admin: Classes & Attendance → ✓ Completed) ───────────
+   Light cards on the dark admin shell, as the reference layout asks: white
+   surface, grey hairline, green accent on the left edge and a light-green
+   "✓ Completed" pill. Every selector is namespaced `xc-` so it cannot reach
+   the celebration-FX `cc-*` or the student completed-class styles above. */
+.xc-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+.xc-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+.xc-search {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex: 1 1 280px;
+  max-width: 430px;
+  padding: 0 0.85rem;
+  height: 42px;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
+}
+.xc-search > span {
+  flex: none;
+  font-size: 0.9rem;
+  opacity: 0.75;
+}
+.xc-search input {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 100%;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: #0f172a;
+  font-size: 0.88rem;
+}
+.xc-search input::placeholder {
+  color: #94a3b8;
+}
+.xc-search:focus-within {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.16);
+}
+.xc-count {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #64748b;
+  white-space: nowrap;
+}
+
+.xc-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  transition: opacity 0.2s ease;
+}
+.xc-list.is-refreshing {
+  opacity: 0.6;
+}
+
+.xc-card {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.9rem 1.05rem 0.9rem 1.1rem;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-left: 4px solid #22c55e;
+  border-radius: 14px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
+  transition: box-shadow 0.16s ease, border-color 0.16s ease;
+  min-width: 0;
+}
+.xc-card:hover {
+  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.1);
+  border-color: #cbd5e1;
+  border-left-color: #16a34a;
+}
+.xc-body {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.xc-toprow {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+.xc-date {
+  display: inline-flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin: 0;
+  font-size: 0.8rem;
+  color: #64748b;
+  min-width: 0;
+}
+.xc-day {
+  font-weight: 700;
+  color: #0f172a;
+  letter-spacing: 0.01em;
+}
+.xc-time {
+  font-weight: 600;
+  color: #475569;
+  white-space: nowrap;
+}
+.xc-badge {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid #86efac;
+  background: #dcfce7;
+  color: #15803d;
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+.xc-title {
+  margin: 0.35rem 0 0.25rem;
+  font-family: var(--font-display, Georgia, serif);
+  font-size: 1.08rem;
+  font-weight: 700;
+  line-height: 1.3;
+  color: #0f172a;
+  overflow-wrap: anywhere;
+}
+.xc-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.3rem 0.95rem;
+  font-size: 0.82rem;
+  color: #475569;
+  min-width: 0;
+}
+.xc-meta-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  min-width: 0;
+}
+.xc-meta-item strong {
+  color: #1e293b;
+  font-weight: 700;
+}
+.xc-meta-label {
+  color: #64748b;
+}
+.xc-meta-item--topic .xc-meta-label {
+  overflow-wrap: anywhere;
+}
+.xc-students {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  margin-top: 0.6rem;
+  min-width: 0;
+}
+.xc-avatars {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+}
+.xc-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  margin-left: -7px;
+  border-radius: 999px;
+  border: 2px solid #ffffff;
+  font-size: 0.64rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.12);
+}
+.xc-avatar:first-child {
+  margin-left: 0;
+}
+.xc-avatar--more {
+  background: #f1f5f9;
+  color: #475569;
+}
+.xc-student-names {
+  margin: 0;
+  font-size: 0.8rem;
+  color: #334155;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.xc-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex: none;
+}
+.xc-menu {
+  position: relative;
+}
+.xc-menu-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0 0 4px;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  background: #ffffff;
+  color: #334155;
+  font-size: 1.15rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+.xc-menu-btn:hover,
+.xc-menu-btn.is-open {
+  background: #f1f5f9;
+  border-color: #94a3b8;
+  color: #0f172a;
+}
+.xc-menu-btn:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
+}
+.xc-menu-list {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 6px);
+  z-index: 40;
+  min-width: 205px;
+  padding: 6px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  box-shadow: 0 14px 34px rgba(15, 23, 42, 0.18);
+}
+.xc-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  width: 100%;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: #0f172a;
+  font-size: 0.84rem;
+  font-weight: 600;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+.xc-menu-item:hover {
+  background: #f1f5f9;
+}
+.xc-menu-item--danger {
+  color: #b91c1c;
+}
+.xc-menu-item--danger:hover {
+  background: #fef2f2;
+}
+
+.xc-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 2.4rem 1rem;
+  text-align: center;
+  background: #ffffff;
+  border: 1px dashed #cbd5e1;
+  border-radius: 14px;
+  color: #64748b;
+  font-size: 0.9rem;
+}
+.xc-state p {
+  margin: 0;
+}
+.xc-state-icon {
+  font-size: 1.6rem;
+  color: #22c55e;
+}
+.xc-state--error {
+  border-color: #fca5a5;
+  border-style: solid;
+  color: #b91c1c;
+}
+
+@media (max-width: 640px) {
+  .xc-card {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.75rem;
+  }
+  .xc-badge {
+    margin-left: 0;
+  }
+  .xc-actions {
+    justify-content: flex-end;
+  }
+  .xc-menu-list {
+    right: 0;
+  }
 }
 
 /* ── desktop layout ─────────────────────────────────────────────────────────
@@ -9646,37 +9977,7 @@ button.live-drill-move:hover { border-color: rgba(117, 223, 255, 0.45); }
   animation: board-pop 0.25s both;
 }
 
-/* ── Online Match: custom player picker ── */
-.online-player-list {
-  position: absolute;
-  left: 0; right: 0;
-  top: calc(100% + 4px);
-  max-height: 190px;
-  overflow-y: auto;
-  padding: 4px;
-  background: #10141b;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 0.5rem;
-  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.5);
-  z-index: 40;
-}
-.online-player-empty { padding: 8px; font-size: 0.7rem; color: rgba(125, 162, 196, 0.8); }
-.online-player-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-  padding: 6px 8px;
-  font-size: 0.72rem;
-  font-weight: 600;
-  color: rgba(224, 242, 254, 0.95);
-  background: transparent;
-  border: none;
-  border-radius: 0.35rem;
-  cursor: pointer;
-  transition: background 0.15s ease;
-}
-.online-player-row:hover { background: rgba(255, 255, 255, 0.08); }
+/* Presence dot shared with the Messages page. */
 .online-dot {
   flex: none;
   width: 8px;
@@ -9689,6 +9990,128 @@ button.live-drill-move:hover { border-color: rgba(117, 223, 255, 0.45); }
   box-shadow: 0 0 6px 1px rgba(25, 189, 242, 0.9), 0 0 12px 2px rgba(25, 189, 242, 0.5);
   animation: online-dot-pulse 1.8s infinite;
 }
+
+/* ── Online Match: opponent cards ──
+   A searchable grid of players (one image each, rating for the picked clock).
+   Two columns on the desktop modal, one on narrow phones; the grid scrolls,
+   the card itself never does. */
+.online-pick-search { margin-bottom: 0.4rem; }
+.online-pick-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.35rem;
+  max-height: 206px;
+  overflow-y: auto;
+  padding: 2px;
+}
+@media (max-width: 420px) {
+  .online-pick-grid { grid-template-columns: minmax(0, 1fr); }
+}
+.online-pick-card {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+  padding: 0.4rem 0.5rem;
+  text-align: left;
+  color: #2a3b49;
+  background: rgba(25, 189, 242, 0.04);
+  border: 1px solid rgba(25, 189, 242, 0.22);
+  border-radius: 0.65rem;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.online-pick-card:hover { border-color: rgba(25, 189, 242, 0.5); background: rgba(25, 189, 242, 0.1); }
+.online-pick-card:focus-visible { outline: 2px solid #19bdf2; outline-offset: 1px; }
+.online-pick-card-on {
+  border-color: #0b7ea8;
+  background: rgba(25, 189, 242, 0.16);
+  box-shadow: inset 0 0 0 1px #0b7ea8;
+}
+.online-pick-media { position: relative; flex: none; line-height: 0; }
+.online-pick-photo {
+  display: block;
+  border-radius: 50%;
+  object-fit: cover;
+  background: rgba(25, 189, 242, 0.12);
+}
+.online-pick-check {
+  position: absolute;
+  right: -3px;
+  bottom: -3px;
+  width: 16px;
+  height: 16px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: #0b7ea8;
+  color: #fff;
+  font-size: 0.6rem;
+  font-weight: 800;
+  box-shadow: 0 1px 4px rgba(9, 20, 33, 0.3);
+}
+.online-pick-body { display: flex; flex-direction: column; gap: 0.1rem; flex: 1; min-width: 0; }
+.online-pick-name {
+  font-size: 0.72rem;
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.online-pick-meta { display: flex; align-items: center; gap: 0.35rem; flex-wrap: wrap; }
+.online-pick-rating { font-size: 0.62rem; font-weight: 600; color: #0b7ea8; }
+.online-pick-rating b { font-weight: 800; }
+.online-pick-unrated { color: #7b8a90; }
+.online-pick-status {
+  font-size: 0.55rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #15803d;
+}
+.online-pick-state {
+  padding: 0.75rem 0.5rem;
+  border: 1px dashed rgba(25, 189, 242, 0.3);
+  border-radius: 0.6rem;
+  font-size: 0.7rem;
+  text-align: center;
+  color: #7b8a90;
+}
+.online-pick-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+  color: #b4571a;
+  border-color: rgba(217, 119, 6, 0.35);
+}
+.online-pick-selected {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.45rem;
+  padding: 0.4rem 0.55rem;
+  border: 1px solid rgba(11, 126, 168, 0.5);
+  border-radius: 0.65rem;
+  background: linear-gradient(135deg, rgba(25, 189, 242, 0.14), rgba(25, 189, 242, 0.04));
+}
+.online-pick-selected-body { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+.online-pick-selected-label {
+  font-size: 0.55rem;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: #557a86;
+}
+.online-pick-selected-name {
+  font-size: 0.74rem;
+  font-weight: 800;
+  color: #1f3a44;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.online-pick-selected-rating { font-size: 0.62rem; font-weight: 700; color: #0b7ea8; white-space: nowrap; }
 @keyframes online-dot-pulse {
   0%, 100% { box-shadow: 0 0 5px 1px rgba(25, 189, 242, 0.8), 0 0 10px 2px rgba(25, 189, 242, 0.4); }
   50% { box-shadow: 0 0 9px 2px rgba(25, 189, 242, 1), 0 0 16px 4px rgba(25, 189, 242, 0.7); }
@@ -10038,6 +10461,46 @@ button.live-drill-move:hover { border-color: rgba(117, 223, 255, 0.45); }
 }
 .lb-fixed-tip b { color: #0b7ea8; display: block; margin-bottom: 2px; }
 .lb-spark-wrap { display: flex; align-items: center; }
+
+/* ── Overall Champion ladder ───────────────────────────────────────────────
+   Rank / Player / Games / Win% / Attendance / Puzzles / Streak / Score. The
+   metric wrapper is `display: contents` on wide screens so its five cells sit
+   in the parent grid; below 700px it becomes the second line of a card, so no
+   metric is dropped on a phone. */
+.champ-grid { display: grid; grid-template-columns: 46px minmax(0, 1.6fr) 74px 74px 96px 74px 70px 86px; gap: 10px; align-items: center; padding: 11px 14px; }
+.champ-head { background: rgba(10,20,14,.85); border: 1px solid rgba(255,255,255,.09); border-radius: 14px 14px 0 0; color: #a3a3a3; font-size: 11px; text-transform: uppercase; letter-spacing: .8px; font-weight: 700; }
+.champ-row { transition: background .15s ease, box-shadow .15s ease; }
+.champ-row:nth-child(odd) { background: rgba(23, 12, 10, 0.03); }
+.champ-row:nth-child(even) { background: rgba(23, 12, 10, 0.065); }
+.champ-row:hover { position: relative; z-index: 2; background: rgba(25, 189, 242, 0.1); box-shadow: inset 0 0 0 1px rgba(25, 189, 242, 0.45), 0 10px 22px rgba(0, 0, 0, 0.4); }
+.champ-row--me { background: rgba(25, 189, 242, 0.09) !important; box-shadow: inset 2px 0 0 rgba(25, 189, 242, 0.75); }
+.champ-metrics { display: contents; }
+.champ-metric { display: flex; align-items: baseline; gap: 4px; font-size: 13.5px; font-weight: 800; color: var(--ivory-300); font-variant-numeric: tabular-nums; }
+.champ-metric span { font-size: 10px; font-weight: 700; letter-spacing: .4px; text-transform: uppercase; color: var(--ivory-500); }
+.champ-score { display: flex; align-items: baseline; justify-content: flex-end; gap: 4px; font-variant-numeric: tabular-nums; }
+.champ-score b { font-size: 18px; font-weight: 800; color: #0b7ea8; }
+.champ-score span { font-size: 10px; font-weight: 700; letter-spacing: .4px; text-transform: uppercase; color: var(--ivory-500); }
+.champ-head .champ-score { justify-content: flex-end; }
+
+.champ-help { margin: 0 0 16px; border: 1px solid var(--surface-border); border-radius: 14px; background: rgba(127, 127, 127, 0.05); padding: 10px 14px; font-size: 12.5px; color: var(--ivory-500); }
+.champ-help summary { cursor: pointer; font-weight: 800; font-size: 13px; color: var(--ivory-300); }
+.champ-help p { margin: 8px 0 0; line-height: 1.55; }
+.champ-help ul { margin: 8px 0 0; padding-left: 18px; display: grid; gap: 4px; line-height: 1.45; }
+.champ-help b { color: var(--ivory-300); }
+
+@media (max-width: 900px) {
+  .champ-grid { grid-template-columns: 42px minmax(0, 1.4fr) 64px 64px 84px 64px 62px 78px; gap: 8px; padding: 10px 12px; }
+}
+@media (max-width: 700px) {
+  .champ-head { display: none; }
+  .champ-grid { grid-template-columns: 30px minmax(0, 1fr) auto; grid-template-areas: "rank who score" "metrics metrics metrics"; row-gap: 6px; padding: 10px 12px; }
+  .champ-grid > .lb-rank { grid-area: rank; }
+  .champ-grid > .lb-pname { grid-area: who; }
+  .champ-grid > .champ-score { grid-area: score; }
+  .champ-metrics { grid-area: metrics; display: flex; flex-wrap: wrap; gap: 4px 14px; }
+  .champ-metric { font-size: 12px; }
+  .champ-score b { font-size: 16px; }
+}
 
 @media (max-width: 900px) {
   .lb-grid { grid-template-columns: 42px 1.5fr 84px 96px 76px 90px; }
@@ -18868,6 +19331,40 @@ body,
   }
 }
 
+/* A bot match is fitted to the space under the shared header, exactly like Play
+   Arena: the page root is h-full and must not scroll, only the side panel's
+   inner list does. */
+.admin-content-full:has(.bot-game-root) {
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  padding-bottom: 0;
+}
+.admin-content-full:has(.bot-game-root) > * {
+  height: 100%;
+  min-height: 0;
+}
+.admin-content-full:has(.bot-game-root) .admin-route-fade {
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.admin-content-full:has(.bot-game-root) .admin-route-fade > * {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+@media (max-width: 1023px) {
+  .admin-content-full:has(.bot-game-root) {
+    height: 100%;
+    overflow: hidden;
+  }
+  .admin-content-full:has(.bot-game-root) > * {
+    height: 100%;
+  }
+}
+
 /* ─── Collapsed sidebar (optional desktop toggle) ───────────────────────────── */
 .admin-shell.collapsed .admin-sidebar {
   width: 72px;
@@ -19225,6 +19722,78 @@ body,
   white-space: nowrap;
 }
 
+/* Time-control picker (Play Arena). The preset row is chips; hours, minutes
+   and increment are three selects built like the Computer Play panel. */
+.tc-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.tc-readout {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.2rem 0.6rem;
+  padding: 0.45rem 0.7rem;
+  border: 1px solid rgba(25, 189, 242, 0.35);
+  border-radius: 0.7rem;
+  background: rgba(25, 189, 242, 0.1);
+  color: #0b7ea8;
+}
+.tc-readout-family {
+  font-size: 0.6rem;
+  font-weight: 800;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  opacity: 0.75;
+}
+.tc-readout-value {
+  font-size: 1.05rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+.tc-readout-meta {
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: #557a86;
+}
+.tc-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+}
+.tc-presets > .tc-opt {
+  flex: 1 1 auto;
+  min-width: 3.2rem;
+  white-space: nowrap;
+}
+.tc-presets > .tc-opt:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.tc-fields {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.4rem;
+}
+.tc-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+.tc-field-label {
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #6b7c83;
+}
+.tc-field select {
+  width: 100%;
+  min-width: 0;
+}
+
 /* Light-theme overrides for the shared live/player lists inside the modal */
 .mz-modal .live-session-item {
   border-color: rgba(25, 189, 242, 0.2);
@@ -19243,19 +19812,6 @@ body,
 .mz-modal .live-sessions-empty {
   color: #7b8a90;
   padding: 1.25rem 0.5rem;
-}
-.mz-modal .online-player-list {
-  background: #fffdf9;
-  border-color: rgba(25, 189, 242, 0.35);
-  box-shadow: 0 12px 28px rgba(9, 20, 33, 0.18);
-}
-.mz-modal .online-player-row { color: #2a3b49; }
-.mz-modal .online-player-row:hover { background: rgba(25, 189, 242, 0.1); }
-.mz-modal .online-player-empty { color: #7b8a90; }
-.mz-modal .online-dot { background: rgba(42, 59, 73, 0.2); }
-.mz-modal .online-dot-on {
-  background: #19bdf2;
-  box-shadow: 0 0 6px 1px rgba(25, 189, 242, 0.7);
 }
 
 /* Inline "discard unsaved changes?" prompt inside the Annotate modal */
@@ -20021,6 +20577,23 @@ body,
   align-items: center;
 }
 
+/* The board's slot. In the wide layout it is simply the board's own width, so
+   the page looks exactly as it always did; in the compact layouts it becomes
+   the measured box the board is fitted into on BOTH axes (see
+   useFittedSquare), which is what keeps the board square, as large as the
+   screen allows, and in one fixed place. */
+.hw-board-area {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-width: 0;
+}
+/* The measured child must report its true height (frame + board), so it may
+   neither shrink nor grow inside the slot. */
+.hw-board-area > .hw-board-wrap {
+  flex: 0 0 auto;
+}
+
 .hw-nav-row {
   width: 100%;
   display: flex;
@@ -20265,24 +20838,85 @@ body,
   justify-content: center;
 }
 
-@media (max-width: 1100px) and (orientation: landscape) {
+/* Short, wide screens (phones/tablets on their side). Stacking would leave no
+   height for the board, so the row is kept — but every part is now a fixed
+   slot: the panel is a full-height column of fixed width, and the board is
+   fitted to the height that is left. Nothing on this screen measures itself
+   against the board, so the solve cannot oscillate. */
+@media (max-width: 1100px) and (orientation: landscape) and (max-height: 700px) {
   .hw-viewport {
     padding: 4px 8px 6px;
     gap: 4px;
   }
-  .hw-row {
-    gap: 10px;
-  }
   .hw-title-text {
     font-size: 15px;
   }
+
+  .hw-content {
+    align-items: stretch;
+  }
+  .hw-row {
+    flex: 1 1 auto;
+    min-height: 0;
+    align-items: stretch;
+    gap: 10px;
+  }
+  .hw-col-left {
+    flex: 1 1 auto;
+    width: auto;
+    min-width: 0;
+    min-height: 0;
+    gap: 4px;
+  }
+  .hw-board-area {
+    flex: 1 1 0;
+    min-height: 0;
+    overflow: hidden;
+    /* Gutter so the measured solve and the real frame agree. `framedWidth()`
+       models the frame as 2·remC + 24, while the themed frame on screen is
+       board + 2·remC + 30 (its 12px band, 1px hairline and 2px plinth border),
+       so without this the board overflows its slot by a few pixels and gets
+       clipped. Padding is subtracted from the measured space, not added to it. */
+    padding: 0 4px;
+  }
+  .hw-nav-row {
+    flex: 0 0 auto;
+  }
+  .hw-nav-btn {
+    min-height: 30px;
+  }
+  .hw-col-right {
+    flex: 0 0 clamp(200px, 30vw, 320px);
+    width: auto;
+    min-width: 0;
+    align-items: stretch;
+  }
   .hw-panel {
+    width: 100%;
+    height: 100%;
     padding: 6px 8px;
     gap: 4px;
   }
+  .hw-panel-moves {
+    flex: 1 1 0;
+  }
+  /* Reserves so a hint or a longer message cannot change the panel's (and so
+     the board's) geometry. */
+  .hw-hint-text {
+    max-height: 2.7em;
+    overflow: hidden;
+  }
+  .hw-panel-status {
+    min-height: 2.4em;
+    overflow: hidden;
+  }
 }
 
-@media (max-width: 820px) {
+/* Portrait phones: the solver stacks board → nav → info panel. The board slot
+   takes every pixel the panel does not, and the panel is a reserved, fixed
+   height, so switching puzzles, showing a hint or printing a longer feedback
+   line can never resize or move the board. */
+@media (max-width: 820px) and (orientation: portrait) {
   .hw-viewport {
     padding: 4px 6px 6px;
     gap: 4px;
@@ -20294,11 +20928,39 @@ body,
   .hw-badge {
     font-size: 10px;
   }
+
+  .hw-content {
+    align-items: stretch;
+    justify-content: flex-start;
+  }
   .hw-row {
+    flex: 1 1 auto;
+    min-height: 0;
     flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 6px;
+    align-items: stretch;
+    justify-content: flex-start;
+    gap: 4px;
+  }
+  .hw-col-left {
+    flex: 1 1 auto;
+    width: 100%;
+    min-height: 0;
+    gap: 4px;
+  }
+  .hw-board-area {
+    flex: 1 1 0;
+    min-height: 0;
+    width: 100%;
+    overflow: hidden;
+    /* Inset only (see the landscape block): keeps the themed frame inside the
+       slot on the left/right where the measured width is the binding axis. */
+    padding: 0 4px;
+  }
+  .hw-nav-row {
+    flex: 0 0 auto;
+  }
+  .hw-nav-btn {
+    min-height: 32px;
   }
   .hw-col-right {
     flex: 0 0 auto;
@@ -20306,9 +20968,22 @@ body,
     justify-content: center;
   }
   .hw-panel {
-    width: min(420px, 100%);
-    height: auto;
-    max-height: 36vh;
+    width: 100%;
+    height: clamp(158px, 27vh, 216px);
+    max-height: none;
+    padding: 6px 8px;
+    gap: 4px;
+  }
+  .hw-panel-moves {
+    flex: 1 1 0;
+  }
+  .hw-hint-text {
+    max-height: 2.7em;
+    overflow: hidden;
+  }
+  .hw-panel-status {
+    min-height: 2.4em;
+    overflow: hidden;
   }
 }
 
@@ -20337,9 +21012,35 @@ body,
   .hw-title-text {
     font-size: 14px;
   }
+  /* The panel's height is the reserved slot from the portrait block above; a
+     cap here would silently shrink it again and clip its own content. */
   .hw-panel {
-    max-height: 34vh;
+    max-height: none;
     padding: 6px 8px;
     gap: 4px;
+  }
+}
+
+/* Very short portrait screens: at 320x568 the panel's four rows were a dozen
+   pixels over the 158px reserve, which clipped the "Your moves" chip. The
+   reserve itself has to stay — it is what keeps the board from moving — so the
+   rows are packed tighter instead and the board keeps its full size. */
+@media (max-height: 600px) and (orientation: portrait) {
+  .hw-panel {
+    padding: 5px 8px;
+    gap: 3px;
+  }
+  .hw-panel-title {
+    line-height: 1.1;
+  }
+  .hw-panel-sub {
+    line-height: 1.15;
+  }
+  .hw-panel-moves {
+    padding-top: 3px;
+    gap: 2px;
+  }
+  .hw-panel-status {
+    padding-top: 2px;
   }
 }

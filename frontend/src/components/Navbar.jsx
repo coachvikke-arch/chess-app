@@ -19,12 +19,17 @@ export default function Navbar({ hideLinks = false }) {
   const { user } = useAuth();
 
   const dashLink = homeForRole(user?.role);
+  /* The logo is the way home. For a signed-in user "home" is their own
+     dashboard — sending them to "/" (the marketing page, whose only calls to
+     action are Login) read as being logged out. Signed-out visitors keep the
+     public landing page. */
+  const logoLink = user ? dashLink : '/';
   const dashLabel = user?.role === 'superadmin' ? 'Super Admin' : isAdminRole(user?.role) ? 'Coach Panel' : 'Dashboard';
 
   return (
     <header className="nav-glass sticky top-0">
       <div className="max-w-7xl mx-auto flex items-center justify-between gap-2 px-3 sm:px-4 py-3">
-        <Link to="/" aria-label={APP_NAME} className="flex items-center gap-2 sm:gap-2.5 group min-w-0">
+        <Link to={logoLink} aria-label={APP_NAME} className="flex items-center gap-2 sm:gap-2.5 group min-w-0">
           <span className="text-2xl piece-glyph-spin text-blue-300" aria-hidden="true">♞</span>
           <span className="font-bold text-sm sm:text-base md:text-lg font-display text-white truncate">
             <span className="sm:hidden">{APP_NAME_SHORT}</span>

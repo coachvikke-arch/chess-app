@@ -1,25 +1,21 @@
 /* The post-game result card must be sized by the VIEWPORT, never by the board.
  *
- * Run: node scripts/test-result-card-viewport.mjs
+ * Run: node --test scripts/result-card-viewport.test.mjs
  *
- * THE BUG
- * -------
- * `.game-over-overlay` was `position: absolute; inset: 0` inside
- * `.ab-board-wrap` (`position: relative`), which wraps the chessboard. An
- * absolutely-positioned overlay resolves `inset: 0` against its nearest
- * positioned ancestor, so the overlay's box WAS the board's box. The card's
- * `width: min(30rem, 100%)` then took its 100% from the board - making the
- * result card board-sized. On a 340px phone board the card was cramped and the
- * two rating rows wrapped; on a large screen it stayed small despite the room.
+ * WHY THIS EXISTS
+ * ---------------
+ * The page's first result overlay was `position: absolute; inset: 0` inside
+ * `.ab-board-wrap` (`position: relative`, the chessboard's wrapper), so its box
+ * WAS the board's box and a `width: min(30rem, 100%)` card ended up
+ * board-sized — cramped on a phone, tiny on desktop. The one surviving card
+ * (`PostGameResultPopup`) must therefore stay viewport-fixed with a viewport
+ * ceiling, must stay SMALL and landscape, and must never reference a
+ * board-size variable.
  *
- * These assertions read the shipped CSS and the component source, because the
+ * These assertions read the shipped CSS and component source because the
  * property under test ("does the board influence the card's size?") is a
- * cascade question that cannot be settled by a unit test without a browser. The
- * checks are structural and specific: a `position: fixed` overlay, and a card
- * width expressed in viewport units with no board-derived term.
- *
- * Also covered: the card must not be gated behind a single hardcoded category
- * label, must render exactly ONE card, and must keep its rating content. */
+ * cascade question that cannot be settled without a browser.
+ */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
@@ -31,7 +27,8 @@ const css = readFileSync(join(root, 'src', 'index.css'), 'utf8');
 const board = readFileSync(join(root, 'src', 'pages', 'AnalysisBoard.jsx'), 'utf8');
 const popup = readFileSync(join(root, 'src', 'components', 'PostGameResultPopup.jsx'), 'utf8');
 
-/* Pull out the CSS rule for one selector, brace-balanced. */
+/* Pull a CSS rule out by selector, brace-balanced. The rule must start a line,
+   so `.pgr-card` never matches `.pgr-card.is-win`. */
 function ruleFor(selector) {
   const i = css.indexOf(`\n${selector} {`);
   assert.ok(i >= 0, `CSS rule for ${selector} must exist`);
@@ -46,10 +43,10 @@ function ruleFor(selector) {
   throw new Error(`unbalanced braces for ${selector}`);
 }
 
-/* The @media block that mentions the card, if any. */
-function mediaBlockContaining(selector) {
-  const at = css.indexOf('@media (max-width: 560px)');
-  assert.ok(at >= 0, 'a small-viewport @media block must exist');
+/* The @media block the popup ships in — not the first one in the stylesheet. */
+function mediaBlock() {
+  const at = css.indexOf('@media (max-width: 640px)', css.indexOf('.pgr-actions .app-btn'));
+  assert.ok(at >= 0, 'the popup\'s small-viewport @media block must exist');
   let depth = 0;
   for (let j = css.indexOf('{', at); j < css.length; j += 1) {
     if (css[j] === '{') depth += 1;
@@ -59,91 +56,82 @@ function mediaBlockContaining(selector) {
 }
 
 test('the result overlay is viewport-fixed, not positioned by the board', () => {
-  const overlay = ruleFor('.game-over-overlay');
+  const overlay = ruleFor('.pgr-overlay');
   assert.match(overlay, /position:\s*fixed/,
-    'the overlay must be position:fixed, otherwise inset:0 resolves against .ab-board-wrap (the board)');
+    'fixed is what keeps inset:0 resolving against the viewport');
   assert.doesNotMatch(overlay, /position:\s*absolute/,
-    'position:absolute is exactly what made the card board-sized');
+    'absolute is exactly what made the old card board-sized');
   assert.match(overlay, /inset:\s*0/);
+  assert.match(overlay, /z-index:\s*\d+/, 'the card must sit above the board chrome');
+  assert.match(overlay, /place-items:\s*center/, 'centred, so it never hugs one edge');
+  assert.match(overlay, /padding:\s*12px;/, 'a gutter keeps the card off the screen edges');
 });
 
-test('the card width comes from the viewport, never from the board', () => {
-  const card = ruleFor('.game-over-card');
-  assert.match(card, /width:\s*min\(\s*92vw\s*,\s*30rem\s*\)/,
-    'the card must be sized in vw against a rem ceiling');
-  assert.doesNotMatch(card, /var\(\s*--board/,
-    'the card must never reference a board-size custom property');
-  assert.doesNotMatch(card, /aspect-ratio/,
-    'aspect-ratio would re-tie the card to the board shape');
+test('the card is bounded by the viewport, never by a board-size variable', () => {
+  const card = ruleFor('.pgr-card');
+  assert.match(card, /width:\s*100%/, 'fill the overlay up to the ceiling');
+  assert.match(card, /max-width:\s*min\(600px, calc\(100vw - 24px\)\)/,
+    '520-600px on desktop, one 12px gutter each side on a phone');
+  assert.match(card, /max-height:\s*calc\(100dvh - 24px\)/,
+    'a short window must bound the card, not push it past the screen');
+  assert.match(card, /overflow-y:\s*auto/, 'and the card scrolls its own body');
+  assert.doesNotMatch(card, /var\(\s*--board/, 'no board-derived width');
+  assert.doesNotMatch(card, /aspect-ratio/, 'no board-shaped constraint');
+  assert.doesNotMatch(card, /min\(30rem,\s*100%\)/, 'the old board-relative width is gone');
 });
 
-test('the board wrap is not the overlay\'s containing block', () => {
-  /* Belt and braces: even if the overlay went back to absolute, a fixed/absolute
-     ancestor must not silently re-scope it. Assert the board wrapper is the
-     only positioned ancestor concern by checking the overlay does not rely on it. */
-  const overlay = ruleFor('.game-over-overlay');
-  assert.match(overlay, /position:\s*fixed/);
+test('the card is landscape: two sections on one row, actions below', () => {
+  const card = ruleFor('.pgr-card');
+  assert.match(card, /display:\s*grid;/);
+  assert.match(card, /grid-template-columns:\s*minmax\(0, 0\.85fr\) minmax\(0, 1\.15fr\)/);
+  assert.match(card, /"summary players"\s*\n\s*"actions actions"/,
+    'result and players share the top row — that is what keeps it horizontal');
+  assert.match(card, /align-items:\s*center;/);
 });
 
-test('the card is large and readable on desktop', () => {
-  const card = ruleFor('.game-over-card');
-  /* 30rem ceiling = 480px at the default 16px root, comfortably large. */
-  assert.match(card, /30rem/);
-  assert.match(card, /max-height:\s*calc\(100vh/,
-    'the card must be bounded by viewport height so a short window scrolls');
+test('the card stays compact: no sticky footer, no tall blocks', () => {
+  const actions = ruleFor('.pgr-actions');
+  assert.match(actions, /display:\s*flex;/);
+  assert.match(actions, /flex-wrap:\s*wrap;/, 'buttons wrap instead of clipping');
+  assert.match(actions, /justify-content:\s*flex-end;/);
+  assert.doesNotMatch(actions, /position:\s*sticky;/);
+  assert.match(css, /\.pgr-player-avatar \{[^}]*width: 30px;/);
 });
 
-test('the card is responsive on a phone and never overflows horizontally', () => {
-  const block = mediaBlockContaining('.game-over-card--lg');
-  assert.match(block, /width:\s*calc\(100vw\s*-\s*1\.5rem\)/,
-    'on a phone the card must fill the viewport minus a gutter');
-  assert.match(block, /max-height:\s*calc\(100vh\s*-\s*1\.5rem\)/,
-    'and be bounded by viewport height');
+test('the card stacks only on a phone, and never overflows horizontally', () => {
+  const block = mediaBlock();
+  const card = block.slice(block.indexOf('.pgr-card {'));
+  assert.match(card.slice(0, 260), /grid-template-columns: minmax\(0, 1fr\);/,
+    'one column: the sections stack only where two would be unreadable');
+  assert.match(card.slice(0, 260), /"summary"\s*\n\s*"players"\s*\n\s*"actions"/);
+  assert.match(block, /\.pgr-actions \.app-btn \{ flex: 1 1 110px; \}/,
+    'the buttons wrap into equal, tappable rows');
+  assert.match(css, /\.pgr-card,\s*\n\.pgr-card \* \{\s*\n\s*box-sizing: border-box;/,
+    'padding and borders are inside the width, so nothing can overflow');
 });
 
-test('the card typography is viewport-fluid rather than board-sized', () => {
-  const lg = ruleFor('.game-over-card--lg');
-  assert.match(lg, /padding:\s*clamp\(/, 'padding must scale with the viewport');
-  const title = css.slice(css.indexOf('.game-over-card--lg .game-over-title'));
-  assert.match(title.slice(0, 200), /clamp\(/, 'the headline must scale with the viewport');
+test('exactly one completion card is mounted per surface', () => {
+  const mounts = (board.match(/<PostGameResultPopup/g) || []).length;
+  assert.equal(mounts, 1, 'the popup is written once and reused by both surfaces');
+  assert.match(board, /\{!playMode && resultCard\}/, 'the page board shows it');
+  assert.match(board, /<PostGameResultPopup[\s\S]{0,80}open=\{!resultDismiss && !resultRevealPending\}/,
+    'and it only opens once the mate animation is done');
+  assert.doesNotMatch(board, /className="[^"]*game-over-card/, 'the old page-only card is gone');
 });
 
-test('exactly one result card renders on the board page', () => {
-  /* The page card is the survivor; the duplicate PostGameResultPopup was removed
-     from this page and is retained only for Play Mode / bot pages. */
-  const occurrences = board.match(/game-over-card game-over-card--lg/g) || [];
-  assert.equal(occurrences.length, 1,
-    'there must be exactly one .game-over-card in the page tree');
-  assert.match(board, /!playMode && overlay && !overlayDismissed/,
-    'the board card must stay gated out of Play Mode, where PostGameResultPopup takes over');
+test('the category pill is gone with the rest of the statistics', () => {
+  assert.ok(!/timeClassLabel/.test(popup), 'the card no longer prints a time class');
+  assert.ok(!/pgr-pill/.test(css));
+  assert.ok(!/>\s*Rapid\s*</.test(popup), 'and never hardcoded one');
 });
 
-test('the card label comes from the server category, with no hardcoded Rapid', () => {
-  /* The category is whatever the finished game was actually played in. */
-  assert.match(board, /ratingResult\.timeClassLabel/,
-    'the card must render the category the backend reported');
-  assert.doesNotMatch(
-    board.slice(board.indexOf('game-over-ratings-title') - 200, board.indexOf('game-over-ratings-title') + 400),
-    /["']Rapid/,
-    'the card must not hardcode a Rapid label',
-  );
-});
-
-test('the popup card also takes its category from the server', () => {
-  assert.match(popup, /rating\.timeControl|timeControl/,
-    'PostGameResultPopup must label the rating from the API, not a constant');
-  assert.doesNotMatch(popup, /["']Rapid rating["']/,
-    'PostGameResultPopup must not hardcode Rapid');
-});
-
-test('the card keeps its rating content (winner, reason, both players, buttons)', () => {
-  /* Content must survive the layout change: two rating rows and three actions. */
-  const card = board.slice(board.indexOf('game-over-card game-over-card--lg'));
-  assert.match(card, /game-over-title/, 'winner/result headline');
-  assert.match(card, /game-over-sub/, 'finish reason');
-  assert.match(card, /RatingRow/, 'per-player rating rows');
-  assert.match(card, /Review/, 'Review action');
-  assert.match(card, /New game/, 'New game action');
-  assert.match(card, /myName/, 'own name');
-  assert.match(card, /opponent/, 'opponent name');
+test('the card keeps only result, reason, both players and actions', () => {
+  for (const needle of ['pgr-title', 'pgr-reason', 'pgr-players', 'PlayerRow', 'Review game', 'secondary']) {
+    assert.ok(popup.includes(needle), `the card must still render ${needle}`);
+  }
+  for (const gone of ['pgr-details', 'AnalysisBlock', 'pgr-analysis', 'pgr-close']) {
+    assert.ok(!popup.includes(gone), `${gone} must not be rendered any more`);
+  }
+  assert.match(popup, /\{headline\}/);
+  assert.match(popup, /\{displayReason\(reason\)\}/);
 });

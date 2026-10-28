@@ -20,12 +20,15 @@ const ATTENDANCE_BADGE = {
   absent: 'bg-rose-500/15 text-rose-700 border border-rose-400/40',
 };
 
-function fmtDate(d) {
-  if (!d) return '—';
-  const s = String(d).slice(0, 10);
-  const b = new Date(`${s}T00:00:00`);
-  if (Number.isNaN(b.getTime())) return s;
-  return b.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+/* A DATE column reaches the client as local midnight serialised in UTC
+   (e.g. "…T18:30:00.000Z" for IST), so slicing the string would print the
+   previous day. Full timestamps are read through Date as well. */
+function fmtDate(value) {
+  if (!value) return '—';
+  const text = String(value).trim();
+  const date = /^\d{4}-\d{2}-\d{2}$/.test(text) ? new Date(`${text}T00:00:00`) : new Date(text);
+  if (Number.isNaN(date.getTime())) return text.slice(0, 10);
+  return date.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
 }
 
 function fmtTime(t) {

@@ -245,11 +245,13 @@ function RatingTrendCard() {
 }
 
 /** Dashboard "my position" card — the same reward-glass podium card as the
- *  leaderboard, showing the signed-in student's own rank and Rapid ELO. */
+ *  leaderboard, showing the signed-in student's Overall Champion rank and the
+ *  metrics that produced it (the same payload the leaderboard chart ranks). */
 function LeaderboardPositionCard({ me, total }) {
   if (!me) return null;
   const meta = RANK_META[me.rank];
-  const hasRating = me.rapidRating != null;
+  const score = Number(me.score) || 0;
+  const winRate = me.winRate == null ? '—' : `${Math.round(me.winRate)}%`;
   return (
     <div className="lb-podium lb-podium--reward lb-podium--dash">
       <div className={`lb-pcard dash-pair__card ${meta?.cls || ''}`} style={{ animation: 'fade-up .5s both' }}>
@@ -278,11 +280,12 @@ function LeaderboardPositionCard({ me, total }) {
             <span className="lb-badge" title="You">⚑</span>
           </h3>
           <p className="lb-pcard-rating">
-            <b>{hasRating ? me.rapidRating : '—'}</b>
-            <span>Rapid ELO</span>
+            <b>{score.toFixed(1)}</b>
+            <span>Champion score</span>
           </p>
           <p className="lb-pcard-desc">
-            {hasRating ? '' : 'No rapid games yet · '}Rank #{me.rank} of {total} students
+            Rank #{me.rank} of {total} students · {me.games} games · {winRate} win ·{' '}
+            {me.puzzlesSolved} puzzles · {me.streak}-day streak
           </p>
         </div>
       </div>
@@ -362,19 +365,33 @@ export default function StudentDashboard() {
         .then((res) => setData(res.data))
         .catch((e) => setError(e.response?.data?.message || 'Failed to load'));
     };
+    /* The position card reads the SAME Overall Champion payload as the
+       leaderboard page, so the rank and score can never disagree. */
+    const loadChampions = () => {
+      api.get('/students/ratings/champions', { cache: false })
+        .then((res) => setLeaders(Array.isArray(res.data?.rows) ? res.data.rows : []))
+        .catch(() => setLeaders([]));
+    };
     api.get('/classes/online', { cache: false })
       .then((res) => setMeetings(Array.isArray(res.data) ? res.data.slice(0, 3) : []))
       .catch(() => {});
     api.get('/announcements')
       .then((res) => setAnnouncements(res.data.slice(0, 3)))
       .catch(() => {});
-    api.get('/students/ratings/leaderboard', { cache: false })
-      .then((res) => setLeaders(Array.isArray(res.data) ? res.data : []))
-      .catch(() => setLeaders([]));
+    loadChampions();
     load();
-    const onPuzzleSolved = () => load();
+    const onPuzzleSolved = () => { load(); loadChampions(); };
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') loadChampions();
+    };
+    const timer = window.setInterval(loadChampions, 60000);
     window.addEventListener('puzzle-solved', onPuzzleSolved);
-    return () => window.removeEventListener('puzzle-solved', onPuzzleSolved);
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener('puzzle-solved', onPuzzleSolved);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
   }, []);
 
   if (error) return <div className="max-w-4xl mx-auto p-8"><div className="chess-error">{error}</div></div>;
@@ -389,7 +406,7 @@ export default function StudentDashboard() {
   const puzzleAcc = puzzleAttempted > 0 ? Math.round((puzzleCorrect / puzzleAttempted) * 100) : 0;
   const pendingPuzzles = Number(data?.pendingPuzzles ?? 0);
   const myPosition = leaders && leaders.length > 0
-    ? leaders.find((r) => r.user_id === user?.id) || null
+    ? leaders.find((r) => Number(r.user_id) === Number(user?.id)) || null
     : null;
 
   return (

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import api from '../services/api';
 import { PageHeader, Spinner } from '../components/ui';
 import StudentAvatar from '../components/StudentAvatar';
@@ -29,8 +29,16 @@ export function leaderboardEndpointFor(role) {
     : '/students/ratings/leaderboard';
 }
 
+/** Same split for the Overall Champion ladder: the public route sits behind the
+ *  `leaderboard` feature switch, the coach route does not. */
+export function championEndpointFor(role) {
+  return role === 'admin' || role === 'superadmin'
+    ? '/students/ratings/champions/coach'
+    : '/students/ratings/champions';
+}
+
 const TABS = [
-  { key: 'all', label: 'Overall Champion' },
+  { key: 'champion', label: 'Overall Champion' },
   { key: 'weekly', label: 'Weekly' },
   { key: 'bullet', label: 'Bullet' },
   { key: 'blitz', label: 'Blitz' },
@@ -43,19 +51,18 @@ const TABS = [
    (`timeRatings`), so a blitz player is ranked against blitz players. A student
    with no games in that control has rating null and sorts last.
 
-   There is no common/unified rating left in this app:
-     · "Overall Champion" shows the RAPID pool
-     · "Weekly" shows the same RAPID pool, but only for players who actually
-       played a Rapid game in the last 7 days (it deliberately does NOT fall
-       back to their standing rating, so an inactive player can't hold a
-       top-of-table slot on a stale number) */
+   "Overall Champion" does not appear here: it is not an ELO pool, it is the
+   composite Champion Score computed by the backend and ranked on its own. */
 function ratingFor(row, key) {
   switch (key) {
-    case 'all': return row.rapidRating ?? null;
     case 'weekly': return row.weeklyRating ?? null;
     case 'puzzle': return row.puzzlePoints;
     default: return row.timeRatings?.[key]?.rating ?? null;
   }
+}
+
+function pct(value) {
+  return value == null ? '—' : `${Math.round(value)}%`;
 }
 
 function Spark({ points }) {
@@ -90,10 +97,53 @@ export default function Leaderboard() {
      [] is what made a coach read "No rated games yet" when the real problem was
      that their request was refused. */
   const [error, setError] = useState('');
-  const [tab, setTab] = useState('all');
+  const [tab, setTab] = useState('champion');
   const [q, setQ] = useState('');
   const [tip, setTip] = useState(null);
   const listTopRef = useRef(null);
+
+  /* The composite Overall Champion ladder is a separate payload from the ELO
+     board. It is fetched once per visit and refreshed while that tab is open,
+     so a game, puzzle or class completed elsewhere shows up without a reload. */
+  const [champ, setChamp] = useState(null);
+  const [champError, setChampError] = useState('');
+  const champTicket = useRef(0);
+
+  const loadChamp = useCallback(() => {
+    const ticket = ++champTicket.current;
+    api.get(championEndpointFor(user?.role), { cache: false })
+      .then((res) => {
+        if (ticket !== champTicket.current) return;
+        const data = res.data && Array.isArray(res.data.rows) ? res.data : null;
+        setChamp(data || { rows: [], weights: null });
+        setChampError(data ? '' : 'The champion board returned an unexpected response.');
+      })
+      .catch((err) => {
+        if (ticket !== champTicket.current) return;
+        setChamp({ rows: [], weights: null });
+        setChampError(
+          err.response?.data?.message
+            || (err.response?.status === 403
+              ? 'Your account is not allowed to view this leaderboard.'
+              : 'Could not load the Overall Champion leaderboard.'),
+        );
+      });
+  }, [user?.role]);
+
+  useEffect(() => { loadChamp(); }, [loadChamp]);
+
+  useEffect(() => {
+    if (tab !== 'champion') return undefined;
+    const timer = window.setInterval(loadChamp, 60000);
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') loadChamp();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [tab, loadChamp]);
 
   useEffect(() => {
     let live = true;
@@ -142,9 +192,9 @@ export default function Leaderboard() {
   }, [ranked, q]);
 
   const isPuzzle = tab === 'puzzle';
-  const isOverall = tab === 'all';
+  const isChampion = tab === 'champion';
   const isWeekly = tab === 'weekly';
-  /* The active time-control tab (null for Overall / Weekly / Puzzle Rush). */
+  /* The active time-control tab (null for Overall Champion / Weekly / Puzzle Rush). */
   const tc = TABS.find((t) => t.key === tab)?.label?.toLowerCase() || null;
   /* Only a real time-control tab has a pool; the others read rapid or points. */
   const tcKey = ['bullet', 'blitz', 'rapid', 'classical'].includes(tc) ? tc : null;
@@ -169,8 +219,34 @@ export default function Leaderboard() {
   );
   const myRating = myRow ? ratingFor(myRow, tab) : null;
 
+  /* Champion ladder — a separate list with its own ranks, search and pages. */
+  const champRows = useMemo(() => champ?.rows || [], [champ]);
+  const champShown = useMemo(() => {
+    const t = q.trim().toLowerCase();
+    return t ? champRows.filter((r) => r.name.toLowerCase().includes(t)) : champRows;
+  }, [champRows, q]);
+  const champPager = usePagination(champShown, PAGE_SIZE, {
+    resetKeys: [q],
+    scrollRef: listTopRef,
+  });
+  const champPodium = champShown.slice(0, 3);
+  const champTable = champPager.currentPage === 1
+    ? champPager.currentItems.filter((r) => r.rank > 3)
+    : champPager.currentItems;
+  const myChamp = useMemo(
+    () => champRows.find((r) => Number(r.user_id) === Number(user?.id)) || null,
+    [champRows, user?.id]
+  );
+  const weights = champ?.weights || null;
+
   return (
-    <PageHeader title="Leaderboard" icon="♛" subtitle="ELO ratings from rated matches — who's climbing fastest?">
+    <PageHeader
+      title="Leaderboard"
+      icon="♛"
+      subtitle={isChampion
+        ? 'Overall Champion score across games, puzzles and class attendance'
+        : 'ELO ratings from rated matches — who\'s climbing fastest?'}
+    >
       <div className="kt-arena" style={{ animation: 'fade-up .45s both' }}>
         {/* controls */}
         <div className="flex flex-wrap items-center justify-center gap-3 mb-1">
@@ -193,7 +269,21 @@ export default function Leaderboard() {
           />
         </div>
 
-        {myRow && (
+        {isChampion && myChamp && (
+          <div className="mx-auto mb-2 flex w-fit max-w-full flex-wrap items-center justify-center gap-x-2 gap-y-1 rounded-xl border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-slate-700">
+            <span className="text-blue-700">Your rank</span>
+            <b className="text-blue-700">#{myChamp.rank}</b>
+            <span className="text-slate-500">of {champRows.length}</span>
+            <span className="text-slate-500">·</span>
+            <span><b>{myChamp.score.toFixed(1)}</b> Champion score</span>
+            <span className="text-slate-500">·</span>
+            <span>{myChamp.games} games · {pct(myChamp.winRate)} wins · {pct(myChamp.attendance)} attendance</span>
+            <span className="text-slate-500">·</span>
+            <span>{myChamp.puzzlesSolved} puzzles · {myChamp.streak}-day streak</span>
+          </div>
+        )}
+
+        {!isChampion && myRow && (
           <div className="mx-auto mb-2 flex w-fit max-w-full flex-wrap items-center justify-center gap-x-2 gap-y-1 rounded-xl border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-slate-700">
             <span className="text-blue-700">Your rank</span>
             <b className="text-blue-700">#{myRow.dr}</b>
@@ -204,12 +294,129 @@ export default function Leaderboard() {
                 ? `${myRating ?? 0} points`
                 : myRating == null
                   ? 'no games in this pool'
-                  : `${myRating} ${isOverall || isWeekly ? 'Rapid' : tcLabel} ELO`}
+                  : `${myRating} ${isWeekly ? 'Rapid' : tcLabel} ELO`}
             </span>
           </div>
         )}
 
-        {rows === null ? (
+        {isChampion ? (
+          champ === null ? (
+            <div className="py-16 text-center"><Spinner text="Loading Overall Champion scores…" /></div>
+          ) : champError ? (
+            <div className="py-16 text-center text-sm">
+              <p className="text-slate-600">{champError}</p>
+              <Button type="button" variant="secondary" size="md" className="!py-2 !px-4 mt-3" onClick={loadChamp}>
+                Try again
+              </Button>
+            </div>
+          ) : champRows.length === 0 ? (
+            <div className="py-16 text-center text-slate-500 text-sm">
+              No students to rank yet — the board fills as students play games, solve puzzles and attend classes.
+            </div>
+          ) : (
+            <>
+              <ChampionsPodium
+                list={champPodium}
+                elo={(p) => p.score.toFixed(1)}
+                peak={() => null}
+                eloLabel="CHAMPION PTS"
+                eloSuffix="pts"
+                showBadges={false}
+                stats={(p) => [
+                  { label: 'Games', value: p.games },
+                  { label: 'Win %', value: pct(p.winRate) },
+                  { label: 'Puzzles', value: p.puzzlesSolved },
+                ]}
+              />
+
+              <details className="champ-help">
+                <summary>How the Champion score works</summary>
+                <p>
+                  The Overall Champion Score is a 0–100 total built from the same records across the
+                  whole app. Each metric is normalised against a fixed cap, so playing more helps only up
+                  to a point and no single metric can dominate the ranking.
+                </p>
+                <ul>
+                  <li><b>Games ({weights?.games ?? 20})</b> — up to 100 finished games (online, computer or bot). Every game is counted once.</li>
+                  <li><b>Win rate ({weights?.winRate ?? 15})</b> — wins plus half of draws, smoothed so a single game cannot top the board.</li>
+                  <li><b>Attendance ({weights?.attendance ?? 15})</b> — classes attended (present or late) over every class marked.</li>
+                  <li><b>Puzzles ({weights?.puzzles ?? 20})</b> — distinct puzzles solved, Easy 0.6 / Medium 1.0 / Hard 1.4, capped at 60 weighted puzzles.</li>
+                  <li><b>Puzzle accuracy ({weights?.puzzleAccuracy ?? 10})</b> — correct attempts over all attempts, smoothed.</li>
+                  <li><b>Streak ({weights?.streak ?? 10})</b> — consecutive days with a game, puzzle or class, capped at 30.</li>
+                  <li><b>Consistency ({weights?.consistency ?? 10})</b> — regular activity over the last 30 days, balanced across games, puzzles and classes.</li>
+                </ul>
+                <p>
+                  The same score drives the position card on the student dashboard, and it refreshes on
+                  its own as new games, puzzles and classes are recorded.
+                </p>
+              </details>
+
+              <div ref={listTopRef}>
+                <div className="champ-grid champ-head">
+                  <span>Rank</span>
+                  <span>Player</span>
+                  <span>Games</span>
+                  <span>Win %</span>
+                  <span>Attendance</span>
+                  <span>Puzzles</span>
+                  <span>Streak</span>
+                  <span className="champ-score">Score</span>
+                </div>
+                <div className="lb-body">
+                  {champTable.map((r) => (
+                    <div
+                      key={r.user_id}
+                      className={`champ-grid champ-row${Number(r.user_id) === Number(user?.id) ? ' champ-row--me' : ''}`}
+                    >
+                      <span className={`lb-rank ${r.rank <= 4 ? 'top' : ''}`}>#{r.rank}</span>
+                      <span className="lb-pname">
+                        <span className="lb-pavatar">
+                          {r.profile_image ? (
+                            <img
+                              src={r.profile_image}
+                              alt=""
+                              className="lb-photo rounded-full object-cover ring-1 ring-slate-200"
+                            />
+                          ) : (
+                            <StudentAvatar config={r.avatar_config} seed={`student_${r.student_id || ''}`} size={38} />
+                          )}
+                        </span>
+                        <span className="lb-pmeta">
+                          <span className="lb-line">
+                            <span className="lb-uname">{r.name}</span>
+                            {Number(r.user_id) === Number(user?.id) && <span className="lb-you">You</span>}
+                          </span>
+                          {r.group_name && (
+                            <span className="lb-group" style={{ marginTop: 0, padding: '0 7px' }}>{r.group_name}</span>
+                          )}
+                        </span>
+                      </span>
+                      <span className="champ-metrics">
+                        <span className="champ-metric"><b>{r.games}</b><span>games</span></span>
+                        <span className="champ-metric"><b>{pct(r.winRate)}</b><span>win</span></span>
+                        <span className="champ-metric"><b>{pct(r.attendance)}</b><span>attend</span></span>
+                        <span className="champ-metric"><b>{r.puzzlesSolved}</b><span>puzzles</span></span>
+                        <span className="champ-metric"><b>{r.streak}</b><span>streak</span></span>
+                      </span>
+                      <span className="champ-score"><b>{r.score.toFixed(1)}</b><span>pts</span></span>
+                    </div>
+                  ))}
+                  {champTable.length === 0 && (
+                    <div className="py-10 text-center text-slate-500 text-sm">No players match your search below the top three.</div>
+                  )}
+                </div>
+              </div>
+
+              <Pagination
+                currentPage={champPager.currentPage}
+                totalPages={champPager.totalPages}
+                totalItems={champPager.totalItems}
+                onPageChange={champPager.setPage}
+                itemLabel="players"
+              />
+            </>
+          )
+        ) : rows === null ? (
           <div className="py-16 text-center"><Spinner text="Loading leaderboard…" /></div>
         ) : error ? (
           /* Distinct from "no rated games yet": this says the load failed and
@@ -234,9 +441,9 @@ export default function Leaderboard() {
               Weekly reads the rapid pool, so its peak is the rapid peak. */}
           <ChampionsPodium
             list={podiumList}
-            elo={isPuzzle ? (p) => p.puzzlePoints : isOverall || isWeekly ? (p) => ratingFor(p, tab) : tcKey ? (p) => p.timeRatings?.[tcKey]?.rating : null}
-            peak={isPuzzle || isWeekly ? () => null : isOverall ? (p) => p.rapidPeakRating : tcKey ? (p) => p.timeRatings?.[tcKey]?.peakRating : null}
-            eloLabel={isPuzzle ? 'POINTS' : isWeekly ? 'WEEKLY RAPID ELO' : isOverall ? 'RAPID ELO' : tcLabel.toUpperCase()}
+            elo={isPuzzle ? (p) => p.puzzlePoints : isWeekly ? (p) => ratingFor(p, 'weekly') : tcKey ? (p) => p.timeRatings?.[tcKey]?.rating : null}
+            peak={isPuzzle || isWeekly ? () => null : tcKey ? (p) => p.timeRatings?.[tcKey]?.peakRating : null}
+            eloLabel={isPuzzle ? 'POINTS' : isWeekly ? 'WEEKLY RAPID ELO' : tcLabel.toUpperCase()}
           />
 
 
@@ -282,7 +489,7 @@ export default function Leaderboard() {
                     {isPuzzle
                       ? <>♙ {ratingFor(r, tab)}</>
                       : ratingFor(r, tab) == null
-                        ? <span style={{ opacity: 0.4 }}>{isOverall ? 'no rapid games' : isWeekly ? 'no rapid games this week' : `no ${tcLabel} games`}</span>
+                        ? <span style={{ opacity: 0.4 }}>{isWeekly ? 'no rapid games this week' : `no ${tcLabel} games`}</span>
                         : <>{ratingFor(r, tab)}{tcKey && r.timeRatings?.[tcKey]?.provisional && (
                             <span style={{ opacity: 0.5, fontSize: '0.8em' }}> provisional</span>
                           )}</>}
@@ -299,7 +506,7 @@ export default function Leaderboard() {
                     </span>
                   </span>
                   <span className="lb-spark-wrap lb-c-trend">
-                    <Spark points={isOverall || isWeekly ? r.timeRatings?.rapid?.spark : tcKey ? r.timeRatings?.[tcKey]?.spark : r.spark} />
+                    <Spark points={isWeekly ? r.timeRatings?.rapid?.spark : tcKey ? r.timeRatings?.[tcKey]?.spark : r.spark} />
                   </span>
                 </div>
               ))}

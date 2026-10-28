@@ -33,6 +33,7 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const page = readFileSync(join(ROOT, 'src', 'pages', 'BotGamePage.jsx'), 'utf8');
 const hook = readFileSync(join(ROOT, 'src', 'hooks', 'useBoardWidth.js'), 'utf8');
 const app = readFileSync(join(ROOT, 'src', 'App.jsx'), 'utf8');
+const css = readFileSync(join(ROOT, 'src', 'index.css'), 'utf8');
 
 /* Structural checks run against comment-stripped source.
  *
@@ -44,28 +45,48 @@ const code = page
   .replace(/\/\*[\s\S]*?\*\//g, '')
   .replace(/\{\s*\/\*[\s\S]*?\*\/\s*\}/g, '');
 
-test('the page root is viewport height and cannot scroll', () => {
+test('the page root fills its surface and cannot scroll', () => {
+  /* Signed in, the match renders inside the shared shell, so the root fills the
+     CONTENT area (`h-full`) — a viewport unit there would be taller than the
+     space under the header and bring the scrollbar straight back. Signed out
+     there is no shell, so the old viewport-height root still applies. */
   assert.match(
     code,
-    /className="flex h-screen flex-col overflow-hidden[^"]*"/,
-    'the game screen root must be h-screen + overflow-hidden, not min-h-screen',
+    /className=\{`bot-game-root flex \$\{inShell \? 'h-full' : 'h-screen'\} min-h-0 flex-col overflow-hidden/,
+    'the game screen root must fill the viewport only when it has no shell',
   );
+  assert.match(code, /overflow-hidden/, 'the root clips instead of scrolling');
 
   /* `min-h-screen` is the specific bug on the GAME screen: it permits the page
-     to grow past the viewport. It must appear nowhere else except the
-     not-found fallback, which is an ordinary short page where scrolling is
-     correct - so the count is pinned rather than the string banned outright. */
+     to grow past the viewport. The not-found fallback used to carry the one
+     allowed copy; inside a shell that also overflowed, so it is gone too. */
   const minScreen = code.match(/min-h-screen/g) || [];
   assert.equal(
     minScreen.length,
-    1,
-    `min-h-screen must appear only in the not-found state, found ${minScreen.length}`,
+    0,
+    `min-h-screen must not appear on this route, found ${minScreen.length}`,
   );
-  assert.match(
-    code,
-    /function BotNotFound[\s\S]{0,900}?min-h-screen/,
-    'the one remaining min-h-screen belongs to the not-found fallback',
-  );
+});
+
+test('the shell gives the page a definite height', () => {
+  assert.match(code, /useContext\(FullHeightContext\)/, 'the page detects whether it is inside a shell');
+  assert.match(code, /requestFullHeight\(true\)/, 'it asks the shell for the full content height');
+  assert.match(code, /return \(\) => requestFullHeight\(false\)/, 'and hands it back on the way out');
+
+  assert.match(css, /\.admin-content-full:has\(\.bot-game-root\)\s*\{[^}]*height:\s*100%/s,
+    'the shell content must be pinned to 100% for the bot game');
+  assert.match(css, /:has\(\.bot-game-root\) \.admin-route-fade\s*\{[^}]*display:\s*flex/s,
+    'the route wrapper must stretch the page, not hug its content');
+});
+
+test('the bot match is mounted inside the shared header + sidebar', () => {
+  /* Reported bug: the page had no three-line menu button. It now renders inside
+     the caller's shell, which owns the hamburger and the sidebar. */
+  assert.match(app, /function PlayLayout/, 'a shell-preserving layout must exist');
+  assert.match(app, /<Route path="\/play\/bot\/:botId" element=\{<PlayLayout><BotGamePage \/><\/PlayLayout>\}/,
+    'the match route must go through it');
+  assert.match(app, /function PlayLayout[\s\S]{0,400}StudentAppShell/, 'students get the student shell');
+  assert.match(app, /function PlayLayout[\s\S]{0,400}AdminAppShell/, 'coaches/admins get the admin shell');
 });
 
 test('both flex children can shrink, so the panel scrolls internally', () => {

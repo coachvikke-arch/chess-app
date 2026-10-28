@@ -70,8 +70,10 @@ export default function ChampionsPodium({
   elo,
   peak,
   eloLabel = 'ELO',
+  eloSuffix = null,
   stats,
   showPeak = true,
+  showBadges = true,
 }) {
   if (!list || list.length === 0) return null;
   const byRank = [null, list[0], list[1], list[2]]; // rank -> player list
@@ -85,9 +87,11 @@ export default function ChampionsPodium({
         const shownPeak = peak ? peak(p) : p.peak_rating;
         const ratingText = shownElo == null
           ? (eloLabel === 'POINTS' ? 'No points yet' : `No ${eloLabel} yet`)
-          : `${shownElo} ${eloLabel === 'POINTS'
-            ? 'points'
-            : /ELO$/i.test(eloLabel) ? eloLabel : `${eloLabel} ELO`}`;
+          : eloSuffix
+            ? `${shownElo} ${eloSuffix}`
+            : `${shownElo} ${eloLabel === 'POINTS'
+              ? 'points'
+              : /ELO$/i.test(eloLabel) ? eloLabel : `${eloLabel} ELO`}`;
         const description = [
           `Rank #${rank}`,
           ratingText,
@@ -130,7 +134,7 @@ export default function ChampionsPodium({
               </div>
               <h3 className="lb-pcard-title">
                 <span className="lb-pcard-name" title={p.name}>{p.name}</span>
-                <PlayerBadges row={p} />
+                {showBadges && <PlayerBadges row={p} />}
               </h3>
               <p className="lb-pcard-desc">{description}</p>
               <div className="lb-pcard-stats">

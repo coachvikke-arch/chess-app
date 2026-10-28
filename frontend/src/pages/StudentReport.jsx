@@ -1427,7 +1427,9 @@ export default function StudentReport({ studentId: propId, studentMode = false }
       <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
         <div className="flex items-center gap-3">
           <span className="text-2xl text-gold-400 piece-glyph-spin">♞</span>
-          <Link to="/admin/students" className="text-sm text-ivory-500 hover:text-gold-400 transition-colors">← Back to Students</Link>
+          {!studentMode && (
+            <Link to="/admin/students" className="text-sm text-ivory-500 hover:text-gold-400 transition-colors">← Back to Students</Link>
+          )}
         </div>
         <Button onClick={downloadPdf} disabled={busyPdf} variant="primary" size="md">
           {busyPdf ? 'Rendering PDF…' : '⬇ Download as PDF'}

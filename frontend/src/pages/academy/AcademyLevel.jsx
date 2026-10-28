@@ -55,7 +55,13 @@ export default function AcademyLevel() {
         </div>
         <div className="hidden md:block text-center px-5">
           <p className="font-display text-lg font-bold" style={{ color: level.accent }}>
-            {level.pct >= 100 ? '✅ Mastered' : `${level.neededPct}% to unlock next`}
+            {level.pct >= 100
+              ? '✅ Mastered'
+              : /* Staff see the real percentage instead of a "0% to unlock next"
+                   target: their unlock was granted by role, not by progress. */
+                level.staffPreview
+                ? 'Coach access'
+                : `${level.neededPct}% to unlock next`}
           </p>
           <p className="text-[0.65rem] uppercase tracking-wider text-ivory-500">Level target</p>
         </div>

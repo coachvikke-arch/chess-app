@@ -29,7 +29,7 @@ import { getBoardTheme, getBoardThemeStyles } from '../config/boardThemes';
 import { useShowLegalMoves } from '../config/legalMoves';
 import { useAllowPieceDrag } from '../config/pieceDrag';
 import {
-  marbledSquareStyle,
+  ornateSquareStyles,
   ORNATE_NOTATION_STYLE,
   ROYAL_NOTATION_STYLE,
   framePalette,
@@ -821,21 +821,7 @@ export default function ChessBoard({
   /* ── ornate board: marble-tiled base background for every square. Highlights
      (set in squareStyles) only paint backgroundColor, so the marble veins stay
      visible beneath them. a1 is a dark square, so parity even → dark. ── */
-  const ornateBase = useMemo(() => {
-    if (!ornate) return null;
-    const base = {};
-    for (let f = 0; f < 8; f++) {
-      for (let r = 0; r < 8; r++) {
-        const isDark = (f + r) % 2 === 0;
-        base['abcdefgh'[f] + (r + 1)] = marbledSquareStyle(
-          isDark ? boardTheme.darkSq : boardTheme.lightSq,
-          isDark,
-          boardTheme
-        );
-      }
-    }
-    return base;
-  }, [ornate, boardTheme]);
+  const ornateBase = useMemo(() => ornateSquareStyles(boardTheme), [boardTheme]);
   const squareStyles = useMemo(() => {
     const styles = {};
 

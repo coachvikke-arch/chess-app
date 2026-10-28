@@ -794,7 +794,8 @@ tbody tr:hover {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  flex-wrap: wrap;
+  gap: 4px 8px;
   min-width: 0;
 }
 .lb-podium--reward .lb-pcard-eyebrow {
@@ -808,8 +809,12 @@ tbody tr:hover {
   color: #0a6aa1;
   /* Three cards across leave the top row only ~115px beside the pill, so the
      third card's "SECOND RUNNER-UP" wraps. Balance splits it at the space
-     instead of after the hyphen ("SECOND RUNNER-" / "UP"). */
+     instead of after the hyphen ("SECOND RUNNER-" / "UP"). The page-wide
+     `overflow-wrap: break-word` would otherwise split "CHAMPION" mid-word
+     when the pill leaves it too little room. */
   text-wrap: balance;
+  overflow-wrap: normal;
+  word-break: normal;
 }
 .lb-podium--reward .lb-pcard-pill {
   flex: 0 0 auto;
@@ -1612,20 +1617,6 @@ tbody tr:hover {
 }
 
 /* ── small dark leftovers ────────────────────────────────────────────────── */
-.online-player-list {
-  background: #ffffff;
-  border: 1px solid #cbd5e1;
-  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.12);
-}
-.online-player-row {
-  color: #0f172a;
-}
-.online-player-row:hover {
-  background: #eff6ff;
-}
-.online-player-empty {
-  color: #64748b;
-}
 .online-dot {
   background: #cbd5e1;
 }

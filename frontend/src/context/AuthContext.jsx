@@ -194,11 +194,38 @@ export function AuthProvider({ children }) {
          simply omits the key and the server keeps the stored value. */
       ...(typeof boardFrame === 'boolean' ? { boardFrame } : {}),
     };
-    const res = await api.patch('/auth/me', payload);
+    /* Apply the choice BEFORE the round-trip so every mounted board (and the
+       Settings preview) repaints on the same frame as the tap. Waiting for the
+       PATCH made the picker feel dead on a slow connection. The server response
+       then replaces the optimistic object; a failure rolls both the cache and
+       the choice back to exactly what was stored. */
+    const prevUser = user;
+    let prevPref = null;
+    try { prevPref = localStorage.getItem(PREF_KEY); } catch { /* ignore */ }
+    const optimistic = {
+      ...(user || {}),
+      ...(boardTheme !== undefined ? { board_theme: boardTheme } : {}),
+      ...(pieceSet !== undefined ? { piece_set: pieceSet } : {}),
+      ...(typeof boardFrame === 'boolean' ? { board_frame: boardFrame } : {}),
+    };
     try { localStorage.setItem(PREF_KEY, '1'); } catch { /* ignore */ }
-    localStorage.setItem('user', JSON.stringify(res.data.user));
-    setUser(res.data.user);
-    return res.data.user;
+    try { localStorage.setItem('user', JSON.stringify(optimistic)); } catch { /* ignore */ }
+    setUser(optimistic);
+    try {
+      const res = await api.patch('/auth/me', payload);
+      localStorage.setItem('user', JSON.stringify(res.data.user));
+      setUser(res.data.user);
+      return res.data.user;
+    } catch (err) {
+      try {
+        if (prevPref === null) localStorage.removeItem(PREF_KEY);
+        else localStorage.setItem(PREF_KEY, prevPref);
+        if (prevUser) localStorage.setItem('user', JSON.stringify(prevUser));
+        else localStorage.removeItem('user');
+      } catch { /* ignore */ }
+      setUser(prevUser);
+      throw err;
+    }
   };
 
   const boardTheme = hasCustomized

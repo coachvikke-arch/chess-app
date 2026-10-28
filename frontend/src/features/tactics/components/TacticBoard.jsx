@@ -1,22 +1,19 @@
 /**
- * TacticBoard — a static, read-only tactic diagram that uses the app's piece set.
+ * TacticBoard — a static, read-only tactic diagram.
  *
- * The squares stay the tactic card's own grey pair by design; only the pieces
- * come from the shared piece-theme registry, so a reader sees the same pieces
- * here as on every other board in the app. Highlights and arrows are overlaid
- * through react-chessboard's own annotation props, above the pieces.
+ * Both the pieces AND the squares come from the shared theme registries, so a
+ * tactic card shows exactly the board the reader has chosen everywhere else.
+ * The diagram used to keep its own grey square pair; that made it the one
+ * surface in the app that ignored the Board Theme setting. Highlights and
+ * arrows are overlaid above the pieces.
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import AnimatedBoard from '../../../components/board/AnimatedBoard';
 import { useAuth } from '../../../context/AuthContext';
 import { buildCustomPieces, getPieceTheme } from '../../../config/pieceTheme';
-
-/** Square pair kept from the original tactic diagram. */
-const BOARD_FILL = {
-  light: '#ecebe6',
-  dark: '#8a949c',
-};
+import { getBoardTheme, getBoardThemeStyles } from '../../../config/boardThemes';
+import { ornateSquareStyles } from '../../../config/ornateTheme';
 
 /** Colour tokens for the highlight washes, keyed by the data file's names. */
 const HIGHLIGHT_FILL = {
@@ -88,23 +85,29 @@ export default function TacticBoard({
   highlights = null,
   className = '',
 }) {
-  const { pieceSet } = useAuth();
+  const { boardTheme: boardThemeId, pieceSet } = useAuth();
+  const boardTheme = getBoardTheme(boardThemeId);
+  const themeStyles = getBoardThemeStyles(boardTheme);
   const customPieces = useMemo(
     () => buildCustomPieces(getPieceTheme(pieceSet || 'cburnett')),
     [pieceSet],
   );
+  const ornateSquares = useMemo(() => ornateSquareStyles(boardTheme), [boardTheme]);
 
   const squareStyles = useMemo(() => {
-    const styles = {};
+    /* Ornate themes paint their marble through per-square styles, so the card's
+       own highlight wash is merged ON TOP of that base instead of replacing it. */
+    const styles = { ...(ornateSquares || {}) };
     for (const highlight of highlights || []) {
       if (highlight?.square) {
         styles[highlight.square] = {
+          ...(styles[highlight.square] || {}),
           backgroundColor: HIGHLIGHT_FILL[highlight.color] || highlight.color,
         };
       }
     }
     return styles;
-  }, [highlights]);
+  }, [highlights, ornateSquares]);
 
   /* react-chessboard needs a pixel width, while the card column is fluid. Measure
      the wrapper once it mounts and on resize, so the diagram always fills it. */
@@ -140,11 +143,17 @@ export default function TacticBoard({
           areArrowsAllowed={false}
           showNotation
           customPieces={customPieces}
-          customLightSquareStyle={{ backgroundColor: BOARD_FILL.light }}
-          customDarkSquareStyle={{ backgroundColor: BOARD_FILL.dark }}
+          customLightSquareStyle={themeStyles.lightSquareStyle || { backgroundColor: boardTheme.lightSq }}
+          customDarkSquareStyle={themeStyles.darkSquareStyle || { backgroundColor: boardTheme.darkSq }}
           customSquareStyles={squareStyles}
           customArrows={[]}
-          customBoardStyle={{ width: '100%', height: '100%', borderRadius: '0.6rem', overflow: 'hidden' }}
+          customBoardStyle={{
+            ...(themeStyles.boardStyle || {}),
+            width: '100%',
+            height: '100%',
+            borderRadius: '0.6rem',
+            overflow: 'hidden',
+          }}
         />
       )}
       {/* Original tactic arrows, drawn above the themed board. */}

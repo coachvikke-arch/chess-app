@@ -28,12 +28,24 @@
   test('the popup renders a rating line only when the game was rated', () => {
     assert.match(popup, /rating && rating\.rated &&/,
       'the rating block must be gated on rated, so an unrated game shows nothing');
-    assert.match(popup, /rating\.ratingChange >= 0 \? '\+' : ''/,
-      'a gain must be signed with +');
-    assert.match(popup, /is-up[\s\S]{0,120}is-down/,
+    assert.match(popup, /if \(n > 0\) return <span className="pgr-delta is-up"/,
+      'a gain must be signed with + and marked as an up move');
+    assert.match(popup, /is-up[\s\S]{0,140}is-down/,
       'gain and loss must be visually distinguished');
     assert.match(popup, /\{rating\.ratingBefore\}[\s\S]{0,220}\{rating\.ratingAfter\}/,
       'show before -> after so the delta is checkable by eye');
+  });
+
+  test('each player row shows its OWN rating movement', () => {
+    const row = popup.slice(popup.indexOf('function PlayerRow'), popup.indexOf('function AnalysisBlock'));
+    assert.match(row, /const mine = rated && player\.isMe;/,
+      'my row reads the participant-scoped numbers');
+    assert.match(row, /const theirs = rated && !player\.isMe && rating\.opponent;/,
+      'the opponent row needs its own object, never a copy of mine');
+    assert.match(row, /\{rating\.opponent\.ratingBefore\}/,
+      'the opponent before-rating comes from rating.opponent');
+    assert.match(row, /<RatingDelta value=\{rating\.opponent\.ratingChange\}/,
+      'the opponent delta comes from rating.opponent');
   });
 
   test('the rating is fetched per game, and only for real online matches', () => {
@@ -60,7 +72,7 @@
   });
 
   test('the rating line is styled, not left unstyled', () => {
-    for (const sel of ['.pgr-rating {', '.pgr-rating-delta.is-up', '.pgr-rating-delta.is-down']) {
+    for (const sel of ['.pgr-player-rating {', '.pgr-delta.is-up', '.pgr-delta.is-down']) {
       assert.ok(css.includes(sel), `missing CSS: ${sel}`);
     }
   });

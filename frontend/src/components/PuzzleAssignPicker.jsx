@@ -6,7 +6,7 @@ import PuzzleListing from './PuzzleListing';
 import { useOverlayHistory } from '../hooks/useOverlayHistory';
 
 function defaultTitle() {
-  return `Puzzle homework — ${new Date().toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' })}`;
+  return `Puzzle homework - ${new Date().toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' })}`;
 }
 
 /**
@@ -70,14 +70,16 @@ export default function PuzzleAssignPicker({ onClose, onAssigned }) {
     return () => { document.body.style.overflow = previous; };
   }, []);
 
+  /* An explicit close (X, Cancel, Escape) always closes. A click on the dimmed
+     backdrop does NOT while puzzles are selected — a mis-aimed tap next to the
+     grid used to wipe the whole selection, and re-picking a page of puzzles is
+     the expensive part of this flow. */
   const requestClose = useCallback(() => {
     if (busy) return;
-    if (selected.size > 0) {
-      const ok = window.confirm(
-        `Discard ${selected.size} selected puzzle${selected.size === 1 ? '' : 's'}?`
-      );
-      if (!ok) return;
-    }
+    onClose();
+  }, [busy, onClose]);
+  const requestBackdropClose = useCallback(() => {
+    if (busy || selected.size > 0) return;
     onClose();
   }, [busy, selected, onClose]);
 
@@ -196,7 +198,7 @@ export default function PuzzleAssignPicker({ onClose, onAssigned }) {
   return createPortal(
     <div
       className="fixed inset-0 z-[100] flex items-stretch justify-center bg-black/60 p-0 sm:items-center sm:p-4"
-      onMouseDown={(e) => { if (e.target === e.currentTarget) requestClose(); }}
+      onMouseDown={(e) => { if (e.target === e.currentTarget) requestBackdropClose(); }}
     >
       <div
         role="dialog"

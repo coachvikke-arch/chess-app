@@ -27,12 +27,29 @@ const layout = require('../data/certificateLayout.json');
 const REPO_ROOT = path.resolve(__dirname, '..', '..', '..');
 const BUNDLED_TEMPLATE_PATH = path.join(__dirname, '..', 'assets', layout.template.asset);
 const REPO_TEMPLATE_PATH = path.join(REPO_ROOT, 'frontend', 'src', 'assets', layout.template.asset);
+const BUNDLED_PDF_TEMPLATE = path.join(__dirname, '..', 'assets', 'certificate-template.pdf');
+const REPO_PDF_TEMPLATE = path.join(REPO_ROOT, 'frontend', 'src', 'assets', 'certificate-template.pdf');
 
 function resolveTemplatePath() {
   if (process.env.CERTIFICATE_TEMPLATE_PATH) {
     return path.resolve(process.env.CERTIFICATE_TEMPLATE_PATH);
   }
+  // Prefer PDF template if available (exact recreated design)
+  if (fs.existsSync(REPO_PDF_TEMPLATE)) return REPO_PDF_TEMPLATE;
+  if (fs.existsSync(BUNDLED_PDF_TEMPLATE)) return BUNDLED_PDF_TEMPLATE;
   return fs.existsSync(REPO_TEMPLATE_PATH) ? REPO_TEMPLATE_PATH : BUNDLED_TEMPLATE_PATH;
+}
+
+/**
+ * Absolute path to the raster artwork (PNG). The ReportLab template is a PDF,
+ * which pdfkit cannot embed, so its fallback renderer always needs this file.
+ */
+function templateImagePath() {
+  const file = fs.existsSync(REPO_TEMPLATE_PATH) ? REPO_TEMPLATE_PATH : BUNDLED_TEMPLATE_PATH;
+  if (!fs.existsSync(file)) {
+    throw new Error(`Certificate artwork not found at ${file}.`);
+  }
+  return file;
 }
 
 /** Absolute path to the certificate artwork, or throws with an actionable message. */
@@ -298,20 +315,34 @@ function registerFonts(doc) {
  * src/assets imports and the hashed filename is not knowable from the server.
  */
 function templateDataUrl() {
-  const file = templatePath();
-  const ext = path.extname(file).toLowerCase();
-  const mime = ext === '.png' ? 'image/png' : 'image/jpeg';
-  return `data:${mime};base64,${fs.readFileSync(file).toString('base64')}`;
+  try {
+    const file = templatePath();
+    const ext = path.extname(file).toLowerCase();
+    if (ext === '.pdf') {
+      return null;
+    }
+    const mime = ext === '.png' ? 'image/png' : 'image/jpeg';
+    return `data:${mime};base64,${fs.readFileSync(file).toString('base64')}`;
+  } catch (e) {
+    return null;
+  }
 }
 
 /** Public URL the browser can load the artwork from, for the preview <img>. */
 function templateUrl() {
+  try {
+    const file = templatePath();
+    if (path.extname(file).toLowerCase() === '.pdf') {
+      return process.env.CERTIFICATE_TEMPLATE_URL || '/certificate-template.png';
+    }
+  } catch (e) {}
   return process.env.CERTIFICATE_TEMPLATE_URL || `/${layout.template.asset}`;
 }
 
 module.exports = {
   layout,
   templatePath,
+  templateImagePath,
   templateDataUrl,
   templateUrl,
   registerFonts,

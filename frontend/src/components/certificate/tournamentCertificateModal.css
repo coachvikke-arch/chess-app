@@ -1,0 +1,143 @@
+/* Tournament certificate preview modal. */
+
+.tcm-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  display: grid;
+  place-items: center;
+  padding: 12px;
+  background: rgba(6, 10, 22, 0.78);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  overflow: auto;
+}
+
+.tcm-panel {
+  width: min(1180px, calc(100vw - 24px));
+  max-height: calc(100dvh - 24px);
+  overflow: auto;
+  padding: 16px;
+  border-radius: 16px;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  color: #0f172a;
+  box-shadow: 0 24px 60px rgba(2, 6, 23, 0.45);
+}
+
+.tcm-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.tcm-title {
+  font-size: 1rem;
+  font-weight: 800;
+  line-height: 1.2;
+  color: #0f172a;
+}
+
+.tcm-sub {
+  margin-top: 2px;
+  font-size: 0.75rem;
+  color: #64748b;
+}
+
+.tcm-close {
+  flex: 0 0 auto;
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border-radius: 9px;
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
+  color: #334155;
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.tcm-close:hover {
+  background: #f1f5f9;
+}
+
+.tcm-stage-wrap {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #e8f1fa;
+  box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.06);
+}
+
+.tcm-pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.tcm-pager-label {
+  font-size: 0.78rem;
+  color: #475569;
+}
+
+.tcm-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.tcm-note,
+.tcm-error,
+.tcm-sent {
+  margin-top: 10px;
+  padding: 8px 11px;
+  border-radius: 9px;
+  font-size: 0.8rem;
+  line-height: 1.4;
+}
+
+.tcm-note {
+  color: #92400e;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+}
+
+.tcm-error {
+  color: #991b1b;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+}
+
+.tcm-sent {
+  color: #065f46;
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+}
+
+.tcm-hint {
+  margin-top: 8px;
+  font-size: 0.7rem;
+  color: #64748b;
+}
+
+@media (max-width: 640px) {
+  .tcm-panel {
+    padding: 12px;
+    border-radius: 14px;
+  }
+
+  .tcm-actions .app-btn {
+    flex: 1 1 140px;
+  }
+}

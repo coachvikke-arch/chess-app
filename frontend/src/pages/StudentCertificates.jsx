@@ -4,7 +4,9 @@ import { Page, Card, Chip, Spinner } from '../components/ui';
 import { useToast } from '../components/Toast';
 import CertificatePreviewModal from '../components/CertificatePreviewModal';
 import CertificateInline from '../components/CertificateInline';
-import CertificateModal from '../components/CertificateModal';
+import TournamentCertificate from '../components/certificate/TournamentCertificate';
+import TournamentCertificateModal from '../components/certificate/TournamentCertificateModal';
+import { tournamentCertificateData } from '../utils/tournamentCertificate';
 import Pagination, { PAGE_SIZE } from '../components/Pagination';
 import { usePagination } from '../hooks/usePagination';
 import {
@@ -51,7 +53,9 @@ export default function StudentCertificates() {
   /* Which certificate is drawn inline on the page ("Show in page"). */
   const [inlineId, setInlineId] = useState(null);
   const [typeFilter, setTypeFilter] = useState('all');
-  /* The tournament artwork is rendered in the browser, not read from the PDF. */
+  /* The tournament artwork is rendered in the browser, not read from the PDF.
+     `action` lets a card button open the preview and immediately run the export
+     it names, instead of making the admin press the same thing twice. */
   const [tournamentView, setTournamentView] = useState(null);
   const listTopRef = useRef(null);
 
@@ -294,7 +298,18 @@ export default function StudentCertificates() {
 
         {pager.currentItems.map((c) => (
           <Card key={c.id}>
-            <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className={`cert-tcard${c.type === 'tournament' ? ' is-tournament' : ''}`}>
+              {c.type === 'tournament' && (
+                <button
+                  type="button"
+                  className="cert-tcard-thumb"
+                  onClick={() => setTournamentView({ cert: c, action: 'preview' })}
+                  aria-label={`Preview ${c.title}`}
+                >
+                  <TournamentCertificate data={tournamentCertificateData(c)} scale={0.14} />
+                </button>
+              )}
+              <div className="cert-tcard-main flex flex-wrap items-start justify-between gap-3">
               <div className="min-w-0">
                 <h3 className="font-display font-bold text-ivory-200">{c.title}</h3>
                 <p className="text-xs text-ivory-500 mt-1">
@@ -312,9 +327,9 @@ export default function StudentCertificates() {
                   ) : (
                     <Chip tone="amber">Not sent</Chip>
                   )}
-                  {c.needsGeneration && <Chip tone="red">No PDF</Chip>}
+                  {c.type !== 'tournament' && c.needsGeneration && <Chip tone="red">No PDF</Chip>}
                 </div>
-                {c.fileError && (
+                {c.type !== 'tournament' && c.fileError && (
                   <p className="text-xs text-red-400 mt-2">
                     Generation failed: {c.fileError}
                   </p>
@@ -323,13 +338,29 @@ export default function StudentCertificates() {
 
               <div className="flex flex-wrap gap-2">
                 {c.type === 'tournament' ? (
-                  <Button
-                    type="button"
-                    variant="secondary" size="sm" className="!px-3 !py-1 text-xs"
-                    onClick={() => setTournamentView(c)}
-                  >
-                    View certificate
-                  </Button>
+                  <>
+                    <Button
+                      type="button"
+                      variant="secondary" size="sm" className="!px-3 !py-1 text-xs"
+                      onClick={() => setTournamentView({ cert: c, action: 'preview' })}
+                    >
+                      Preview
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="secondary" size="sm" className="!px-3 !py-1 text-xs"
+                      onClick={() => setTournamentView({ cert: c, action: 'png' })}
+                    >
+                      Download PNG
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="secondary" size="sm" className="!px-3 !py-1 text-xs"
+                      onClick={() => setTournamentView({ cert: c, action: 'pdf' })}
+                    >
+                      Download PDF
+                    </Button>
+                  </>
                 ) : (
                   <Button type="button" variant="secondary" size="sm" className="!px-3 !py-1 text-xs" onClick={() => setPreview(c)}>
                     Preview
@@ -357,7 +388,7 @@ export default function StudentCertificates() {
                     </Button>
                   </>
                 )}
-                {!c.fileUrl && (
+                {!c.fileUrl && c.type !== 'tournament' && (
                   <Button
                     type="button"
                     variant="primary" size="sm" className="!px-3 !py-1 text-xs"
@@ -376,19 +407,28 @@ export default function StudentCertificates() {
                   variant={c.status === 'pending' ? 'primary' : 'secondary'}
                   size="sm"
                   className="!px-3 !py-1 text-xs"
-                  disabled={!c.canSend || busyId === c.id}
-                  title={c.canSend
-                    ? (canShareFiles()
-                      ? 'Opens the share sheet - choose WhatsApp and the greeting and PDF go together.'
-                      : 'This browser cannot attach files in WhatsApp: the PDF will be downloaded first, then the message opens.')
-                    : c.blockers.join(' · ')}
-                  onClick={() => onSend(c)}
+                  disabled={!c.canSend || (c.type !== 'tournament' && busyId === c.id)}
+                  title={c.type === 'tournament'
+                    ? (c.canSend
+                      ? 'Opens the preview, saves the image, then opens WhatsApp with the greeting.'
+                      : c.blockers.join(' · '))
+                    : (c.canSend
+                      ? (canShareFiles()
+                        ? 'Opens the share sheet - choose WhatsApp and the greeting and PDF go together.'
+                        : 'This browser cannot attach files in WhatsApp: the PDF will be downloaded first, then the message opens.')
+                      : c.blockers.join(' · '))}
+                  onClick={() => (
+                    c.type === 'tournament'
+                      ? setTournamentView({ cert: c, action: 'send' })
+                      : onSend(c)
+                  )}
                 >
-                  {busyId === c.id
+                  {busyId === c.id && c.type !== 'tournament'
                     ? 'Sending…'
                     : c.status === 'pending' ? 'Send on WhatsApp' : 'Resend on WhatsApp'}
                 </Button>
               </div>
+            </div>
             </div>
 
             {inlineId === c.id && (
@@ -412,16 +452,12 @@ export default function StudentCertificates() {
           browser from the same fields the certificate was issued for. Level
           certificates keep their existing artwork/PDF flow above. */}
       {tournamentView && (
-        <CertificateModal
+        <TournamentCertificateModal
           open
+          certificate={tournamentView.cert}
+          initialAction={tournamentView.action === 'preview' ? null : tournamentView.action}
           onClose={() => setTournamentView(null)}
-          certificate={{
-            playerName: tournamentView.studentName || student?.name || '',
-            tournamentName: tournamentView.tournamentName || tournamentView.title,
-            position: tournamentView.position ?? tournamentView.rank ?? null,
-            score: tournamentView.score || '',
-            date: tournamentView.issuedAt,
-          }}
+          onSent={(updated) => patchLocal(updated)}
         />
       )}
     </Page>

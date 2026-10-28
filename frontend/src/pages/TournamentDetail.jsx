@@ -13,8 +13,8 @@ import RoundsPanel from '../features/tournaments/RoundsPanel';
 import TournamentFormModal from '../features/tournaments/TournamentFormModal';
 import AddPlayersModal from '../features/tournaments/AddPlayersModal';
 import ManualPairingPanel from '../features/tournaments/ManualPairingPanel';
-import CertificateModal from '../components/CertificateModal';
-import CertificateBatchModal from '../components/CertificateBatchModal';
+import TournamentCertificateModal from '../components/certificate/TournamentCertificateModal';
+import TournamentCertificateBatchModal from '../components/certificate/TournamentCertificateBatchModal';
 import {
   FORMAT_META, STATUS_META, countdown, downloadText, fmtDateTime, standingsCsv, timeControlLabel, useNow,
 } from '../features/tournaments/tournamentUtils';
@@ -35,10 +35,18 @@ function scoreText(standing, tournament) {
 }
 
 function certificateFor(standing, tournament) {
+  const points = Number(standing.score);
+  /* Arenas have no configured round count, so the rounds actually finished is
+     the number printed on the certificate. */
+  const rounds = tournament.format === 'arena'
+    ? gamesPlayed(standing)
+    : (Number(tournament.rounds) || gamesPlayed(standing));
   return {
     playerName: standing.name,
     tournamentName: tournament.name,
     position: tournament.status === 'completed' ? Number(standing.rank) || null : null,
+    points: Number.isFinite(points) ? points : null,
+    rounds: rounds || null,
     score: scoreText(standing, tournament),
     date: tournament.completedAt || tournament.endTime || tournament.startTime || new Date().toISOString(),
   };
@@ -299,8 +307,8 @@ export default function TournamentDetail() {
 
       {editing && <TournamentFormModal tournament={t} onClose={() => setEditing(false)} onSaved={() => { setEditing(false); load(); }} />}
       {adding && <AddPlayersModal tournamentId={tid} existingIds={players.filter((p) => p.status === 'active').map((p) => p.id)} onClose={() => setAdding(false)} onAdded={(d) => { setAdding(false); setData(d); }} />}
-      {certificate && <CertificateModal open onClose={() => setCertificate(null)} certificate={certificate} />}
-      {batchCertificates && <CertificateBatchModal open onClose={() => setBatchCertificates(null)} certificates={batchCertificates} />}
+      {certificate && <TournamentCertificateModal open onClose={() => setCertificate(null)} certificate={certificate} readOnly />}
+      {batchCertificates && <TournamentCertificateBatchModal open onClose={() => setBatchCertificates(null)} certificates={batchCertificates} />}
     </div>
   );
 }

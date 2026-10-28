@@ -35,8 +35,13 @@ router.post('/issue', ctrl.issue);
 
 router.get('/students', ctrl.listStudents);
 router.get('/students/:studentId', ctrl.listStudentCertificates);
+router.get('/', ctrl.list);
 
 router.post('/:id/generate', ctrl.generate);
 router.patch('/:id/sent', ctrl.markSent);
+router.post('/:id/mark-sent', ctrl.markSent);
+
+/* Last, so every literal path above is matched first. */
+router.get('/:id', ctrl.getOne);
 
 module.exports = router;

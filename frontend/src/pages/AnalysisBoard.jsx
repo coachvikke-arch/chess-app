@@ -18,11 +18,12 @@ import usePageTitle from '../hooks/usePageTitle';
 import { playSound, unlockAudio } from '../utils/sound';
 import { formatDateTime12 } from '../utils/time';
 import { useSound } from '../context/SoundContext';
-import { analyzeGame, accuracyFor, buildCoachMessage, VERDICT_META } from '../utils/gameAnalysis';
+import { analyzeGame, accuracyFor, VERDICT_META } from '../utils/gameAnalysis';
 import { clearMoveEffects, revealAfterCheckmate } from '../effects/moveEffect';
 import { playEffectForMove } from '../effects/moveEffect/playForMove';
 import { ANALYSIS_DEPTH, ANALYSIS_TIME_MS, ANALYSIS_MULTIPV } from '../utils/reviewConfig';
 import PostGameResultPopup from '../components/PostGameResultPopup';
+import PlayerAvatar from '../components/PlayerAvatar';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../components/Toast';
@@ -52,12 +53,16 @@ import {
   leaveGameRoom,
   onGameUpdate,
   onGameInvite,
+  onLiveGamesChanged,
   registerComputerSpec,
   updateComputerSpec,
   endComputerSpec,
 } from '../services/socket';
 import SpectatorBoard from '../components/SpectatorBoard';
 import Modal from '../components/Modal';
+import TimeControlPicker from '../components/TimeControlPicker';
+import { isTimeControlValid, timeControlFamily } from '../utils/timeControl';
+import { RATING_CLASS_BY_FAMILY, filterOnlinePlayers, ratingForPlayer, ratingPoolLabel } from '../utils/onlinePlayers';
 import useArrowKeys from '../hooks/useArrowKeys';
 import Button from '../components/Button';
 
@@ -154,6 +159,38 @@ function hexToRgba(hex, alpha) {
   return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${alpha})`;
 }
 
+function OnlinePlayerCard({ player, selected, timeClass, onSelect }) {
+  const rating = ratingForPlayer(player, timeClass);
+  const roleLabel = player.role === 'coach' ? 'Coach' : player.role === 'admin' ? 'Academy' : 'Unrated';
+  return (
+    <button
+      type="button"
+      role="option"
+      aria-selected={selected}
+      className={`online-pick-card${selected ? ' online-pick-card-on' : ''}`}
+      onClick={() => onSelect(player)}
+    >
+      <span className="online-pick-media">
+        <PlayerAvatar player={player} size={40} />
+        {selected && <span className="online-pick-check" aria-hidden="true">✓</span>}
+      </span>
+      <span className="online-pick-body">
+        <span className="online-pick-name" title={player.name}>{player.name}</span>
+        <span className="online-pick-meta">
+          {rating != null ? (
+            <span className="online-pick-rating">
+              <b>{rating}</b> {ratingPoolLabel(timeClass)}
+            </span>
+          ) : (
+            <span className="online-pick-rating online-pick-unrated">{roleLabel}</span>
+          )}
+          {player.online === true && <span className="online-pick-status">● Online</span>}
+        </span>
+      </span>
+    </button>
+  );
+}
+
 /* Common time-control presets — one click sets hours/base/inc.
    Lichess-style families: Bullet, Blitz, Rapid, Classical. */
 const TIME_PRESETS = [
@@ -182,23 +219,8 @@ const ARENA_CONFIRM_MOVE_KEY = 'knightpath-play-arena-confirm-move';
 const ARENA_HINTS_KEY = 'knightpath-play-arena-hints';
 const ARENA_TAKEBACK_KEY = 'knightpath-play-arena-takeback';
 
-/* Online time-control categories. Clicking one sets a representative clock;
-   the selects below still allow any custom value, and the active category is
-   derived from the clock on screen so custom values stay honest. */
-const ONLINE_TC_CATEGORIES = [
-  { id: 'bullet',    label: 'Bullet',    hours: 0, base: 1,  inc: 0 },
-  { id: 'blitz',     label: 'Blitz',     hours: 0, base: 3,  inc: 2 },
-  { id: 'rapid',     label: 'Rapid',     hours: 0, base: 10, inc: 0 },
-  { id: 'classical', label: 'Classical', hours: 0, base: 30, inc: 0 },
-];
-
-function onlineTcCategory({ hours, base, inc }) {
-  const seconds = hours * 3600 + base * 60 + inc;
-  if (seconds < 180) return 'bullet';
-  if (seconds < 600) return 'blitz';
-  if (seconds < 1800) return 'rapid';
-  return 'classical';
-}
+/* Online time control is picked in <TimeControlPicker>: presets plus separate
+   hours / minutes / increment chip rows, so every value is its own option. */
 
 function readBoolPref(key, fallback) {
   try {
@@ -248,9 +270,14 @@ const PLAY_ARENA_UI_CSS = `
   background:#fff;border:1px solid #E3E8F0;border-radius:12px;
   box-shadow:0 1px 2px rgba(15,23,42,.06);
 }
-.ab-root.ab-root .ab-avatar{flex:none;width:32px;height:32px;border-radius:8px;display:grid;place-items:center;font-size:12px;font-weight:700}
-.ab-root.ab-root .ab-avatar-black{background:#1E293B;color:#F1F5F9}
-.ab-root.ab-root .ab-avatar-white{background:#F1F5F9;color:#1E293B;border:1px solid #E3E8F0}
+/* Player photo circle. The ring (dark for Black's seat, light for White's) is
+   what the old B/W letter used to communicate, so the colour stays readable
+   without printing a letter over the photo. */
+.ab-root.ab-root .ab-avatar{flex:none;width:32px;height:32px;border-radius:50%;display:grid;place-items:center;font-size:12px;font-weight:700;overflow:hidden;box-sizing:border-box;background:#F1F5F9}
+.ab-root.ab-root .ab-avatar > img,
+.ab-root.ab-root .ab-avatar > svg{width:100%;height:100%;display:block}
+.ab-root.ab-root .ab-avatar-black{background:#1E293B;color:#F1F5F9;box-shadow:0 0 0 2px #1E293B}
+.ab-root.ab-root .ab-avatar-white{background:#F1F5F9;color:#1E293B;box-shadow:0 0 0 2px #CBD5E1}
 .ab-root.ab-root .ab-player-meta{display:flex;flex-direction:column;justify-content:center;min-width:0;line-height:1.2}
 .ab-root.ab-root .ab-player-name{font-size:14px;font-weight:600;color:#0F172A;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .ab-root.ab-root .ab-player-label{font-size:11px;color:#64748B}
@@ -535,7 +562,6 @@ export default function AnalysisBoard() {
   const [activePopup, setActivePopup] = useState(null);
   const popupTriggerRef = useRef(null);
   const [computerColorChoice, setComputerColorChoice] = useState('black');
-  const [onlineRated, setOnlineRated] = useState(true);
   const [onlineOpponentType, setOnlineOpponentType] = useState('player');
   const [onlineSearching, setOnlineSearching] = useState(false);
   const onlineSearchToken = useRef(0);
@@ -548,8 +574,10 @@ export default function AnalysisBoard() {
   const [savedQuery, setSavedQuery] = useState('');
   const [savedDeleteId, setSavedDeleteId] = useState(null);
   const [pendingConfirm, setPendingConfirm] = useState(null);
-  const [pieceSel, setPieceSel] = useState(pieceSet || 'cburnett');
-  useEffect(() => { if (pieceSet) setPieceSel(pieceSet); }, [pieceSet]);
+  /* Derived from the saved preference rather than copied into state: the copy
+     needed an effect to stay in sync and could still paint one stale frame
+     after a change made elsewhere (Settings page, another mounted board). */
+  const pieceSel = pieceSet || 'cburnett';
 
   const setNotationPref = (value) => {
     setShowNotation(value);
@@ -584,7 +612,7 @@ export default function AnalysisBoard() {
     if (id === 'live') refreshLive();
     if (id === 'online') {
       setOnlineSearching(false);
-      listUsers().then(setOnlineUsers).catch(() => {});
+      loadOnlineUsers();
       refreshOnlineMatches();
     }
     if (id === 'saved') setSavedDeleteId(null);
@@ -659,7 +687,10 @@ export default function AnalysisBoard() {
 
   /* online */
   const [onlineUsers,     setOnlineUsers]     = useState([]);
-  const [onlinePlayerOpen, setOnlinePlayerOpen] = useState(false);
+  const [onlineUsersLoading, setOnlineUsersLoading] = useState(false);
+  const [onlineUsersError, setOnlineUsersError] = useState('');
+  const [onlineSearch,    setOnlineSearch]    = useState('');
+  const [onlineSelId,     setOnlineSelId]     = useState('');
   const [onlineSelName,   setOnlineSelName]   = useState('');
   const [onlineMatches,   setOnlineMatches]   = useState([]);
   const [onlineGame,      setOnlineGame]      = useState(null);
@@ -678,6 +709,15 @@ export default function AnalysisBoard() {
   const [drawOffer,       setDrawOffer]       = useState(null);
   const inviteBarTimer    = useRef(null);
   const onlineSelStudent  = useRef(null);
+  /* Cards show the rating pool the picked clock belongs to, and the search +
+     self filter run on the directory the API already returned. */
+  const onlineTimeClass   = RATING_CLASS_BY_FAMILY[timeControlFamily(timeSel)] || 'rapid';
+  const visibleOnlinePlayers = filterOnlinePlayers(onlineUsers, {
+    query: onlineSearch,
+    excludeId: user?.id,
+  });
+  const onlineSelectedPlayer =
+    onlineUsers.find((u) => String(u.id) === String(onlineSelId)) || null;
   const onlineGameRef     = useRef(null);
   const reactSeenRef      = useRef(null);
   const flagSentRef       = useRef(null);
@@ -1501,12 +1541,22 @@ export default function AnalysisBoard() {
     }
   }
 
-  /* keep the live-games modal fresh while it's open */
+  /* keep the live-games modal fresh while it's open: poll as a fallback, and
+     drop a card the instant the server says that board is over. Only the one
+     finished game is removed locally (no refetch, no flicker); the pending
+     move/result of every other card is untouched. */
   useEffect(() => {
     if (activePopup !== 'live') return undefined;
     refreshLive();
     const t = setInterval(refreshLive, 5000);
-    return () => clearInterval(t);
+    const offEnded = onLiveGamesChanged((evt) => {
+      const id = evt?.gameId;
+      if (id == null) return;
+      setLiveSessions((prev) => prev.filter(
+        (s) => !(s.type === 'online' && String(s.gameId) === String(id))
+      ));
+    });
+    return () => { clearInterval(t); offEnded(); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activePopup]);
 
@@ -1655,6 +1705,7 @@ export default function AnalysisBoard() {
     setClock({
       whiteMs: (timeSel.hours * 60 + timeSel.base) * 60000,
       blackMs: (timeSel.hours * 60 + timeSel.base) * 60000,
+      baseMs:  (timeSel.hours * 60 + timeSel.base) * 60000,
       incMs:   timeSel.inc * 1000,
       turn:    'white',
       startedAt: Date.now(),
@@ -1741,6 +1792,7 @@ export default function AnalysisBoard() {
       setClock({
         whiteMs: row.clock.whiteMs,
         blackMs: row.clock.blackMs,
+        baseMs:  (Number(row.clock.baseMinutes) || 0) * 60000,
         incMs:   row.clock.incrementSeconds * 1000,
         turn:    row.clock.turn,
         startedAt: row.clock.startedAt,
@@ -1764,6 +1816,19 @@ export default function AnalysisBoard() {
     if (lc.at === reactSeenRef.current) return;
     reactSeenRef.current = lc.at;
     burst(lc.emoji, 'them', lc.name);
+  }
+
+  /* The opponent cards need the full directory (photo, avatar, ratings, online
+     flag), so a failed load is surfaced with a Retry instead of an empty grid. */
+  function loadOnlineUsers() {
+    setOnlineUsersLoading(true);
+    setOnlineUsersError('');
+    listUsers()
+      .then((rows) => setOnlineUsers(Array.isArray(rows) ? rows : []))
+      .catch((e) => setOnlineUsersError(
+        e?.response?.data?.message || 'Could not load players. Check your connection and try again.'
+      ))
+      .finally(() => setOnlineUsersLoading(false));
   }
 
   function refreshOnlineMatches() {
@@ -1793,6 +1858,7 @@ export default function AnalysisBoard() {
       const pick = pool[Math.floor(Math.random() * pool.length)];
       sid = String(pick.id);
       onlineSelStudent.current = sid;
+      setOnlineSelId(sid);
       setOnlineSelName(pick.name);
     }
 
@@ -2004,7 +2070,7 @@ export default function AnalysisBoard() {
 
   /* load users + matches on mount */
   useEffect(() => {
-    listUsers().then(setOnlineUsers).catch(() => {});
+    loadOnlineUsers();
     listGames()
       .then((gs) => {
         setOnlineMatches(gs);
@@ -2138,6 +2204,7 @@ export default function AnalysisBoard() {
     } else if (row.clock) {
       setClock({
         whiteMs: row.clock.whiteMs, blackMs: row.clock.blackMs,
+        baseMs: (Number(row.clock.baseMinutes) || 0) * 60000,
         incMs: row.clock.incrementSeconds * 1000, turn: row.clock.turn,
         startedAt: row.clock.startedAt, serverNow: row.serverNow || Date.now(),
       });
@@ -2317,16 +2384,29 @@ export default function AnalysisBoard() {
 
   /* ─── player name helpers ────────────────────────────────── */
   const bottomLabel = inOnline || onlineFinished
-    ? `${onlineGame.myName ?? 'You'} (${onlineMyColor === 'white' ? '⚪' : '⚫'})`
+    ? `${onlineGame.myName ?? 'You'}`
     : computerOn
-      ? `You (${computerColor === 'white' ? '⚪' : '⚫'})`
+      ? 'You'
       : orientation === 'white' ? '⚪ White' : '⚫ Black';
 
   const topLabel = inOnline || onlineFinished
-    ? `${opponentName} (${onlineMyColor === 'white' ? '⚫' : '⚪'})`
+    ? `${opponentName}`
     : computerOn
-      ? `Computer (${computerColor === 'white' ? '⚫' : '⚪'})`
+      ? 'Computer'
       : topColor === 'white' ? '⚪ White' : '⚫ Black';
+
+  /* One picture per player row: the opponent beside the opponent's colour and
+     me beside mine. The colour is carried by the ring on the circle and by the
+     "Black"/"White" line under the name, so the name itself stays clean. */
+  const selfProfile = user
+    ? { id: user.id, name: user.name, profile_image: user.profile_image, avatar_config: user.avatar_config }
+    : null;
+  const bottomProfile = inOnline || onlineFinished
+    ? (onlineGame.myProfile || selfProfile)
+    : selfProfile;
+  const topProfile = inOnline || onlineFinished ? (onlineGame.opponentProfile || null) : null;
+  const topAvatarSeed = computerOn ? `bot_${computerLevel}` : `side_${topColor}`;
+  const bottomAvatarSeed = user ? `user_${user.id}` : 'user_self';
 
   /* ─── post-game result descriptor ───────────────────────── */
   // Determines win/loss/draw + reason + accent tone + whose moves to grade.
@@ -2336,13 +2416,13 @@ export default function AnalysisBoard() {
       const r = onlineGame.result;
       const myColor = onlineMyColor;
       const why = onlineReasonLabel(onlineGame.resultReason);
-      if (r === 'abandoned') return { title: 'Draw', reason: 'by Agreement', tone: 'draw', mySide: myColor, wantsReview: false };
-      if (r === 'aborted')   return { title: 'Aborted', reason: 'Match never started', tone: 'draw', mySide: myColor, wantsReview: false };
-      if (r === 'draw')      return { title: 'Draw', reason: why ? `by ${why}` : 'by Agreement', tone: 'draw', mySide: myColor, wantsReview: true };
+      if (r === 'abandoned') return { title: 'Game Drawn', reason: 'By Agreement', tone: 'draw', mySide: myColor, wantsReview: false };
+      if (r === 'aborted')   return { title: 'Match Aborted', reason: 'Match never started', tone: 'draw', mySide: myColor, wantsReview: false };
+      if (r === 'draw')      return { title: 'Game Drawn', reason: why ? `By ${why}` : 'By Agreement', tone: 'draw', mySide: myColor, wantsReview: true };
       const won = r === myColor;
       return {
         title: won ? 'You Won!' : 'You Lost',
-        reason: why ? `by ${why}` : 'Game Over',
+        reason: why ? `By ${why}` : 'Game Over',
         tone: won ? 'win' : 'loss',
         winner: r, mySide: myColor, wantsReview: true,
       };
@@ -2356,7 +2436,7 @@ export default function AnalysisBoard() {
       const won = clockOver.humanWon ?? clockOver.winner === myColor;
       return {
         title: won ? 'You Won!' : 'You Lost',
-        reason: 'by Timeout',
+        reason: 'By Timeout',
         tone: won ? 'win' : 'loss',
         winner: clockOver.winner, mySide: myColor, wantsReview: true,
       };
@@ -2368,7 +2448,7 @@ export default function AnalysisBoard() {
         const won = status.winner === (myColor === 'white' ? 'White' : 'Black');
         return {
           title: won ? 'You Won!' : 'You Lost',
-          reason: 'by Checkmate',
+          reason: 'By Checkmate',
           tone: won ? 'win' : 'loss',
           winner: status.winner === 'White' ? 'white' : 'black',
           mySide: myColor, wantsReview: true,
@@ -2377,12 +2457,12 @@ export default function AnalysisBoard() {
       // draw — derive a clean reason from the board label
       const label = status.label.replace(/[—–-]/g, ' ');
       const reason =
-        /stalemate/i.test(label)   ? 'by Stalemate'   :
-        /repetition/i.test(label)  ? 'by Repetition'  :
-        /insufficient/i.test(label)? 'by Insufficient Material' :
-        /fifty|50-move/i.test(label) ? 'by Fifty-Move Rule' :
-          'by Draw';
-      return { title: 'Draw', reason, tone: 'draw', mySide: myColor, wantsReview: true };
+        /stalemate/i.test(label)   ? 'By Stalemate'   :
+        /repetition/i.test(label)  ? 'By Threefold Repetition'  :
+        /insufficient/i.test(label)? 'By Insufficient Material' :
+        /fifty|50-move/i.test(label) ? 'By Fifty-Move Rule' :
+          'By Draw';
+      return { title: 'Game Drawn', reason, tone: 'draw', mySide: myColor, wantsReview: true };
     }
     return null;
   }
@@ -2495,49 +2575,72 @@ export default function AnalysisBoard() {
   /* move-quality stats for the student's side + rule-based coach message */
   const resultPopupProps = useMemo(() => {
     if (!resultPopup) return null;
-    const myC = gameAnalysis?.counts?.[resultPopup.mySide] || null;
-    const analyzingNow = analyzing && !myC;
-    const stats = myC
-      ? [
-          { icon: '★', count: myC.brilliant,  label: 'Brilliant', color: '#19c9c3' },
-          { icon: '!', count: myC.great,      label: 'Great',     color: '#3d7ff5' },
-          { icon: '✓', count: myC.best,       label: 'Best',      color: '#7bc96f' },
-          { icon: '!', count: myC.good,       label: 'Good',      color: '#a3d977' },
-          { icon: '?!', count: myC.inaccuracy, label: 'Inaccuracy', color: '#93c5fd' },
-          { icon: '?', count: myC.mistake,    label: 'Mistake',   color: '#e58f4a' },
-          { icon: '??', count: myC.blunder,   label: 'Blunder',   color: '#f87171' },
-        ].filter((s) => s.count > 0)
-      : [];
-    const won = resultPopup.title === 'You Won!';
-    const drew = resultPopup.tone === 'draw';
-    const coach = buildCoachMessage({
-      won, drew,
-      counts: gameAnalysis?.counts || null,
-      mySide: resultPopup.mySide,
-      reason: resultPopup.reason,
+
+    /* ── match summary: both players, each with an honest identity ──
+       White is always listed first, so "Winner"/"Loser" is readable without
+       knowing which side the viewer sat on; the "You" tag marks ownership. */
+    /* A computer game cleared `computerOn` on flag-fall, so the mode alone cannot
+       identify the opponent here; `clockOver` survives until the next game. */
+    const vsComputer = computerOn || Boolean(clockOver);
+    const myColor = resultPopup.mySide || (vsComputer ? computerColor : orientation);
+    const oppColor = myColor === 'white' ? 'black' : 'white';
+    const winner = resultPopup.winner || null;
+    const aborted = resultPopup.title === 'Match Aborted';
+    const resultFor = (color) => (
+      aborted ? null
+        : resultPopup.tone === 'draw' ? 'Draw'
+          : winner ? (winner === color ? 'Winner' : 'Loser')
+            : null
+    );
+
+    const live = inOnline || onlineFinished;
+    const sideName = (color) => (color === 'white' ? 'White player' : 'Black player');
+    const meName = live
+      ? (onlineGame?.myName || 'You')
+      : vsComputer ? (user?.name || 'You') : sideName(myColor);
+    const oppName = live
+      ? (onlineGame?.opponentName || 'Opponent')
+      : vsComputer ? 'Computer' : sideName(oppColor);
+
+    const selfProfile = user
+      ? { id: user.id, name: user.name, profile_image: user.profile_image, avatar_config: user.avatar_config }
+      : null;
+    const meProfile = live
+      ? (onlineGame?.myProfile || selfProfile)
+      : vsComputer ? selfProfile : null;
+    const oppProfile = live ? (onlineGame?.opponentProfile || null) : null;
+
+    const seedFor = (color) => {
+      if (color === myColor && user) return `user_${user.id}`;
+      if (vsComputer && color === oppColor) return `bot_${computerLevel}`;
+      return `side_${color}`;
+    };
+    const playerFor = (color) => ({
+      id: color,
+      name: color === myColor ? meName : oppName,
+      color,
+      profile: color === myColor ? meProfile : oppProfile,
+      seed: seedFor(color),
+      /* Pass-and-play has no single owner of a side, so no "You" tag there. */
+      isMe: (live || vsComputer) && color === myColor,
+      result: resultFor(color),
     });
+    const players = [playerFor('white'), playerFor('black')];
+
     const secondary = [];
+    /* Online rematch has no backend contract, so it is offered only where a
+       fresh local game can be started against the same opponent/settings. */
     if (!inOnline && !onlineFinished && moves.length > 0) {
-      secondary.push({ label: '🔄 Rematch', onClick: rematch, primary: true });
+      secondary.push({ label: 'Rematch', onClick: rematch, primary: true });
     }
-    secondary.push({ label: '♞ New game', onClick: fullReset });
-    if (!inOnline && !onlineFinished) {
-      secondary.push({ label: '⏱ New 10 min', onClick: () => {
-        const playAs = resultPopup.mySide || 'white';
-        setTimeSel((t) => ({ ...t, base: 10, hours: 0, inc: 0 }));
-        setComputerOn(true);
-        setComputerColor(playAs === 'white' ? 'white' : 'black');
-        startComputerGame(playAs === 'white' ? 'white' : 'black');
-      }});
-    }
+    secondary.push({ label: 'New game', onClick: fullReset });
+
     return {
       ...resultPopup,
-      coach,
-      stats,
-      analyzing: analyzingNow,
+      players,
       /* null for bot games / practice games, which are never rated */
       rating: ratingResult,
-      secondary: secondary.filter(Boolean),
+      secondary,
       onReview: (resultPopup.wantsReview && moves.length > 0)
         ? () => { setResultPopup(null); setResultDismiss(true); goToGameReview(); }
         : null,
@@ -2551,11 +2654,14 @@ export default function AnalysisBoard() {
       onClose: () => { setResultPopup(null); setResultDismiss(true); },
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [resultPopup, gameAnalysis, analyzing, inOnline, onlineFinished, onlineGame, moves.length, orientation, computerColor, ratingResult]);
+  }, [
+    resultPopup, inOnline, onlineFinished, onlineGame, moves.length, orientation,
+    computerOn, clockOver, computerColor, computerLevel, ratingResult, user,
+  ]);
 
   /* Re-show the result after it was dismissed ("View Result").
-     There is ONE card (the popup), so this simply re-opens it with the
-     analysis-filled props. */
+     There is ONE card (the popup), so this simply re-opens it from the
+     finished game's state. */
   const openResultPopup = () => {
     const r = buildResult();
     if (r) { setResultPopup(r); setResultDismiss(false); }
@@ -2568,9 +2674,7 @@ export default function AnalysisBoard() {
       title={resultPopupProps.title}
       reason={resultPopupProps.reason}
       tone={resultPopupProps.tone}
-      coach={resultPopupProps.coach}
-      stats={resultPopupProps.stats}
-      analyzing={resultPopupProps.analyzing}
+      players={resultPopupProps.players}
       rating={resultPopupProps.rating}
       onClose={resultPopupProps.onClose}
       onReview={resultPopupProps.onReview}
@@ -2617,14 +2721,12 @@ export default function AnalysisBoard() {
           section's "Open setup on the board" button. Game Review and the Library
           still open the same shared modal. */}
 
-      {/* The separate PostGameResultPopup card is GONE from this page. Both it
-          and the board's own `.game-over-card` were mounted on game end, so the
-          player was hit with two result cards saying the same thing at once
-          ("You Lost" + coach line, then "Nagavel k wins"). The board overlay is
-          the survivor: it already carries the title, reason, Rematch / Review /
-          New game, and it now also carries the rating moves. `resultCard` is
-          still computed above and used by Play Mode (see `playMode`), so the
-          bot-game flow on BotGamePage is untouched. */}
+      {/* One completion card only: `resultCard` (the PostGameResultPopup). The
+          page's old `.game-over-card` overlay was removed — mounting both put
+          two result cards on screen at once ("You Lost" + coach line, then
+          "Nagavel k wins"). The popup now carries the title, reason, both
+          players with their real pictures, the game details, move quality and
+          the rating moves, and it is the same card Play Mode shows. */}
 
       <div className="ab-layout" ref={layoutRef}>
         {/* ════════════════ LEFT COLUMN — players, board, moves ════════════════ */}
@@ -2633,7 +2735,7 @@ export default function AnalysisBoard() {
           {/* top player card (opponent / engine) */}
           <div className="ab-player-row">
             <span className={`ab-avatar ${topColor === 'black' ? 'ab-avatar-black' : 'ab-avatar-white'}`}>
-              {topColor === 'black' ? 'B' : 'W'}
+              <PlayerAvatar player={topProfile} seed={topAvatarSeed} size={32} />
             </span>
             <span className="ab-player-meta">
               <span className="ab-player-name">{topLabel}</span>
@@ -2828,7 +2930,7 @@ export default function AnalysisBoard() {
           {/* bottom player card (me) — under the moves strip */}
           <div className="ab-player-row">
             <span className={`ab-avatar ${orientation === 'black' ? 'ab-avatar-black' : 'ab-avatar-white'}`}>
-              {orientation === 'black' ? 'B' : 'W'}
+              <PlayerAvatar player={bottomProfile} seed={bottomAvatarSeed} size={32} />
             </span>
             <span className="ab-player-meta">
               <span className="ab-player-name">{bottomLabel}</span>
@@ -2982,7 +3084,7 @@ export default function AnalysisBoard() {
               ) : (
                 <>
                   <Button variant="secondary" size="md" onClick={requestClosePopup}>Cancel</Button>
-                  <Button variant="primary" size="md" onClick={startOnlineMatch} disabled={onlineBusy}>
+                  <Button variant="primary" size="md" onClick={startOnlineMatch} disabled={onlineBusy || !isTimeControlValid(timeSel)}>
                     {onlineBusy
                       ? 'Starting…'
                       : onlineOpponentType === 'random'
@@ -3097,40 +3199,66 @@ export default function AnalysisBoard() {
                 </div>
 
                 {(onlineOpponentType === 'player' || onlineOpponentType === 'link') && (
-                  <div className="relative">
-                    <button
-                      type="button"
-                      onClick={() => setOnlinePlayerOpen((v) => !v)}
-                      className="chess-input !text-xs !py-1.5 w-full text-left flex items-center gap-2"
-                      aria-haspopup="listbox"
-                      aria-expanded={onlinePlayerOpen}
-                    >
-                      <span className="flex-1 truncate">{onlineSelName || 'Choose a player…'}</span>
-                      <span className="text-[0.6rem] text-ivory-500 shrink-0">{onlinePlayerOpen ? '▲' : '▼'}</span>
-                    </button>
-                    {onlinePlayerOpen && (
-                      <div className="online-player-list" role="listbox">
-                        {onlineUsers.length === 0 ? (
-                          <div className="online-player-empty">Loading players…</div>
-                        ) : onlineUsers.map((u) => (
-                          <button
+                  <div>
+                    <input
+                      type="search"
+                      className="chess-input !text-xs !py-1.5 w-full online-pick-search"
+                      placeholder="Search players by name…"
+                      aria-label="Search players"
+                      value={onlineSearch}
+                      onChange={(e) => setOnlineSearch(e.target.value)}
+                      disabled={onlineUsersLoading}
+                    />
+
+                    {onlineUsersError ? (
+                      <div className="online-pick-state online-pick-error" role="alert">
+                        <span>{onlineUsersError}</span>
+                        <Button type="button" variant="secondary" size="sm" onClick={loadOnlineUsers}>
+                          Retry
+                        </Button>
+                      </div>
+                    ) : onlineUsersLoading && onlineUsers.length === 0 ? (
+                      <div className="online-pick-state" aria-live="polite">Loading players…</div>
+                    ) : visibleOnlinePlayers.length === 0 ? (
+                      <div className="online-pick-state" aria-live="polite">
+                        {onlineSearch.trim()
+                          ? `No players match “${onlineSearch.trim()}”.`
+                          : 'No other players are available yet.'}
+                      </div>
+                    ) : (
+                      <div className="online-pick-grid" role="listbox" aria-label="Players">
+                        {visibleOnlinePlayers.map((u) => (
+                          <OnlinePlayerCard
                             key={u.id}
-                            type="button"
-                            role="option"
-                            aria-selected={String(u.id) === String(onlineSelStudent.current || '')}
-                            className="online-player-row"
-                            onClick={() => {
-                              onlineSelStudent.current = String(u.id);
-                              setOnlineSelName(u.name);
-                              setOnlinePlayerOpen(false);
+                            player={u}
+                            timeClass={onlineTimeClass}
+                            selected={String(u.id) === String(onlineSelId)}
+                            onSelect={(p) => {
+                              onlineSelStudent.current = String(p.id);
+                              setOnlineSelId(String(p.id));
+                              setOnlineSelName(p.name);
                               setOnlineError('');
                             }}
-                          >
-                            <span className={`online-dot ${u.online ? 'online-dot-on' : ''}`} />
-                            <span className="flex-1 truncate text-left">{u.name}</span>
-                            {u.online ? <span className="text-[0.55rem] text-emerald-600">online</span> : null}
-                          </button>
+                          />
                         ))}
+                      </div>
+                    )}
+
+                    {onlineSelectedPlayer && (
+                      <div className="online-pick-selected" aria-live="polite">
+                        <PlayerAvatar player={onlineSelectedPlayer} size={32} />
+                        <span className="online-pick-selected-body">
+                          <span className="online-pick-selected-label">
+                            {onlineOpponentType === 'link' ? 'Invite link for' : 'Challenging'}
+                          </span>
+                          <span className="online-pick-selected-name">{onlineSelectedPlayer.name}</span>
+                        </span>
+                        <span className="online-pick-selected-rating">
+                          {(() => {
+                            const r = ratingForPlayer(onlineSelectedPlayer, onlineTimeClass);
+                            return r != null ? `${r} ${ratingPoolLabel(onlineTimeClass)}` : 'Unrated';
+                          })()}
+                        </span>
                       </div>
                     )}
                   </div>
@@ -3170,57 +3298,24 @@ export default function AnalysisBoard() {
 
                 <div>
                   <span className="text-xs font-semibold text-ivory-300">Time control</span>
-                  <div className="mt-1 mz-chip-row">
-                    {ONLINE_TC_CATEGORIES.map((category) => {
-                      const active = onlineTcCategory(timeSel) === category.id;
-                      return (
-                        <button
-                          key={category.id}
-                          type="button"
-                          onClick={() => setTimeSel({ hours: category.hours, base: category.base, inc: category.inc })}
-                          className={`flex-1 chess-chip text-xs ${active ? 'chess-chip-gold' : ''}`}
-                          aria-pressed={active}
-                        >
-                          {category.label}
-                        </button>
-                      );
-                    })}
+                  <div className="mt-1">
+                    <TimeControlPicker
+                      value={timeSel}
+                      onChange={setTimeSel}
+                      disabled={onlineBusy || onlineSearching}
+                    />
                   </div>
-                  <div className="flex gap-1.5">
-                    <select className="chess-input !text-xs !py-1.5" value={timeSel.hours}
-                      onChange={(e) => setTimeSel((t) => ({ ...t, hours: Number(e.target.value) }))} aria-label="Hours">
-                      {[0,1,2,3,4,5].map((h) => <option key={h} value={h}>{h}h</option>)}
-                    </select>
-                    <select className="chess-input !text-xs !py-1.5" value={timeSel.base}
-                      onChange={(e) => setTimeSel((t) => ({ ...t, base: Number(e.target.value) }))} aria-label="Minutes">
-                      {[0,1,2,3,4,5,10,15,20,30,45,60].map((m) => <option key={m} value={m}>{m}m</option>)}
-                    </select>
-                    <select className="chess-input !text-xs !py-1.5" value={timeSel.inc}
-                      onChange={(e) => setTimeSel((t) => ({ ...t, inc: Number(e.target.value) }))} aria-label="Increment">
-                      {[0,1,2,3,5,10,15,20,30].map((s) => <option key={s} value={s}>+{s}s</option>)}
-                    </select>
-                  </div>
+                  {!isTimeControlValid(timeSel) && (
+                    <p className="mt-1 text-[11px] font-semibold text-amber-600">
+                      Pick at least 1 minute for the starting clock.
+                    </p>
+                  )}
                 </div>
 
                 <div>
                   <span className="text-xs font-semibold text-ivory-300">Game type</span>
-                  <div className="mt-1 mz-chip-row">
-                    <button
-                      type="button"
-                      onClick={() => setOnlineRated(true)}
-                      className={`flex-1 chess-chip text-xs ${onlineRated ? 'chess-chip-gold' : ''}`}
-                      aria-pressed={onlineRated}
-                    >
-                      Rated
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setOnlineRated(false)}
-                      className={`flex-1 chess-chip text-xs ${!onlineRated ? 'chess-chip-gold' : ''}`}
-                      aria-pressed={!onlineRated}
-                    >
-                      Casual
-                    </button>
+                  <div className="mt-1">
+                    <span className="chess-chip chess-chip-gold inline-block text-xs">✓ Rated</span>
                   </div>
                   <p className="mt-1 text-[11px] leading-snug text-ivory-500">
                     Rated games update academy ratings. Games hosted by a coach are always practice.
@@ -3689,7 +3784,6 @@ export default function AnalysisBoard() {
                 id="ab-settings-pieces"
                 value={PIECE_THEMES[pieceSel] ? pieceSel : 'cburnett'}
                 onChange={(e) => {
-                  setPieceSel(e.target.value);
                   updatePrefs({ pieceSet: e.target.value }).catch(() =>
                     showToast('Could not save piece theme — try again.', { tone: 'error', title: 'Piece theme' })
                   );
@@ -3977,7 +4071,9 @@ export default function AnalysisBoard() {
           /* sound is now played by ReviewCompletePopup on mount */
         }
       }
-    } catch { /* ignore */ }
+    } catch {
+      /* The finished game is untouched; the review simply has no grades. */
+    }
     if (token === analysisToken.current) setAnalyzing(false);
   }
 }

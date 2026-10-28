@@ -9,13 +9,14 @@ import Pagination, { PAGE_SIZE } from '../components/Pagination';
 import { useAuth } from '../context/AuthContext';
 import { startClass, endClass, cancelClass, normalizeMeetingUrl } from '../services/liveClassApi';
 import { AttendancePanel } from './Attendance';
+import { CompletedClassesPanel } from './CompletedClasses';
 import { formatTime12 } from '../utils/time';
 import Button from '../components/Button';
 
 const TYPE_LIVE = 'integrated';   // Integrated Live Classroom (LiveKit + shared board)
 const TYPE_EXTERNAL = 'external'; // Zoom / Google Meet link
 
-export function ClassesPanel({ onGoToAttendance }) {
+export function ClassesPanel({ onGoToAttendance, onClassesChanged }) {
   const { user } = useAuth();
   const isSuper = user?.role === 'superadmin';
   const [classes, setClasses] = useState([]);
@@ -210,6 +211,7 @@ export function ClassesPanel({ onGoToAttendance }) {
          emptied the last page the server clamps to the previous one and load
          mirrors it back into the URL. */
       load(pageFromUrl);
+      onClassesChanged?.();
     } catch (err) {
       alert(err.response?.data?.message || err.response?.data?.error || 'Failed to delete class');
     }
@@ -222,6 +224,9 @@ export function ClassesPanel({ onGoToAttendance }) {
       else if (action === 'end') await endClass(id);
       else if (action === 'cancel') await cancelClass(id);
       load(pageFromUrl);
+      /* Ending a class adds a card to the Completed section; let it reload
+         now instead of waiting for its own refresh. */
+      onClassesChanged?.();
     } catch (err) {
       alert(err.response?.data?.message || 'Action failed');
     } finally {
@@ -609,6 +614,11 @@ export default function ManageClasses() {
   const [tab, setTab] = useState('classes');
   const [attendClassId, setAttendClassId] = useState(null);
   const [, setSearchParams] = useSearchParams();
+  const [reportClassId, setReportClassId] = useUrlView('report');
+  /* Bumped whenever a class is ended or deleted so the Completed list (which
+     stays mounted beside the other tabs) reloads immediately. */
+  const [completedRefresh, setCompletedRefresh] = useState(0);
+  const bumpCompleted = () => setCompletedRefresh((n) => n + 1);
 
   /* Switching tabs resets the class list to page 1, as requested. The page
      parameter belongs to the Classes tab, so it is dropped rather than left
@@ -639,6 +649,12 @@ export default function ManageClasses() {
           >
             📋 Attendance
           </button>
+          <button
+            onClick={() => selectTab('completed')}
+            className={`px-4 py-1.5 rounded-md transition ${tab === 'completed' ? 'bg-gold-500 text-ink-950' : 'text-ivory-500 hover:text-gold-400'}`}
+          >
+            ✓ Completed
+          </button>
         </div>
       </div>
 
@@ -649,11 +665,33 @@ export default function ManageClasses() {
             setAttendClassId(id);
             setTab('attendance');
           }}
+          onClassesChanged={bumpCompleted}
         />
       </div>
       <div className={tab === 'attendance' ? '' : 'hidden'}>
         <AttendancePanel filterClassId={attendClassId} />
       </div>
+      <div className={tab === 'completed' ? '' : 'hidden'}>
+        <CompletedClassesPanel
+          active={tab === 'completed'}
+          refreshKey={completedRefresh}
+          onViewReport={(id) => setReportClassId(String(id))}
+          onGoToAttendance={(id) => {
+            setAttendClassId(id);
+            setTab('attendance');
+          }}
+        />
+      </div>
+
+      {/* Completed-card report: its own ?report= entry, so opening it never
+          collides with the classes list's ?class= modal. */}
+      {reportClassId && (
+        <ClassDetailModal
+          classId={reportClassId}
+          manageHistory={false}
+          onClose={() => setReportClassId(null, { replace: true })}
+        />
+      )}
     </PageHeader>
   );
 }

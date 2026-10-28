@@ -1,66 +1,24 @@
+import { useMemo } from 'react';
 import { Card } from '../ui';
+import AnimatedBoard from '../board/AnimatedBoard';
+import { useAuth } from '../../context/AuthContext';
+import { getPieceTheme, buildCustomPieces } from '../../config/pieceTheme';
+import { getBoardTheme, getBoardThemeStyles } from '../../config/boardThemes';
+import { ornateSquareStyles } from '../../config/ornateTheme';
 
-const GLYPHS = {
-  k: { w: '♔', b: '♚' },
-  q: { w: '♕', b: '♛' },
-  r: { w: '♖', b: '♜' },
-  b: { w: '♗', b: '♝' },
-  n: { w: '♘', b: '♞' },
-  p: { w: '♙', b: '♟' },
-};
-
-/* Tiny FEN → grid preview, no images needed. */
+/* Opening-library preview. It used to draw its own beige/brown squares with
+   Unicode glyphs, which made the library the only board surface that ignored
+   the user's chosen board and piece themes. It now renders the same themed
+   board as every other preview, just smaller and non-interactive. */
 export default function MiniBoard({ fen, orientation = 'white', size = 220 }) {
-  const boardStr = (String(fen || '').split(' ')[0] || '').trim();
-  const ranks = boardStr ? boardStr.split('/') : [];
-
-  const sq = size / 8;
-  const cells = [];
-  for (let rank = 0; rank < 8; rank += 1) {
-    const fenRank = ranks[rank] || '';
-    let file = 0;
-    for (const ch of fenRank) {
-      if (ch >= '1' && ch <= '8') {
-        file += Number(ch);
-      } else {
-        const color = ch === ch.toUpperCase() ? 'w' : 'b';
-        cells.push({ file, rank, glyph: GLYPHS[ch.toLowerCase()]?.[color] || '', color });
-        file += 1;
-      }
-    }
-  }
-
-  const grid = [];
-  for (let rank = 0; rank < 8; rank += 1) {
-    for (let file = 0; file < 8; file += 1) {
-      const piece = cells.find((c) => c.file === file && c.rank === rank);
-      const col = orientation === 'white' ? file : 7 - file;
-      const row = orientation === 'white' ? 7 - rank : rank;
-      const isLight = (file + rank) % 2 === 0;
-      grid.push(
-        <span
-          key={`${rank}-${file}`}
-          className="absolute flex items-center justify-center select-none"
-          style={{
-            left: col * sq,
-            top: row * sq,
-            width: sq,
-            height: sq,
-            background: isLight ? '#efe2cb' : '#b58863',
-            fontSize: sq * 0.62,
-            color: piece?.color === 'w' ? '#f0f9ff' : '#282018',
-            textShadow:
-              piece?.color === 'w'
-                ? '0 0 3px rgba(0,0,0,0.9), 0 1px 2px rgba(0,0,0,0.9), 1px 0 1px rgba(0,0,0,0.8), -1px 0 1px rgba(0,0,0,0.8), 0 -1px 1px rgba(0,0,0,0.8)'
-                : '0 0 2px rgba(255,255,255,0.35)',
-            lineHeight: 1,
-          }}
-        >
-          {piece?.glyph || ''}
-        </span>
-      );
-    }
-  }
+  const { boardTheme: boardThemeId, pieceSet } = useAuth();
+  const boardTheme = getBoardTheme(boardThemeId);
+  const themeStyles = getBoardThemeStyles(boardTheme);
+  const customPieces = useMemo(
+    () => buildCustomPieces(getPieceTheme(pieceSet || 'cburnett')),
+    [pieceSet],
+  );
+  const ornateSquares = useMemo(() => ornateSquareStyles(boardTheme), [boardTheme]);
 
   return (
     <div
@@ -68,7 +26,20 @@ export default function MiniBoard({ fen, orientation = 'white', size = 220 }) {
       style={{ width: size, height: size }}
       aria-hidden="true"
     >
-      {grid}
+      <AnimatedBoard
+        position={fen}
+        boardWidth={size}
+        boardOrientation={orientation}
+        arePiecesDraggable={false}
+        arePiecesAnimated={false}
+        animationDuration={0}
+        showNotation={false}
+        customPieces={customPieces}
+        customDarkSquareStyle={themeStyles.darkSquareStyle || { backgroundColor: boardTheme.darkSq }}
+        customLightSquareStyle={themeStyles.lightSquareStyle || { backgroundColor: boardTheme.lightSq }}
+        customSquareStyles={ornateSquares || undefined}
+        customBoardStyle={themeStyles.boardStyle || { borderRadius: '8px', overflow: 'hidden' }}
+      />
     </div>
   );
 }
