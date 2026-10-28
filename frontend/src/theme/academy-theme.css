@@ -1026,58 +1026,66 @@ tbody tr:hover {
   color: #5b7183;
 }
 
-@media (max-width: 640px) {
-  .lb-podium.lb-podium--reward.lb-podium--dash .lb-pcard-icon {
-    flex-basis: 88px;
-    width: 88px;
-    height: 88px;
-    border-radius: 22px;
-  }
-  .lb-podium.lb-podium--reward.lb-podium--dash .lb-pcard-media {
-    border-radius: 18px;
-  }
-  .lb-podium.lb-podium--reward.lb-podium--dash .lb-pcard-rankbadge {
-    right: -7px;
-    bottom: -7px;
-    width: 28px;
-    height: 28px;
-  }
-  .lb-podium.lb-podium--reward.lb-podium--dash .lb-pcard-rankbadge svg {
-    width: 15px;
-    height: 15px;
-  }
-  .lb-podium.lb-podium--reward.lb-podium--dash .lb-pcard-rating b {
-    font-size: 1.7rem;
-  }
-  .lb-podium.lb-podium--reward.lb-podium--dash .lb-pcard-rating span {
-    font-size: 0.58rem;
-    letter-spacing: 0.12em;
-  }
+.lb-podium.lb-podium--reward.lb-podium--dash .lb-pcard-title {
+  margin: 2px 0;
 }
 
-@media (max-width: 380px) {
-  .lb-podium.lb-podium--reward.lb-podium--dash .lb-pcard-icon {
-    flex-basis: 76px;
-    width: 76px;
-    height: 76px;
-    border-radius: 19px;
-  }
-  .lb-podium.lb-podium--reward.lb-podium--dash .lb-pcard-media {
-    border-radius: 15px;
-  }
-  .lb-podium.lb-podium--reward.lb-podium--dash .lb-pcard-rankbadge {
-    right: -6px;
-    bottom: -6px;
-    width: 26px;
-    height: 26px;
-  }
-  .lb-podium.lb-podium--reward.lb-podium--dash .lb-pcard-rankbadge svg {
-    width: 14px;
-    height: 14px;
-  }
-  .lb-podium.lb-podium--reward.lb-podium--dash .lb-pcard-rating b {
-    font-size: 1.55rem;
-  }
+.lb-podium.lb-podium--reward.lb-podium--dash .lb-pcard-rating {
+  margin: 2px 0;
+}
+
+.lb-podium.lb-podium--reward.lb-podium--dash .lb-pcard-desc {
+  margin-top: auto;
+}
+/* ── dashboard "my position" card ─────────────────────────────────────────
+   Keep original card size from dash-pair__card; only center content. */
+.lb-podium.lb-podium--reward.lb-podium--dash {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  flex-direction: row;
+  align-items: stretch;
+  gap: 0;
+}
+.lb-podium.lb-podium--reward.lb-podium--dash .lb-pcard,
+.lb-podium.lb-podium--reward.lb-podium--dash .lb-pcard.lb-gold {
+  flex: 1 1 auto;
+  width: 100%;
+  max-width: none;
+  height: 100%;
+  transform: none;
+}
+.lb-podium.lb-podium--reward.lb-podium--dash .lb-pcard:hover,
+.lb-podium.lb-podium--reward.lb-podium--dash .lb-pcard.lb-gold:hover {
+  transform: none;
+}
+
+/* dashboard position card - keep original layout */
+
+/* ...but glow-free at every rank, including Champion/gold. Only the
+   rank-coloured halos are dropped; the neutral drop shadow, glass gradients,
+   borders, tiles and text stay exactly as they are. */
+.lb-podium.lb-podium--reward.lb-podium--dash .lb-pcard,
+.lb-podium.lb-podium--reward.lb-podium--dash .lb-pcard.lb-gold,
+.lb-podium.lb-podium--reward.lb-podium--dash .lb-pcard.lb-silver,
+.lb-podium.lb-podium--reward.lb-podium--dash .lb-pcard.lb-bronze,
+.lb-podium.lb-podium--reward.lb-podium--dash .lb-pcard:hover,
+.lb-podium.lb-podium--reward.lb-podium--dash .lb-pcard.lb-gold:hover,
+.lb-podium.lb-podium--reward.lb-podium--dash .lb-pcard.lb-silver:hover,
+.lb-podium.lb-podium--reward.lb-podium--dash .lb-pcard.lb-bronze:hover {
+  box-shadow:
+    inset 0 0 0 1.5px rgba(255, 255, 255, 0.62),
+    0 16px 34px rgba(15, 23, 42, 0.1);
+}
+/* The portrait tile and rank badge carry rank-coloured halos of their own;
+   they lose the halo but keep the same depth via the neutral shadow. */
+.lb-podium.lb-podium--reward.lb-podium--dash .lb-pcard-icon {
+  box-shadow:
+    0 10px 22px rgba(15, 23, 42, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+.lb-podium.lb-podium--reward.lb-podium--dash .lb-pcard-rankbadge {
+  box-shadow: 0 3px 9px rgba(15, 23, 42, 0.16);
 }
 
 /* Below 1200px three reward cards would squeeze the copy into the pill, so they
@@ -1107,6 +1115,30 @@ tbody tr:hover {
   }
 }
 @media (max-width: 640px) {
+  .lb-podium.lb-podium--reward.lb-podium--dash .lb-pcard.dash-pair__card {
+    gap: 10px;
+    padding: 10px 12px;
+  }
+  .lb-podium.lb-podium--reward.lb-podium--dash .lb-pcard-icon {
+    flex-basis: 76px;
+    width: 76px;
+    height: 76px;
+  }
+  .lb-podium.lb-podium--reward.lb-podium--dash .lb-pcard-media {
+    width: 76px;
+    height: 76px;
+    border-radius: 20px;
+  }
+  .lb-podium.lb-podium--reward.lb-podium--dash .lb-pcard-rankbadge {
+    right: -6px;
+    bottom: -6px;
+    width: 28px;
+    height: 28px;
+  }
+  .lb-podium.lb-podium--reward.lb-podium--dash .lb-pcard-rankbadge svg {
+    width: 16px;
+    height: 16px;
+  }
   .lb-podium--reward {
     gap: 12px;
     margin: 14px 0 18px;
@@ -1116,25 +1148,6 @@ tbody tr:hover {
     gap: 13px;
     padding: 17px;
     border-radius: 26px;
-  }
-  .lb-podium--reward .lb-pcard-icon {
-    flex-basis: 66px;
-    width: 66px;
-    height: 66px;
-    border-radius: 19px;
-  }
-  .lb-podium--reward .lb-pcard-media {
-    border-radius: 14px;
-  }
-  .lb-podium--reward .lb-pcard-rankbadge {
-    right: -6px;
-    bottom: -6px;
-    width: 24px;
-    height: 24px;
-  }
-  .lb-podium--reward .lb-pcard-rankbadge svg {
-    width: 13px;
-    height: 13px;
   }
   .lb-podium--reward .lb-pcard-title {
     font-size: 1.05rem;
@@ -1155,6 +1168,30 @@ tbody tr:hover {
   }
 }
 @media (max-width: 380px) {
+  .lb-podium.lb-podium--reward.lb-podium--dash .lb-pcard.dash-pair__card {
+    gap: 8px;
+    padding: 8px 10px;
+  }
+  .lb-podium.lb-podium--reward.lb-podium--dash .lb-pcard-icon {
+    flex-basis: 68px;
+    width: 68px;
+    height: 68px;
+  }
+  .lb-podium.lb-podium--reward.lb-podium--dash .lb-pcard-media {
+    width: 68px;
+    height: 68px;
+    border-radius: 18px;
+  }
+  .lb-podium.lb-podium--reward.lb-podium--dash .lb-pcard-rankbadge {
+    right: -5px;
+    bottom: -5px;
+    width: 26px;
+    height: 26px;
+  }
+  .lb-podium.lb-podium--reward.lb-podium--dash .lb-pcard-rankbadge svg {
+    width: 14px;
+    height: 14px;
+  }
   .lb-podium--reward .lb-pcard,
   .lb-podium--reward .lb-pcard.lb-gold {
     gap: 10px;

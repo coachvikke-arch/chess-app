@@ -132,7 +132,7 @@ export function clearMoveEffects(reason = 'cleared') {
 }
 
 export {
-  MOVE_EFFECT_REVEAL_FALLBACK_MS,
+  MOVE_EFFECT_REVEAL_DELAY_MS,
   notifyMoveEffectEnd,
   subscribeMoveEffectEnd,
   revealAfterCheckmate,

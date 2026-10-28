@@ -1538,7 +1538,7 @@ export default function GameReview() {
                 />
                 <ResponsiveBoard
                   className="gr-board-responsive"
-                  maxWidth={560}
+                  maxWidth={400}
                   game={gameRef.current}
                   mode="analysis"
                   orientation={orientation}

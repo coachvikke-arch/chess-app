@@ -715,10 +715,7 @@ export default function SharedChessBoard({ drill = null, drillStatus = null, onD
         setDrillFinishing(true);
         if (drillRevealCancelRef.current) drillRevealCancelRef.current();
         drillRevealCancelRef.current = revealAfterCheckmate(
-          {
-            to: result.lastMove?.to,
-            key: `drill:${drillKey}:${g.fen()}:solved`,
-          },
+          { to: result.lastMove?.to },
           showBadge,
         );
       } else {
@@ -761,10 +758,7 @@ export default function SharedChessBoard({ drill = null, drillStatus = null, onD
         setDrillFinishing(true);
         if (drillRevealCancelRef.current) drillRevealCancelRef.current();
         drillRevealCancelRef.current = revealAfterCheckmate(
-          {
-            to: replied.lastMove?.to,
-            key: `drill:${drillKey}:${g.fen()}:reply-solved`,
-          },
+          { to: replied.lastMove?.to },
           showReplyBadge,
         );
       } else {

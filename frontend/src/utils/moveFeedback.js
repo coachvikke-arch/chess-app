@@ -6,9 +6,11 @@
  * the king wobble, the promotion morph.
  *
  * The effect OVERLAY itself is quiet for these three: no seal badge, no label
- * pill, no sacrifice badge, no "Checkmate" bubble, no "PROMOTED" badge, and no
- * mate bubble in the puzzles. The rule lives in ONE module so every surface
- * asks the same question.
+ * pill, no sacrifice badge, no "PROMOTED" badge, and no mate bubble in the
+ * puzzles. The one exception is the overlay's own king-anchored "Checkmate"
+ * bubble (effects/moveEffect/MoveEffect.jsx draws it outside this flag): a mate
+ * ends the game, so the board has to say so. The rule itself still lives in
+ * ONE module so every surface asks the same question.
  *
  * THE BRILLIANT BADGE IS NOT AFFECTED. The "!!" coin is the BOARD's own
  * classification badge (components/MoveBadge.jsx) and it is shown for every

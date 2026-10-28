@@ -219,6 +219,234 @@ function writeBoolPref(key, value) {
 
 /* ================================ component ================================ */
 
+/* The Play Arena page board uses the flat look (no decorative frame). Set to
+   false to bring the old framed board back. Play Mode is unaffected. */
+const PAGE_BOARD_FLAT = true;
+
+const PLAY_ARENA_UI_CSS = `
+/* ===== Play Arena UI refresh (CSS only, no logic changes) ===== */
+.ab-root.ab-root{
+  height:100%;min-height:0;max-width:none;margin:0;padding:0;
+  overflow:hidden;background:#F4F6FA;color:#0F172A;
+}
+.ab-root.ab-root .ab-layout{
+  display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);
+  grid-template-rows:minmax(0,1fr);gap:16px;
+  height:100%;min-height:0;min-width:0;width:100%;
+  max-width:1200px;margin:0 auto;padding:16px;box-sizing:border-box;
+  align-items:stretch;overflow:hidden;
+}
+
+/* ── left: black card, board, moves, white card ── */
+.ab-root.ab-root .ab-board-col{
+  display:flex;flex-direction:column;align-items:stretch;justify-content:flex-start;
+  gap:8px;height:100%;min-height:0;min-width:0;width:100%;overflow:hidden;
+}
+.ab-root.ab-root .ab-player-row{
+  flex:0 0 auto;display:flex;align-items:center;gap:10px;
+  height:48px;min-height:48px;max-height:48px;padding:0 12px;box-sizing:border-box;
+  background:#fff;border:1px solid #E3E8F0;border-radius:12px;
+  box-shadow:0 1px 2px rgba(15,23,42,.06);
+}
+.ab-root.ab-root .ab-avatar{flex:none;width:32px;height:32px;border-radius:8px;display:grid;place-items:center;font-size:12px;font-weight:700}
+.ab-root.ab-root .ab-avatar-black{background:#1E293B;color:#F1F5F9}
+.ab-root.ab-root .ab-avatar-white{background:#F1F5F9;color:#1E293B;border:1px solid #E3E8F0}
+.ab-root.ab-root .ab-player-meta{display:flex;flex-direction:column;justify-content:center;min-width:0;line-height:1.2}
+.ab-root.ab-root .ab-player-name{font-size:14px;font-weight:600;color:#0F172A;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ab-root.ab-root .ab-player-label{font-size:11px;color:#64748B}
+.ab-root.ab-root .ab-clock{
+  margin-left:auto;flex:none;padding:4px 10px;border-radius:8px;
+  background:#F4F6FA;border:1px solid #E3E8F0;
+}
+.ab-root.ab-root .ab-clock-time{font-size:14px;font-weight:700;color:#0F172A}
+.ab-root.ab-root .ab-clock.ab-clock-active{background:#EAF1FF;border-color:#2563EB;box-shadow:none}
+.ab-root.ab-root .ab-clock.ab-clock-active .ab-clock-time{color:#2563EB}
+.ab-root.ab-root .ab-clock.ab-clock-low{border-color:#DC2626}
+.ab-root.ab-root .ab-clock.ab-clock-low .ab-clock-time{color:#DC2626}
+
+/* board band — the square is sized from this box by the existing effect */
+.ab-root.ab-root .ab-boardarea{
+  flex:1 1 0;min-height:0;min-width:0;
+  display:grid;place-items:center;overflow:hidden;
+}
+.ab-root.ab-root .ab-board-wrap{
+  position:relative;display:flex;align-items:center;justify-content:center;
+  max-width:100%;max-height:100%;min-height:0;
+}
+.ab-root.ab-root .ab-board-inner{
+  display:flex;align-items:center;justify-content:center;
+  width:auto;min-width:0;max-width:100%;
+}
+/* Play Mode trigger — its own compact row above the board, never over it */
+.ab-root.ab-root .ab-board-toolbar{
+  flex:0 0 auto;display:flex;justify-content:flex-end;align-items:center;
+  margin:0 auto;padding:0;min-height:0;max-width:100%;
+}
+.ab-root.ab-root .ab-board-toolbar button{
+  display:inline-flex;align-items:center;gap:6px;
+  height:28px;padding:0 12px !important;font-size:12px !important;line-height:1;
+  border-radius:8px !important;box-shadow:0 1px 2px rgba(15,23,42,.06) !important;
+}
+
+/* moves strip — one horizontal row, current move in the accent colour */
+.ab-root.ab-root .ab-movestrip{
+  flex:0 0 auto;display:flex;flex-wrap:nowrap;align-items:center;gap:4px;
+  height:40px;min-height:40px;max-height:40px;box-sizing:border-box;
+  overflow-x:auto;overflow-y:hidden;white-space:nowrap;overscroll-behavior-x:contain;
+  background:#fff;border:1px solid #E3E8F0;border-radius:10px;padding:5px 10px;
+  scrollbar-width:thin;box-shadow:0 1px 2px rgba(15,23,42,.06);
+}
+.ab-root.ab-root .ab-mvpair{flex:none;display:inline-flex;align-items:center;gap:2px}
+.ab-root.ab-root .ab-mvnum{margin-left:10px;font:400 12px ui-monospace,Menlo,monospace;color:#64748B}
+.ab-root.ab-root .ab-mv{flex:none;font-weight:600;font-size:14px;padding:3px 9px;border-radius:6px;cursor:pointer;color:#0F172A;background:transparent;border:0;line-height:1.3}
+.ab-root.ab-root .ab-mv:hover{background:#EEF2F7}
+.ab-root.ab-root .ab-mv.is-current{background:#2563EB;color:#fff}
+.ab-root.ab-root .ab-moves-empty{font-size:13px;color:#64748B;white-space:nowrap}
+.ab-root.ab-root .ab-note{flex:0 0 auto;margin:0;font-size:11px;color:#64748B;text-align:center}
+
+/* review mode must never push the page taller than the viewport */
+.ab-root.ab-root .ab-review-panel{flex:0 1 auto;min-height:0;max-height:45%;overflow:hidden}
+
+/* ── right column ── */
+.ab-root.ab-root .ab-side-panel{
+  display:flex;flex-direction:column;gap:8px;
+  width:auto;max-width:none;height:100%;min-height:0;min-width:0;
+  margin-top:0 !important;max-height:none !important;position:static !important;
+  overflow:hidden;align-self:stretch;
+}
+.ab-root.ab-root .ab-tool-grid{
+  display:grid !important;grid-template-columns:repeat(2,minmax(0,1fr)) !important;gap:8px;
+  flex:0 0 auto;
+}
+/* One button shape, a different accent per mode — the mixed-colour palette. */
+.ab-root.ab-root #ab-tool-online{--tile-ink:#1D4ED8;--tile-line:#BFDBFE;--tile-fill:#EFF6FF;--tile-chip:#DBEAFE;--tile-ring:rgba(37,99,235,.2)}
+.ab-root.ab-root #ab-tool-computer{--tile-ink:#6D28D9;--tile-line:#DDD6FE;--tile-fill:#F5F3FF;--tile-chip:#EDE9FE;--tile-ring:rgba(109,40,217,.18)}
+.ab-root.ab-root #ab-tool-live{--tile-ink:#047857;--tile-line:#A7F3D0;--tile-fill:#ECFDF5;--tile-chip:#D1FAE5;--tile-ring:rgba(5,150,105,.18)}
+.ab-root.ab-root #ab-tool-annotate{--tile-ink:#B45309;--tile-line:#FDE68A;--tile-fill:#FFFBEB;--tile-chip:#FEF3C7;--tile-ring:rgba(180,83,9,.18)}
+.ab-root.ab-root #ab-tool-saved{--tile-ink:#BE185D;--tile-line:#FBCFE8;--tile-fill:#FDF2F8;--tile-chip:#FCE7F3;--tile-ring:rgba(190,24,93,.18)}
+.ab-root.ab-root #ab-tool-settings{--tile-ink:#334155;--tile-line:#CBD5E1;--tile-fill:#F8FAFC;--tile-chip:#E2E8F0;--tile-ring:rgba(51,65,85,.16)}
+
+.ab-root.ab-root .ab-tool-tile{
+  display:flex !important;flex-direction:row !important;align-items:center;justify-content:flex-start;
+  gap:14px;width:100%;height:67px;min-height:67px;padding:0 17px;box-sizing:border-box;
+  font-size:21px;font-weight:500;text-align:left;white-space:nowrap;min-width:0;
+  color:var(--tile-ink,#334155);
+  background:linear-gradient(135deg,#fff 0%,var(--tile-fill,#F8FAFC) 100%);
+  border:1px solid var(--tile-line,#E3E8F0);border-radius:12px;
+  box-shadow:0 1px 2px rgba(15,23,42,.06);cursor:pointer;
+  transition:background .15s,border-color .15s,color .15s,box-shadow .15s;
+}
+.ab-root.ab-root .ab-tool-tile:hover{background:var(--tile-fill,#F8FAFC);border-color:var(--tile-ink,#2563EB)}
+.ab-root.ab-root .ab-tool-tile.is-active{
+  background:var(--tile-fill,#EAF1FF);border-color:var(--tile-ink,#2563EB);color:var(--tile-ink,#2563EB);
+  box-shadow:0 0 0 3px var(--tile-ring,rgba(37,99,235,.2));
+}
+.ab-root.ab-root .ab-tool-icon{
+  flex:none;display:grid;place-items:center;width:40px;height:40px;border-radius:11px;
+  font-size:25px;line-height:1;text-align:center;background:var(--tile-chip,#EEF2F7);
+}
+.ab-root.ab-root .ab-tool-label{flex:1 1 auto;min-width:0;text-align:left;overflow:hidden;text-overflow:ellipsis}
+.ab-root.ab-root .ab-tool-badge{margin-left:auto}
+
+/* one row of six equal navigation buttons */
+.ab-root.ab-root .ab-ctrl-row{
+  display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:6px;flex:0 0 auto;
+}
+.ab-root.ab-root .ab-ctrl-row .ab-ctrl-btn{
+  display:flex;align-items:center;justify-content:center;
+  height:36px;padding:0;border-radius:8px;
+  background:#fff;border:1px solid #E3E8F0;color:#475569;
+  font-size:14px;line-height:1;cursor:pointer;
+  box-shadow:0 1px 2px rgba(15,23,42,.06);
+  transition:background .15s,border-color .15s,color .15s;
+}
+.ab-root.ab-root .ab-ctrl-row .ab-ctrl-btn:hover:not(:disabled){background:#EAF1FF;border-color:#2563EB;color:#2563EB}
+.ab-root.ab-root .ab-ctrl-row .ab-ctrl-btn:disabled{opacity:.4;cursor:not-allowed}
+
+/* FEN / PGN card — the only part of the column that can scroll */
+.ab-root.ab-root .ab-info-card{
+  flex:1 1 0;min-height:0;
+  display:flex;flex-direction:column;
+  background:#fff;border:1px solid #E3E8F0;border-radius:12px;
+  padding:8px;box-sizing:border-box;overflow:hidden;
+  box-shadow:0 1px 2px rgba(15,23,42,.06);
+}
+.ab-root.ab-root .ab-info-tabs{display:flex;gap:4px;flex:0 0 auto;margin-bottom:6px}
+.ab-root.ab-root .ab-info-tab{
+  font:inherit;font-size:12px;font-weight:700;line-height:1;
+  padding:4px 12px;border-radius:999px;cursor:pointer;
+  background:#fff;border:1px solid #E3E8F0;color:#64748B;
+}
+.ab-root.ab-root .ab-info-tab.is-active{background:#EAF1FF;border-color:#2563EB;color:#2563EB}
+.ab-root.ab-root .ab-info-body{
+  flex:1 1 auto;min-height:0;overflow:auto;margin:0;
+  background:#F4F6FA;border-radius:8px;padding:8px;
+  font:11px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  color:#334155;white-space:pre-wrap;overflow-wrap:anywhere;
+  scrollbar-width:thin;
+}
+
+/* Emoji / Share / Download */
+.ab-root.ab-root .ab-actions{
+  display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;flex:0 0 auto;
+  position:relative;
+}
+.ab-root.ab-root .ab-react-anchor{position:relative;display:flex;min-width:0}
+.ab-root.ab-root .ab-action-btn{
+  display:flex;align-items:center;justify-content:center;gap:6px;
+  width:100%;height:40px;border-radius:10px;
+  background:#fff;border:1px solid #E3E8F0;color:#0F172A;
+  font:inherit;font-size:13px;font-weight:600;cursor:pointer;
+  box-shadow:0 1px 2px rgba(15,23,42,.06);
+  transition:background .15s,border-color .15s,color .15s;
+}
+.ab-root.ab-root .ab-action-btn:hover{background:#EAF1FF;border-color:#2563EB;color:#2563EB}
+.ab-root.ab-root .ab-react-picker{border-color:#E3E8F0}
+
+/* short screens: shave the fixed rows, never the board */
+@media (max-height:800px){
+  .ab-root.ab-root .ab-layout{padding:10px 12px;gap:10px}
+  .ab-root.ab-root .ab-board-col{gap:6px}
+  .ab-root.ab-root .ab-side-panel{gap:6px}
+  .ab-root.ab-root .ab-tool-grid{gap:6px}
+  .ab-root.ab-root .ab-tool-tile{height:59px;min-height:59px;font-size:20px;padding:0 15px}
+  .ab-root.ab-root .ab-player-row{height:44px;min-height:44px;max-height:44px;padding:0 10px}
+  .ab-root.ab-root .ab-ctrl-row .ab-ctrl-btn{height:32px}
+  .ab-root.ab-root .ab-action-btn{height:36px}
+  .ab-root.ab-root .ab-movestrip{height:36px;min-height:36px;max-height:36px}
+  .ab-root.ab-root .ab-note{display:none}
+}
+
+/* ── phones / portrait tablets: one column, page still clipped ── */
+@media (max-width:900px){
+  .ab-root.ab-root .ab-layout{
+    display:flex;flex-direction:column;gap:6px;padding:8px;
+    height:100%;min-height:0;overflow:hidden;
+  }
+  .ab-root.ab-root .ab-board-col{flex:0 0 auto;height:auto;overflow:visible;gap:6px}
+  .ab-root.ab-root .ab-boardarea{flex:0 0 auto;overflow:visible}
+  .ab-root.ab-root .ab-side-panel{
+    flex:1 1 0;min-height:0;height:auto;
+    overflow-y:auto;overscroll-behavior:contain;
+    padding-bottom:2px;
+  }
+  .ab-root.ab-root .ab-tool-tile{height:62px;min-height:62px;font-size:20px}
+  .ab-root.ab-root .ab-info-card{flex:0 0 auto;height:170px;min-height:170px}
+  .ab-root.ab-root .ab-note{display:none}
+}
+
+/* phones: two big tiles per row still need the whole label visible, so the
+   label may wrap instead of truncating. */
+@media (max-width:640px){
+  .ab-root.ab-root .ab-tool-tile{
+    height:66px;min-height:66px;font-size:19px;gap:10px;padding:0 12px;
+    white-space:normal;line-height:1.15;
+  }
+  .ab-root.ab-root .ab-tool-icon{font-size:22px;width:34px;height:34px;border-radius:9px}
+  .ab-root.ab-root .ab-tool-label{white-space:normal}
+}
+`;
+
 export default function AnalysisBoard() {
   usePageTitle('Analysis Board');
   const { requestFullHeight } = useFullHeight();
@@ -267,6 +495,11 @@ export default function AnalysisBoard() {
      the panel down so its sections start level with the top of the board. */
   const layoutRef       = useRef(null);          // the .ab-layout grid
   const boardInnerRef   = useRef(null);          // the board itself
+  /* The flexible band the board sits in. Measured so the square board can be
+     sized from the space it actually has (see the responsiveness effect). */
+  const boardAreaRef    = useRef(null);
+  /* The single-row moves strip, so the move being viewed can be kept centred. */
+  const stripRef        = useRef(null);
   const [panelOffset,   setPanelOffset]   = useState(0);
   /* Play Mode — fullscreen immersive overlay. Purely a VIEW switch: the page
      (and every game/time/connection state) stays mounted underneath. */
@@ -476,6 +709,8 @@ export default function AnalysisBoard() {
   /* reactions / analysis */
   const [bursts,          setBursts]          = useState([]);
   const [showReactPicker, setShowReactPicker] = useState(false);
+  /* Which readout the FEN / PGN card shows. Presentation only. */
+  const [infoTab,         setInfoTab]         = useState('fen');
   const burstId           = useRef(0);
   const [gameAnalysis,    setGameAnalysis]    = useState(null);
   const [analyzing,       setAnalyzing]       = useState(false);
@@ -501,28 +736,59 @@ export default function AnalysisBoard() {
   const [ratingResult, setRatingResult] = useState(null);
 
   /* ─── responsiveness ─────────────────────────────────────── */
+  /* The board is now the flexible band of the left column, so its square is
+     sized from the SPACE IT HAS rather than from the viewport/column width —
+     that is what keeps the whole page inside the viewport with no page scroll.
+
+     The themed frame around the board is not a fixed ratio: ChessBoard sizes
+     its band as `remC = clamp(boardWidth * 0.082, 20, 46)` plus a 13px frame
+     pad on each side, so the outer width is `boardWidth + 2*remC + 26`. remC
+     depends on boardWidth, so the fit is a fixed-point solve (guess, measure
+     the implied outer size, correct) — the same one the Play Mode board uses.
+     It converges because remC is monotonic in boardWidth. */
   useEffect(() => {
-    const update = () => {
-      // board fills the left column; on small screens it's nearly full-width
+    const area = boardAreaRef.current;
+    const solve = () => {
       const vw = window.innerWidth;
-      const col = boardColRef.current ? boardColRef.current.getBoundingClientRect().width : vw;
-      if (vw < 640) {
-        // The themed frame adds ≈ 2·remC + 30 around the play area, so solve
-        // `outer + 40 ≤ vw − 24` (frame band floors at 20px for small boards).
-        const budget = vw - 64;
-        let w = budget / 1.164;
-        if (w < 244) w = budget - 40;
-        setBoardWidth(Math.round(Math.max(160, Math.min(340, w))));
+      const availW = area ? area.clientWidth : 0;
+      const availH = area ? area.clientHeight : 0;
+      /* Stacked (single-column) layouts size the board from the viewport height
+         instead: the band there is not a flexible one. */
+      const stacked = vw <= 900;
+      const raw = stacked
+        ? Math.min(availW || vw, Math.round(window.innerHeight * 0.46))
+        : Math.min(availW || vw, availH || vw);
+      const budget = Math.max(160, raw - 4);
+      const cap = vw < 640 ? 340 : vw < 1024 ? 420 : 620;
+
+      if (!showPmFrame || PAGE_BOARD_FLAT) {
+        setBoardWidth(Math.round(Math.max(160, Math.min(cap, budget))));
+        return;
       }
-      else if (vw < 1024) setBoardWidth(Math.round(Math.min(420, vw - 24) * 0.9));
-      // wide screens — scale with the actual column so a wider sidebar (student
-      // layout) still keeps the board looking the same as the admin panel
-      else                setBoardWidth(Math.round(Math.min(440, Math.max(330, Math.round(col * 0.55))) * 0.9));
+      const remC = (w) => Math.min(46, Math.max(20, Math.round(w * 0.082)));
+      let w = Math.min(cap, budget);
+      for (let i = 0; i < 8; i += 1) {
+        const outer = w + 2 * remC(w) + 26;
+        const next = budget - (outer - w);
+        if (Math.abs(next - w) < 1) { w = next; break; }
+        w = next;
+      }
+      setBoardWidth(Math.round(Math.max(160, Math.min(cap, w))));
     };
-    update();
-    window.addEventListener('resize', update);
-    return () => window.removeEventListener('resize', update);
-  }, []);
+    solve();
+    const ro = (typeof ResizeObserver !== 'undefined' && area) ? new ResizeObserver(solve) : null;
+    if (ro) ro.observe(area);
+    window.addEventListener('resize', solve);
+    return () => { if (ro) ro.disconnect(); window.removeEventListener('resize', solve); };
+  }, [showPmFrame, orientation, playMode]);
+
+  /* Moves strip — keep the move being viewed centred in its single row. */
+  useEffect(() => {
+    const strip = stripRef.current;
+    if (!strip) return;
+    const cur = strip.querySelector('.ab-mv.is-current');
+    if (cur && cur.scrollIntoView) cur.scrollIntoView({ block: 'nearest', inline: 'center' });
+  }, [moveIndex, moves.length]);
 
   /* Side-panel alignment — keep the ♟/🤖/👁/⚙ cards level with the BOARD.
      The board column puts a player row and the Play Mode toolbar ABOVE the
@@ -661,9 +927,11 @@ export default function AnalysisBoard() {
     pendingRevealToRef.current = key;
     if (resultRevealCancelRef.current) { resultRevealCancelRef.current(); resultRevealCancelRef.current = null; }
     setResultRevealPending(true);
-    resultRevealCancelRef.current = revealAfterCheckmate({ to, key }, () => {
+    resultRevealCancelRef.current = revealAfterCheckmate({ to }, () => {
       resultRevealCancelRef.current = null;
-      pendingRevealToRef.current = null;
+      /* Keep the key set: a later sync() on this same mating position must not
+         re-arm the gate and hide the card it just showed. `clearMateReveal`
+         (any other position, any load/reset) is what releases it. */
       setResultRevealPending(false);
     });
   }
@@ -2314,6 +2582,7 @@ export default function AnalysisBoard() {
   const leaveDialog = <LeaveGameConfirmDialog open={leaveOpen} onStay={leaveStay} onLeave={leaveLeave} />;
   return (
     <div className="ab-root">
+      <style>{PLAY_ARENA_UI_CSS}</style>
       {leaveDialog}
       {/* ── party burst ── */}
       {confetti.length > 0 && (
@@ -2357,22 +2626,19 @@ export default function AnalysisBoard() {
           still computed above and used by Play Mode (see `playMode`), so the
           bot-game flow on BotGamePage is untouched. */}
 
-      {/* ── page header ── */}
-      <div className="ab-header">
-        <span className="ab-header-piece">♖</span>
-        <div>
-          <h1 className="ab-title">Play Arena</h1>
-          <p className="ab-sub">Play, analyze, annotate and share your games.</p>
-        </div>
-      </div>
-
       <div className="ab-layout" ref={layoutRef}>
-        {/* ════════════════ BOARD COLUMN ════════════════ */}
+        {/* ════════════════ LEFT COLUMN — players, board, moves ════════════════ */}
         <div className="ab-board-col" ref={boardColRef}>
 
-          {/* top player row */}
+          {/* top player card (opponent / engine) */}
           <div className="ab-player-row">
-            <span className="ab-player-name">{topLabel}</span>
+            <span className={`ab-avatar ${topColor === 'black' ? 'ab-avatar-black' : 'ab-avatar-white'}`}>
+              {topColor === 'black' ? 'B' : 'W'}
+            </span>
+            <span className="ab-player-meta">
+              <span className="ab-player-name">{topLabel}</span>
+              <span className="ab-player-label">{topColor === 'black' ? 'Black' : 'White'}</span>
+            </span>
             <CapturedTray pieces={topCaptured}
               diff={captured[`${topColor}Value`] - captured[`${topColor === 'white' ? 'black' : 'white'}Value`]} />
             <ClockBox
@@ -2385,20 +2651,23 @@ export default function AnalysisBoard() {
 
           {/* The setup-mode banner is gone with the editor it belonged to. */}
 
-          {/* board + eval bar */}
+          {/* Play Mode trigger — its own row above the board, matched to the
+              board's width so it lines up with the board's right edge. */}
+          <div className="ab-board-toolbar" style={{ ...pmCss, width: boardWidth }}>
+            <Button
+              onClick={() => setPlayMode(true)}
+              variant="primary" size="md" className="!py-2 !px-4 text-sm"
+              title="Play Mode — immersive fullscreen"
+              aria-label="Play Mode"
+            >
+              <span className="text-sm leading-none">⛶</span>
+              <span>Play Mode</span>
+            </Button>
+          </div>
+
+          {/* board — the flexible band; the square board is sized to fit it */}
+          <div className="ab-boardarea" ref={boardAreaRef}>
           <div className="ab-board-wrap" style={{ position: 'relative' }}>
-            {/* board toolbar — sits above the board, keeps it clear of overlaps */}
-            <div className="ab-board-toolbar" style={pmCss}>
-              <Button
-                onClick={() => setPlayMode(true)}
-                variant="primary" size="md" className="!py-2 !px-4 text-sm"
-                title="Play Mode — immersive fullscreen"
-                aria-label="Play Mode"
-              >
-                <span className="text-sm leading-none">⛶</span>
-                <span>Play Mode</span>
-              </Button>
-            </div>
             <div className="ab-board-inner" ref={boardInnerRef}>
               {/* The black/white eval bar that used to sit beside the board is
                   gone, so the board now fills the whole inner width. */}
@@ -2429,6 +2698,7 @@ export default function AnalysisBoard() {
                 /* Named, so an effect started by the page (a move-list click,
                    an undo/redo) lands on THIS board. */
                 effectHostId={pageBoardHostId}
+                flat={PAGE_BOARD_FLAT}
               />
             </div>
 
@@ -2470,19 +2740,7 @@ export default function AnalysisBoard() {
               ))}
             </div>
           </div>
-
-          {/* bottom player row */}
-          <div className="ab-player-row">
-            <span className="ab-player-name">{bottomLabel}</span>
-            <CapturedTray pieces={bottomCaptured}
-              diff={captured[`${orientation}Value`] - captured[`${orientation === 'white' ? 'black' : 'white'}Value`]} />
-            <ClockBox
-              color={orientation}
-              time={clock ? fmtClock(liveRemaining(orientation), clock.incMs === 0) : null}
-              active={!!(clock && clock.turn === orientation)}
-              low={!!(clock && liveRemaining(orientation) < 10000 && clock.turn === orientation)}
-            />
-          </div>
+          </div>{/* end board area */}
 
           {/* online banner */}
           {onlineBanner && (
@@ -2521,57 +2779,7 @@ export default function AnalysisBoard() {
             </div>
           )}
 
-          {/* ── board controls ── */}
-          <div className="ab-controls">
-            {/* navigation */}
-            <div className="ab-ctrl-group">
-              <button onClick={() => goToMove(0)} disabled={navLocked || moveIndex === 0} className="ab-ctrl-btn" title="Start">⏮</button>
-              <button onClick={undoMove}           disabled={navLocked || moveIndex === 0} className="ab-ctrl-btn" title="Undo">◀</button>
-              <button onClick={redoMove}           disabled={navLocked || moveIndex >= moves.length} className="ab-ctrl-btn" title="Redo">▶</button>
-              <button onClick={() => goToMove(moves.length)} disabled={navLocked || moveIndex >= moves.length} className="ab-ctrl-btn" title="End">⏭</button>
-              <button onClick={reset}              disabled={navLocked} className="ab-ctrl-btn" title="Reset position">↺</button>
-              <button onClick={() => { setOrientation((o) => (o === 'white' ? 'black' : 'white')); if (soundOn) playSound('select'); }}
-                className="ab-ctrl-btn" title="Flip board">⇄</button>
-            </div>
-
-            {/* status chips */}
-            <div className="ab-ctrl-chips">
-              <span className="chess-chip" style={{ fontSize: '0.65rem' }}>
-                {gameRef.current.turn() === 'w' ? '⚪' : '⚫'} {gameRef.current.turn() === 'w' ? 'White' : 'Black'}
-              </span>
-              {status.label !== 'In Progress' && (
-                <span className={`chess-chip ${statusTone}`} style={{ fontSize: '0.65rem' }}>{status.label}</span>
-              )}
-              {finalResult && resultDismiss && !reviewMode && (
-                <button onClick={openResultPopup} className="chess-chip chess-chip-gold ab-ctrl-btn !border-0 !px-2" title="View result" style={{ fontSize: '0.65rem' }}>
-                  🏁 View Result
-                </button>
-              )}
-              {computerOn && (
-                <span className="chess-chip chess-chip-gold" style={{ fontSize: '0.65rem' }}>
-                  🤖 Lv{computerLevel} {skillLabel(computerLevel)}
-                </span>
-              )}
-            </div>
-
-            {/* reaction + share */}
-            <div className="ab-ctrl-group" style={{ position: 'relative' }}>
-              <div style={{ position: 'relative' }}>
-                <button onClick={() => setShowReactPicker((v) => !v)} className="ab-ctrl-btn ab-react-trigger" title="React">😊</button>
-                {showReactPicker && (
-                  <ReactionPicker onReact={onReact} onClose={() => setShowReactPicker(false)} />
-                )}
-              </div>
-              <button onClick={share} className="ab-ctrl-btn" title="Share">🔗</button>
-              <button onClick={downloadPgn} className="ab-ctrl-btn" title="Export PGN">⬇</button>
-              <button onClick={() => copyText(fen, 'FEN')} className="ab-ctrl-btn" title="Copy FEN">FEN</button>
-              <button onClick={() => copyText(gameRef.current.pgn(), 'PGN')} className="ab-ctrl-btn" title="Copy PGN">PGN</button>
-            </div>
-          </div>
-
-          {shareMsg && <p className="ab-share-msg">{shareMsg}</p>}
-
-          {/* ── move list / review panel ── */}
+          {/* ── moves — ONE horizontal row (or the review panel while reviewing) ── */}
           {reviewMode ? (
             <ReviewPanel
               moves={moves}
@@ -2586,44 +2794,57 @@ export default function AnalysisBoard() {
               canRematch={!inOnline && moves.length > 0}
             />
           ) : (
-          <div className="ab-moves-card">
-            <div className="ab-moves-header">
-              <span className="ab-moves-title">♘ Moves</span>
-              <span className="ab-moves-counter">{moveIndex} / {moves.length}</span>
-            </div>
+          <div className="ab-movestrip" ref={stripRef}>
             {moves.length === 0
-              ? <p className="ab-moves-empty">No moves yet — play on the board or load a game.</p>
-              : (
-                <div className="ab-move-list">
-                  {Array.from({ length: Math.ceil(moves.length / 2) }, (_, i) => (
-                    <div key={i} className="ab-move-pair">
-                      <span className="ab-move-num">{i + 1}.</span>
-                      {[0, 1].map((offset) => {
-                        const idx = i * 2 + offset;
-                        if (idx >= moves.length) return <span key={offset} className="ab-move-btn" />;
-                        const v = gameAnalysis?.verdicts[idx];
-                        const vm = v ? VERDICT_META[v.verdict] : null;
-                        return (
-                          <button key={offset}
-                            onClick={() => goToMove(idx + 1)}
-                            disabled={navLocked}
-                            title={vm ? `${vm.label}${v.loss > 0 ? ` (−${v.loss} pawns)` : ''}` : ''}
-                            className={`ab-move-btn${idx + 1 === moveIndex ? ' active' : ''}${vm ? ` ab-move-verdict-${vm.tone}` : ''}`}>
-                            {vm && (
-                              <span className={`mv-badge mv-badge-${vm.tone}`} title={vm.label}>
-                                {vm.symbol}
-                              </span>
-                            )}
-                            {moves[idx]}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  ))}
-                </div>
-              )}
+              ? <span className="ab-moves-empty">No moves yet. Play on the board or load a game.</span>
+              : Array.from({ length: Math.ceil(moves.length / 2) }, (_, i) => (
+                  <span key={i} className="ab-mvpair">
+                    <b className="ab-mvnum">{i + 1}.</b>
+                    {[0, 1].map((offset) => {
+                      const idx = i * 2 + offset;
+                      if (idx >= moves.length) return null;
+                      const v = gameAnalysis?.verdicts[idx];
+                      const vm = v ? VERDICT_META[v.verdict] : null;
+                      return (
+                        <button key={offset}
+                          onClick={() => goToMove(idx + 1)}
+                          disabled={navLocked}
+                          title={vm ? `${vm.label}${v.loss > 0 ? ` (−${v.loss} pawns)` : ''}` : ''}
+                          className={`ab-mv${idx + 1 === moveIndex ? ' is-current' : ''}${vm ? ` ab-move-verdict-${vm.tone}` : ''}`}>
+                          {vm && (
+                            <span className={`mv-badge mv-badge-${vm.tone}`} title={vm.label}>
+                              {vm.symbol}
+                            </span>
+                          )}
+                          {moves[idx]}
+                        </button>
+                      );
+                    })}
+                  </span>
+                ))}
           </div>
           )}
+
+          {/* bottom player card (me) — under the moves strip */}
+          <div className="ab-player-row">
+            <span className={`ab-avatar ${orientation === 'black' ? 'ab-avatar-black' : 'ab-avatar-white'}`}>
+              {orientation === 'black' ? 'B' : 'W'}
+            </span>
+            <span className="ab-player-meta">
+              <span className="ab-player-name">{bottomLabel}</span>
+              <span className="ab-player-label">You, {orientation === 'black' ? 'Black' : 'White'}</span>
+            </span>
+            <CapturedTray pieces={bottomCaptured}
+              diff={captured[`${orientation}Value`] - captured[`${orientation === 'white' ? 'black' : 'white'}Value`]} />
+            <ClockBox
+              color={orientation}
+              time={clock ? fmtClock(liveRemaining(orientation), clock.incMs === 0) : null}
+              active={!!(clock && clock.turn === orientation)}
+              low={!!(clock && liveRemaining(orientation) < 10000 && clock.turn === orientation)}
+            />
+          </div>
+
+          <p className="ab-note">Click a piece, then a square to move. Use the arrows to replay.</p>
         </div>
 
         {/* ════════════════ SIDE PANEL ════════════════
@@ -2669,11 +2890,73 @@ export default function AnalysisBoard() {
             })}
           </div>
 
+          {/* Navigation controls — same handlers as the Play Mode controls. */}
+          <div className="ab-ctrl-row" role="group" aria-label="Board navigation">
+            <button type="button" onClick={() => goToMove(0)} disabled={navLocked || moveIndex === 0} className="ab-ctrl-btn" title="First move">⏮</button>
+            <button type="button" onClick={undoMove} disabled={navLocked || moveIndex === 0} className="ab-ctrl-btn" title="Previous move">◀</button>
+            <button type="button" onClick={redoMove} disabled={navLocked || moveIndex >= moves.length} className="ab-ctrl-btn" title="Next move">▶</button>
+            <button type="button" onClick={() => goToMove(moves.length)} disabled={navLocked || moveIndex >= moves.length} className="ab-ctrl-btn" title="Last move">⏭</button>
+            <button type="button" onClick={reset} disabled={navLocked} className="ab-ctrl-btn" title="Reset position">↺</button>
+            <button type="button"
+              onClick={() => { setOrientation((o) => (o === 'white' ? 'black' : 'white')); if (soundOn) playSound('select'); }}
+              className="ab-ctrl-btn" title="Flip board">⇄</button>
+          </div>
 
+          {/* FEN / PGN readout — read-only, like the share popup. */}
+          <div className="ab-info-card">
+            <div className="ab-info-tabs" role="tablist" aria-label="Position readout">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={infoTab === 'fen'}
+                className={`ab-info-tab${infoTab === 'fen' ? ' is-active' : ''}`}
+                onClick={() => setInfoTab('fen')}
+              >
+                FEN
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={infoTab === 'pgn'}
+                className={`ab-info-tab${infoTab === 'pgn' ? ' is-active' : ''}`}
+                onClick={() => setInfoTab('pgn')}
+              >
+                PGN
+              </button>
+            </div>
+            <pre className="ab-info-body" role="tabpanel">
+              {infoTab === 'fen'
+                ? fen
+                : (gameRef.current.pgn() || 'No moves yet.')}
+            </pre>
+          </div>
 
-
-
-
+          {/* Emoji / Share / Download — same handlers as before. */}
+          <div className="ab-actions">
+            <div className="ab-react-anchor">
+              <button
+                type="button"
+                className="ab-action-btn"
+                onClick={() => setShowReactPicker((v) => !v)}
+                title="React"
+                aria-expanded={showReactPicker}
+              >
+                <span aria-hidden>😊</span>
+                <span>Emoji</span>
+              </button>
+              {showReactPicker && (
+                <ReactionPicker onReact={onReact} onClose={() => setShowReactPicker(false)} />
+              )}
+            </div>
+            <button type="button" className="ab-action-btn" onClick={share} title="Share">
+              <span aria-hidden>🔗</span>
+              <span>Share</span>
+            </button>
+            <button type="button" className="ab-action-btn" onClick={downloadPgn} title="Download PGN">
+              <span aria-hidden>⬇</span>
+              <span>Download</span>
+            </button>
+          </div>
 
         </div>{/* end side panel */}
       </div>

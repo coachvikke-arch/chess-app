@@ -109,7 +109,7 @@ test('the overlay is the board rectangle, with the board radius', () => {
 
 test('the board hands the overlay its own radius inside the board container', () => {
   const board = src('components/ChessBoard.jsx');
-  assert.match(board, /const boardRadius = themeStyles\.boardStyle\?\.borderRadius \|\| '14px'/);
+  assert.match(board, /const boardRadius = themeStyles\.boardStyle\?\.borderRadius \|\| \(flat \? '10px' : '14px'\)/);
   assert.match(board, /<MoveEffect[\s\S]*?radius=\{boardRadius\}/);
   assert.doesNotMatch(board, /createPortal\([\s\S]*?<MoveEffect/);
   assert.doesNotMatch(src('effects/moveEffect/MoveEffect.jsx'), /createPortal/);

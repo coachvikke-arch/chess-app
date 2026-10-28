@@ -271,7 +271,7 @@ function LeaderboardPositionCard({ me, total }) {
         <div className="lb-pcard-copy">
           <div className="lb-pcard-top">
             <p className="lb-pcard-eyebrow">{meta ? meta.eyebrow : 'Your position'}</p>
-            <span className="lb-pcard-pill">{meta ? meta.pill : `#${me.rank}`}</span>
+            <span className="lb-pcard-pill">#{me.rank}</span>
           </div>
           <h3 className="lb-pcard-title">
             <span className="lb-pcard-name" title={me.name}>{me.name}</span>

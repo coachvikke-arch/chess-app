@@ -5,7 +5,7 @@ import api from '../services/api';
 import PuzzlePlayer from '../components/PuzzlePlayer';
 import { pieceGlyph } from '../components/puzzle/PuzzlePopups';
 import { Page, Chip, ConfirmDialog, Spinner } from '../components/ui';
-import { useFittedBoardWidth } from '../hooks/useBoardWidth';
+import { useFittedBoardWidth, framedWidth } from '../hooks/useBoardWidth';
 import { createTransitionGuard } from '../lib/puzzleTransition';
 import { revealAfterCheckmate } from '../effects/moveEffect';
 import {
@@ -62,6 +62,14 @@ export default function Puzzles() {
   const [puzzleDone,   setPuzzleDone]   = useState(false);
   const [loadError,    setLoadError]    = useState('');
   const [loading,      setLoading]      = useState(true);
+  /* Homework solver: the last puzzle was just solved → "All puzzles completed"
+     stays in the status slot instead of auto-advancing. */
+  const [homeworkAllDone, setHomeworkAllDone] = useState(false);
+  /* 'solved' | 'failed' for the puzzle on screen, seeded from the saved attempt
+     when it is opened and updated the moment this session answers it. Review
+     mode must not invent a "completed" status for an unanswered puzzle, so the
+     result is tracked separately from puzzleDone (which also unlocks the hint). */
+  const [homeworkResult, setHomeworkResult] = useState(null);
 
   // Assignment submit flow
   const [submitDialog, setSubmitDialog] = useState(null); // { assignment, onConfirm }
@@ -78,6 +86,14 @@ export default function Puzzles() {
      and it is cancelled whenever the user leaves the puzzle. */
   const transitionGuardRef = useRef(null);
   if (!transitionGuardRef.current) transitionGuardRef.current = createTransitionGuard(2000);
+  /* The homework solver advances sooner (~1.2s) and only when there IS a next
+     puzzle; keeping it separate leaves the older assignment flow untouched. */
+  const homeworkGuardRef = useRef(null);
+  if (!homeworkGuardRef.current) homeworkGuardRef.current = createTransitionGuard(1200);
+  /* Keyboard navigation reads the latest handlers without re-binding on every
+     render or depending on stale puzzle order. */
+  const homeworkNavRef = useRef({ prev: null, next: null });
+  const homeworkNextRef = useRef(null);
   /* Remembers which homework route has already been auto-opened, so the silent
      reload after every solve cannot reset the board underneath the student. */
   const autoOpenedRef = useRef(null);
@@ -123,11 +139,14 @@ export default function Puzzles() {
     clearTimeout(nextTimer.current);
     if (fxRevealCancel.current) { fxRevealCancel.current(); fxRevealCancel.current = null; }
     transitionGuardRef.current.cancel();
+    homeworkGuardRef.current.cancel();
     setWrongMove(false);
     setWrongMsg('');
     setMoveLog([]);
     setExhausted(null);
     setPuzzleDone(false);
+    setShowHint(false);
+    setHomeworkResult(null);
   }
 
   /* ── Assignment submit flow ── */
@@ -150,7 +169,9 @@ export default function Puzzles() {
             submittedAt: res.data?.submission?.submittedAt || new Date().toISOString(),
           });
           setAssignmentComplete(false);
-          setCurrent(null);
+          /* Keep the current puzzle on screen: the heading badge flips to
+             Submitted and the board becomes read-only, which reads better than
+             dropping the student onto an empty solver. */
         } else {
           // Leave the solving context so the card's new Submitted state shows.
           closeAssignment();
@@ -170,9 +191,14 @@ export default function Puzzles() {
     setPendingSubmit(null);
   }
 
-  function openPuzzle(p) {
+  function openPuzzle(p, opts = {}) {
     clearTimeout(nextTimer.current);
     transitionGuardRef.current.cancel();
+    homeworkGuardRef.current.cancel();
+    /* Opening from `openAssignmentFromCard` passes the review flag because the
+       state it just set is not readable yet in this same pass; later navigation
+       reads the mounted state. */
+    const readOnly = opts.readOnly ?? (viewOnlyAssignment !== null);
     // Prefer the freshest copy of this puzzle (attemptResult may have just
     // changed after a solve/load) so a re-opened solved puzzle stays locked.
     const target = activeAssignment !== null
@@ -181,17 +207,42 @@ export default function Puzzles() {
       : p;
     setCurrent(target);
     resetSolvePanel();
+    setHomeworkAllDone(false);
+
+    /* Homework tries are per puzzle. The saved attempt number is how many the
+       server already recorded, so reopening a puzzle resumes with the tries
+       that are actually left rather than a clean slate. */
+    const homeworkTries = homeworkMode ? (activeAssignment?.maxAttempts ?? 3) : null;
+    const priorTries = homeworkMode && target.attemptResult === 'incorrect'
+      ? Math.max(0, Number(target.attemptNo) || 0)
+      : 0;
+    setWrongCount(priorTries);
+
     // Already solved before → hint available immediately. Applies to free-range
     // puzzles (`solved`) and to assignment puzzles already answered correctly
     // (`attemptResult === 'correct'`); review mode locks everything.
-    const alreadyDone = viewOnlyAssignment !== null
-      || (activeAssignment !== null && target.attemptResult === 'correct')
-      || target.solved;
+    const alreadySolved = target.solved || (activeAssignment !== null && target.attemptResult === 'correct');
+    const alreadyDone = readOnly || alreadySolved;
+    if (alreadySolved) setHomeworkResult('solved');
     if (alreadyDone) setPuzzleDone(true);
-    // Admin-given tries already used up → lock it on load
-    else if (target.maxAttempts != null && (target.attemptsUsed ?? 0) >= target.maxAttempts) {
+    // Attempts already used up → lock it on load and show the solution.
+    if (homeworkTries != null && priorTries >= homeworkTries && !alreadySolved) {
+      setPuzzleDone(true);
+      setExhausted('Out of tries');
+      setHomeworkResult('failed');
+      setShowHint(true);
+    } else if (!alreadySolved && target.maxAttempts != null && (target.attemptsUsed ?? 0) >= target.maxAttempts) {
       setPuzzleDone(true);
       setExhausted('Attempts exhausted — puzzle locked');
+    } else if (homeworkMode && priorTries > 0 && !readOnly) {
+      /* A wrong try from an earlier visit: keep the red result visible, but the
+         board stays playable while tries remain. Review mode shows the saved
+         result without a "try again" prompt. */
+      setWrongMove(true);
+    }
+    if (readOnly && !alreadySolved && target.attemptResult === 'incorrect') {
+      setHomeworkResult('failed');
+      setShowHint(true);
     }
     setBoardKey(0);
     setStartTime(Date.now());
@@ -209,15 +260,20 @@ export default function Puzzles() {
     setViewOnlyAssignment(readOnly ? a : null);
     setActiveAssignment(a);
     setAssignmentComplete(!readOnly && assignmentAllAttempted(a.puzzles));
+    setHomeworkAllDone(false);
     resetSolvePanel();
     const ordered = assignmentPuzzlesSorted(a.puzzles);
     const resume = assignmentResumeIndex(a.puzzles);
     const first = resume >= 0 ? ordered[resume] : ordered[0];
-    if (first) openPuzzle(first);
+    /* The assignment state set above is not visible to openPuzzle in this same
+       synchronous pass, so pass the review flag explicitly. */
+    if (first) openPuzzle(first, { readOnly });
   }
 
   function closeAssignment() {
     transitionGuardRef.current.cancel();
+    homeworkGuardRef.current.cancel();
+    setHomeworkAllDone(false);
     setActiveAssignment(null);
     setViewOnlyAssignment(null);
     setAssignmentComplete(false);
@@ -249,8 +305,79 @@ export default function Puzzles() {
 
   /* ── locked = no tries left, already solved in the active assignment, or a
        read-only submitted/reviewed assignment (review mode) ── */
-  const puzzleLocked = !!exhausted || inReviewMode || setSolvedInActive ||
+  const puzzleLocked = puzzleDone || !!exhausted || inReviewMode || setSolvedInActive ||
     (current?.maxAttempts != null && (current?.attemptsUsed ?? 0) >= current.maxAttempts);
+
+  /* ── homework solver: one puzzle at a time ────────────────────────────────
+     The homework route replaces the assignment list with a single board, so
+     everything below is derived from the freshly loaded assignment (never the
+     stale object captured when it was opened) — the solved counter and the
+     per-puzzle results have to move the moment a solve is saved. */
+  const homeworkAssignment = useMemo(() => {
+    if (!homeworkMode || !activeAssignment) return activeAssignment;
+    return assignments.find((a) => String(a.assignmentId) === String(activeAssignment.assignmentId))
+      || activeAssignment;
+  }, [homeworkMode, activeAssignment, assignments]);
+
+  const homeworkOrdered = useMemo(
+    () => (homeworkAssignment ? assignmentPuzzlesSorted(homeworkAssignment.puzzles) : []),
+    [homeworkAssignment],
+  );
+  const homeworkIndex = current ? homeworkOrdered.findIndex((p) => p.id === current.id) : -1;
+  const homeworkTotal = homeworkOrdered.length;
+  const homeworkSolved = homeworkAssignment ? assignmentSolvedCount(homeworkAssignment.puzzles) : 0;
+  const homeworkMaxTries = homeworkAssignment?.maxAttempts ?? 3;
+  const homeworkTriesLeft = Math.max(0, homeworkMaxTries - wrongCount);
+  const homeworkReadOnly = !!viewOnlyAssignment
+    || ['submitted', 'reviewed'].includes(homeworkAssignment?.status);
+  const homeworkReadOnlyStatus = viewOnlyAssignment?.status === 'reviewed'
+    || homeworkAssignment?.status === 'reviewed' ? 'Reviewed' : 'Submitted';
+  const homeworkReadOnlyScore = viewOnlyAssignment?.score ?? homeworkAssignment?.score;
+  const homeworkPct = homeworkTotal > 0 ? Math.round((homeworkSolved / homeworkTotal) * 100) : 0;
+  const sideToMove = (() => {
+    const turn = String(current?.fen || '').trim().split(/\s+/)[1];
+    return turn === 'b' ? 'Black to move' : 'White to move';
+  })();
+  const homeworkTheme = THEME_LABELS[current?.theme] || current?.theme || 'Tactics';
+  const homeworkThemeLine = current?.difficulty
+    ? `${homeworkTheme} - ${current.difficulty}`
+    : homeworkTheme;
+
+  function goPrevPuzzle() {
+    if (!homeworkMode || homeworkIndex <= 0) return;
+    openPuzzle(homeworkOrdered[homeworkIndex - 1]);
+  }
+
+  function goNextPuzzle() {
+    if (!homeworkMode || homeworkIndex < 0 || homeworkIndex >= homeworkTotal - 1) return;
+    openPuzzle(homeworkOrdered[homeworkIndex + 1]);
+  }
+
+  homeworkNavRef.current.prev = goPrevPuzzle;
+  homeworkNavRef.current.next = goNextPuzzle;
+  homeworkNextRef.current = goNextPuzzle;
+
+  /* Left/right arrows page through puzzles; never while typing in a form
+     control (the page has none today, but a future inline input must not be
+     stolen). Guarded by homeworkMode so the assignment list keeps its keys. */
+  useEffect(() => {
+    if (!homeworkMode || !activeAssignment) return undefined;
+    const onKey = (event) => {
+      if (event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey) return;
+      const el = event.target;
+      const tag = el?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || el?.isContentEditable) return;
+      if (event.key === 'ArrowLeft') {
+        event.preventDefault();
+        homeworkNavRef.current.prev?.();
+      } else if (event.key === 'ArrowRight') {
+        event.preventDefault();
+        homeworkNavRef.current.next?.();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [homeworkMode, activeAssignment]);
 
   function notifyDashboardRefresh() {
     window.dispatchEvent(new Event('puzzle-solved'));
@@ -271,6 +398,10 @@ export default function Puzzles() {
       xp: 10,
     });
     if (move.san) setMoveLog((prev) => [...prev, { san: move.san, color: 'green' }]);
+    /* A correct move supersedes the red "wrong move" line; the wrong try stays
+       visible in the moves list. */
+    setWrongMove(false);
+    setWrongMsg('');
   }
 
   useEffect(() => () => {
@@ -279,6 +410,7 @@ export default function Puzzles() {
     clearTimeout(wrongTimer.current);
     if (fxRevealCancel.current) { fxRevealCancel.current(); fxRevealCancel.current = null; }
     transitionGuardRef.current.cancel();
+    homeworkGuardRef.current.cancel();
   }, []);
 
   /* ── attempt handlers ── */
@@ -304,10 +436,7 @@ export default function Puzzles() {
     if (isMate) {
       if (fxRevealCancel.current) fxRevealCancel.current();
       fxRevealCancel.current = revealAfterCheckmate(
-        {
-          to: meta.lastMove?.to,
-          key: `puzzle:${current.id}:${startTime || 'attempt'}:${meta.lastMove?.to || 'mate'}`,
-        },
+        { to: meta.lastMove?.to },
         () => {
           fxRevealCancel.current = null;
           triggerFx(fxPayload);
@@ -327,10 +456,22 @@ export default function Puzzles() {
       if (res.data.correct) {
         setPuzzleDone(true);
         setWrongMove(false);
+        setHomeworkResult('solved');
         load();
         persistHomeworkProgress();
         notifyDashboardRefresh();
-        if (activeAssignment) {
+        if (homeworkMode) {
+          const atLast = homeworkTotal === 0 || homeworkIndex >= homeworkTotal - 1;
+          if (atLast) {
+            /* No next puzzle: leave the result on screen instead of moving.
+               Only claim "All puzzles completed" when the count agrees — a
+               homework with earlier failed puzzles ends on this puzzle too. */
+            setHomeworkAllDone(homeworkSolved + 1 >= homeworkTotal ? 'all' : 'last');
+            setAssignmentComplete(true);
+          } else {
+            homeworkGuardRef.current.schedule(current.id, () => homeworkNextRef.current?.());
+          }
+        } else if (activeAssignment) {
           transitionGuardRef.current.schedule(current.id, () => nextPuzzleRef.current());
         } else {
           nextPuzzle();
@@ -339,6 +480,8 @@ export default function Puzzles() {
         setWrongMove(false);
         setPuzzleDone(true);
         setExhausted(res.data.message || 'No attempts left for this puzzle.');
+        setHomeworkResult('failed');
+        setShowHint(true);
         load();
         persistHomeworkProgress();
       }
@@ -350,7 +493,9 @@ export default function Puzzles() {
     if (wrongSan) setMoveLog((prev) => [...prev, { san: wrongSan, color: 'red' }]);
     const newCount = wrongCount + 1;
     setWrongCount(newCount);
-    const maxTries = current?.maxAttempts ?? null;
+    /* Homework tries are the assignment's per-puzzle cap (3 on this homework);
+       the older assignment flow keeps reading the per-puzzle value. */
+    const maxTries = homeworkMode ? homeworkMaxTries : (current?.maxAttempts ?? null);
     const timeTaken = Math.round((Date.now() - startTime) / 1000);
     try {
       const res = await api.post(`/puzzles/${current.id}/attempt`, {
@@ -363,22 +508,30 @@ export default function Puzzles() {
         setWrongMove(false);
         setWrongMsg('');
         setPuzzleDone(true);
-        setExhausted('Attempts exhausted — puzzle locked');
+        setHomeworkResult('failed');
+        setShowHint(true);
+        setExhausted(homeworkMode ? 'Out of tries' : 'Attempts exhausted — puzzle locked');
         load();
-        nextPuzzle();
+        /* Failure never auto-advances: the student reads the solution and uses
+           Next when ready. The older flow kept its automatic move. */
+        if (!homeworkMode) nextPuzzle();
       } else {
-        const left = res.data.attemptsLeft ?? res.data.remainingAttempts;
+        const left = homeworkMode
+          ? Math.max(0, maxTries - newCount)
+          : (res.data.attemptsLeft ?? res.data.remainingAttempts);
         setWrongMove(true);
         setWrongMsg(left != null ? `${left} attempt${left === 1 ? '' : 's'} left` : '');
         clearTimeout(wrongTimer.current);
-        wrongTimer.current = setTimeout(() => { setWrongMove(false); setWrongMsg(''); }, 1300);
+        if (!homeworkMode) {
+          wrongTimer.current = setTimeout(() => { setWrongMove(false); setWrongMsg(''); }, 1300);
+        }
       }
       persistHomeworkProgress();
     } catch {
       setWrongMove(true);
       setWrongMsg('');
       clearTimeout(wrongTimer.current);
-      wrongTimer.current = setTimeout(() => setWrongMove(false), 1300);
+      if (!homeworkMode) wrongTimer.current = setTimeout(() => setWrongMove(false), 1300);
     }
   }
 
@@ -395,15 +548,41 @@ export default function Puzzles() {
   }
   nextPuzzleRef.current = nextPuzzle;
 
+  /* One line in the fixed status slot. Order matters: a finished/resolved
+     puzzle outranks a stale wrong-move line, and review mode never invents a
+     "try again" prompt for a puzzle the student cannot play. */
+  const homeworkStatus = (() => {
+    if (homeworkAllDone === 'all') return { tone: 'green', text: '✓ All puzzles completed' };
+    if (homeworkAllDone === 'last') return { tone: 'green', text: '✓ Completed successfully — last puzzle' };
+    if (homeworkResult === 'solved') {
+      return { tone: 'green', text: homeworkReadOnly ? '✓ Solved — read-only review' : '✓ Completed successfully' };
+    }
+    if (homeworkResult === 'failed' || exhausted) {
+      return { tone: 'red', text: homeworkReadOnly ? '✗ Not solved' : '✗ Out of tries' };
+    }
+    if (wrongMove && !homeworkReadOnly) {
+      const left = homeworkTriesLeft;
+      return {
+        tone: 'red',
+        text: `✗ Wrong move, try again${left > 0 ? ` — ${left} ${left === 1 ? 'try' : 'tries'} left` : ''}`,
+      };
+    }
+    if (homeworkReadOnly) {
+      return { tone: 'muted', text: 'Read-only review — this puzzle was not attempted.' };
+    }
+    return { tone: 'muted', text: `Find the best move for ${sideToMove.replace(' to move', '')}.` };
+  })();
+
   /* ════════════════════════════ RENDER ════════════════════════════ */
   return (
     <Page
       piece="♞"
-      title={homeworkMode ? 'Homework' : 'My Assignments'}
+      title={homeworkMode ? (homeworkAssignment?.title || 'Homework') : 'My Assignments'}
+      className={homeworkMode ? 'hw-page' : ''}
     >
 
-      {/* Active puzzle header bar */}
-      {current && (
+      {/* Active puzzle header bar (the homework route has its own fixed heading) */}
+      {current && !homeworkMode && (
         <div className="rounded-2xl border border-ivory-700/50 bg-black/[0.03] p-4 mb-6 flex items-center justify-between gap-3 flex-wrap">
           <div className="flex items-center gap-3">
             <span className="text-2xl text-gold-400">♞</span>
@@ -581,7 +760,157 @@ export default function Puzzles() {
         </div>
       )}
 
-      {activeAssignment && (
+      {/* ════════════════ HOMEWORK: single-puzzle solver ════════════════
+          One screen, no scroll. */}
+      {homeworkMode && activeAssignment && (
+        <div className="hw-viewport">
+          <div className="hw-topline">
+            <div className="hw-topline-left">
+              <div className="hw-title-line">
+                <span className="hw-title-text">{homeworkAssignment.title}</span>
+                <span className="hw-sub-line">
+                  {homeworkSolved} / {homeworkTotal} solved - Max {homeworkMaxTries} {homeworkMaxTries === 1 ? 'try' : 'tries'} per puzzle
+                </span>
+              </div>
+              {homeworkReadOnly && (
+                <span className="hw-badge">
+                  ✓ {homeworkReadOnlyStatus}
+                  {homeworkReadOnlyScore != null ? ` · ${homeworkReadOnlyScore} pts` : ''}
+                  {' '}· read-only
+                </span>
+              )}
+            </div>
+            <div className="hw-topline-right">
+              {homeworkReadOnly ? null : (
+                <Button
+                  onClick={() => openSubmitDialog(homeworkAssignment)}
+                  disabled={!assignmentAllAttempted(homeworkAssignment.puzzles)}
+                  variant="primary" size="sm"
+                  className="hw-action-btn !px-2.5 !py-1 text-[11px] disabled:opacity-50 disabled:cursor-not-allowed"
+                  title={assignmentAllAttempted(homeworkAssignment.puzzles)
+                    ? 'Hand this homework in for the coach to review'
+                    : 'Attempt every puzzle before submitting'}
+                >
+                  Submit homework
+                </Button>
+              )}
+              <button type="button" className="hw-backlink" onClick={closeAssignment}>
+                Back to homework
+              </button>
+            </div>
+          </div>
+
+          {current ? (
+            <div className="hw-content">
+              <div className="hw-row">
+                <div className="hw-col-left">
+                <div className="hw-board-wrap">
+                  <PuzzlePlayer
+                    key={`${current.id}-${boardKey}`}
+                    fen={current.fen}
+                    solution={current.solution || []}
+                    onSolved={handleSolved}
+                    onFailed={handleFailed}
+                    onCorrectMove={handleCorrectMove}
+                    fx={fx}
+                    boardWidth={boardWidth}
+                    interactive={!puzzleLocked}
+                    points={current?.points ?? 10}
+                    showStatus={false}
+                    showMoveStrip={false}
+                  />
+                </div>
+                <div className="hw-nav-row">
+                  <Button
+                    onClick={goPrevPuzzle}
+                    disabled={homeworkIndex <= 0}
+                    variant="secondary" size="sm"
+                    className="hw-nav-btn"
+                  >
+                    Previous
+                  </Button>
+                  <span className="hw-nav-counter">{homeworkIndex + 1} / {homeworkTotal}</span>
+                  <Button
+                    onClick={goNextPuzzle}
+                    disabled={homeworkIndex < 0 || homeworkIndex >= homeworkTotal - 1}
+                    variant="primary" size="sm"
+                    className="hw-nav-btn"
+                  >
+                    Next
+                  </Button>
+                </div>
+              </div>
+
+              <div className="hw-col-right">
+                <div
+                  className={`hw-panel ${(homeworkResult === 'solved' || homeworkAllDone === 'all' || homeworkAllDone === 'last') ? 'hw-panel--completed' : ''}`}
+                  style={{ '--hw-panel-h': `${framedWidth(boardWidth)}px` }}
+                >
+                  <div className="hw-panel-top">
+                    <div className="hw-panel-meta">
+                      <div className="hw-panel-pnum">Puzzle {homeworkIndex + 1} / {homeworkTotal}</div>
+                      <div className="hw-panel-title">{current.setName || current.title || homeworkAssignment.title}</div>
+                      <div className="hw-panel-sub">{homeworkThemeLine}</div>
+                    </div>
+                    <div className={`hw-panel-turn ${homeworkReadOnly ? 'hw-panel-turn--muted' : ''}`}>
+                      {sideToMove}
+                    </div>
+                  </div>
+
+                  <div className="hw-panel-hint">
+                    {canShowHint ? (
+                      <Button
+                        onClick={() => setShowHint((s) => !s)}
+                        disabled={!hintSan}
+                        variant="secondary" size="sm"
+                        className="hw-hint-btn !px-2 !py-0.5 text-[11px]"
+                      >
+                        💡 {showHint ? 'Hide hint' : 'Hint'}
+                      </Button>
+                    ) : (
+                      <span className="hw-hint-locked" title="Solve the puzzle or use all tries to unlock the hint">
+                        🔒 Hint unlocks after you solve it or use all tries
+                      </span>
+                    )}
+                    {showHint && hintSan && (
+                      <div className="hw-hint-text">{hintSan}</div>
+                    )}
+                  </div>
+
+                  <div className="hw-panel-moves">
+                    <div className="hw-panel-label">Your moves</div>
+                    {moveLog.length > 0 ? (
+                      <div className="hw-move-chips">
+                        {moveLog.slice(-12).map((m, i) => (
+                          <span key={`${i}-${m.san}`} className={`hw-chip ${m.color === 'green' ? 'hw-chip--right' : 'hw-chip--wrong'}`}>
+                            <span className="hw-chip-dot" />
+                            {m.san}
+                          </span>
+                        ))}
+                      </div>
+                    ) : homeworkResult === 'solved' || homeworkAllDone === 'all' || homeworkAllDone === 'last' ? (
+                      <div className="hw-panel-empty hw-panel-empty--ok">✓ Completed successfully</div>
+                    ) : (
+                      <div className="hw-panel-empty">Right and wrong moves you try appear here.</div>
+                    )}
+                  </div>
+
+                  <div className={`hw-panel-status hw-panel-status--${homeworkStatus.tone}`} aria-live="polite">
+                    {homeworkStatus.text}
+                  </div>
+                </div>
+              </div>
+              </div>
+            </div>
+          ) : (
+            <div className="hw-loading">
+              <Spinner text="Opening homework…" />
+            </div>
+          )}
+        </div>
+      )}
+
+      {activeAssignment && !homeworkMode && (
         <>
         {/* ════════════════════════════ ASSIGNMENT SOLVING VIEW ════════════════════════════ */}
 

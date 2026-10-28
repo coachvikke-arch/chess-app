@@ -102,7 +102,7 @@ function Game({ bot, timeControl, colorChoice, navigate }) {
         } else {
           setResultReady(false);
           resultRevealCancelRef.current = revealAfterCheckmate(
-            { key: `bot:${gameKey}` },
+            {},
             () => {
               completionShownRef.current = gameKey;
               resultRevealCancelRef.current = null;

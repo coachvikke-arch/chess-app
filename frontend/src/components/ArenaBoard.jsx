@@ -49,6 +49,7 @@ export default function ArenaBoard({
   reviewVerdictColor = null,
   moveBadge = null,
   animationDuration = 0.25,
+  flat = false,
 }) {
   return (
     <ChessBoard
@@ -72,6 +73,7 @@ export default function ArenaBoard({
       moveBadge={moveBadge}
       moveEffectHostId={effectHostId}
       animationDuration={animationDuration}
+      flat={flat}
     />
   );
 }

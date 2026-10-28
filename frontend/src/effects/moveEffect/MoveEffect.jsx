@@ -150,7 +150,12 @@ export default function MoveEffect({
      checkmate, promotion). The ANIMATION is untouched: the seal, the pill, the
      sacrifice sword and the checkmate bubble are decoration, while the dim, the
      flying piece, the ghost wobble, the ripple, the flashes and the highlights
-     are the effect itself. One flag decides it for every surface. */
+     are the effect itself. One flag decides it for every surface.
+
+     The "Checkmate" bubble is the ONE exception: a mate is the end of the game,
+     so it must say so on the board. Its seal/pill stay off - the bubble already
+     carries the word, and the seal would land on the same corner as the board's
+     own badge. */
   const quiet = isQuietMoveEvent(effect?.type);
 
   /* ── element refs ── */
@@ -246,6 +251,10 @@ export default function MoveEffect({
     }
     if (!doneRef.current && t >= T.end) {
       doneRef.current = true;
+      /* The controller unmounts the overlay a beat later; fade it out first so
+         the highlights and the badge do not vanish in one frame (the board
+         under it has been back since `settle`). */
+      rootRef.current?.classList.add('me-exit');
       onDoneRef.current?.();
     }
 
@@ -681,8 +690,10 @@ export default function MoveEffect({
         </>
       )}
 
-      {/* checkmate popup — king-anchored, removed with the overlay on cleanup */}
-      {!quiet && showCheckmatePopup && effect?.type === 'checkmate' && (
+      {/* checkmate popup — king-anchored, removed with the overlay on cleanup.
+          Deliberately outside the `quiet` gate: this bubble is how a mate is
+          announced on the board. */}
+      {showCheckmatePopup && effect?.type === 'checkmate' && (
         <div
           className="me-checkmate"
           style={{ left: matePos.left, top: matePos.top, width: mateW, height: mateH }}

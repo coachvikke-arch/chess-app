@@ -169,12 +169,12 @@ test('the completion card waits for the checkmate animation and appears once', (
     'the card must be gated on the animation having finished');
   assert.match(ARENA, /resultRevealCancelRef\.current = revealAfterCheckmate\(/,
     'the wait must be the animation\'s own end signal');
-  /* The reveal is keyed by the mating position, so a redo of the same mate is
-     the same attempt and the card does not reappear. */
+  /* The gate is per mating position and survives the reveal, so a later sync()
+     cannot re-arm it and hide the card it just showed. */
+  assert.match(ARENA, /if \(pendingRevealToRef\.current === key\) return;/);
   const completion = read('src/effects/moveEffect/completion.js');
-  assert.match(completion, /shownKeys\.has\(completionKey\)/,
-    'a mate that has already been shown must not be shown again');
-  assert.match(completion, /if \(completionKey && \(shownKeys\.has\(completionKey\) \|\| pendingKeys\.has\(completionKey\)\)\)/);
+  assert.doesNotMatch(completion, /shownKeys/,
+    'a global already-shown set strands every repeat game');
   /* Undo/redo steps through goToMove, which never asks for the card. */
   assert.match(ARENA, /function goToMove\(idx\) \{[\s\S]{0,900}?playEffectForMove\(target, 'analysis-review'/,
     'a step replays the animation');

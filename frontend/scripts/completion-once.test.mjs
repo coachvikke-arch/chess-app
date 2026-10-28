@@ -20,7 +20,7 @@ test('BotGamePage shows the completion card once per game id', () => {
   assert.match(bot, /const completionShownRef = useRef\(null\);/);
   assert.match(bot, /if \(completionShownRef\.current === gameKey\) \{/);
   assert.match(bot, /completionShownRef\.current = gameKey;/);
-  assert.match(bot, /key: `bot:\$\{gameKey\}`/);
+  assert.match(bot, /revealAfterCheckmate\(\s*\{\s*\},/);
   // reset only on a real new game
   assert.equal((bot.match(/completionShownRef\.current = null;/g) || []).length, 2,
     'rematch and swap-and-restart clear the flag');
@@ -35,12 +35,17 @@ test('AnalysisBoard shows the ONE completion card once per game', () => {
     'the card waits for the checkmate animation and can be dismissed');
   assert.match(board, /\{!playMode && resultCard\}/,
     'the page shows the same card the Play Mode board shows');
-  /* The "once per game" guard lives with the reveal key in the effect layer, so
-     it applies to every surface that waits for the mate animation. */
+  /* The "once per game" guard lives in each surface's own ref. It used to sit
+     in the effect layer as a global set of already-shown positions, which
+     permanently hid the card on the second game of a rematch (same position,
+     same key) - the wait was refused with a no-op cancel and the page kept
+     `resultRevealPending` true forever. */
   const completion = src('effects/moveEffect/completion.js');
-  assert.match(completion, /shownKeys\.has\(completionKey\)/,
-    'a mate that has already been shown must not be shown again');
-  assert.match(completion, /pendingKeys\.has\(completionKey\)/);
+  assert.doesNotMatch(completion, /shownKeys|pendingKeys/,
+    'no global already-shown set - it strands repeat games');
+  assert.match(board, /if \(pendingRevealToRef\.current === key\) return;/,
+    'the page dedupes the wait for one mating position itself');
+  assert.match(board, /pendingRevealToRef\.current = key;/);
 });
 
 test('a brilliant move never shows a text bubble', () => {

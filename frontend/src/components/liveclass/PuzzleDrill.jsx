@@ -530,10 +530,7 @@ export default function PuzzleDrillArea() {
         setResultHidden(true);
         if (resultRevealCancelRef.current) resultRevealCancelRef.current();
         resultRevealCancelRef.current = revealAfterCheckmate(
-          {
-            to: meta.lastMove?.to,
-            key: `drill:${drill?.id || drill?.puzzle?.fen}:${drillNonce}:${me.attempted}:${meta.lastMove?.to || 'mate'}`,
-          },
+          { to: meta.lastMove?.to },
           () => reveal(moves),
         );
       } else {

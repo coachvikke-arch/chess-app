@@ -18,6 +18,13 @@
   isolation: isolate;        /* its z-index cannot leak into the page */
   /* Own compositing layer: the rAF loop repaints this box only. */
   transform: translateZ(0);
+  /* Cleanup unmounts the overlay; `moveEffect.js` adds `.me-exit` when the
+     timeline ends so the highlights/badge fade instead of blinking off. */
+  transition: opacity 420ms ease;
+}
+
+.me-root.me-exit {
+  opacity: 0;
 }
 
 /* the dim: tint + grayscale, punched through on the path squares and inside

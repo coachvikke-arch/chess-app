@@ -70,7 +70,7 @@ export default function CertificatePreviewModal({ certificate, onClose }) {
             <CertificatePreview
               layout={template.layout}
               content={certificate.preview}
-              artwork={template.template.dataUrl || template.template.url}
+              artwork={template.template.dataUrl || template.template.url || '/certificate-template.png'}
             />
 
             {certificate.fileUrl && (

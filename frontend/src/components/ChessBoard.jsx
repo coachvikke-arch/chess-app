@@ -174,6 +174,7 @@ export default function ChessBoard({
   highlightLastMove = true,
   engineOn = false,
   frameless = null,              // null → follow the saved frame preference; true/false → force
+  flat = false,                  // Play Arena page board: flat look (10px radius, light ring), never the decorative frame
   animationDuration = 0.25,
   reviewVerdictColor = null,   // hex color tint for lastMove.to during review
   moveBadge = null,            // { square: 'e4', verdict: 'brilliant', ... } — overlay badge
@@ -264,7 +265,7 @@ export default function ChessBoard({
   /* Frame visibility: the Settings toggle is the default, but a caller can still
      force it. `frameless` stays null when unspecified so "no prop" and "prop
      set to false" remain distinguishable — GameReview forces a bare board. */
-  const showFrame = frameless === null ? boardFrame : !frameless;
+  const showFrame = flat ? false : (frameless === null ? boardFrame : !frameless);
   /* decorative frame band thickness (px) */
   const remC = showFrame ? Math.min(46, Math.max(20, Math.round(boardWidth * 0.082))) : 0;
   const framePad = showFrame ? 12 : 0;
@@ -272,7 +273,7 @@ export default function ChessBoard({
   const pal = framePalette(boardTheme);
   const themeStyles = getBoardThemeStyles(boardTheme);
   /* The overlay clips to the playing surface, rounded corners included. */
-  const boardRadius = themeStyles.boardStyle?.borderRadius || '14px';
+  const boardRadius = themeStyles.boardStyle?.borderRadius || (flat ? '10px' : '14px');
 
   const [selected,  setSelected]  = useState(null);
 
@@ -1302,7 +1303,13 @@ export default function ChessBoard({
             customBoardStyle={
               themeStyles.boardStyle
                 ? themeStyles.boardStyle
-                : {
+                : flat
+                  ? {
+                      borderRadius: '10px',
+                      overflow: 'hidden',
+                      boxShadow: '0 0 0 1px #E3E8F0, 0 1px 2px rgba(15,23,42,0.06)',
+                    }
+                  : {
                     borderRadius: '14px',
                     overflow: 'hidden',
                     boxShadow: `${hexToRgba(pal.gold, 0.5)} 0 0 0 1px, ${hexToRgba(pal.gold, 0.16)} 0 0 24px, 0 14px 36px rgba(8,14,10,0.42)`,

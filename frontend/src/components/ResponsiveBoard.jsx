@@ -14,7 +14,7 @@ import ChessBoard from './ChessBoard';
  * ────────────────────────────────────────────────────────────────────────── */
 
 export const MIN_BOARD = 160;
-export const MAX_BOARD = 560;
+export const MAX_BOARD = 400;
 
 /* Mirrors ChessBoard's own band arithmetic and the frame's padding/borders.
    `frameRemC` is the marble band on each side of the squares. */

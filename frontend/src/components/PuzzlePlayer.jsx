@@ -31,8 +31,14 @@ import './puzzle/moveFeedback.css';
  *  - fx: object           passed straight through to ChessBoard (success FX overlay)
  *  - interactive: boolean  locks the board (visible but not playable) when false
  *  - points: number        awarded on solve — shown in the "Puzzle Solved!" badge
+ *  - showStatus: boolean    the internal per-move line; false when the host page
+ *                           owns that feedback (the homework solver does)
+ *  - showMoveStrip: boolean the internal move chips under the board
  */
-export default function PuzzlePlayer({ fen, solution = [], onSolved, onFailed, onCorrectMove, fx, interactive = true, boardWidth = 420, points = 10 }) {
+export default function PuzzlePlayer({
+  fen, solution = [], onSolved, onFailed, onCorrectMove, fx, interactive = true,
+  boardWidth = 420, points = 10, showStatus = true, showMoveStrip = true,
+}) {
   const gameRef = useRef(null);
   if (!gameRef.current) gameRef.current = new Chess(fen);
   const solverRef = useRef(null);
@@ -55,6 +61,25 @@ export default function PuzzlePlayer({ fen, solution = [], onSolved, onFailed, o
      orange popup). Auto-clears so it cannot linger into the next move. */
   const [flash, setFlash] = useState(null); // 'wrong' | 'correct' | 'solved'
   const flashTimerRef = useRef(null);
+  /* A rejected move leaves the position unchanged (the solver undoes it), so
+     the only place to show WHICH try was wrong is the two squares it used.
+     Tinted red for a beat, then cleared by the same puzzle-change cleanup as
+     every other transient cue. */
+  const [wrongSquares, setWrongSquares] = useState(null);
+  const wrongSquaresTimerRef = useRef(null);
+  const flashWrongSquares = useCallback((move) => {
+    if (!move?.from || !move?.to) return;
+    if (wrongSquaresTimerRef.current) clearTimeout(wrongSquaresTimerRef.current);
+    const tint = {
+      backgroundColor: 'rgba(239, 68, 68, 0.5)',
+      boxShadow: 'inset 0 0 0 3px rgba(239, 68, 68, 0.9)',
+    };
+    setWrongSquares({ [move.from]: tint, [move.to]: tint });
+    wrongSquaresTimerRef.current = setTimeout(() => {
+      wrongSquaresTimerRef.current = null;
+      setWrongSquares(null);
+    }, 700);
+  }, []);
   /* A checkmate's "Puzzle solved!" line waits for the checkmate animation. */
   const revealCancelRef = useRef(null);
   const attemptRef = useRef(0);
@@ -106,7 +131,9 @@ export default function PuzzlePlayer({ fen, solution = [], onSolved, onFailed, o
     cancelReply();
     if (revealCancelRef.current) { revealCancelRef.current(); revealCancelRef.current = null; }
     if (flashTimerRef.current) { clearTimeout(flashTimerRef.current); flashTimerRef.current = null; }
+    if (wrongSquaresTimerRef.current) { clearTimeout(wrongSquaresTimerRef.current); wrongSquaresTimerRef.current = null; }
     setFlash(null);
+    setWrongSquares(null);
     gameRef.current = new Chess(fen);
     solverRef.current = createSolver(solution);
     solvedRef.current = false;
@@ -148,6 +175,7 @@ export default function PuzzlePlayer({ fen, solution = [], onSolved, onFailed, o
          tries again from the same position, and the mistake is still reported
          through onFailed for the attempt stats. */
       if (onFailed) onFailed(result.line, result.san);
+      flashWrongSquares(move);
       setFlashBrief('wrong');
       force();
       return;
@@ -169,10 +197,7 @@ if (result.status === 'solved') {
         /* The solved banner waits until the checkmate animation has landed. */
         if (revealCancelRef.current) revealCancelRef.current();
         revealCancelRef.current = revealAfterCheckmate(
-          {
-            to: result.lastMove?.to,
-            key: `puzzle:${fen}:${attemptRef.current}:${result.lastMove?.to || 'mate'}:${result.line?.length ?? ''}`,
-          },
+          { to: result.lastMove?.to },
           () => {
             revealCancelRef.current = null;
             setFlashBrief('solved');
@@ -224,18 +249,21 @@ if (result.status === 'solved') {
           boardWidth={boardWidth}
           animationDuration={MOVE_ANIM_SECONDS}
           fx={fx}
+          extraSquareStyles={wrongSquares || undefined}
         />
       </div>
       {/* The single lightweight per-move signal that replaced the orange
           on-board card popup: a short inline line. It never appears together
           with anything else for the same move. */}
-      <div className="mv-status" aria-live="polite">
-        {flash === 'wrong' && <span className="mv-status-wrong">✗ Not quite — try again</span>}
-        {flash === 'correct' && <span className="mv-status-correct">✓ Good move</span>}
-        {flash === 'solved' && <span className="mv-status-solved result-reveal">★ Puzzle solved!{points ? ` +${points} pts` : ''}</span>}
-        {busy && <span className="mv-status-waiting">…thinking</span>}
-      </div>
-      {history.length > 0 && (
+      {showStatus && (
+        <div className="mv-status" aria-live="polite">
+          {flash === 'wrong' && <span className="mv-status-wrong">✗ Not quite — try again</span>}
+          {flash === 'correct' && <span className="mv-status-correct">✓ Good move</span>}
+          {flash === 'solved' && <span className="mv-status-solved result-reveal">★ Puzzle solved!{points ? ` +${points} pts` : ''}</span>}
+          {busy && <span className="mv-status-waiting">…thinking</span>}
+        </div>
+      )}
+      {showMoveStrip && history.length > 0 && (
         <div className="mt-3 text-center">
           <p className="text-xs text-ivory-500 mb-1">Moves</p>
           <div className="flex flex-wrap justify-center gap-1.5 max-w-md">

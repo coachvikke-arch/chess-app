@@ -10,13 +10,8 @@ import Button from './Button';
    App.jsx `landingNavLinks`); the in-app Navbar deliberately shows no
    section links, so they appear on the homepage and nowhere else.
 
-   Openings is intentionally NOT listed here — the landing header promotes only
-   the four public entry points. The Openings Library is still reachable inside
-   the app from the sidebar (Sidebar.jsx) and student shell
-   (StudentAppShell.jsx). */
+   Only Contact remains on the landing navbar per requirements. */
 export const navLinks = [
-  { to: '/courses', label: 'Courses' },
-  { to: '/about', label: 'About Coach' },
   { to: '/contact', label: 'Contact' },
 ];
 

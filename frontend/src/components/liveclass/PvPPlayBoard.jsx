@@ -295,7 +295,7 @@ export default function PvPPlayBoard({ classId, fallback, onOpened, onEnded, ins
           } catch { /* ignore */ }
           setResultHidden(true);
           resultRevealCancelRef.current = revealAfterCheckmate(
-            { to, key: `pvp:${row.id}:${g.fen()}` },
+            { to },
             () => {
               resultRevealCancelRef.current = null;
               setResultHidden(false);

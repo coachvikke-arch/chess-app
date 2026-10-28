@@ -1,6 +1,7 @@
 /* ──────────────────────────────────────────────────────────────────────────
  * Brilliant, checkmate and promotion: the ANIMATION plays, the BADGE and the
- * POPUP do not.
+ * POPUP do not - except the "Checkmate" bubble, which is how a finished game
+ * announces itself on the board.
  *
  * The rule lives in ONE module (utils/moveFeedback.js) so every surface asks
  * the same question. These are source assertions on purpose: the bug is a
@@ -10,8 +11,8 @@
  * What must SURVIVE: the dim, the flying piece, the ghost pieces, the ripple,
  * the square flashes, the highlights, the wobble, the promotion morph and the
  * king pulse. What must GO: the seal badge, the "BRILLIANT" pill, the "!"
- * coin on the square, the "Checkmate" bubble, the "PROMOTED" badge and the
- * badge glyph next to a move in a list or a score sheet.
+ * coin on the square, the "PROMOTED" badge and the badge glyph next to a move
+ * in a list or a score sheet. The checkmate bubble is the exception and stays.
  *
  * Run: node --test scripts/quiet-move-feedback.test.mjs
  */
@@ -63,7 +64,7 @@ test('the brilliant BADGE is not governed by this flag', () => {
 
 /* ── the effect overlay: animation yes, chrome no ────────────────────────── */
 
-test('the effect overlay hides its badge, pill and popup for quiet events', () => {
+test('the effect overlay hides its badge, pill and sword for quiet events', () => {
   assert.match(EFFECT, /const quiet = isQuietMoveEvent\(effect\?\.type\)/);
   assert.match(EFFECT, /\{!quiet && \(\s*<div\s*\n\s*ref=\{sealRef\}/,
     'the seal badge must be suppressed');
@@ -71,8 +72,10 @@ test('the effect overlay hides its badge, pill and popup for quiet events', () =
     'the label pill must be suppressed');
   assert.match(EFFECT, /\{!quiet && cfg\.sacrificeBadge && effect\?\.sacrifice && \(/,
     'the sacrifice badge must be suppressed');
-  assert.match(EFFECT, /\{!quiet && showCheckmatePopup && effect\?\.type === 'checkmate' && \(/,
-    'the checkmate bubble must be suppressed');
+  assert.doesNotMatch(EFFECT, /\{!quiet && showCheckmatePopup/,
+    'the checkmate bubble is the ONE exception: a mate must be announced');
+  assert.match(EFFECT, /\{showCheckmatePopup && effect\?\.type === 'checkmate' && \(/,
+    'the checkmate bubble must be drawn');
 });
 
 test('the animation layers are all still there', () => {

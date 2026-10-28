@@ -158,14 +158,50 @@ export default function CertificatePreview({ layout, content, artwork, className
   const [ready, setReady] = useState(false);
   useLayoutEffect(() => { if (ratio > 0) setReady(true); }, [ratio]);
 
+  const [imgSrc, setImgSrc] = useState(artwork);
+  const [imgError, setImgError] = useState(false);
+
+  useEffect(() => {
+    setImgSrc(artwork);
+    setImgError(false);
+  }, [artwork]);
+
   return (
     <div
       ref={ref}
       className={`cert-preview ${className}`}
       style={{ aspectRatio: `${template.width} / ${template.height}` }}
     >
-      <img src={artwork} alt="" className="cert-preview-art" draggable={false} />
-      {ready && fields.map((field) => (
+      {!imgError ? (
+        <img 
+          src={imgSrc} 
+          alt="Certificate artwork" 
+          className="cert-preview-art" 
+          draggable={false}
+          onError={() => {
+            // Try fallback paths
+            if (imgSrc && imgSrc.includes('data:')) {
+              setImgSrc('/certificate-template.png');
+            } else if (imgSrc && imgSrc.includes('/certificate-template')) {
+              // try api base if available
+              const apiBase = import.meta.env.VITE_API_URL || '';
+              if (apiBase) {
+                setImgSrc(`${apiBase}/certificate-template.png`);
+              } else {
+                setImgError(true);
+              }
+            } else {
+              setImgError(true);
+            }
+          }}
+        />
+      ) : (
+        <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#fdfbf4', flexDirection: 'column', gap: '8px' }}>
+          <div style={{ color: '#8b7355', fontSize: '14px' }}>Certificate artwork failed to load</div>
+          <button onClick={() => { setImgError(false); setImgSrc(artwork || '/certificate-template.png'); }} style={{ padding: '4px 8px', fontSize: '12px' }}>Retry</button>
+        </div>
+      )}
+      {ready && !imgError && fields.map((field) => (
         <Field
           key={field.key}
           field={field}

@@ -54,7 +54,7 @@ export default function CertificateInline({ certificate, onHide, showOpenPdf = t
           <CertificatePreview
             layout={template.layout}
             content={certificate.preview}
-            artwork={template.template.dataUrl || template.template.url}
+            artwork={template.template.dataUrl || template.template.url || '/certificate-template.png'}
           />
 
           <div className="flex flex-wrap gap-2 mt-3">

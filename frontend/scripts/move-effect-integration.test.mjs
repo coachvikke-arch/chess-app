@@ -64,8 +64,8 @@ test('external moves still trigger while sound is off', () => {
 
 test('review/keyboard runs are not restarted or cleared by the position watcher', () => {
   const watch = BOARD.slice(BOARD.indexOf('const positionHistoryRef'), BOARD.indexOf('const positionHistoryRef') + 3000);
-  assert.match(watch, /const active = getMoveEffectRun\(\);\s*\n\s*if \(active && active\.fen === currentFen\) return;/);
-  assert.ok(watch.indexOf('if (active && active.fen === currentFen)') < watch.indexOf('triggerEventMoveEffect(onePly'));
+  assert.match(watch, /const activeMatches = Boolean\(\s*active && active\.fen && positionKey\(active\.fen\) === positionKey\(currentFen\)/);
+  assert.ok(watch.indexOf('const activeMatches') < watch.indexOf('triggerEventMoveEffect(onePly'));
 });
 
 test('brilliant is not re-triggered from the badge prop (single entry point)', () => {
@@ -87,7 +87,7 @@ test('reduced motion never hides the board and drops every overlay piece', () =>
 });
 
 test('opening the promotion picker clears a running effect', () => {
-  assert.match(BOARD, /clearMoveEffects\(\);\s*\n\s*setPendingPromo\(/);
+  assert.match(BOARD, /clearOwnMoveEffects\('promotion-picker'\);\s*\n\s*setPendingPromo\(/);
 });
 
 test('AnimatedBoard hides its own pieces only while the overlay owns them', () => {

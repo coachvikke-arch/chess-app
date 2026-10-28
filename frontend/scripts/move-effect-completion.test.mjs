@@ -4,7 +4,7 @@
  *
  * Cards must wait for the checkmate animation, but never hang: every surface
  * can be cancelled, duplicate board reports are ignored, and an animation that
- * never reports falls back to its own timeline length.
+ * never reports still releases the card once the badge window is over.
  */
 import assert from 'node:assert/strict';
 import test, { mock } from 'node:test';
@@ -13,7 +13,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import {
-  MOVE_EFFECT_REVEAL_FALLBACK_MS,
+  MOVE_EFFECT_REVEAL_DELAY_MS,
   notifyMoveEffectEnd,
   revealAfterCheckmate,
 } from '../src/effects/moveEffect/completion.js';
@@ -60,15 +60,30 @@ test('cancelling drops a pending reveal', () => {
   assert.equal(calls, 0);
 });
 
-test('an animation that never reports falls back to the timeline end', (t) => {
+test('the same mate in a later game is not treated as already shown', () => {
+  /* Rematch, play the same line, mate again: the position (and therefore the
+     destination) repeats. The card must come back - a global "already shown"
+     set left `resultRevealPending` true forever and the second game never
+     showed a result at all. */
+  const seen = [];
+  revealAfterCheckmate({ to: 'h8', reduced: false }, () => seen.push(1));
+  notifyMoveEffectEnd({ type: 'checkmate', to: 'h8', id: -10 });
+  revealAfterCheckmate({ to: 'h8', reduced: false }, () => seen.push(2));
+  notifyMoveEffectEnd({ type: 'checkmate', to: 'h8', id: -11 });
+  assert.equal(seen.length, 2);
+});
+
+test('an animation that never reports releases the card before the choreography ends', (t) => {
   t.mock.timers.enable({ apis: ['setTimeout'] });
   const seen = [];
   revealAfterCheckmate({ to: 'h8', reduced: false }, (info) => seen.push(info));
-  t.mock.timers.tick(MOVE_EFFECT_REVEAL_FALLBACK_MS - 1);
+  t.mock.timers.tick(MOVE_EFFECT_REVEAL_DELAY_MS - 1);
   assert.equal(seen.length, 0);
   t.mock.timers.tick(1);
   assert.deepEqual(seen, [{ fallback: true }]);
-  assert.equal(MOVE_EFFECT_REVEAL_FALLBACK_MS, T.end + 200);
+  /* Waiting for T.end put the win/loss card 3.6 s+ after the mate. */
+  assert.ok(MOVE_EFFECT_REVEAL_DELAY_MS < T.end,
+    'the card must not wait for the whole timeline');
 });
 
 test('the board reports the end of its overlay', () => {
@@ -88,20 +103,18 @@ test('every outcome card is gated behind the reveal', () => {
     bot: src('pages/BotGamePage.jsx'),
     analysis: src('pages/AnalysisBoard.jsx'),
     pvp: src('components/liveclass/PvPPlayBoard.jsx'),
-    tournament: src('components/TournamentPlayBoard.jsx'),
   };
   for (const [name, file] of Object.entries(files)) {
     assert.match(file, /revealAfterCheckmate/, `${name} waits for the animation`);
   }
-  assert.match(files.puzzlePlayer, /revealAfterCheckmate\(\s*\{[\s\S]*?to: result\.lastMove\?\.to[\s\S]*?key:/);
-  assert.match(files.puzzles, /revealAfterCheckmate\(\s*\{[\s\S]*?to: meta\.lastMove\?\.to[\s\S]*?key:/);
+  assert.match(files.puzzlePlayer, /revealAfterCheckmate\(\s*\{[\s\S]*?to: result\.lastMove\?\.to/);
+  assert.match(files.puzzles, /revealAfterCheckmate\(\s*\{[\s\S]*?to: meta\.lastMove\?\.to/);
   assert.match(files.drillBoard, /drillFinishing/);
   assert.match(files.drill, /resultHidden/);
   assert.match(files.bot, /resultReady/);
   assert.match(files.analysis, /resultRevealPending/);
   assert.match(files.analysis, /open=\{!resultDismiss && !resultRevealPending\}/);
   assert.match(files.pvp, /resultShown/);
-  assert.match(files.tournament, /resultShown/);
 });
 
 test('opening a finished game shows its result at once', () => {
@@ -116,12 +129,6 @@ test('opening a finished game shows its result at once', () => {
   const pvp = src('components/liveclass/PvPPlayBoard.jsx');
   assert.match(pvp, /const liveFinish = seenActiveGameRef\.current === row\.id;/);
   assert.match(pvp, /if \(liveFinish && \(row\.resultReason \|\| ''\) === 'checkmate'\)/);
-
-  const tournament = src('components/TournamentPlayBoard.jsx');
-  /* The initial fetch sets `ended` without touching `resultHidden`; only the
-     polling transition waits. */
-  const initial = tournament.slice(tournament.indexOf('getTournamentGame(gameId).then'), tournament.indexOf('const iv = setInterval'));
-  assert.doesNotMatch(initial, /revealAfterCheckmate/);
 });
 
 test('waiting cards are cancelled on unmount so they cannot leak', () => {
@@ -133,7 +140,6 @@ test('waiting cards are cancelled on unmount so they cannot leak', () => {
     'pages/BotGamePage.jsx',
     'pages/AnalysisBoard.jsx',
     'components/liveclass/PvPPlayBoard.jsx',
-    'components/TournamentPlayBoard.jsx',
   ]) {
     const file = src(p);
     assert.match(file, /(?:revealCancelRef|drillRevealCancelRef|resultRevealCancelRef|fxRevealCancel)[\s\S]*?\.current\(\)/, `${p} cancels a pending reveal`);

@@ -1,8 +1,14 @@
-/* ─�� completion ──────────────────────────────────────────────────────────
+/* ── completion ──────────────────────────────────────────────────────────
  * Cards ("Puzzle solved!", "Game over") must never appear on top of the
  * checkmate animation. The board reports the moment its overlay reaches the
  * end of the timeline; a surface that wants to show an outcome card can wait
  * for that signal instead of guessing a timeout.
+ *
+ * The card is released after the mating effect has had its say - the landing
+ * ripple plus the king-anchored "Checkmate" bubble at 600 ms - and not at the
+ * very end of the 3.6 s choreography. Waiting for the timeline end put the
+ * win/loss card more than four seconds after the mate, which read as "the
+ * effect does nothing".
  *
  * Split out of index.js so it can be tested without loading the React overlay.
  */
@@ -11,16 +17,12 @@ import { T } from './config.js';
 import { prefersReducedMotion } from '../../config/boardAnimation.js';
 import { endMoveEffectRun } from './runtime.js';
 
-/* Longest an outcome card may be held back when no overlay reports back -
- * the animation's own end plus a small paint buffer. */
-export const MOVE_EFFECT_REVEAL_FALLBACK_MS = T.end + 200;
+/* How long a card waits at most: landing, the ripple sweep (T.settle) and
+ * roughly a second of the Checkmate badge. */
+export const MOVE_EFFECT_REVEAL_DELAY_MS = T.settle + 500;
 
 const endListeners = new Set();
 const endedIds = new Set();
-/* A completion key is one ATTEMPT, not a square: undo/redo/rebuild can put the
-   same mate back on the board and must not show the card a second time. */
-const pendingKeys = new Set();
-const shownKeys = new Set();
 
 function rememberEnded(id) {
   if (id == null) return false;
@@ -49,24 +51,20 @@ export function subscribeMoveEffectEnd(fn) {
  * Run `show` once the checkmate animation for `to` has finished.
  *
  * - No checkmate overlay (reduced motion, another surface, or a board that is
- *   not mounted) resolves after the fallback window at the latest.
+ *   not mounted) resolves after `MOVE_EFFECT_REVEAL_DELAY_MS` at the latest.
+ * - A duplicate registration is the caller's to prevent: every surface already
+ *   cancels its previous wait before starting a new one, and each one keeps its
+ *   own once-per-game guard. Deduping by position here instead left the gate
+ *   stuck on the second game of a rematch - the same mate, already "shown",
+ *   with `show` never called and the card hidden forever.
  * - Returns a cancel function; call it on unmount/puzzle change so a pending
  *   card can never fire into the next game.
  */
-export function revealAfterCheckmate({ to = null, reduced, key = null } = {}, show) {
+export function revealAfterCheckmate({ to = null, reduced } = {}, show) {
   if (typeof show !== 'function') return () => {};
-  const completionKey = key == null ? null : String(key);
-  if (completionKey && (shownKeys.has(completionKey) || pendingKeys.has(completionKey))) {
-    return () => {};
-  }
-  if (completionKey) pendingKeys.add(completionKey);
 
   const noMotion = reduced == null ? prefersReducedMotion() : reduced;
   if (noMotion) {
-    if (completionKey) {
-      pendingKeys.delete(completionKey);
-      shownKeys.add(completionKey);
-    }
     show({ reduced: true });
     return () => {};
   }
@@ -81,11 +79,6 @@ export function revealAfterCheckmate({ to = null, reduced, key = null } = {}, sh
     if (timer) clearTimeout(timer);
     timer = null;
     unsubscribe();
-    if (completionKey) {
-      pendingKeys.delete(completionKey);
-      shownKeys.add(completionKey);
-      if (shownKeys.size > 40) shownKeys.delete(shownKeys.values().next().value);
-    }
     show(info || {});
   };
 
@@ -94,7 +87,7 @@ export function revealAfterCheckmate({ to = null, reduced, key = null } = {}, sh
     if (to && request.to !== to) return;
     finish({ effect: request });
   });
-  timer = setTimeout(() => finish({ fallback: true }), MOVE_EFFECT_REVEAL_FALLBACK_MS);
+  timer = setTimeout(() => finish({ fallback: true }), MOVE_EFFECT_REVEAL_DELAY_MS);
 
   return () => {
     if (done) return;
@@ -102,6 +95,5 @@ export function revealAfterCheckmate({ to = null, reduced, key = null } = {}, sh
     if (timer) clearTimeout(timer);
     timer = null;
     unsubscribe();
-    if (completionKey) pendingKeys.delete(completionKey);
   };
 }

@@ -2,9 +2,11 @@
 
 A single-timeline chess effect for three events: **brilliant**, **checkmate**
 and **promotion**. One clock drives every layer, so the piece flight, the
-grayscale ripple, the per-piece wobble, the seal badge, the pill label, the
-sacrifice sword, the sound and the haptics can never drift apart — and the whole
-thing can be scrubbed or slowed down for tuning.
+grayscale ripple, the per-piece wobble, the badge/pill/sword envelopes, the
+sound and the haptics can never drift apart — and the whole thing can be
+scrubbed or slowed down for tuning. (Those three events are animation-only: the
+envelopes still exist, but the overlay draws no seal, pill or sword — see
+"Per-event look".)
 
 ```
 playMoveEffect({ type, from, to, piece, color, boardOrientation, ... })
@@ -25,6 +27,7 @@ touched board.
 | `MoveEffect.jsx` | the overlay: one `requestAnimationFrame` loop writing transforms/opacity/mask to refs |
 | `moveEffect.css` | static look only (no animation properties in the hot path) |
 | `haptics.js` | vibration pattern, on/off from `config/haptics.js` |
+| `completion.js` | `revealAfterCheckmate` — when a result card may open after a mate |
 | `index.js` | public API + host registry |
 
 ## Master timeline
@@ -46,10 +49,24 @@ touched board.
 | 3130 → 3430 | sacrifice sword pops (brilliant + sacrifice only) |
 | 3250 → 3500 | orange arrow grows out of the sword |
 | **1470** | ripple has swept the board → real pieces are released, ghost layer hidden |
-| **3600** | choreography ends; seal + highlights stay on the board |
+| **3600** | choreography ends; the overlay fades out (420 ms) and is unmounted a beat later |
 
 `settle` (1470) matters twice: it is when `ChessBoard` stops hiding its own
 pieces (`onPhase(2)`), and when the overlay hides its ghost copies.
+
+## Result card
+
+`revealAfterCheckmate({ to }, show)` is how every surface waits for a mate
+before opening its result card. It fires when the effect for THAT move reports
+done, or after `MOVE_EFFECT_REVEAL_DELAY_MS` (1970 ms) if the effect never
+mounted (reduced motion, a board that is not on screen). Cancelling the call
+does not fire `show`, so a caller can drop a stale wait. There is no per-position
+dedupe here: a repeated mate (rematch, same line) is a new effect and a new
+card. Surfaces keep their own once-per-game guard.
+
+The card itself opens ~2 s after the mate — after the king wobble and the
+"Checkmate" bubble, before the overlay has faded — and stays until the user
+picks Rematch / New game or closes it.
 
 ## Ripple
 
@@ -88,6 +105,12 @@ mated king in the checkmate event. Side is `+1` right of the ripple origin,
 | `promotion` | `#2cc3a5` | `=Q` | PROMOTION | target square | pawn morphs to the chosen piece at L, 1.3 → 1 pop |
 
 Unknown/legacy verdicts fall back to `brilliant`.
+
+All three events are **animation only** (`utils/moveFeedback.js`): the flight,
+the dim, the ripple, the wobble and the promotion morph play, but the overlay
+draws no seal badge, no pill, no sword and no "PROMOTED" badge. The one text
+the overlay still draws is the king-anchored **Checkmate** bubble at 600 ms —
+a mate ends the game, so the board has to say so.
 
 ## Payload
 
