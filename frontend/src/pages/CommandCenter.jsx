@@ -437,9 +437,9 @@ export default function CommandCenter() {
   };
 
   return (
-    <div style={{ background: '#FFFFFF', minHeight: '100vh', padding: '24px', fontFamily: '"Segoe UI", system-ui, sans-serif', fontSize: '14px' }}>
-      <div className="cc-page-title">Command Center</div>
-      <div className="cc-page-subtitle">Your academy command center — classes, homework, tournaments & more.</div>
+    <div style={{ background: '#FFFFFF', minHeight: '100vh', padding: '24px', fontFamily: '"Segoe UI", system-ui, sans-serif', fontSize: '14px', overflowX: 'hidden', maxWidth: '100%' }}>
+      <div className="cc-page-title">{view === 'agenda' ? 'Agenda' : `${MONTHS[cursor.m]} ${cursor.y}`}</div>
+      <div className="cc-page-subtitle">{monthEventTotal} event{monthEventTotal === 1 ? '' : 's'} this month · tap a day for its full agenda</div>
 
       {/* Row 1: View tabs */}
       <div style={{ marginTop: '20px', marginBottom: '12px' }}>
@@ -524,7 +524,7 @@ export default function CommandCenter() {
                         >
                           <div className="cc-month-day">{cell.day}</div>
                           <div className="cc-month-chips">
-                            {chips.visible.map((e) => (
+                            {chips.visible.slice(0, 2).map((e) => (
                               <span
                                 key={`${e.kind}-${e.id}`}
                                 onClick={(ev) => { ev.stopPropagation(); goToRecord(e); }}
@@ -534,8 +534,8 @@ export default function CommandCenter() {
                                 {e.title}
                               </span>
                             ))}
-                            {chips.more > 0 && (
-                              <span className="cc-month-more">+{chips.more} more</span>
+                            {chips.list.length > 2 && (
+                              <span className="cc-month-more">+{chips.list.length - 2} more</span>
                             )}
                           </div>
                         </button>
@@ -553,27 +553,26 @@ export default function CommandCenter() {
                   const events = byDateGrid.get(date) || [];
                   const d = new Date(date + 'T00:00:00Z');
                   return (
-                    <div key={date} className={`cc-week-row ${isToday ? 'is-today' : ''}`}>
-                      <div className="cc-week-header">
-                        <span className="cc-week-dayname">{d.toLocaleDateString('en-GB', { weekday: 'long', timeZone: 'UTC' })}</span>
+                    <div key={date} className={`cc-week-row ${isToday ? 'is-today' : ''}`} style={{ display: 'flex', borderBottom: '1px solid var(--cc-border)' }}>
+                      <div style={{ width: '140px', padding: '12px', display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+                        <span style={{ fontSize: '13px', color: 'var(--cc-text-muted)' }}>{d.toLocaleDateString('en-GB', { weekday: 'long', timeZone: 'UTC' })}</span>
                         <span className="cc-week-daynum">{d.getUTCDate()}</span>
                       </div>
-                      <div className="cc-week-body">
+                      <div style={{ flex: 1, padding: '12px', display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                         {events.length === 0 ? (
                           <div className="cc-week-empty">Nothing scheduled</div>
                         ) : (
-                          <div className="cc-week-chips">
-                            {events.slice(0, 10).map((e) => (
-                              <div
-                                key={`${e.kind}-${e.id}`}
-                                onClick={() => goToRecord(e)}
-                                className={`cc-week-chip ${e.kind === 'class' ? 'class' : e.kind === 'puzzle' ? 'puzzle' : ''}`}
-                                title={e.title}
-                              >
-                                {e.title}
-                              </div>
-                            ))}
-                          </div>
+                          events.slice(0, 10).map((e) => (
+                            <div
+                              key={`${e.kind}-${e.id}`}
+                              onClick={() => goToRecord(e)}
+                              className={`cc-week-chip ${e.kind === 'class' ? 'class' : e.kind === 'puzzle' ? 'puzzle' : ''}`}
+                              title={e.title}
+                              style={{ cursor: 'pointer' }}
+                            >
+                              {e.title}
+                            </div>
+                          ))
                         )}
                       </div>
                     </div>
@@ -639,148 +638,36 @@ export default function CommandCenter() {
               )}
             </div>
 
-            {/* agenda = a 7-column weekly board, one column per visible day */}
+            {/* agenda = 7 vertical columns Mon–Sun */}
             {agenda && (
-              <>
-                {/* week navigation */}
-                <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                  <div className="flex items-center gap-1.5">
-                    <button
-                      type="button"
-                      className="chess-chip"
-                      onClick={() => setAgendaWeekOffset((n) => n - 1)}
-                      title="Previous week"
-                      aria-label="Previous week"
-                    >◀</button>
-                    <span className="chess-chip chess-chip-gold tabular-nums">{agendaRangeLabel}</span>
-                    <button
-                      type="button"
-                      className="chess-chip"
-                      onClick={() => setAgendaWeekOffset((n) => n + 1)}
-                      title="Next week"
-                      aria-label="Next week"
-                    >▶</button>
-                    <button
-                      type="button"
-                      className="chess-chip"
-                      onClick={() => { setAgendaWeekOffset(0); setSelectedDate(today); }}
-                      title="Jump to the current week"
-                    >Today</button>
-                  </div>
+              <div className="cc-agenda-scroll">
+                <div className="cc-agenda-grid">
+                  {agendaDays.map((day, idx) => (
+                    <div key={day.date} className={`cc-agenda-col ${day.isToday ? 'is-today' : ''}`}>
+                      <div className="cc-agenda-col-header">
+                        <div className="cc-agenda-col-weekday">{WEEKDAYS[idx]}</div>
+                        <div className="cc-agenda-col-daynum">{day.dayNumber}</div>
+                      </div>
+                      <div className="cc-agenda-col-body">
+                        {day.events.length === 0 ? (
+                          <div></div>
+                        ) : (
+                          day.events.slice(0, 8).map((e) => (
+                            <div
+                              key={`${e.kind}-${e.id}`}
+                              onClick={() => goToRecord(e)}
+                              className={`cc-agenda-chip ${e.kind === 'class' ? 'class' : e.kind === 'puzzle' ? 'puzzle' : ''}`}
+                              title={e.title}
+                            >
+                              {e.title}
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  ))}
                 </div>
-
-                {/* Desktop: 7 equal columns. Mobile: one scrolling row of
-                    140px columns with scroll-snap, so all seven days stay
-                    columns rather than collapsing into a stack. */}
-                <div className="agenda-week-scroll">
-                  <div className="agenda-week-grid">
-                    {agendaDays.map((day, idx) => {
-                      const expandedDay = expandedDays.has(day.date);
-                      const { rows, hidden } = splitPreview(day.events, expandedDay);
-                      return (
-                        <section
-                          key={day.date}
-                          className={`agenda-col ${day.isToday ? 'is-today' : ''}`}
-                          aria-label={`${WEEKDAYS[idx]} ${day.dayNumber}`}
-                        >
-                          {/* Sticky header: day + date + count. Opens that
-                              day's full agenda, as the flat list did. The full
-                              agenda only renders when !agenda, so this has to
-                              switch view — selecting the date alone would leave
-                              the user on the board with nothing happening. */}
-                          <button
-                            type="button"
-                            className="agenda-col-head"
-                            onClick={() => { setSelectedDate(day.date); setView('daily'); }}
-                            title={`Open the full agenda for ${day.date}`}
-                          >
-                            <span className="agenda-col-day">{WEEKDAYS[idx]}</span>
-                            <span className="agenda-col-date">{day.dayNumber}</span>
-                            {day.count > 0 && (
-                              <span className="agenda-col-count" aria-label={`${day.count} events`}>
-                                {day.count}
-                              </span>
-                            )}
-                          </button>
-
-                          <div className="agenda-col-body">
-                            {rows.length === 0 && (
-                              <p className="agenda-col-empty">No events</p>
-                            )}
-                            {rows.map((r, i) => {
-                              const meta = chipMeta[r.kind] || chipMeta.file;
-                              const gk = `${day.date}|${r.kind}|${r.ids[0]}`;
-                              const isGroup = r.groupSize > 1;
-                              const isOpen = isGroup && expandedGroups.has(gk);
-                              return (
-                                <div key={`${r.kind}-${r.ids?.[0] ?? i}`} className="agenda-chip-group">
-                                  <button
-                                    type="button"
-                                    className={`agenda-chip agenda-chip--${r.kind}`}
-                                    onClick={() => {
-                                      if (isGroup) toggleExpandedGroup(gk);
-                                      else goToRecord(r);
-                                    }}
-                                    title={isGroup
-                                      ? `${r.groupSize} × ${r.title} — tap to ${isOpen ? 'collapse' : 'expand'}`
-                                      : `${r.time ? formatTime12(r.time, r.time) + ' · ' : ''}${r.title}`}
-                                  >
-                                    <span className="agenda-chip-emoji" aria-hidden="true">{meta.label}</span>
-                                    {r.time && (
-                                      <span className="agenda-chip-time">{formatTime12(r.time, r.time)}</span>
-                                    )}
-                                    <span className="agenda-chip-title">{r.title}</span>
-                                    {isGroup && (
-                                      <span className="agenda-chip-x">×{r.groupSize}</span>
-                                    )}
-                                  </button>
-                                  {/* An opened group lists what it folded away. */}
-                                  {isOpen && (
-                                    <div className="agenda-group-list">
-                                      {day.events
-                                        .filter((e) => r.ids.includes(e.id) && e.id !== r.ids[0])
-                                        .map((e) => (
-                                          <button
-                                            key={`sub-${e.id}`}
-                                            type="button"
-                                            className={`agenda-group-item agenda-chip--${e.kind}`}
-                                            onClick={() => goToRecord(e)}
-                                            title={e.title}
-                                          >
-                                            {e.time && <span className="agenda-chip-time">{formatTime12(e.time, e.time)}</span>}
-                                            <span className="agenda-chip-title">{e.title}</span>
-                                          </button>
-                                        ))}
-                                    </div>
-                                  )}
-                                </div>
-                              );
-                            })}
-                            {hidden > 0 && (
-                              <button
-                                type="button"
-                                className="agenda-more"
-                                onClick={() => toggleExpandedDay(day.date)}
-                              >
-                                +{hidden} more
-                              </button>
-                            )}
-                            {expandedDay && rows.length > AGENDA_CHIP_PREVIEW && (
-                              <button
-                                type="button"
-                                className="agenda-more"
-                                onClick={() => toggleExpandedDay(day.date)}
-                              >
-                                Show less
-                              </button>
-                            )}
-                          </div>
-                        </section>
-                      );
-                    })}
-                  </div>
-                </div>
-              </>
+              </div>
             )}
           </>
         )}
@@ -792,7 +679,7 @@ export default function CommandCenter() {
           onClose={() => setDetailClassId(null)}
         />
       )}
-    </PageHeader>
+    </div>
   );
 }
 
