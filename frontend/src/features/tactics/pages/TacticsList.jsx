@@ -12,7 +12,6 @@ import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Page } from '../../../components/ui';
 import useTacticsProgress from '../hooks/useTacticsProgress';
-import SamplePuzzleCard from '../components/SamplePuzzleCard';
 import { searchTactics, tacticsByCategory } from '../data';
 
 export default function TacticsList() {
@@ -56,7 +55,7 @@ export default function TacticsList() {
     <Page
       title="Chess Tactics"
       piece="♗"
-      sub="All 45 essential patterns, one short position each. Open a tactic and read the arrows to see the idea and why it wins — then practise on real Lichess positions below."
+      sub="All 45 essential patterns, one short position each. Open a tactic and read the arrows to see the idea and why it wins."
       wide
     >
       <div className="chess-card mb-4">
@@ -117,13 +116,6 @@ export default function TacticsList() {
           </section>
         ))
       )}
-
-      {/* Practice positions sit below the 45 taught tactics: the index is what
-          the page is for, and a reader who has just studied a pattern is the
-          one who scrolls to it. */}
-      <div className="mt-4">
-        <SamplePuzzleCard />
-      </div>
     </Page>
   );
 }

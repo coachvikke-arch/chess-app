@@ -6412,26 +6412,55 @@ body {
   align-items: center;
   flex: none;
 }
+/* A 28px circle, 2px white ring, overlapping by 8px. The letter sits under the
+   picture, so a photo that fails to load reveals the letter with no JS. */
 .xc-avatar {
+  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 26px;
-  height: 26px;
-  margin-left: -7px;
+  flex: none;
+  width: 28px;
+  height: 28px;
+  margin-left: -8px;
   border-radius: 999px;
   border: 2px solid #ffffff;
-  font-size: 0.64rem;
-  font-weight: 800;
+  background: #eaf1ff;
+  color: #2563eb;
+  font-size: 0.7rem;
+  font-weight: 700;
   letter-spacing: 0.02em;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.12);
+  overflow: hidden;
 }
 .xc-avatar:first-child {
   margin-left: 0;
 }
+.xc-avatar--single {
+  margin-left: 0;
+}
 .xc-avatar--more {
-  background: #f1f5f9;
-  color: #475569;
+  background: #eaf1ff;
+  color: #2563eb;
+}
+.xc-avatar-letter {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  line-height: 1;
+}
+/* Exactly one image: the photo covers the letter, and a photo is never shown
+   on top of an avatar (PlayerAvatar already picks one or the other). */
+.xc-avatar img,
+.xc-avatar svg {
+  position: relative;
+  z-index: 1;
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+  border-radius: 0 !important;
+  object-fit: cover;
+  object-position: center;
 }
 .xc-student-names {
   margin: 0;
@@ -6553,6 +6582,564 @@ body {
   }
   .xc-menu-list {
     right: 0;
+  }
+}
+
+/* ── Classes list cards (ManageClasses) ─────────────────────────────────────
+   The same light card the completed list uses, so the two lists read as one
+   surface. Only the left edge, the date word and the status pill follow the
+   class status; everything else keeps the xc- shape. Namespaced `ccl-` so
+   nothing here can reach the completed list or the report sheet. */
+.ccl-card {
+  cursor: pointer;
+}
+.ccl-card--scheduled,
+.ccl-card--upcoming {
+  border-left-color: #2563eb;
+}
+.ccl-card--scheduled:hover,
+.ccl-card--upcoming:hover {
+  border-left-color: #1d4ed8;
+}
+.ccl-card--scheduled .xc-day,
+.ccl-card--upcoming .xc-day {
+  color: #1d4ed8;
+}
+.ccl-card--live {
+  border-left-color: #dc2626;
+}
+.ccl-card--live:hover {
+  border-left-color: #b91c1c;
+}
+.ccl-card--live .xc-day {
+  color: #b91c1c;
+}
+.ccl-card--cancelled {
+  border-left-color: #94a3b8;
+}
+.ccl-card--cancelled:hover {
+  border-left-color: #64748b;
+}
+.ccl-card--cancelled .xc-day,
+.ccl-card--cancelled .xc-title,
+.ccl-card--cancelled .xc-meta {
+  color: #64748b;
+}
+
+/* Status pills on the light card — the dark-shell live-badge colours are
+   unreadable here, so only this list uses these. */
+.xc-badge--live {
+  border-color: #fecaca;
+  background: #fee2e2;
+  color: #b91c1c;
+}
+.xc-badge--scheduled {
+  border-color: #bfdbfe;
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+.xc-badge--cancelled {
+  border-color: #e2e8f0;
+  background: #f1f5f9;
+  color: #64748b;
+}
+
+.ccl-piece {
+  margin-right: 0.35rem;
+  color: #2563eb;
+  font-size: 1rem;
+}
+.ccl-heading {
+  min-width: 0;
+}
+
+/* Type / mode / roster pills. Small, flat, and each on its own colour so a
+   glance separates "Live Classroom" from "Online" from the roster count. */
+.ccl-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  padding: 2px 9px;
+  border-radius: 999px;
+  border: 1px solid #bfdbfe;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 0.7rem;
+  font-weight: 700;
+  line-height: 1.6;
+  white-space: nowrap;
+}
+.ccl-chip--online {
+  border-color: #86efac;
+  background: #f0fdf4;
+  color: #15803d;
+}
+.ccl-chip--roster {
+  border-color: #e2e8f0;
+  background: #f8fafc;
+  color: #475569;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* The meeting link lives on the card, as a real link: click it to open the
+   meeting, click anywhere else on the card to open the class detail. */
+.ccl-link {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  min-width: 0;
+  margin-top: 0.55rem;
+  padding: 5px 10px;
+  border: 1px solid #bfdbfe;
+  border-radius: 9px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-decoration: none;
+}
+.ccl-link:hover {
+  background: #dbeafe;
+  border-color: #93c5fd;
+}
+.ccl-link:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
+}
+.ccl-link-url {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* The lifecycle buttons are a wrapping strip, not a fixed pair. */
+.ccl-actions {
+  flex: 0 1 auto;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+@media (max-width: 640px) {
+  .ccl-actions {
+    width: 100%;
+    flex: none;
+    justify-content: flex-start;
+  }
+  .ccl-link {
+    font-size: 0.75rem;
+  }
+}
+
+/* ── Class report sheet (ClassDetailModal) ──────────────────────────────────
+   Horizontal by construction: header row, an auto-fit row of summary cards and
+   one bordered card of roster rows. Every track is a grid/flex cell with
+   min-width 0, so a long name or label ellipsises inside its own cell instead
+   of pushing into the next one. Flat blue/white, no shadows. */
+.cdm-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-modal-backdrop, 1000);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(15, 23, 42, 0.7);
+  backdrop-filter: blur(2px);
+}
+.cdm-sheet {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  width: 100%;
+  max-width: 960px;
+  max-height: 90vh;
+  overflow-y: auto;
+  padding: 14px 16px;
+  background: #ffffff;
+  border: 1px solid #e3e8f0;
+  border-radius: 16px;
+  box-shadow: none;
+  color: #0f172a;
+}
+.cdm-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #e3e8f0;
+}
+.cdm-head-main {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.cdm-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  min-width: 0;
+  font-family: var(--font-display, Georgia, serif);
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+.cdm-knight {
+  flex: none;
+  color: #2563eb;
+}
+.cdm-title-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cdm-dateline {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 5px 0 0;
+  min-width: 0;
+  font-size: 0.82rem;
+  color: #64748b;
+}
+.cdm-head-side {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+}
+.cdm-close {
+  flex: none;
+  width: 30px;
+  height: 30px;
+  min-height: 0;
+  padding: 0;
+  border-radius: 9px;
+}
+.cdm-close .app-btn__icon {
+  margin: 0;
+  display: grid;
+  place-items: center;
+}
+.cdm-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid #e3e8f0;
+  background: #ffffff;
+  color: #64748b;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+.cdm-badge-accent {
+  border-color: #2563eb;
+  background: #eaf1ff;
+  color: #2563eb;
+}
+.cdm-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 2.5rem 1rem;
+  color: #64748b;
+  font-size: 0.88rem;
+}
+.cdm-loading p {
+  margin: 0;
+}
+.cdm-loading-mark {
+  font-size: 1.6rem;
+  color: #2563eb;
+  animation: cdm-spin 1.4s linear infinite;
+}
+@keyframes cdm-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.cdm-error {
+  padding: 1.5rem;
+  text-align: center;
+  color: #2563eb;
+  font-weight: 600;
+  font-size: 0.88rem;
+}
+.cdm-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+.cdm-stats,
+.cdm-meta {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 10px;
+  min-width: 0;
+}
+.cdm-stat,
+.cdm-fact {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  min-width: 0;
+  padding: 8px 12px;
+  background: #ffffff;
+  border: 1px solid #e3e8f0;
+  border-radius: 12px;
+}
+.cdm-stat-label,
+.cdm-fact-label {
+  margin: 0;
+  min-width: 0;
+  font-size: 0.62rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #64748b;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cdm-stat-value {
+  margin: 1px 0 0;
+  font-size: 1.15rem;
+  font-weight: 600;
+  line-height: 1.25;
+  color: #0f172a;
+  overflow-wrap: anywhere;
+}
+.cdm-stat.is-accent .cdm-stat-value {
+  color: #2563eb;
+}
+.cdm-fact-value {
+  margin: 1px 0 0;
+  font-size: 0.82rem;
+  font-weight: 600;
+  line-height: 1.3;
+  color: #0f172a;
+  overflow-wrap: anywhere;
+}
+.cdm-stat-sub,
+.cdm-fact-sub {
+  margin: 1px 0 0;
+  min-width: 0;
+  font-size: 0.66rem;
+  line-height: 1.35;
+  color: #64748b;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cdm-fact-sub {
+  color: #2563eb;
+}
+.cdm-note {
+  margin: 0;
+  min-width: 0;
+  font-size: 0.85rem;
+  line-height: 1.55;
+  color: #0f172a;
+  overflow-wrap: anywhere;
+}
+.cdm-note-label {
+  font-weight: 600;
+  color: #2563eb;
+}
+.cdm-link {
+  display: block;
+  min-width: 0;
+  font-size: 0.85rem;
+  color: #2563eb;
+  text-decoration: underline;
+  overflow-wrap: anywhere;
+}
+.cdm-roster {
+  min-width: 0;
+  background: #ffffff;
+  border: 1px solid #e3e8f0;
+  border-radius: 12px;
+  overflow: hidden;
+}
+.cdm-roster-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
+  padding: 9px 12px;
+  border-bottom: 1px solid #e3e8f0;
+}
+.cdm-roster-title {
+  margin: 0;
+  min-width: 0;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #0f172a;
+}
+.cdm-roster-count {
+  font-size: 0.8rem;
+  font-weight: 400;
+  color: #64748b;
+}
+.cdm-marks {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+}
+.cdm-mark {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid #e3e8f0;
+  background: #ffffff;
+  color: #64748b;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: capitalize;
+  white-space: nowrap;
+}
+.cdm-mark-present {
+  border-color: #2563eb;
+  background: #eaf1ff;
+  color: #2563eb;
+}
+.cdm-mark-late {
+  border-color: #2563eb;
+  background: #ffffff;
+  color: #2563eb;
+}
+.cdm-mark-absent {
+  border-color: #e3e8f0;
+  background: #ffffff;
+  color: #64748b;
+}
+.cdm-mark-muted {
+  border-color: #e3e8f0;
+  background: #ffffff;
+  color: #94a3b8;
+}
+.cdm-empty {
+  margin: 0;
+  padding: 14px;
+  font-size: 0.85rem;
+  color: #64748b;
+}
+.cdm-rows {
+  list-style: none;
+  margin: 0;
+  padding: 2px 12px;
+  max-height: 320px;
+  overflow-y: auto;
+  min-width: 0;
+}
+.cdm-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 6px 0;
+  border-bottom: 1px solid #eef2f7;
+}
+.cdm-row:last-child {
+  border-bottom: 0;
+}
+.cdm-row-avatar {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  background: #eaf1ff;
+  color: #2563eb;
+  font-size: 0.7rem;
+  font-weight: 700;
+  overflow: hidden;
+}
+.cdm-row-letter {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  line-height: 1;
+}
+.cdm-row-avatar img,
+.cdm-row-avatar svg {
+  position: relative;
+  z-index: 1;
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+  border-radius: 0 !important;
+  object-fit: cover;
+  object-position: center;
+}
+.cdm-row-who {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.cdm-row-name {
+  min-width: 0;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #0f172a;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cdm-row-sub {
+  min-width: 0;
+  font-size: 0.74rem;
+  color: #64748b;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 640px) {
+  .cdm-sheet {
+    gap: 10px;
+    padding: 12px;
+  }
+  .cdm-stats,
+  .cdm-meta {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .cdm-stat-value {
+    font-size: 1.2rem;
+  }
+  .cdm-roster-head {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  /* One line per student: the email is secondary, so it drops out and the
+     name keeps the whole row. */
+  .cdm-row-sub {
+    display: none;
   }
 }
 
@@ -14900,6 +15487,494 @@ button.live-drill-move:hover { border-color: rgba(117, 223, 255, 0.45); }
 .op-badge-fill { display: block; height: 100%; border-radius: 999px; background: linear-gradient(90deg, var(--olive65), var(--gold65)); }
 .op-badge-tick { color: #0b7ea8; font-weight: 900; }
 
+/* ==========================================================================
+   OPENINGS LIBRARY — WHITE REDESIGN
+   Everything is scoped to `.openings-library` (the class the <Page> wrapper
+   carries) so the study and practice screens keep the glass theme they were
+   built for. Colour, type and layout only — the facets, their "any" sentinels
+   and every handler are the ones the components already had.
+   Palette is deliberately blue-and-white: #2563EB on #FFFFFF, hairline
+   #E3E8F0 separators, ink #0F172A, muted #64748B, no gradients, no lift.
+   ========================================================================== */
+
+.openings-library {
+  --op-blue: #2563eb;
+  --op-blue-ink: #1d4ed8;
+  --op-blue-soft: #eaf1ff;
+  --op-blue-line: #bfd3ff;
+  --op-ink: #0f172a;
+  --op-muted: #64748b;
+  --op-line: #e3e8f0;
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  font-size: 14px;
+  color: var(--op-ink);
+  background: #ffffff;
+}
+/* The library renders inside the shell's scroll area, whose canvas — and
+   #root behind it — is the app's dark ink. Painting both white makes this read
+   as a white page instead of a pale rectangle floating in a dark frame. */
+.admin-content:has(.openings-library),
+#root:has(.openings-library),
+body:has(.openings-library) {
+  background-color: #ffffff;
+}
+
+/* ── page header ── */
+.openings-library .chess-page-head { margin-bottom: 1.1rem; }
+.openings-library .chess-page-title {
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  gap: 0.5rem;
+}
+.openings-library .chess-page-title .chess-gradient-text {
+  background: none;
+  -webkit-background-clip: border-box;
+  background-clip: border-box;
+  color: var(--op-ink);
+}
+.openings-library .chess-page-title .piece-title-icon {
+  color: var(--op-blue);
+  font-size: 1.15em;
+  animation: none;
+}
+.openings-library .chess-page-sub {
+  margin-top: 0.3rem;
+  font-size: 14px;
+  color: var(--op-muted);
+}
+.openings-library .chess-link { color: var(--op-blue); font-weight: 600; }
+.openings-library .text-ivory-500 { color: var(--op-muted); }
+
+/* ── stats strip: ONE bordered card, five cells divided by hairlines ── */
+.openings-library .op-stats {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0;
+  margin-bottom: 1rem;
+  background: #ffffff;
+  border: 1px solid var(--op-line);
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: none;
+}
+.openings-library .op-stat {
+  padding: 13px 16px;
+  min-width: 0;
+  border-radius: 0;
+  background: transparent;
+  border: none;
+  border-right: 1px solid var(--op-line);
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+.openings-library .op-stat:last-child { border-right: none; }
+.openings-library .op-stat-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--op-muted);
+}
+.openings-library .op-stat-value {
+  margin-top: 0.15rem;
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--op-ink);
+}
+/* "Learned" is the cell the student is actually driving, so it carries the accent. */
+.openings-library .op-stat:nth-child(2) .op-stat-value { color: var(--op-blue); }
+.openings-library .op-stat-hint { font-size: 11.5px; color: var(--op-muted); }
+
+/* ── family badges: one muted label, one horizontally scrolling row ── */
+.openings-library .op-badges { margin-bottom: 1rem; }
+.openings-library .op-badges-title {
+  margin: 0 0 0.5rem;
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--op-muted);
+}
+.openings-library .op-badges-title .chess-card-piece {
+  color: var(--op-blue);
+  font-size: 1rem;
+  animation: none;
+}
+.openings-library .op-badges-grid {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 8px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  /* 2px of slack so a focused ring is not clipped by the scroller; 8px keeps
+     the scrollbar clear of the chips. */
+  padding: 2px 2px 8px;
+  scrollbar-width: thin;
+  -webkit-overflow-scrolling: touch;
+}
+.openings-library .op-badge {
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 11px;
+  border-radius: 10px;
+  background: #ffffff;
+  border: 1px solid var(--op-line);
+  box-shadow: none;
+  color: var(--op-ink);
+  transition: border-color 0.16s ease, background 0.16s ease;
+}
+.openings-library .op-badge--clickable:hover,
+.openings-library .op-badge--earned {
+  transform: none;
+  border-color: var(--op-blue-line);
+  background: var(--op-blue-soft);
+  box-shadow: none;
+}
+.openings-library .op-badge-icon {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  flex: none;
+  border-radius: 8px;
+  background: var(--op-blue-soft);
+  color: var(--op-blue);
+  font-size: 15px;
+  line-height: 1;
+  filter: none;
+  opacity: 1;
+}
+.openings-library .op-badge--earned .op-badge-icon { background: #ffffff; }
+.openings-library .op-badge-body { display: block; flex: none; min-width: 0; }
+.openings-library .op-badge-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--op-ink);
+  white-space: nowrap;
+}
+.openings-library .op-badge-meta { font-size: 12px; color: var(--op-muted); }
+/* The chip is already a count; the meter would be the same number twice. */
+.openings-library .op-badge-track { display: none; }
+.openings-library .op-badge-tick { color: var(--op-blue); font-weight: 800; }
+
+/* ── search + filters: one compact wrapping toolbar ── */
+.openings-library .op-filters {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  margin-bottom: 1rem;
+  border-radius: 12px;
+  background: #ffffff;
+  border: 1px solid var(--op-line);
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+.openings-library .op-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 8px;
+}
+.openings-library .op-search { flex: 1 1 260px; min-width: 0; }
+.openings-library .op-search-icon { left: 9px; font-size: 14px; color: var(--op-muted); }
+.openings-library .op-search-input {
+  padding: 8px 30px;
+  font-size: 13px;
+  border-radius: 10px;
+  background: #ffffff;
+  border: 1px solid var(--op-line);
+  color: var(--op-ink);
+}
+.openings-library .op-search-input::placeholder { color: #94a3b8; }
+.openings-library .op-search-input:focus {
+  border-color: var(--op-blue);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+}
+.openings-library .op-search-clear { background: #f1f5f9; color: var(--op-muted); }
+.openings-library .op-search-clear:hover { background: var(--op-blue-soft); color: var(--op-blue); }
+
+.openings-library .op-select { display: flex; flex-direction: column; gap: 3px; }
+.openings-library .op-select > span {
+  padding-left: 2px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--op-muted);
+}
+.openings-library .op-select .chess-input {
+  width: auto;
+  min-width: 116px;
+  padding: 7px 26px 7px 9px;
+  font-size: 13px;
+  border-radius: 10px;
+  background: #ffffff;
+  border: 1px solid var(--op-line);
+  color: var(--op-ink);
+}
+.openings-library select.chess-input option { background: #ffffff; color: var(--op-ink); }
+.openings-library .op-select .chess-input:focus {
+  outline: none;
+  border-color: var(--op-blue);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+}
+.openings-library .op-clear {
+  align-self: flex-end;
+  margin-left: auto;
+  padding: 7px 6px;
+  border: none;
+  background: none;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--op-blue);
+  cursor: pointer;
+}
+.openings-library .op-clear:hover { color: var(--op-blue-ink); text-decoration: underline; }
+
+.openings-library .op-facet-row { gap: 8px; }
+.openings-library .op-facet-label {
+  flex: 0 0 auto;
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+  color: var(--op-muted);
+}
+.openings-library .op-toggle {
+  padding: 5px 10px;
+  border-radius: 10px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: var(--op-ink);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+.openings-library .op-toggle:hover { border-color: #93c5fd; background: #f8fafc; color: var(--op-blue-ink); }
+.openings-library .op-toggle--on {
+  background: var(--op-blue);
+  border-color: var(--op-blue);
+  color: #ffffff;
+  font-weight: 700;
+}
+.openings-library .op-filters-count { font-size: 12.5px; color: var(--op-muted); }
+.openings-library .op-filters-count strong { color: var(--op-blue); }
+
+/* ── opening cards: board left, detail right, never taller than its content ── */
+.openings-library .op-grid {
+  display: grid;
+  /* min(440px, 100%) keeps a single column all the way down to 320px instead of
+     forcing a sideways scroll when the viewport is narrower than the track. */
+  grid-template-columns: repeat(auto-fill, minmax(min(440px, 100%), 1fr));
+  gap: 12px;
+}
+.openings-library .op-card {
+  flex-direction: row;
+  align-items: stretch;
+  gap: 14px;
+  padding: 16px;
+  border-radius: 12px;
+  background: #ffffff;
+  border: 1px solid var(--op-line);
+  box-shadow: none;
+  transition: border-color 0.16s ease, box-shadow 0.16s ease;
+}
+.openings-library .op-card::before { display: none; }
+.openings-library .chess-card-hover:hover {
+  transform: none;
+  border-color: var(--op-blue);
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.07);
+}
+.openings-library .op-card-board {
+  flex: none;
+  width: 132px;
+  height: 132px;
+  border-radius: 6px;
+  overflow: hidden;
+  border: 1px solid var(--op-line);
+  box-shadow: none;
+}
+.openings-library .op-card-board > div { border: none; border-radius: 0; }
+.openings-library .op-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  flex: 1;
+  min-width: 0;
+}
+.openings-library .op-card-top { gap: 8px; align-items: center; justify-content: space-between; }
+.openings-library .op-card-eco {
+  padding: 0;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--op-muted);
+  background: none;
+  border: none;
+}
+.openings-library .op-card-name {
+  margin: 0;
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--op-ink);
+}
+.openings-library .op-card-family { margin: 0; font-size: 12.5px; color: var(--op-blue); }
+.openings-library .op-card-desc {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--op-muted);
+  -webkit-line-clamp: 2;
+}
+.openings-library .op-card-line {
+  margin: 0;
+  padding: 5px 8px;
+  font-size: 12px;
+  color: var(--op-ink);
+  background: #ffffff;
+  border: 1px solid var(--op-line);
+  border-radius: 8px;
+}
+.openings-library .op-card-chips { gap: 6px; }
+.openings-library .op-card-chips .chess-chip {
+  padding: 3px 9px;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  background: #ffffff;
+  border: 1px solid var(--op-line);
+  color: var(--op-muted);
+}
+/* Level is the one chip that earns the accent fill; everything else stays neutral. */
+.openings-library .op-card-chips .op-chip-level {
+  background: var(--op-blue-soft);
+  border-color: var(--op-blue-line);
+  color: var(--op-blue);
+}
+
+.openings-library .op-card-foot {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    'meter meter'
+    'meta  study';
+  align-items: center;
+  gap: 6px 8px;
+  margin-top: auto;
+  padding-top: 10px;
+  border-top: 1px solid var(--op-line);
+  font-size: 12px;
+  color: var(--op-muted);
+}
+.openings-library .op-card-status { font-size: 12px; font-weight: 600; gap: 6px; color: var(--op-muted); }
+.openings-library .op-card-status--learned { color: var(--op-blue); }
+.openings-library .op-card-status--in-progress { color: var(--op-ink); }
+.openings-library .op-card-status--not-started { color: var(--op-muted); }
+/* One dot, three states: hollow, half-filled, solid. */
+.openings-library .op-card-dot {
+  width: 9px;
+  height: 9px;
+  flex: none;
+  border-radius: 50%;
+  border: 1.5px solid #cbd5e1;
+  background: #ffffff;
+}
+.openings-library .op-card-status--in-progress .op-card-dot {
+  border-color: var(--op-blue);
+  background: linear-gradient(90deg, var(--op-blue) 0 50%, #ffffff 50% 100%);
+}
+.openings-library .op-card-status--learned .op-card-dot {
+  border-color: var(--op-blue);
+  background: var(--op-blue);
+}
+.openings-library .op-card-meter {
+  grid-area: meter;
+  display: block;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--op-blue-soft);
+  overflow: hidden;
+}
+.openings-library .op-card-meter-fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--op-blue);
+}
+.openings-library .op-card-pop {
+  grid-area: meta;
+  margin: 0;
+  font-size: 12px;
+  color: var(--op-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.openings-library .op-card-study {
+  grid-area: study;
+  justify-self: end;
+  padding: 6px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--op-blue);
+  background: #ffffff;
+  color: var(--op-blue);
+  font-size: 12.5px;
+  font-weight: 700;
+  white-space: nowrap;
+  transition: background 0.16s ease, color 0.16s ease;
+}
+.openings-library .op-card:hover .op-card-study,
+.openings-library .op-card-study:hover {
+  background: var(--op-blue);
+  color: #ffffff;
+}
+
+/* ── empty state ── */
+.openings-library .op-empty {
+  border: 1px dashed #cbd5e1;
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow: none;
+}
+.openings-library .op-empty .piece-glyph-spin { color: var(--op-blue-line); }
+.openings-library .chess-empty { color: var(--op-muted); }
+
+/* ── responsive: 3 stat columns on a phone, 96px board inside a card ── */
+@media (max-width: 900px) {
+  .openings-library .op-stats { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .openings-library .op-stat { border-right: 1px solid var(--op-line); }
+  .openings-library .op-stat:nth-child(3n),
+  .openings-library .op-stat:last-child { border-right: none; }
+  /* Row 2 starts below the hairline, so the divider belongs on its top edge. */
+  .openings-library .op-stat:nth-child(n+4) { border-top: 1px solid var(--op-line); }
+}
+@media (max-width: 640px) {
+  .openings-library { font-size: 13.5px; }
+  .openings-library .op-card { padding: 13px; gap: 11px; }
+  .openings-library .op-stat { padding: 10px 11px; }
+  .openings-library .op-stat-value { font-size: 19px; }
+  .openings-library .op-card-name { font-size: 15px; }
+  .openings-library .op-select .chess-input { min-width: 0; width: 100%; }
+  .openings-library .op-select { flex: 1 1 46%; }
+  .openings-library .op-clear { margin-left: 0; }
+  /* The board keeps its 132px square drawing and is scaled to 96px, so the
+     piece geometry stays identical to the desktop card without re-rendering. */
+  .openings-library .op-card-board { width: 96px; height: 96px; }
+  .openings-library .op-card-board > div {
+    transform: scale(0.7273);
+    transform-origin: top left;
+  }
+}
+
 /* ── practice mode ── */
 .op-practice-bar {
   display: flex;
@@ -17057,7 +18132,10 @@ body,
   padding: 0.6rem 0.5rem;
   border-radius: 0.6rem;
   border-bottom: 1px solid var(--ivory-700, rgba(0, 0, 0, 0.08));
-  color: var(--ink-700, #22282b);
+  /* --ink-700 became a light border token in the blue/white theme, which made
+     every tactic NAME (#e2e8f0 on a white card) invisible. The name inherits
+     this colour, so it has to be the primary text token. */
+  color: var(--ivory-100, #0f172a);
 }
 .tactic-row:hover { background: rgba(25, 189, 242, 0.08); }
 .tactic-row:focus-visible { outline: 2px solid #19a5e3; outline-offset: -2px; }
@@ -17078,6 +18156,17 @@ body,
    so only the topic chips, the puzzle pager and the credit line are new. Chips
    scroll horizontally instead of wrapping: ten topics would otherwise push the
    board below the fold on a phone. */
+/* No topic picked yet: the card shows this prompt instead of a live position,
+   so the bottom of the index is not a mid-puzzle board nobody asked for. */
+.sample-pick {
+  margin: 0;
+  padding: clamp(1.2rem, 3vw, 2rem) 1rem;
+  border: 1px dashed var(--surface-border, #e2e8f0);
+  border-radius: 0.9rem;
+  text-align: center;
+  font-size: 0.86rem;
+  color: var(--ivory-500, #475569);
+}
 .sample-chips {
   display: flex;
   gap: 0.4rem;
@@ -17844,8 +18933,10 @@ body,
   --cc-radius-tab: 6px;
 }
 
-body {
+html, body {
   background: var(--cc-bg);
+  overflow-x: hidden;
+  max-width: 100%;
 }
 
 .cc-page-title {
@@ -17901,6 +18992,79 @@ body {
   background: var(--cc-accent);
   color: #FFFFFF;
   font-weight: 500;
+}
+
+/* ── boxed tab / filter buttons ─────────────────────────────────────────────
+   The same controls as .cc-tabs, but each one is its own box instead of a cell
+   in a joined segmented bar — the app's standard blue action-button language
+   (blue fill when active, white + grey border when not), so a filter row reads
+   as buttons rather than as one long strip. Wraps on narrow screens. */
+.box-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  max-width: none;
+}
+
+.box-tab {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  background: #FFFFFF;
+  color: #0f172a;
+  font-family: "Segoe UI", system-ui, sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.2;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease, transform 0.1s ease;
+}
+
+.box-tab:hover:not(.is-active) {
+  background: #f8fafc;
+  border-color: #93c5fd;
+  color: #1d4ed8;
+}
+
+.box-tab:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px #FFFFFF, 0 0 0 4px #2563eb;
+}
+
+.box-tab:active {
+  transform: scale(0.99);
+}
+
+.box-tab.is-active {
+  background: #2563eb;
+  border-color: #2563eb;
+  color: #FFFFFF;
+}
+
+/* The count bubble sits inside the button, so it flips with the active state. */
+.box-tab-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: rgba(100, 116, 139, 0.12);
+  color: #475569;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.box-tab.is-active .box-tab-count {
+  background: rgba(255, 255, 255, 0.25);
+  color: #FFFFFF;
 }
 
 /* Nav row */
@@ -18080,7 +19244,6 @@ body {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
   border: 1px solid var(--cc-border);
-  border-radius: 8px;
   overflow-x: auto;
   overflow-y: hidden;
 }
@@ -18093,6 +19256,7 @@ body {
     overflow-x: auto;
     overflow-y: hidden;
     -webkit-overflow-scrolling: touch;
+    border-radius: var(--cc-radius-card);
   }
 }
 
@@ -18118,15 +19282,6 @@ body {
 
 .cc-month-cell:hover {
   background: var(--cc-accent-light);
-}
-
-.cc-month-cell.is-other-month {
-  background: #FAFAFA;
-}
-
-.cc-month-cell.is-other-month .cc-month-day {
-  color: var(--cc-text-muted);
-  opacity: 0.6;
 }
 
 .cc-month-cell.is-today .cc-month-day {
@@ -18192,18 +19347,12 @@ body {
 
 /* Weekly view */
 .cc-week-grid {
-  display: grid;
-  grid-template-columns: 1fr;
+  display: flex;
+  flex-direction: column;
   gap: 0;
   border: 1px solid var(--cc-border);
   border-radius: var(--cc-radius-card);
   overflow: hidden;
-}
-
-@media (min-width: 640px) {
-  .cc-week-grid {
-    grid-template-columns: repeat(7, 1fr);
-  }
 }
 
 .cc-week-row {
@@ -18213,25 +19362,6 @@ body {
 
 .cc-week-row:last-child {
   border-bottom: none;
-}
-
-.cc-week-header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 12px;
-  background: #FAFAFA;
-  border-bottom: 1px solid var(--cc-border);
-}
-
-.cc-week-row.is-today .cc-week-header {
-  background: var(--cc-accent-light);
-}
-
-.cc-week-dayname {
-  font-size: 13px;
-  color: var(--cc-text-muted);
-  font-weight: 500;
 }
 
 .cc-week-daynum {
@@ -18251,27 +19381,15 @@ body {
   justify-content: center;
 }
 
-.cc-week-body {
-  padding: 10px 12px;
-  min-height: 60px;
-}
-
 .cc-week-empty {
   color: var(--cc-text-muted);
   font-size: 13px;
-}
-
-.cc-week-chips {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
 }
 
 .cc-week-chip {
   padding: 4px 8px;
   border-radius: 6px;
   font-size: 12px;
-  cursor: pointer;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -18368,6 +19486,7 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  border: 1px solid transparent;
 }
 
 .cc-agenda-chip.class {

@@ -70,16 +70,19 @@ const side = (puzzle) => (puzzle.turn === 'white' ? 'White' : 'Black');
 const triggerSide = (puzzle) => (puzzle.turn === 'white' ? 'Black' : 'White');
 
 export default function SamplePuzzleCard() {
-  const [topicIndex, setTopicIndex] = useState(0);
+  /* Nothing is chosen on arrival: the board only appears once a topic chip is
+     clicked, so the bottom of the tactics index is not a live puzzle the reader
+     has not asked for. */
+  const [topicIndex, setTopicIndex] = useState(null);
   const [puzzleIndex, setPuzzleIndex] = useState(0);
   const [mode, setMode] = useState('ask');   // ask | play | answer
   const [frame, setFrame] = useState(0);
   const timers = useRef([]);
 
-  const topic = SAMPLE_TOPICS[topicIndex] || SAMPLE_TOPICS[0];
-  const puzzle = topic.puzzles[puzzleIndex] || topic.puzzles[0];
-  const frames = useMemo(() => buildFrames(puzzle), [puzzle]);
-  const marks = useMemo(() => keyMoveMarks(puzzle), [puzzle]);
+  const topic = topicIndex === null ? null : (SAMPLE_TOPICS[topicIndex] || SAMPLE_TOPICS[0]);
+  const puzzle = topic ? (topic.puzzles[puzzleIndex] || topic.puzzles[0]) : null;
+  const frames = useMemo(() => (puzzle ? buildFrames(puzzle) : []), [puzzle]);
+  const marks = useMemo(() => (puzzle ? keyMoveMarks(puzzle) : { arrows: null, highlights: null }), [puzzle]);
 
   const clearTimers = useCallback(() => {
     timers.current.forEach((id) => window.clearTimeout(id));
@@ -114,13 +117,17 @@ export default function SamplePuzzleCard() {
     reset(null, (puzzleIndex + delta + count) % count);
   };
 
-  const caption = mode === 'play'
-    ? frames[Math.min(frame, frames.length - 1)].label
-    : mode === 'answer'
-      ? `Solution: ${puzzle.line}`
-      : `${side(puzzle)} to play after ${triggerSide(puzzle)}'s ${puzzle.trigger}.`;
+  const caption = !puzzle
+    ? ''
+    : mode === 'play'
+      ? frames[Math.min(frame, frames.length - 1)].label
+      : mode === 'answer'
+        ? `Solution: ${puzzle.line}`
+        : `${side(puzzle)} to play after ${triggerSide(puzzle)}'s ${puzzle.trigger}.`;
 
-  const board = mode === 'play' ? frames[Math.min(frame, frames.length - 1)].fen : puzzle.fen;
+  const board = !puzzle
+    ? null
+    : mode === 'play' ? frames[Math.min(frame, frames.length - 1)].fen : puzzle.fen;
   const answered = mode === 'answer';
 
   return (
@@ -154,78 +161,82 @@ export default function SamplePuzzleCard() {
         ))}
       </div>
 
-      <div className="tactic-body">
-        <div className="tactic-board-col">
-          <TacticBoard
-            fen={board}
-            arrows={answered ? marks.arrows : null}
-            highlights={answered ? marks.highlights : null}
-          />
-          <p className="tactic-caption">{caption}</p>
+      {!puzzle ? (
+        <p className="sample-pick">Pick a topic above to load a practice position.</p>
+      ) : (
+        <div className="tactic-body">
+          <div className="tactic-board-col">
+            <TacticBoard
+              fen={board}
+              arrows={answered ? marks.arrows : null}
+              highlights={answered ? marks.highlights : null}
+            />
+            <p className="tactic-caption">{caption}</p>
 
-          <div className="tactic-actions">
-            <Button
-              type="button"
-              variant="primary"
-              size="sm"
-              onClick={showSolution}
-              disabled={mode === 'play'}
-            >
-              {mode === 'play' ? 'Showing…' : answered ? 'Replay the line' : 'Show solution'}
-            </Button>
+            <div className="tactic-actions">
+              <Button
+                type="button"
+                variant="primary"
+                size="sm"
+                onClick={showSolution}
+                disabled={mode === 'play'}
+              >
+                {mode === 'play' ? 'Showing…' : answered ? 'Replay the line' : 'Show solution'}
+              </Button>
 
-            <div className="sample-pager">
-              <button
-                type="button"
-                className="sample-pager-btn"
-                onClick={() => step(-1)}
-                aria-label="Previous puzzle"
-              >
-                ←
-              </button>
-              <span className="sample-pager-count">
-                {puzzleIndex + 1} / {topic.puzzles.length}
-              </span>
-              <button
-                type="button"
-                className="sample-pager-btn"
-                onClick={() => step(1)}
-                aria-label="Next puzzle"
-              >
-                →
-              </button>
+              <div className="sample-pager">
+                <button
+                  type="button"
+                  className="sample-pager-btn"
+                  onClick={() => step(-1)}
+                  aria-label="Previous puzzle"
+                >
+                  ←
+                </button>
+                <span className="sample-pager-count">
+                  {puzzleIndex + 1} / {topic.puzzles.length}
+                </span>
+                <button
+                  type="button"
+                  className="sample-pager-btn"
+                  onClick={() => step(1)}
+                  aria-label="Next puzzle"
+                >
+                  →
+                </button>
+              </div>
             </div>
           </div>
-        </div>
 
-        <div className="tactic-blocks">
-          <section className="tactic-block is-dark">
-            <h3 className="tactic-block-label">The idea</h3>
-            <p className="tactic-block-text">{topic.blurb}</p>
-          </section>
-          <section className="tactic-block is-light">
-            <h3 className="tactic-block-label">This position</h3>
-            <p className="tactic-block-text">
-              A level {puzzle.rating} Lichess puzzle. {side(puzzle)} to move after {triggerSide(puzzle)}'s {puzzle.trigger}.
-            </p>
-          </section>
-          <section className="tactic-block is-do">
-            <h3 className="tactic-block-label">Solution</h3>
-            <p className="tactic-block-text">
-              {answered
-                ? `${puzzle.line}${puzzle.mate ? ' — mate.' : '.'}`
-                : 'Hidden. Choose your move first, then reveal it.'}
-            </p>
-          </section>
+          <div className="tactic-blocks">
+            <section className="tactic-block is-dark">
+              <h3 className="tactic-block-label">The idea</h3>
+              <p className="tactic-block-text">{topic.blurb}</p>
+            </section>
+            <section className="tactic-block is-light">
+              <h3 className="tactic-block-label">This position</h3>
+              <p className="tactic-block-text">
+                A level {puzzle.rating} Lichess puzzle. {side(puzzle)} to move after {triggerSide(puzzle)}'s {puzzle.trigger}.
+              </p>
+            </section>
+            <section className="tactic-block is-do">
+              <h3 className="tactic-block-label">Solution</h3>
+              <p className="tactic-block-text">
+                {answered
+                  ? `${puzzle.line}${puzzle.mate ? ' — mate.' : '.'}`
+                  : 'Hidden. Choose your move first, then reveal it.'}
+              </p>
+            </section>
 
-          <p className="sample-credit">
-            Positions from the{' '}
-            <a href={SAMPLE_SOURCE.url} target="_blank" rel="noreferrer">Lichess puzzle database</a>
-            {' '}({SAMPLE_SOURCE.license}).{' '}
-            <a href={puzzle.url} target="_blank" rel="noreferrer">Puzzle {puzzle.id} on Lichess</a>.
-          </p>
+            <p className="sample-credit">
+              Positions from the{' '}
+              <a href={SAMPLE_SOURCE.url} target="_blank" rel="noreferrer">Lichess puzzle database</a>
+              {' '}({SAMPLE_SOURCE.license}).{' '}
+              <a href={puzzle.url} target="_blank" rel="noreferrer">Puzzle {puzzle.id} on Lichess</a>.
+            </p>
+          </div>
         </div>
-      </div>
+      )}
     </section>
   );
 }

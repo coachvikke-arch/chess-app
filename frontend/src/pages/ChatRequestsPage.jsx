@@ -654,19 +654,14 @@ export default function ChatRequestsPage() {
       </header>
 
       <div className="mt-5 flex flex-wrap items-center gap-3">
-        <div role="group" aria-label="Filter by status" className="flex flex-wrap gap-1.5">
+        <div role="group" aria-label="Filter by status" className="box-tabs">
           {FILTERS.map((f) => (
             <button
               key={f.key}
               type="button"
               onClick={() => setStatus(f.key)}
               aria-pressed={status === f.key}
-              className={[
-                'px-3 py-1.5 rounded-lg text-xs font-bold transition',
-                status === f.key
-                  ? 'bg-gold-500 text-white'
-                  : 'bg-slate-100 text-ivory-500 hover:text-ivory-300',
-              ].join(' ')}
+              className={`box-tab ${status === f.key ? 'is-active' : ''}`}
             >
               {f.label}
             </button>

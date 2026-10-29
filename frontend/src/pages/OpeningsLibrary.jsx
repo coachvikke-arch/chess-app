@@ -86,7 +86,13 @@ export default function OpeningsLibrary() {
   );
 
   return (
-    <Page title="Openings Library" piece="♞" sub="Study every line move by move, then play it against the engine." wide>
+    <Page
+      title="Openings Library"
+      piece="♞"
+      sub="Study every line move by move, then play it against the engine."
+      wide
+      className="openings-library"
+    >
       {/* Headline stats */}
       <div className="op-stats">
         {[
@@ -114,12 +120,12 @@ export default function OpeningsLibrary() {
       />
 
       {results.length === 0 ? (
-        <div className="chess-card text-center py-14">
+        <div className="chess-card op-empty text-center py-14">
           <span className="block text-5xl mb-3 piece-glyph-spin text-gold-500/40">♞</span>
           <p className="chess-empty">No openings match those filters.</p>
         </div>
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        <div className="op-grid">
           {results.map((opening, i) => (
             <OpeningCard
               key={opening.slug}

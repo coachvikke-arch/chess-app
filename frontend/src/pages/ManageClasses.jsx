@@ -3,18 +3,54 @@ import { useSearchParams } from 'react-router-dom';
 import { useUrlView } from '../hooks/useUrlView';
 import { Link } from 'react-router-dom';
 import api from '../services/api';
-import { PageHeader, Chip } from '../components/ui';
+import { PageHeader } from '../components/ui';
 import ClassDetailModal from '../components/ClassDetailModal';
 import Pagination, { PAGE_SIZE } from '../components/Pagination';
 import { useAuth } from '../context/AuthContext';
 import { startClass, endClass, cancelClass, normalizeMeetingUrl } from '../services/liveClassApi';
 import { AttendancePanel } from './Attendance';
-import { CompletedClassesPanel } from './CompletedClasses';
+import { CompletedClassesPanel, minutesLabel } from './CompletedClasses';
+import PlayerAvatar from '../components/PlayerAvatar';
 import { formatTime12 } from '../utils/time';
 import Button from '../components/Button';
 
 const TYPE_LIVE = 'integrated';   // Integrated Live Classroom (LiveKit + shared board)
 const TYPE_EXTERNAL = 'external'; // Zoom / Google Meet link
+
+/* The date line on a card reads "Mon, 26 Oct 2026", same words the completed
+   list uses. A DATE column arrives as the previous evening's UTC instant and a
+   bare YYYY-MM-DD is parsed straight, so the plain date is built from its parts
+   to keep the day the coach scheduled. Presentation only - the row's own
+   class_date value is never touched. */
+function classDateLabel(value) {
+  if (value == null || value === '') return 'Date not recorded';
+  const text = String(value).trim();
+  const date = /^\d{4}-\d{2}-\d{2}$/.test(text) ? new Date(`${text}T00:00:00`) : new Date(text);
+  if (Number.isNaN(date.getTime())) return text;
+  return `${date.toLocaleDateString(undefined, { weekday: 'short' })}, `
+    + date.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
+/* The roster line under a card, from the fields the list already returns: the
+   name array when the API sends one, the joined string otherwise. */
+function studentNamesOf(row) {
+  if (Array.isArray(row.student_list)) return row.student_list.filter(Boolean);
+  return String(row.student_names || '').split(',').map((name) => name.trim()).filter(Boolean);
+}
+
+/* Letter inside the circle when a name has no picture behind it. */
+function firstLetterOf(name) {
+  const text = String(name || '').trim();
+  return text ? text[0].toUpperCase() : '?';
+}
+
+/* Pictures come from the /students roster this page already loads, matched by
+   name — a class row carries names, never image fields. No new request: the
+   same list drives the schedule form. */
+function pictureOf(roster, name) {
+  const key = String(name || '').trim().toLowerCase();
+  return key ? roster.find((s) => String(s.name || '').trim().toLowerCase() === key) : null;
+}
 
 export function ClassesPanel({ onGoToAttendance, onClassesChanged }) {
   const { user } = useAuth();
@@ -460,64 +496,129 @@ export function ClassesPanel({ onGoToAttendance, onClassesChanged }) {
 
       <div ref={listTopRef} className={`space-y-3 transition-opacity ${classesLoading ? 'opacity-60' : ''}`} aria-busy={classesLoading || undefined}>
         {classesError ? (
-          <div className="chess-card">
-            <p className="chess-empty text-red-600">{classesError}</p>
-            <Button variant="secondary" size="sm" className="mt-2" onClick={() => load(pageFromUrl)}>
+          <div className="xc-state xc-state--error">
+            <p>{classesError}</p>
+            <Button variant="secondary" size="sm" onClick={() => load(pageFromUrl)}>
               Retry
             </Button>
           </div>
         ) : (
           <>
             {classesLoading && classes.length === 0 && (
-              <div className="chess-card"><p className="chess-empty">Loading classes…</p></div>
+              <div className="xc-state"><p>Loading classes…</p></div>
             )}
-            {classes.map((c) => (
-          <div
+            {classes.map((c) => {
+              const roster = studentNamesOf(c);
+              const visible = roster.slice(0, 4).map((name) => ({ name, player: pictureOf(students, name) }));
+              const coachPicture = pictureOf(students, c.coach_name);
+              return (
+          <article
             key={c.id}
-            className="chess-card chess-card-hover flex flex-col items-stretch gap-4 lg:flex-row lg:justify-between lg:items-center cursor-pointer"
+            className={`xc-card ccl-card ccl-card--${c.status || 'scheduled'} cursor-pointer`}
             onClick={() => setDetailClassId(c.id)}
           >
-            <div className="min-w-0">
-              <p className="font-medium text-ivory-100 flex items-center gap-2 flex-wrap">
-                <span className="text-gold-400">♘</span>{c.title} — {c.topic}
-                {c.class_type === 'integrated' && (
-                  <span className="text-[0.6rem] px-2 py-0.5 rounded-full border border-gold-400/40 bg-gold-700/15 text-gold-500">
-                    🎥 Live Classroom
-                  </span>
-                )}
-                {c.is_online && (
-                  <span className="text-[0.6rem] px-2 py-0.5 rounded-full border border-emerald-400/40 bg-emerald-500/10 text-emerald-700">
-                    📹 Online
-                  </span>
-                )}
+            <div className="xc-body">
+              <div className="xc-toprow">
+                <p className="xc-date">
+                  <span className="xc-day">{classDateLabel(c.class_date)}</span>
+                  <span className="xc-time">· {formatTime12(c.start_time, c.start_time)}</span>
+                  {c.end_time && <span className="xc-time">→ {formatTime12(c.end_time, c.end_time)}</span>}
+                </p>
                 {c.status === 'live' && (
-                  <span className="live-badge live-badge-live">● LIVE</span>
+                  <span className="xc-badge xc-badge--live">● LIVE</span>
                 )}
                 {c.status === 'completed' && (
-                  <span className="live-badge live-badge-done">✓ Completed</span>
+                  <span className="xc-badge">✓ Completed</span>
                 )}
                 {c.status === 'cancelled' && (
-                  <span className="live-badge live-badge-cancel">✕ Cancelled</span>
+                  <span className="xc-badge xc-badge--cancelled">✕ Cancelled</span>
                 )}
                 {c.status === 'scheduled' && (
-                  <span className="live-badge live-badge-upcoming">⏱ Scheduled</span>
+                  <span className="xc-badge xc-badge--scheduled">⏱ Scheduled</span>
                 )}
-              </p>
-              <p className="text-sm text-ivory-500 mt-1 flex items-center gap-1.5 flex-wrap">
-                <span className="text-gold-400">⚑</span>{c.class_date} at {formatTime12(c.start_time, c.start_time)}
-                {c.end_time && <span className="text-ivory-500">→ {formatTime12(c.end_time, c.end_time)}</span>}
-                {c.description && <span className="text-ivory-500">· {c.description}</span>}
+              </div>
+
+              <h3 className="xc-title">
+                <span className="ccl-piece" aria-hidden="true">♘</span>
+                <span className="ccl-heading">{c.title}</span>
+              </h3>
+
+              <div className="xc-meta">
+                <span className="xc-meta-item">
+                  {coachPicture ? (
+                    <span className="xc-avatar xc-avatar--single" title={c.coach_name}>
+                      <span className="xc-avatar-letter">{firstLetterOf(c.coach_name)}</span>
+                      <PlayerAvatar player={coachPicture} size={24} />
+                    </span>
+                  ) : (
+                    <span aria-hidden="true">🧑‍🏫</span>
+                  )}
+                  <span className="xc-meta-label">Coach</span>
+                  <strong>{c.coach_name || '—'}</strong>
+                </span>
+                {c.duration_minutes != null && (
+                  <span className="xc-meta-item">
+                    <span aria-hidden="true">⏱</span>
+                    <strong>{minutesLabel(c.duration_minutes)}</strong>
+                  </span>
+                )}
+                {c.topic && (
+                  <span className="xc-meta-item">
+                    <span aria-hidden="true">♟</span>
+                    <span className="xc-meta-label">{c.topic}</span>
+                  </span>
+                )}
+                {c.class_type === 'integrated' && (
+                  <span className="ccl-chip">🎥 Live Classroom</span>
+                )}
+                {c.is_online && (
+                  <span className="ccl-chip ccl-chip--online">📹 Online</span>
+                )}
+                {c.description && (
+                  <span className="xc-meta-item">
+                    <span className="xc-meta-label">{c.description}</span>
+                  </span>
+                )}
                 {c.student_names
-                  ? <Chip title={c.student_names}>· {Number(c.student_count) || 0} student{Number(c.student_count) !== 1 ? 's' : ''}</Chip>
-                  : c.group_name && <Chip>· {c.group_name}</Chip>}
-              </p>
+                  ? <span className="ccl-chip ccl-chip--roster" title={c.student_names}>{Number(c.student_count) || 0} student{Number(c.student_count) !== 1 ? 's' : ''}</span>
+                  : c.group_name && <span className="ccl-chip ccl-chip--roster">{c.group_name}</span>}
+              </div>
+
+              {roster.length > 0 && (
+                <div className="xc-students">
+                  <div className="xc-avatars" aria-hidden="true">
+                    {visible.map(({ name, player }) => (
+                      <span key={name} className="xc-avatar" title={name}>
+                        <span className="xc-avatar-letter">{firstLetterOf(name)}</span>
+                        {player && <PlayerAvatar player={player} size={24} />}
+                      </span>
+                    ))}
+                    {roster.length > 4 && (
+                      <span className="xc-avatar xc-avatar--more" title={roster.slice(4).join(', ')}>+{roster.length - 4}</span>
+                    )}
+                  </div>
+                  <p className="xc-student-names" title={roster.join(', ')}>{roster.join(', ')}</p>
+                </div>
+              )}
+
+              {/* The meeting link sits on the card, not only in the actions row,
+                  so it can be copied straight from the list. Stopping propagation
+                  keeps the click from opening the class detail modal. */}
               {c.class_type !== 'integrated' && c.meeting_url && (
-                <p className="text-xs text-gold-500/80 mt-1 truncate max-w-md">
-                  🔗 {c.meeting_url}
-                </p>
+                <a
+                  className="ccl-link"
+                  href={c.meeting_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title={c.meeting_url}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <span aria-hidden="true">🔗</span>
+                  <span className="ccl-link-url">{c.meeting_url}</span>
+                </a>
               )}
             </div>
-            <div className="grid w-full grid-cols-2 items-stretch gap-2 sm:flex sm:w-auto sm:flex-wrap sm:justify-end lg:shrink-0" onClick={(e) => e.stopPropagation()}>
+            <div className="xc-actions ccl-actions" onClick={(e) => e.stopPropagation()}>
               {c.status === 'scheduled' && (c.class_type === 'integrated' || (c.is_online && c.meeting_url)) && (
                 <Button onClick={() => runLifecycle('start', c.id)} disabled={busyId === c.id}
                   variant="primary" size="sm" className="!py-1.5 !px-3 !text-xs">
@@ -565,11 +666,13 @@ export function ClassesPanel({ onGoToAttendance, onClassesChanged }) {
                 </Button>
               )}
             </div>
-          </div>
-        ))}
+          </article>
+              );
+            })}
         {!classesLoading && classes.length === 0 && (
-          <div className="chess-card">
-            <p className="chess-empty">
+          <div className="xc-state">
+            <p className="xc-state-icon" aria-hidden="true">♞</p>
+            <p>
               {classesTotal > 0 ? 'No classes on this page.' : 'No classes scheduled yet.'}
             </p>
           </div>

@@ -38,6 +38,10 @@ export default function OpeningCard({ opening, progress, fen, index = 0, userId 
     ? Math.round((progress.onTheory / progress.totalMoves) * 100)
     : null;
 
+  /* Meter fill for the card's progress bar: a learned opening is always full,
+     otherwise it tracks how much of the theory line the student is on. */
+  const meterPct = status === STATUS.LEARNED ? 100 : (learnedPct ?? 0);
+
   return (
     <Link
       to={`/openings/${opening.slug}`}
@@ -45,55 +49,49 @@ export default function OpeningCard({ opening, progress, fen, index = 0, userId 
       style={{ '--d': `${Math.min(index, 11) * 0.03}s` }}
     >
       <article className="chess-card chess-card-hover op-card h-full">
-        <div className="op-card-top">
-          <MiniBoard fen={fen} size={92} orientation={opening.side} />
-          <div className="op-card-head">
-            <div className="op-card-eco">{opening.eco}</div>
-            <h3 className="op-card-name">{opening.name}</h3>
-            <p className="op-card-family">{opening.family}</p>
-          </div>
+        <div className="op-card-board">
+          <MiniBoard fen={fen} size={132} orientation={opening.side} />
         </div>
 
-        <p className="op-card-desc">{opening.description}</p>
-
-        <p className="op-card-line" title={line}>
-          {line}
-        </p>
-
-        {lines > 1 && (
-          <p className="op-card-lines" title={`${lines} lines: the main line plus ${lines - 1} variations`}>
-            ♗ {lines} lines · main + {lines - 1} variation{lines - 1 === 1 ? '' : 's'}
-          </p>
-        )}
-
-        <div className="op-card-chips">
-          <span className={`chess-chip chess-chip-${difficultyTone}`}>{opening.difficulty}</span>
-          <span className="chess-chip">
-            {opening.side === 'white' ? '♔' : '♚'} {SIDE_LABEL[opening.side]}
-          </span>
-          {(opening.style || []).slice(0, 2).map((s) => (
-            <span key={s} className="chess-chip">{s}</span>
-          ))}
-          {opening.gambit && (
-            <span className="chess-chip chess-chip-red">{opening.gambit.classification}</span>
-          )}
-        </div>
-
-        <div className="op-card-foot">
-          <span className={`op-card-status op-card-status--${status}`}>
-            <span aria-hidden="true">{meta.icon}</span> {meta.label}
-          </span>
-          {learnedPct !== null && status !== STATUS.LEARNED && (
-            <span className="op-card-acc">{learnedPct}% theory</span>
-          )}
-          {lines > 1 && (
-            <span className="op-card-practiced" title={`${practicedLines} of ${lines} lines practiced`}>
-              ✓ {practicedLines}/{lines}
+        <div className="op-card-body">
+          <div className="op-card-top">
+            <span className="op-card-eco">{opening.eco}</span>
+            <span className={`op-card-status op-card-status--${status}`}>
+              <span className="op-card-dot" aria-hidden="true" /> {meta.label}
             </span>
-          )}
-          <span className="op-card-pop" title="Popularity among masters">
-            {opening.popularity}% pop.
-          </span>
+          </div>
+
+          <h3 className="op-card-name">{opening.name}</h3>
+          <p className="op-card-family">{opening.family}</p>
+
+          <p className="op-card-desc">{opening.description}</p>
+
+          <p className="op-card-line" title={line}>
+            {line}
+          </p>
+
+          <div className="op-card-chips">
+            <span className={`chess-chip chess-chip-${difficultyTone} op-chip-level`}>{opening.difficulty}</span>
+            <span className="chess-chip">
+              {opening.side === 'white' ? '♔' : '♚'} {SIDE_LABEL[opening.side]}
+            </span>
+            {(opening.style || []).slice(0, 2).map((s) => (
+              <span key={s} className="chess-chip">{s}</span>
+            ))}
+            {opening.gambit && (
+              <span className="chess-chip">{opening.gambit.classification}</span>
+            )}
+          </div>
+
+          <div className="op-card-foot">
+            <span className="op-card-meter" aria-hidden="true">
+              <span className="op-card-meter-fill" style={{ width: `${meterPct}%` }} />
+            </span>
+            <span className="op-card-pop" title={`${practicedLines} of ${lines} lines practiced · popularity among masters`}>
+              {practicedLines}/{lines} lines · {opening.popularity}% pop.
+            </span>
+            <span className="op-card-study">Study</span>
+          </div>
         </div>
       </article>
     </Link>

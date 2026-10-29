@@ -10,9 +10,14 @@ import {
   getGame, sendMove, resignGame, offerDraw, respondDraw, berserkGame, errorMessage,
 } from '../services/tournamentsApi';
 import { fmtClock, resultText, timeControlLabel, useNow } from '../features/tournaments/tournamentUtils';
+import PlayerAvatar from '../components/PlayerAvatar';
 import '../features/tournaments/tournaments.css';
 import Button from '../components/Button';
 import usePageTitle from '../hooks/usePageTitle';
+
+/* Initial letters for the strip when a player has no picture at all. */
+const initialsOf = (name) => (name || '').trim().split(/\s+/).slice(0, 2)
+  .map((w) => w[0].toUpperCase()).join('') || '?';
 
 /* Board width that fits the viewport (phone -> desktop). */
 function useBoardSize() {
@@ -151,11 +156,26 @@ export default function TournamentGame() {
     const ms = remaining(color);
     const turn = state.turn === (color === 'white' ? 'w' : 'b') && state.status === 'active';
     const low = ms != null && ms < 20000 && state.status === 'active' && state.clock.running;
+    const seated = !!(p && p.id);
+    /* The pairing payload carries only id/name/rating, so the signed-in player's
+       own picture comes from the auth session and the opponent resolves through
+       PlayerAvatar from their user id — no extra request for either. */
+    const profile = seated && user && Number(p.id) === Number(user.id) ? user : p;
     return (
       <div className={`tn-seat ${turn ? 'turn' : ''}`}>
+        <span className="tn-seat-figure">
+          <span className="tn-seat-avatar" aria-hidden="true">
+            <span className="tn-seat-initials">{seated ? initialsOf(p.name) : '?'}</span>
+            {seated && <PlayerAvatar player={profile} seed={`user_${p.id}`} size={34} />}
+          </span>
+          <span className={`tn-dot ${state.connected[color] ? 'on' : ''}`} aria-hidden="true" />
+        </span>
         <div className="who">
-          <b><span className={`tn-dot ${state.connected[color] ? 'on' : ''}`} />{p.name}{p.id === me ? ' (you)' : ''}</b>
-          <small>{color === 'white' ? '♔ White' : '♚ Black'} · {p.rating}{state.berserk[color] ? ' · ⚡ berserk' : ''}</small>
+          <b>
+            <span className={`tn-mark tn-mark-${color}`} aria-hidden="true" />
+            {seated ? p.name : 'Waiting for player'}{seated && p.id === me ? ' (you)' : ''}
+          </b>
+          <small>{color === 'white' ? '♔ White' : '♚ Black'} · {p ? p.rating : 0}{state.berserk[color] ? ' · ⚡ berserk' : ''}</small>
         </div>
         <div className={`tn-clock ${turn && state.clock.running ? 'run' : ''} ${low ? 'low' : ''}`}>{fmtClock(ms)}</div>
       </div>
@@ -216,7 +236,10 @@ export default function TournamentGame() {
       )}
 
       <div className="tn-game">
-        <div>
+        {/* The column carries the board's own width, so both strips are the same
+            box as the squares and a long name ellipsises instead of widening
+            the page. */}
+        <div className="tn-board-col" style={{ width: boardSize, maxWidth: '100%', margin: '0 auto' }}>
           {seat(top)}
           <div style={{ width: boardSize, maxWidth: '100%', margin: '0 auto' }}>
             <ChessBoard
@@ -230,6 +253,7 @@ export default function TournamentGame() {
               highlightLastMove
               selfColor={myColor === 'white' ? 'w' : myColor === 'black' ? 'b' : null}
               showLegalMoves
+              flat
             />
           </div>
           {seat(bottom)}

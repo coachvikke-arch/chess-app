@@ -196,23 +196,25 @@ export default function AdminHomework() {
 
   return (
     <Page piece="♟" title="Homework" sub="Puzzle assignments and per-student progress">
-      <div className="hw-viewswitch mb-4 flex flex-wrap items-center gap-2">
-        <button
-          type="button"
-          onClick={() => setView('homework')}
-          className={`kt-tab shrink-0 ${view === 'homework' ? 'active' : ''}`}
-          aria-pressed={view === 'homework'}
-        >
-          📋 Homework
-        </button>
-        <button
-          type="button"
-          onClick={() => setView('worklist')}
-          className={`kt-tab shrink-0 ${view === 'worklist' ? 'active' : ''}`}
-          aria-pressed={view === 'worklist'}
-        >
-          ♟ Worklist
-        </button>
+      <div style={{ marginBottom: '16px' }}>
+        <div className="box-tabs">
+          <button
+            type="button"
+            onClick={() => setView('homework')}
+            className={`box-tab ${view === 'homework' ? 'is-active' : ''}`}
+            aria-pressed={view === 'homework'}
+          >
+            📋 Homework
+          </button>
+          <button
+            type="button"
+            onClick={() => setView('worklist')}
+            className={`box-tab ${view === 'worklist' ? 'is-active' : ''}`}
+            aria-pressed={view === 'worklist'}
+          >
+            ♟ Worklist
+          </button>
+        </div>
       </div>
 
       {view === 'worklist' ? (
@@ -226,30 +228,41 @@ export default function AdminHomework() {
       ) : (
       <>
       <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
-        <p className="text-xs text-ivory-500">
+        <p style={{ fontSize: '13px', color: 'var(--cc-text-muted)' }}>
           {counts.all} home{counts.all === 1 ? 'work' : 'works'} · 10 per page
-          {filterSummary && <span className="ml-2 text-blue-600 font-semibold">{filterSummary}</span>}
+          {filterSummary && <span style={{ marginLeft: '8px', color: 'var(--cc-accent)', fontWeight: '500' }}>{filterSummary}</span>}
         </p>
-        <Button onClick={() => setAssignOpen(true)} variant="primary" size="sm" className="!px-3 !py-1.5 text-xs">
+        <button
+          onClick={() => setAssignOpen(true)}
+          style={{
+            height: '32px',
+            padding: '0 12px',
+            background: 'var(--cc-accent)',
+            color: '#FFFFFF',
+            border: 'none',
+            borderRadius: '6px',
+            fontSize: '13px',
+            cursor: 'pointer',
+            fontFamily: '"Segoe UI", system-ui, sans-serif'
+          }}
+        >
           + Assign puzzles
-        </Button>
+        </button>
       </div>
 
       {/* ── status tabs + filters ─────────────────────────────────────────── */}
-      <div className="mb-4 flex items-center gap-2">
-        <div className="hw-tabs flex-1 min-w-0 flex items-center gap-2 overflow-x-auto">
+      <div className="mb-4 flex items-center gap-2" style={{ flexWrap: 'wrap' }}>
+        <div className="box-tabs" style={{ flex: '1 1 auto' }}>
           {TABS.map((t) => (
             <button
               key={t.key}
               type="button"
               onClick={() => changeTab(t.key)}
-              className={`kt-tab shrink-0 flex items-center gap-1.5 ${status === t.key ? 'active' : ''}`}
+              className={`box-tab ${status === t.key ? 'is-active' : ''}`}
               aria-pressed={status === t.key}
             >
               {t.label}
-              <span className={`hw-tab-count ${status === t.key ? 'is-active' : ''}`}>
-                {counts[t.key] ?? 0}
-              </span>
+              <span className="box-tab-count">{counts[t.key] ?? 0}</span>
             </button>
           ))}
         </div>
