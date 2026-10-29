@@ -30,7 +30,7 @@ function Person({ row, nameKey = 'name' }) {
   return (
     <span className="flex items-center gap-2 min-w-0">
       {row.profile_image ? (
-        <img src={row.profile_image} alt="" className="rounded-full object-cover ring-1 ring-white/15" width={28} height={28} />
+        <img src={row.profile_image} alt="" className="rounded-full object-cover object-center ring-1 ring-white/15" width={28} height={28} />
       ) : (
         <StudentAvatar config={row.avatar_config} seed={`student_${row.student_id || ''}`} size={28} />
       )}

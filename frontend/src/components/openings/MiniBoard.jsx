@@ -22,7 +22,7 @@ export default function MiniBoard({ fen, orientation = 'white', size = 220 }) {
 
   return (
     <div
-      className="relative overflow-hidden rounded-lg border border-white/10 shadow-lg"
+      className="relative overflow-hidden rounded-lg border border-white/10"
       style={{ width: size, height: size }}
       aria-hidden="true"
     >

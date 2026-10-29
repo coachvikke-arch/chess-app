@@ -6,6 +6,7 @@ import { useToast } from '../components/Toast';
 import { useAuth } from '../context/AuthContext';
 import StudentAvatar from '../components/StudentAvatar';
 import AvatarBuilder from '../components/AvatarBuilder';
+import ProfilePhotoCropper from '../components/ProfilePhotoCropper';
 import { coachListFrom } from '../utils/coachNames';
 import Button from '../components/Button';
 import PhoneInput from '../components/PhoneInput';
@@ -40,7 +41,18 @@ function Avatar({ user, className = '' }) {
     return <StudentAvatar config={user.avatar_config} seed={`user_${user.id || ''}`} size={112} className={className.replace(/ rounded-full$/i, '')} />;
   }
   if (user?.profile_image) {
-    return <img src={user.profile_image} alt="" className={`${className} object-cover`} />;
+    /* Square 1:1 frame + cover/centre. The uploaded file is already cropped to
+       a square, so nothing here crops again — this only guarantees the same
+       result for photos uploaded before the crop step existed. */
+    return (
+      <span className={`profile-photo-frame ${className}`}>
+        <img
+          src={user.profile_image}
+          alt=""
+          style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center', display: 'block' }}
+        />
+      </span>
+    );
   }
   return (
     <span
@@ -70,6 +82,10 @@ export default function Profile() {
   const { showToast } = useToast();
   const [profile, setProfile] = useState(null);
   const [uploading, setUploading] = useState(false);
+  /* Object URL of the photo being cropped. The original file is never uploaded:
+     the crop dialog exports a square 512px JPEG and only that is sent. */
+  const [cropSrc, setCropSrc] = useState(null);
+  const cropUrlRef = useRef(null);
   const [avatarOpen, setAvatarOpen] = useState(false);
   const [savingAvatar, setSavingAvatar] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -100,6 +116,19 @@ export default function Profile() {
     }
   }, [profile]);
 
+  /* Release the preview URL when the page unmounts (and when one crop is
+     replaced by another), so repeated picks cannot leak blob URLs. */
+  const closeCropper = () => {
+    setCropSrc(null);
+    if (cropUrlRef.current) {
+      URL.revokeObjectURL(cropUrlRef.current);
+      cropUrlRef.current = null;
+    }
+  };
+  useEffect(() => () => {
+    if (cropUrlRef.current) URL.revokeObjectURL(cropUrlRef.current);
+  }, []);
+
   const onPick = (e) => {
     const file = e.target.files?.[0];
     e.target.value = '';
@@ -108,26 +137,41 @@ export default function Profile() {
       showToast('Photo must be under 5MB.', { tone: 'error', title: 'Photo upload' });
       return;
     }
-    const body = new FormData();
-    body.append('photo', file);
+    /* Open the crop step first — uploading the untouched file is what left the
+       subject off-centre in the circle and the leaderboard square. */
+    closeCropper();
+    cropUrlRef.current = URL.createObjectURL(file);
+    setCropSrc(cropUrlRef.current);
+  };
+
+  /** Upload the square JPEG produced by the crop dialog. */
+  const uploadCroppedPhoto = async (blob) => {
     setUploading(true);
-    api.post('/auth/me/photo', body)
-      .then((res) => {
-        setProfile((p) => ({ ...p, profile_image: res.data.profile_image }));
-        refreshUser();
-        showToast('Profile photo updated.', { tone: 'success', title: 'Photo' });
-      })
-      .catch((err) => {
-        showToast(err.response?.data?.message || 'Upload failed.', { tone: 'error', title: 'Photo upload' });
-      })
-      .finally(() => setUploading(false));
+    try {
+      const body = new FormData();
+      body.append('photo', new File([blob], 'profile-photo.jpg', { type: 'image/jpeg' }));
+      const res = await api.post('/auth/me/photo', body);
+      /* The server clears any custom avatar on upload; mirror that here so
+         the card and every other avatar in the app flip together. */
+      setProfile((p) => ({ ...p, profile_image: res.data.profile_image, avatar_config: null }));
+      refreshUser();
+      closeCropper();
+      showToast('Profile photo updated.', { tone: 'success', title: 'Photo' });
+    } catch (err) {
+      /* Keep the dialog open so the user can retry without re-picking. */
+      showToast(err.response?.data?.message || 'Upload failed.', { tone: 'error', title: 'Photo upload' });
+    } finally {
+      setUploading(false);
+    }
   };
 
   const saveAvatar = async (config) => {
     setSavingAvatar(true);
     try {
       await api.patch('/students/me/avatar', { avatar_config: config });
-      setProfile((p) => ({ ...p, avatar_config: config }));
+      /* Choosing an avatar removes the uploaded photo server-side, so both
+         fields change in one step. */
+      setProfile((p) => ({ ...p, avatar_config: config, profile_image: null }));
       await refreshUser();
       setAvatarOpen(false);
       showToast('Avatar saved — you look great! 🎉', { tone: 'success', title: 'Avatar' });
@@ -142,7 +186,7 @@ export default function Profile() {
     if (!window.confirm('Remove your profile photo?')) return;
     try {
       await api.delete('/auth/me/photo');
-      setProfile((p) => ({ ...p, profile_image: null }));
+      setProfile((p) => ({ ...p, profile_image: null, avatar_config: null }));
       refreshUser();
       showToast('Profile photo removed.', { tone: 'success', title: 'Photo' });
     } catch (err) {
@@ -151,10 +195,10 @@ export default function Profile() {
   };
 
   const resetAvatar = async () => {
-    if (!window.confirm('Remove your custom avatar? You’ll fall back to the default design — if you have an uploaded photo it will show here.')) return;
+    if (!window.confirm('Remove your custom avatar? Your profile will show the default placeholder.')) return;
     try {
       await api.delete('/students/me/avatar');
-      setProfile((p) => ({ ...p, avatar_config: null }));
+      setProfile((p) => ({ ...p, avatar_config: null, profile_image: null }));
       await refreshUser();
       showToast('Avatar removed — back to the default.', { tone: 'success', title: 'Avatar' });
     } catch (err) {
@@ -203,8 +247,11 @@ export default function Profile() {
     <Page title="My Profile" piece="♙" sub="Your account details — keep your info up to date.">
       {/* ── Photo card ── */}
       <Card title="Profile photo" piece="♟" className="mb-6">
-        <div className="flex flex-col sm:flex-row items-center gap-6">
-          <div className="relative">
+        <div className="flex flex-col sm:flex-row items-center gap-5 sm:gap-6">
+          {/* shrink-0: the hint text beside it is long, and a shrinkable wrapper
+              gets squeezed narrower than the photo - the photo then overflows the
+              wrapper and sits on top of the text. */}
+          <div className="relative shrink-0">
             <Avatar user={user} className="w-28 h-28 rounded-full" />
             {uploading && (
               <span className="absolute inset-0 grid place-items-center rounded-full bg-black/50 text-sm text-ivory-300">
@@ -212,9 +259,9 @@ export default function Profile() {
               </span>
             )}
           </div>
-          <div className="flex flex-col items-center sm:items-start gap-3">
+          <div className="flex flex-col items-center sm:items-start gap-3 min-w-0">
             <p className="text-sm text-ivory-500 text-center sm:text-left">
-              Add a photo so your coach can recognise you at a glance. JPG, PNG, GIF or WebP, up to 5MB.
+              Add a photo so your coach can recognise you at a glance. You can zoom and centre it before saving. A profile photo and a custom avatar are one or the other — picking one replaces the other. JPG, PNG, GIF or WebP, up to 5MB.
             </p>
             <div className="flex flex-wrap justify-center gap-2">
               <Button
@@ -265,6 +312,14 @@ export default function Profile() {
           onClose={() => setAvatarOpen(false)}
         />
       )}
+
+      <ProfilePhotoCropper
+        open={!!cropSrc}
+        src={cropSrc}
+        saving={uploading}
+        onCancel={closeCropper}
+        onSave={uploadCroppedPhoto}
+      />
 
       {/* ── Basic + personal details ── */}
       <Card

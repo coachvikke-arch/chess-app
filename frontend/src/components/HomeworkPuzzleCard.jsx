@@ -27,7 +27,7 @@ function MiniBoard({ fen, width }) {
       customDarkSquareStyle={themeStyles.darkSquareStyle || { backgroundColor: boardTheme.darkSq }}
       customLightSquareStyle={themeStyles.lightSquareStyle || { backgroundColor: boardTheme.lightSq }}
       customSquareStyles={ornateSquareStyles(boardTheme) || undefined}
-      customBoardStyle={themeStyles.boardStyle || { borderRadius: '10px', overflow: 'hidden', boxShadow: '0 8px 18px rgba(15,23,42,0.25)' }}
+      customBoardStyle={themeStyles.boardStyle || { borderRadius: '10px', overflow: 'hidden' }}
     />
   );
 }

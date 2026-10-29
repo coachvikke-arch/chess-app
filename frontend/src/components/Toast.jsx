@@ -47,11 +47,21 @@ const TONE_STYLES = {
 
 function ToastCard({ toast, onDismiss }) {
   const t = TONE_STYLES[toast.tone] || TONE_STYLES.info;
+  const clickable = typeof toast.onClick === 'function';
   return (
     <div
-      className={`chess-toast pointer-events-auto w-80 max-w-[90vw] rounded-xl border ${t.border} ${t.glow} bg-ink-800 px-4 py-3 flex items-start gap-3 shadow-2xl`}
-      role="status"
+      className={`chess-toast pointer-events-auto w-80 max-w-[90vw] rounded-xl border ${t.border} ${t.glow} bg-ink-800 px-4 py-3 flex items-start gap-3 shadow-2xl ${clickable ? 'cursor-pointer' : ''}`}
+      role={clickable ? 'button' : 'status'}
+      tabIndex={clickable ? 0 : undefined}
       aria-live="polite"
+      onClick={clickable ? () => { toast.onClick(); onDismiss(toast.id); } : undefined}
+      onKeyDown={clickable ? (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          toast.onClick();
+          onDismiss(toast.id);
+        }
+      } : undefined}
     >
       <span className={`mt-0.5 grid place-items-center w-7 h-7 shrink-0 rounded-lg border text-xs font-bold ${t.iconCls}`}>
         {t.icon}
@@ -64,7 +74,7 @@ function ToastCard({ toast, onDismiss }) {
             {toast.actions.map((a, i) => (
               <Button
                 key={i}
-                onClick={() => { a.onClick(); onDismiss(toast.id); }}
+                onClick={(e) => { e?.stopPropagation?.(); a.onClick(); onDismiss(toast.id); }}
                 variant={a.outline ? 'danger' : 'primary'}
                 size="sm"
                 className="!px-3 !py-1 text-xs"
@@ -76,15 +86,18 @@ function ToastCard({ toast, onDismiss }) {
         )}
         {toast.action && (
           <Button
-            onClick={() => { toast.action.onClick(); onDismiss(toast.id); }}
+            onClick={(e) => { e?.stopPropagation?.(); toast.action.onClick(); onDismiss(toast.id); }}
             variant="primary" size="sm" className="mt-2 !px-3 !py-1 text-xs"
           >
             {toast.action.label}
           </Button>
         )}
+        {clickable && (
+          <p className="mt-1 text-[0.62rem] font-semibold text-gold-400">Tap to open ↗</p>
+        )}
       </div>
       <button
-        onClick={() => onDismiss(toast.id)}
+        onClick={(e) => { e.stopPropagation(); onDismiss(toast.id); }}
         className="shrink-0 text-ivory-500 hover:text-ivory-300 transition text-sm leading-none mt-0.5"
         aria-label="Dismiss notification"
       >
@@ -120,7 +133,7 @@ export function ToastProvider({ children }) {
   const hasToast = useCallback((id) => id != null && ids.current.has(id), []);
 
   const showToast = useCallback(
-    (message, { tone = 'info', title = '', duration = 5000, action = null, actions = null, dedupeKey = null, dedupeWindowMs = DEDUPE_WINDOW_MS, source = null } = {}) => {
+    (message, { tone = 'info', title = '', duration = 5000, action = null, actions = null, dedupeKey = null, dedupeWindowMs = DEDUPE_WINDOW_MS, source = null, placement = 'default', onClick = null } = {}) => {
       const at = Date.now();
       /* Central dedupe: the same logical notification (same dedupeKey, e.g.
          type + gameId + userId) shown twice within a few seconds collapses to
@@ -134,7 +147,7 @@ export function ToastProvider({ children }) {
       }
       const id = nextId++;
       ids.current.add(id);
-      setToasts((prev) => [...prev, { id, title, message, tone, action, actions }]);
+      setToasts((prev) => [...prev, { id, title, message, tone, action, actions, placement, onClick }]);
       timers.current.set(id, setTimeout(() => dismiss(id), duration));
       toastDebugLog('SHOW', { id, tone, title, message, source, dedupeKey, at });
       return id;
@@ -164,11 +177,24 @@ export function ToastProvider({ children }) {
   return (
     <ToastContext.Provider value={{ showToast, updateToast, hasToast, dismissToast: dismiss }}>
       {children}
-      {/* Toast stack — fixed bottom-right, above everything */}
-      <div className="fixed bottom-4 right-4 z-[var(--z-modal-backdrop)] flex flex-col gap-2 items-end pointer-events-none">
-        {toasts.map((t) => (
+      {/* Notification popups: on phones they dock just under the header so they
+          never cover the bottom nav or a game's controls; from `sm` up they
+          join the bottom-right stack below. */}
+      <div className="fixed inset-x-0 top-[4.25rem] z-[var(--z-modal-backdrop)] flex flex-col gap-2 items-center px-3 pointer-events-none sm:hidden">
+        {toasts.filter((t) => t.placement === 'notification').map((t) => (
           <ToastCard key={t.id} toast={t} onDismiss={dismiss} />
         ))}
+      </div>
+      {/* Toast stack — fixed bottom-right, above everything */}
+      <div className="fixed bottom-4 right-4 z-[var(--z-modal-backdrop)] flex flex-col gap-2 items-end pointer-events-none">
+        {toasts.filter((t) => t.placement !== 'notification').map((t) => (
+          <ToastCard key={t.id} toast={t} onDismiss={dismiss} />
+        ))}
+        <div className="hidden sm:flex sm:flex-col sm:gap-2 sm:items-end">
+          {toasts.filter((t) => t.placement === 'notification').map((t) => (
+            <ToastCard key={t.id} toast={t} onDismiss={dismiss} />
+          ))}
+        </div>
       </div>
     </ToastContext.Provider>
   );

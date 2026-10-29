@@ -1,10 +1,13 @@
+import api from '../../services/api';
+
 /**
- * Board Vision persistence — LOCAL ONLY (clearly labeled).
+ * Board Vision persistence.
  *
- * The backend exposes no Board Vision endpoints, and the brief forbids
- * inventing endpoints or faking server writes. All progress therefore lives
- * in localStorage under a versioned key, scoped per user. If a backend API
- * is added later, only this file needs to change (same function shapes).
+ * The signed-in user's progress lives on the server (`/api/board-vision/progress`)
+ * so it follows them across devices. localStorage is kept as the OFFLINE
+ * BACKUP: every change is written locally first (training works with no
+ * network), and the server copy is pushed shortly afterwards. On first load the
+ * local document is uploaded once when the server has nothing yet.
  */
 
 const KEY = 'board-vision-progress-v1';
@@ -69,4 +72,28 @@ export function avgResponse(progress) {
   const t = progress.responseTimes || [];
   if (!t.length) return 0;
   return Math.round(t.reduce((a, b) => a + b, 0) / t.length);
+}
+
+/* ── server copy ────────────────────────────────────────────────────────────
+   Both helpers resolve to null/false on failure instead of throwing: a dead
+   network must never interrupt a training session, and the caller already has
+   the localStorage copy to fall back on. */
+export async function fetchRemoteProgress() {
+  try {
+    const res = await api.get('/board-vision/progress', { cache: false });
+    const remote = res.data?.progress;
+    if (!remote || typeof remote !== 'object' || Array.isArray(remote)) return null;
+    return { ...EMPTY_PROGRESS, ...remote };
+  } catch {
+    return null;
+  }
+}
+
+export async function saveRemoteProgress(progress) {
+  try {
+    await api.put('/board-vision/progress', { progress });
+    return true;
+  } catch {
+    return false;
+  }
 }

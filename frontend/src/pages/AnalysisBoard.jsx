@@ -444,21 +444,24 @@ const PLAY_ARENA_UI_CSS = `
   .ab-root.ab-root .ab-note{display:none}
 }
 
-/* ── phones / portrait tablets: one column, page still clipped ── */
+/* ── phones / portrait tablets: one column, and the PAGE scrolls ──
+   Nothing is clamped to the viewport here: the board, the tool tiles and the
+   FEN/PGN card all sit in normal flow, so the reader can scroll from top to
+   bottom. Piece dragging is unaffected — the board sets touch-action:none. */
 @media (max-width:900px){
+  .ab-root.ab-root{height:auto;min-height:100%;overflow:visible}
   .ab-root.ab-root .ab-layout{
-    display:flex;flex-direction:column;gap:6px;padding:8px;
-    height:100%;min-height:0;overflow:hidden;
+    display:flex;flex-direction:column;gap:8px;padding:8px 8px 20px;
+    height:auto;min-height:0;overflow:visible;
   }
   .ab-root.ab-root .ab-board-col{flex:0 0 auto;height:auto;overflow:visible;gap:6px}
   .ab-root.ab-root .ab-boardarea{flex:0 0 auto;overflow:visible}
   .ab-root.ab-root .ab-side-panel{
-    flex:1 1 0;min-height:0;height:auto;
-    overflow-y:auto;overscroll-behavior:contain;
-    padding-bottom:2px;
+    flex:0 0 auto;min-height:0;height:auto;
+    overflow:visible;padding-bottom:8px;
   }
   .ab-root.ab-root .ab-tool-tile{height:62px;min-height:62px;font-size:20px}
-  .ab-root.ab-root .ab-info-card{flex:0 0 auto;height:170px;min-height:170px}
+  .ab-root.ab-root .ab-info-card{flex:0 0 auto;height:auto;min-height:180px;max-height:260px}
   .ab-root.ab-root .ab-note{display:none}
 }
 
@@ -3847,6 +3850,22 @@ export default function AnalysisBoard() {
       {playMode && createPortal(
         <div className="play-mode-overlay" style={pmCss} data-play-mode role="dialog" aria-modal="true" aria-label="Play Mode">
           <button className="play-mode-exit" onClick={() => setPlayMode(false)} aria-label="Exit Play Mode" title="Exit Play Mode (Esc)">✕</button>
+
+          {/* Phones get their own header row ABOVE the board. The fixed ✕ it
+              replaces sat on the board's corner and covered the rook on the
+              back rank. */}
+          <div className="play-mode-mobile-head">
+            <span className="play-mode-title">♖ Play Arena</span>
+            <button
+              type="button"
+              className="play-mode-exit-bar"
+              onClick={() => setPlayMode(false)}
+              aria-label="Exit Play Mode"
+              title="Exit Play Mode"
+            >
+              ✕
+            </button>
+          </div>
 
           <div className="play-mode-panel">
           <div className="play-mode-top">

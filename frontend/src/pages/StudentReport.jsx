@@ -976,7 +976,7 @@ export default function StudentReport({ studentId: propId, studentMode = false }
           {profile.avatar_config ? (
             <StudentAvatar config={profile.avatar_config} seed={`user_${profile.user_id || ''}`} size={72} className="ring-2 ring-gold-500/40" />
           ) : profile.profile_image ? (
-            <img src={profile.profile_image} alt="" className="w-[72px] h-[72px] rounded-2xl object-cover ring-2 ring-gold-500/40" />
+            <img src={profile.profile_image} alt="" className="w-[72px] h-[72px] rounded-2xl object-cover object-center ring-2 ring-gold-500/40" />
           ) : (
             <span className="grid place-items-center w-[72px] h-[72px] rounded-2xl bg-[var(--ink-900)] ring-2 ring-gold-500/40 text-2xl font-bold text-gold-400">
               {initials(profile.name)}

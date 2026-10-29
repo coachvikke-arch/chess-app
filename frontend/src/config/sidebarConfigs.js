@@ -20,7 +20,6 @@ export const adminLinks = [
   { to: '/admin/students', label: 'Students & Batches', superLabel: 'Students & Admins', icon: '♙', feature: 'student_roster' },
   { to: '/admin/reports', label: 'Student Reports', icon: '♞', superHidden: true },
   { to: '/admin/classes', label: 'Classes & Attendance', icon: '♘' },
-  { to: '/admin/worklist', label: 'Worklist', icon: '♟' },
   
   { to: '/admin/leaderboard', label: 'Leaderboard', icon: '♛' },
   { to: '/admin/tournaments', label: 'Tournaments', icon: '🏆' },

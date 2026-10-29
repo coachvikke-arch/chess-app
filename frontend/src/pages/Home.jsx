@@ -70,12 +70,9 @@ export default function Home() {
               </p>
             </Reveal>
             <Reveal delay={0.15}>
-              <div className="mt-9 flex flex-wrap gap-4">
+              <div className="mt-9 flex flex-wrap items-center gap-4">
                 <Button to="/login" variant="primary" size="lg">
                   <Piece p="♘" spin /> Login
-                </Button>
-                <Button to="/courses" variant="secondary" size="lg">
-                  <Piece p="♞" spin /> Browse Courses
                 </Button>
               </div>
             </Reveal>

@@ -24,8 +24,11 @@ function defaultTitle() {
  *
  * Desktop: a 900px-centred dialog whose body is the only scrolling region.
  * Phones: the same card fills the screen as a bottom sheet.
+ *
+ * `inline` renders the identical card in the page flow at full width (Admin
+ * Homework), instead of as an overlay.
  */
-export default function PuzzleAssignPicker({ onClose, onAssigned }) {
+export default function PuzzleAssignPicker({ onClose, onAssigned, inline = false }) {
   const [classes, setClasses] = useState([]);
   const [students, setStudents] = useState([]);
   const [metaLoading, setMetaLoading] = useState(true);
@@ -65,10 +68,11 @@ export default function PuzzleAssignPicker({ onClose, onAssigned }) {
   }, []);
 
   useEffect(() => {
+    if (inline) return undefined;
     const previous = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     return () => { document.body.style.overflow = previous; };
-  }, []);
+  }, [inline]);
 
   /* An explicit close (X, Cancel, Escape) always closes. A click on the dimmed
      backdrop does NOT while puzzles are selected — a mis-aimed tap next to the
@@ -83,7 +87,7 @@ export default function PuzzleAssignPicker({ onClose, onAssigned }) {
     onClose();
   }, [busy, selected, onClose]);
 
-  useOverlayHistory('puzzle-assign-picker', true, requestClose);
+  useOverlayHistory('puzzle-assign-picker', !inline, requestClose);
 
   useEffect(() => {
     const onKey = (e) => {
@@ -195,19 +199,19 @@ export default function PuzzleAssignPicker({ onClose, onAssigned }) {
     }
   }
 
-  return createPortal(
+  const card = (
     <div
-      className="fixed inset-0 z-[100] flex items-stretch justify-center bg-black/60 p-0 sm:items-center sm:p-4"
-      onMouseDown={(e) => { if (e.target === e.currentTarget) requestBackdropClose(); }}
+      role={inline ? undefined : 'dialog'}
+      aria-modal={inline ? undefined : true}
+      aria-label="Assign puzzles"
+      className={
+        inline
+          ? 'chess-card flex w-full flex-col overflow-hidden rounded-2xl'
+          : 'chess-card flex h-full w-full flex-col overflow-hidden rounded-none sm:h-auto sm:max-h-[85vh] sm:w-[900px] sm:max-w-[900px] sm:rounded-2xl'
+      }
+      onMouseDown={inline ? undefined : (e) => e.stopPropagation()}
+      style={{ animation: 'board-pop .3s both' }}
     >
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-label="Assign puzzles"
-        className="chess-card flex h-full w-full flex-col overflow-hidden rounded-none sm:h-auto sm:max-h-[85vh] sm:w-[900px] sm:max-w-[900px] sm:rounded-2xl"
-        onMouseDown={(e) => e.stopPropagation()}
-        style={{ animation: 'board-pop .3s both' }}
-      >
         {/* ── header ─────────────────────────────────────────────────────── */}
         <div className="flex shrink-0 items-center gap-3 border-b border-slate-200 px-4 py-3">
           <div className="min-w-0 flex-1">
@@ -228,11 +232,12 @@ export default function PuzzleAssignPicker({ onClose, onAssigned }) {
           </button>
         </div>
 
-        {/* ── the library itself (the only scrolling region) ─────────────── */}
-        <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
+        {/* ── the library itself (the only scrolling region when overlaid) ── */}
+        <div className={inline ? 'px-4 py-3' : 'min-h-0 flex-1 overflow-y-auto px-4 py-3'}>
           <PuzzleListing
             embedded
             selectable
+            manageSets
             showHeader={false}
             selection={selection}
           />
@@ -352,7 +357,17 @@ export default function PuzzleAssignPicker({ onClose, onAssigned }) {
             </Button>
           </div>
         </div>
-      </div>
+    </div>
+  );
+
+  if (inline) return card;
+
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[100] flex items-stretch justify-center bg-black/60 p-0 sm:items-center sm:p-4"
+      onMouseDown={(e) => { if (e.target === e.currentTarget) requestBackdropClose(); }}
+    >
+      {card}
     </div>,
     document.body
   );

@@ -1,0 +1,2071 @@
+{
+  "source": {
+    "name": "Lichess puzzle database",
+    "url": "https://database.lichess.org/#puzzles",
+    "license": "CC0 1.0 Universal",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "ratingBand": [
+      600,
+      1200
+    ],
+    "note": "Positions and solutions come from the Lichess puzzle database, which is engine-verified and released under CC0. Each puzzle shows the position after the opponent’s move, so the reader is to move."
+  },
+  "topics": [
+    {
+      "theme": "fork",
+      "label": "Fork",
+      "blurb": "One piece attacks two targets at the same time — only one can be saved.",
+      "puzzles": [
+        {
+          "id": "009tE",
+          "fen": "6k1/6pp/p1N5/1pP2bp1/5P2/8/PPP5/3K4 w - - 0 29",
+          "turn": "white",
+          "trigger": "fxg5",
+          "solution": [
+            "Ne7+",
+            "Nxf5"
+          ],
+          "opponentReplies": [
+            "Kf7"
+          ],
+          "line": "29. Ne7+ Kf7 30. Nxf5",
+          "mate": false,
+          "rating": 624,
+          "themes": [
+            "crushing",
+            "endgame",
+            "fork",
+            "short"
+          ],
+          "url": "https://lichess.org/training/009tE",
+          "gameUrl": "https://lichess.org/fUV1iXBx/black#56"
+        },
+        {
+          "id": "00zVd",
+          "fen": "3rkbnr/1pp3pp/p4p2/4N3/4R3/8/PPP2PPP/RNB3K1 b k - 0 11",
+          "turn": "black",
+          "trigger": "Rxe4",
+          "solution": [
+            "Rd1+",
+            "Rxe1#"
+          ],
+          "opponentReplies": [
+            "Re1"
+          ],
+          "line": "11... Rd1+ 12. Re1 Rxe1#",
+          "mate": true,
+          "rating": 676,
+          "themes": [
+            "backRankMate",
+            "fork",
+            "mate",
+            "mateIn2",
+            "middlegame",
+            "short"
+          ],
+          "url": "https://lichess.org/training/00zVd",
+          "gameUrl": "https://lichess.org/i2LOkagE#21"
+        },
+        {
+          "id": "00Ui0",
+          "fen": "r5k1/5pp1/2p5/P1N4p/2PR1n2/1P3P2/5P1P/6K1 b - - 0 26",
+          "turn": "black",
+          "trigger": "Rxd4",
+          "solution": [
+            "Ne2+",
+            "Nxd4"
+          ],
+          "opponentReplies": [
+            "Kf1"
+          ],
+          "line": "26... Ne2+ 27. Kf1 Nxd4",
+          "mate": false,
+          "rating": 694,
+          "themes": [
+            "crushing",
+            "endgame",
+            "fork",
+            "short"
+          ],
+          "url": "https://lichess.org/training/00Ui0",
+          "gameUrl": "https://lichess.org/R2pJ0rIG#51"
+        },
+        {
+          "id": "016Im",
+          "fen": "6k1/ppp5/1b6/3r1Npp/6p1/1P1p2P1/PB1Pn1KP/4R3 w - - 4 30",
+          "turn": "white",
+          "trigger": "Rd5",
+          "solution": [
+            "Ne7+",
+            "Nxd5"
+          ],
+          "opponentReplies": [
+            "Kf7"
+          ],
+          "line": "30. Ne7+ Kf7 31. Nxd5",
+          "mate": false,
+          "rating": 731,
+          "themes": [
+            "advantage",
+            "endgame",
+            "fork",
+            "short"
+          ],
+          "url": "https://lichess.org/training/016Im",
+          "gameUrl": "https://lichess.org/0r15kPZY/black#58"
+        },
+        {
+          "id": "00TOX",
+          "fen": "b7/2k1pp2/ppn2qp1/8/4B3/1PNR4/P1P2PP1/5K2 w - - 0 27",
+          "turn": "white",
+          "trigger": "a6",
+          "solution": [
+            "Nd5+",
+            "Nxf6"
+          ],
+          "opponentReplies": [
+            "Kb8"
+          ],
+          "line": "27. Nd5+ Kb8 28. Nxf6",
+          "mate": false,
+          "rating": 802,
+          "themes": [
+            "crushing",
+            "endgame",
+            "fork",
+            "short"
+          ],
+          "url": "https://lichess.org/training/00TOX",
+          "gameUrl": "https://lichess.org/bAOdaE0p/black#52"
+        },
+        {
+          "id": "00EBZ",
+          "fen": "3rr1k1/p4pp1/1pp4p/3pPQ2/1P3P2/2P2RqP/P2R2P1/6K1 b - - 2 24",
+          "turn": "black",
+          "trigger": "Rf3",
+          "solution": [
+            "Qe1+",
+            "Qxd2"
+          ],
+          "opponentReplies": [
+            "Kh2"
+          ],
+          "line": "24... Qe1+ 25. Kh2 Qxd2",
+          "mate": false,
+          "rating": 818,
+          "themes": [
+            "crushing",
+            "endgame",
+            "fork",
+            "short"
+          ],
+          "url": "https://lichess.org/training/00EBZ",
+          "gameUrl": "https://lichess.org/FrMf0UcF#47"
+        },
+        {
+          "id": "00QOa",
+          "fen": "6rk/1pR3p1/6Bp/2b4P/8/pP3PK1/P1P5/8 b - - 0 32",
+          "turn": "black",
+          "trigger": "Rxc7",
+          "solution": [
+            "Bd6+",
+            "Bxc7"
+          ],
+          "opponentReplies": [
+            "f4"
+          ],
+          "line": "32... Bd6+ 33. f4 Bxc7",
+          "mate": false,
+          "rating": 834,
+          "themes": [
+            "crushing",
+            "endgame",
+            "fork",
+            "short"
+          ],
+          "url": "https://lichess.org/training/00QOa",
+          "gameUrl": "https://lichess.org/afclLtrR#63"
+        },
+        {
+          "id": "00dTO",
+          "fen": "5q2/3n1rk1/3p2p1/p1p5/1pP2NP1/3PNp1P/PP5K/3Q4 w - - 2 31",
+          "turn": "white",
+          "trigger": "Nd7",
+          "solution": [
+            "Ne6+",
+            "Nxf8"
+          ],
+          "opponentReplies": [
+            "Kg8"
+          ],
+          "line": "31. Ne6+ Kg8 32. Nxf8",
+          "mate": false,
+          "rating": 856,
+          "themes": [
+            "crushing",
+            "endgame",
+            "fork",
+            "short"
+          ],
+          "url": "https://lichess.org/training/00dTO",
+          "gameUrl": "https://lichess.org/AQ7wJCy0/black#60"
+        }
+      ]
+    },
+    {
+      "theme": "pin",
+      "label": "Pin",
+      "blurb": "A piece cannot move because something more valuable sits behind it.",
+      "puzzles": [
+        {
+          "id": "0162G",
+          "fen": "2r1kb1r/1p3ppp/p7/3ppP2/8/1P1PBP2/P4RPP/2R3K1 b k - 2 21",
+          "turn": "black",
+          "trigger": "Rc1",
+          "solution": [
+            "Rxc1+",
+            "Bc5"
+          ],
+          "opponentReplies": [
+            "Bxc1"
+          ],
+          "line": "21... Rxc1+ 22. Bxc1 Bc5",
+          "mate": false,
+          "rating": 781,
+          "themes": [
+            "crushing",
+            "endgame",
+            "pin",
+            "short"
+          ],
+          "url": "https://lichess.org/training/0162G",
+          "gameUrl": "https://lichess.org/cwvenor8#41"
+        },
+        {
+          "id": "07046",
+          "fen": "3r2k1/1p3p1p/3Pp1p1/3p4/3b4/6P1/R4PKP/R7 w - - 1 33",
+          "turn": "white",
+          "trigger": "Rd8",
+          "solution": [
+            "Ra8",
+            "Rxd8+"
+          ],
+          "opponentReplies": [
+            "Bxa1"
+          ],
+          "line": "33. Ra8 Bxa1 34. Rxd8+",
+          "mate": false,
+          "rating": 789,
+          "themes": [
+            "advantage",
+            "endgame",
+            "pin",
+            "short"
+          ],
+          "url": "https://lichess.org/training/07046",
+          "gameUrl": "https://lichess.org/vIhgg5d5/black#64"
+        },
+        {
+          "id": "02J2r",
+          "fen": "6k1/p1p1nrpp/1pb5/8/8/1B3P2/P5PP/3R2K1 w - - 0 21",
+          "turn": "white",
+          "trigger": "Rxf7",
+          "solution": [
+            "Rd8+",
+            "Rxe8#"
+          ],
+          "opponentReplies": [
+            "Be8"
+          ],
+          "line": "21. Rd8+ Be8 22. Rxe8#",
+          "mate": true,
+          "rating": 834,
+          "themes": [
+            "endgame",
+            "mate",
+            "mateIn2",
+            "pin",
+            "short"
+          ],
+          "url": "https://lichess.org/training/02J2r",
+          "gameUrl": "https://lichess.org/LRR55YGP/black#40"
+        },
+        {
+          "id": "06Z8B",
+          "fen": "3r4/1b2kp1p/2q1pp2/1pb5/8/1B3N2/1PP1QPRP/4R2K b - - 0 20",
+          "turn": "black",
+          "trigger": "Rxg2",
+          "solution": [
+            "Qxf3",
+            "Bxf3"
+          ],
+          "opponentReplies": [
+            "Qxf3"
+          ],
+          "line": "20... Qxf3 21. Qxf3 Bxf3",
+          "mate": false,
+          "rating": 882,
+          "themes": [
+            "advantage",
+            "middlegame",
+            "pin",
+            "short"
+          ],
+          "url": "https://lichess.org/training/06Z8B",
+          "gameUrl": "https://lichess.org/mwdc8SMt#39"
+        },
+        {
+          "id": "00s7Y",
+          "fen": "6k1/5rpp/1q1p4/2pB4/6Q1/2b4P/Pr4P1/6K1 w - - 0 30",
+          "turn": "white",
+          "trigger": "Rxf7",
+          "solution": [
+            "Qc8+",
+            "Qxd8#"
+          ],
+          "opponentReplies": [
+            "Qd8"
+          ],
+          "line": "30. Qc8+ Qd8 31. Qxd8#",
+          "mate": true,
+          "rating": 926,
+          "themes": [
+            "endgame",
+            "mate",
+            "mateIn2",
+            "pin",
+            "short"
+          ],
+          "url": "https://lichess.org/training/00s7Y",
+          "gameUrl": "https://lichess.org/c3f9OVrO/black#58"
+        },
+        {
+          "id": "06DeN",
+          "fen": "6k1/R4pp1/3pq2p/6r1/1P6/P3P2Q/3R1PP1/6K1 b - - 0 32",
+          "turn": "black",
+          "trigger": "Qxh3",
+          "solution": [
+            "Qxh3",
+            "Kh7"
+          ],
+          "opponentReplies": [
+            "Ra8+"
+          ],
+          "line": "32... Qxh3 33. Ra8+ Kh7",
+          "mate": false,
+          "rating": 988,
+          "themes": [
+            "crushing",
+            "endgame",
+            "pin",
+            "short"
+          ],
+          "url": "https://lichess.org/training/06DeN",
+          "gameUrl": "https://lichess.org/PutGoKG6#63"
+        },
+        {
+          "id": "05QQ0",
+          "fen": "4rq1k/p1p1Nppp/bp1p1n1n/3P4/2P4Q/8/P3RPPP/4R1K1 w - - 12 23",
+          "turn": "white",
+          "trigger": "Re8",
+          "solution": [
+            "Ng6+",
+            "Rxe8",
+            "Rxe8+"
+          ],
+          "opponentReplies": [
+            "hxg6",
+            "Qxe8"
+          ],
+          "line": "23. Ng6+ hxg6 24. Rxe8 Qxe8 25. Rxe8+",
+          "mate": false,
+          "rating": 995,
+          "themes": [
+            "advantage",
+            "discoveredAttack",
+            "kingsideAttack",
+            "long",
+            "middlegame",
+            "pin"
+          ],
+          "url": "https://lichess.org/training/05QQ0",
+          "gameUrl": "https://lichess.org/CT4OzKSm/black#44"
+        },
+        {
+          "id": "00xmm",
+          "fen": "r6r/ppk3pp/2pb4/4P3/8/6PQ/PP3PKP/R1Bq4 w - - 0 25",
+          "turn": "white",
+          "trigger": "Bxd6",
+          "solution": [
+            "exd6+",
+            "Bf4",
+            "gxf4"
+          ],
+          "opponentReplies": [
+            "Qxd6",
+            "Qxf4"
+          ],
+          "line": "25. exd6+ Qxd6 26. Bf4 Qxf4 27. gxf4",
+          "mate": false,
+          "rating": 999,
+          "themes": [
+            "advantage",
+            "long",
+            "middlegame",
+            "pin"
+          ],
+          "url": "https://lichess.org/training/00xmm",
+          "gameUrl": "https://lichess.org/Pci9z8kp/black#48"
+        }
+      ]
+    },
+    {
+      "theme": "skewer",
+      "label": "Skewer",
+      "blurb": "The valuable piece is in front and must move, exposing what stands behind it.",
+      "puzzles": [
+        {
+          "id": "03fGd",
+          "fen": "r4k2/p6R/1p3p2/1Pp3p1/P5np/1K6/2P5/2B5 w - - 0 42",
+          "turn": "white",
+          "trigger": "g5",
+          "solution": [
+            "Rh8+",
+            "Rxa8"
+          ],
+          "opponentReplies": [
+            "Ke7"
+          ],
+          "line": "42. Rh8+ Ke7 43. Rxa8",
+          "mate": false,
+          "rating": 657,
+          "themes": [
+            "advantage",
+            "endgame",
+            "short",
+            "skewer"
+          ],
+          "url": "https://lichess.org/training/03fGd",
+          "gameUrl": "https://lichess.org/4fmvpXZT/black#82"
+        },
+        {
+          "id": "04f3m",
+          "fen": "8/8/k5r1/pp3b2/3Q1K2/8/PP6/8 b - - 1 54",
+          "turn": "black",
+          "trigger": "Kf4",
+          "solution": [
+            "Rg4+",
+            "Rxd4"
+          ],
+          "opponentReplies": [
+            "Ke5"
+          ],
+          "line": "54... Rg4+ 55. Ke5 Rxd4",
+          "mate": false,
+          "rating": 664,
+          "themes": [
+            "crushing",
+            "endgame",
+            "short",
+            "skewer"
+          ],
+          "url": "https://lichess.org/training/04f3m",
+          "gameUrl": "https://lichess.org/btZbvLnB#107"
+        },
+        {
+          "id": "03Cnf",
+          "fen": "8/pR6/3k4/3Nn3/4P3/1KP5/8/4r3 b - - 0 46",
+          "turn": "black",
+          "trigger": "Rxb7",
+          "solution": [
+            "Rb1+",
+            "Rxb7"
+          ],
+          "opponentReplies": [
+            "Kc2"
+          ],
+          "line": "46... Rb1+ 47. Kc2 Rxb7",
+          "mate": false,
+          "rating": 706,
+          "themes": [
+            "crushing",
+            "endgame",
+            "short",
+            "skewer"
+          ],
+          "url": "https://lichess.org/training/03Cnf",
+          "gameUrl": "https://lichess.org/RaY7sOQ1#91"
+        },
+        {
+          "id": "0135c",
+          "fen": "8/3n1k2/p3p1p1/3p2P1/2pP2N1/PrP2P2/1P1K2R1/8 b - - 5 41",
+          "turn": "black",
+          "trigger": "Kd2",
+          "solution": [
+            "Rxb2+",
+            "Rxg2"
+          ],
+          "opponentReplies": [
+            "Ke1"
+          ],
+          "line": "41... Rxb2+ 42. Ke1 Rxg2",
+          "mate": false,
+          "rating": 745,
+          "themes": [
+            "crushing",
+            "endgame",
+            "short",
+            "skewer"
+          ],
+          "url": "https://lichess.org/training/0135c",
+          "gameUrl": "https://lichess.org/cKkSaaA1#81"
+        },
+        {
+          "id": "01Nco",
+          "fen": "8/3R2p1/2p2pkp/1bB5/pP1K2PP/P4P2/4r3/8 b - - 0 39",
+          "turn": "black",
+          "trigger": "h4",
+          "solution": [
+            "Rd2+",
+            "Rxd7"
+          ],
+          "opponentReplies": [
+            "Kc3"
+          ],
+          "line": "39... Rd2+ 40. Kc3 Rxd7",
+          "mate": false,
+          "rating": 774,
+          "themes": [
+            "crushing",
+            "endgame",
+            "short",
+            "skewer"
+          ],
+          "url": "https://lichess.org/training/01Nco",
+          "gameUrl": "https://lichess.org/6NJSBbsI#77"
+        },
+        {
+          "id": "04VZT",
+          "fen": "8/1p1r3p/p7/P5K1/8/2Pk4/8/1R6 w - - 16 39",
+          "turn": "white",
+          "trigger": "Rd7",
+          "solution": [
+            "Rd1+",
+            "Rxd7"
+          ],
+          "opponentReplies": [
+            "Kc4"
+          ],
+          "line": "39. Rd1+ Kc4 40. Rxd7",
+          "mate": false,
+          "rating": 829,
+          "themes": [
+            "crushing",
+            "endgame",
+            "rookEndgame",
+            "short",
+            "skewer"
+          ],
+          "url": "https://lichess.org/training/04VZT",
+          "gameUrl": "https://lichess.org/8DNVdqjE/black#76"
+        },
+        {
+          "id": "02q4G",
+          "fen": "8/7k/6pP/5p2/r4P2/4K2R/8/8 b - - 5 58",
+          "turn": "black",
+          "trigger": "Ke3",
+          "solution": [
+            "Ra3+",
+            "Rxh3"
+          ],
+          "opponentReplies": [
+            "Kd4"
+          ],
+          "line": "58... Ra3+ 59. Kd4 Rxh3",
+          "mate": false,
+          "rating": 838,
+          "themes": [
+            "crushing",
+            "endgame",
+            "rookEndgame",
+            "short",
+            "skewer"
+          ],
+          "url": "https://lichess.org/training/02q4G",
+          "gameUrl": "https://lichess.org/0qp5FjJp#115"
+        },
+        {
+          "id": "06s6P",
+          "fen": "8/7p/3R4/4pPk1/4P3/3K1p2/P4P2/4r3 b - - 0 40",
+          "turn": "black",
+          "trigger": "Rxd6",
+          "solution": [
+            "Rd1+",
+            "Rxd6"
+          ],
+          "opponentReplies": [
+            "Ke3"
+          ],
+          "line": "40... Rd1+ 41. Ke3 Rxd6",
+          "mate": false,
+          "rating": 843,
+          "themes": [
+            "crushing",
+            "endgame",
+            "rookEndgame",
+            "short",
+            "skewer"
+          ],
+          "url": "https://lichess.org/training/06s6P",
+          "gameUrl": "https://lichess.org/j4vyMDfx#79"
+        }
+      ]
+    },
+    {
+      "theme": "discoveredAttack",
+      "label": "Discovered attack",
+      "blurb": "Stepping one piece out of the way unmasks the piece behind it.",
+      "puzzles": [
+        {
+          "id": "037Zo",
+          "fen": "4r3/1p2r1k1/p2p4/4bpp1/3B2n1/1BP3PP/PP2R3/4R1K1 b - - 0 38",
+          "turn": "black",
+          "trigger": "h3",
+          "solution": [
+            "Bxd4+",
+            "Rxe2",
+            "Rxe2"
+          ],
+          "opponentReplies": [
+            "cxd4",
+            "Rxe2"
+          ],
+          "line": "38... Bxd4+ 39. cxd4 Rxe2 40. Rxe2 Rxe2",
+          "mate": false,
+          "rating": 697,
+          "themes": [
+            "crushing",
+            "discoveredAttack",
+            "kingsideAttack",
+            "long",
+            "middlegame"
+          ],
+          "url": "https://lichess.org/training/037Zo",
+          "gameUrl": "https://lichess.org/mXCRSTqO#75"
+        },
+        {
+          "id": "03BlZ",
+          "fen": "3r1r2/2p2pk1/p1p4p/8/3b4/2NR3P/PP3PP1/R5K1 b - - 1 20",
+          "turn": "black",
+          "trigger": "Rd3",
+          "solution": [
+            "Bxf2+",
+            "Rxd3"
+          ],
+          "opponentReplies": [
+            "Kxf2"
+          ],
+          "line": "20... Bxf2+ 21. Kxf2 Rxd3",
+          "mate": false,
+          "rating": 724,
+          "themes": [
+            "advantage",
+            "discoveredAttack",
+            "endgame",
+            "short"
+          ],
+          "url": "https://lichess.org/training/03BlZ",
+          "gameUrl": "https://lichess.org/uYedq6Vm#39"
+        },
+        {
+          "id": "01y4w",
+          "fen": "r1b2rk1/ppp2ppp/3p4/3q4/P7/3BP2P/1PPQ1PP1/1R2K2R w K - 2 15",
+          "turn": "white",
+          "trigger": "Qd5",
+          "solution": [
+            "Bxh7+",
+            "Qxd5"
+          ],
+          "opponentReplies": [
+            "Kxh7"
+          ],
+          "line": "15. Bxh7+ Kxh7 16. Qxd5",
+          "mate": false,
+          "rating": 813,
+          "themes": [
+            "crushing",
+            "discoveredAttack",
+            "kingsideAttack",
+            "middlegame",
+            "short"
+          ],
+          "url": "https://lichess.org/training/01y4w",
+          "gameUrl": "https://lichess.org/auzq1IR4/black#28"
+        },
+        {
+          "id": "02Nzh",
+          "fen": "r1b2rk1/p1pp1ppn/7p/1pq1P3/2B2P2/2Q5/P5PP/RN2R2K w - - 0 18",
+          "turn": "white",
+          "trigger": "b5",
+          "solution": [
+            "Bxf7+",
+            "Qxc5"
+          ],
+          "opponentReplies": [
+            "Rxf7"
+          ],
+          "line": "18. Bxf7+ Rxf7 19. Qxc5",
+          "mate": false,
+          "rating": 845,
+          "themes": [
+            "crushing",
+            "discoveredAttack",
+            "middlegame",
+            "short"
+          ],
+          "url": "https://lichess.org/training/02Nzh",
+          "gameUrl": "https://lichess.org/DbNPhFIf/black#34"
+        },
+        {
+          "id": "00GBX",
+          "fen": "r6k/pp2n1pp/2nN4/4p1r1/1PB5/2P4b/P3Nb1P/R2R3K w - - 0 23",
+          "turn": "white",
+          "trigger": "Rxg5",
+          "solution": [
+            "Nf7+",
+            "Nxg5+"
+          ],
+          "opponentReplies": [
+            "Kg8"
+          ],
+          "line": "23. Nf7+ Kg8 24. Nxg5+",
+          "mate": false,
+          "rating": 864,
+          "themes": [
+            "advantage",
+            "discoveredAttack",
+            "discoveredCheck",
+            "fork",
+            "middlegame",
+            "short"
+          ],
+          "url": "https://lichess.org/training/00GBX",
+          "gameUrl": "https://lichess.org/1YLxwOt0/black#44"
+        },
+        {
+          "id": "03rid",
+          "fen": "1r2r1k1/pp2qp2/2p1n2Q/2P3p1/4B1Pp/7P/P3PPK1/1R5R b - - 1 28",
+          "turn": "black",
+          "trigger": "Be4",
+          "solution": [
+            "Nf4+",
+            "Qxe4"
+          ],
+          "opponentReplies": [
+            "Kh2"
+          ],
+          "line": "28... Nf4+ 29. Kh2 Qxe4",
+          "mate": false,
+          "rating": 899,
+          "themes": [
+            "crushing",
+            "discoveredAttack",
+            "middlegame",
+            "short"
+          ],
+          "url": "https://lichess.org/training/03rid",
+          "gameUrl": "https://lichess.org/TR7gulEL#55"
+        },
+        {
+          "id": "02pop",
+          "fen": "8/1b6/4pr2/1p1p2p1/pPpP3k/P1R1Br1P/3R1PK1/8 w - - 2 37",
+          "turn": "white",
+          "trigger": "Kh4",
+          "solution": [
+            "Bxg5+",
+            "Rxf3"
+          ],
+          "opponentReplies": [
+            "Kxg5"
+          ],
+          "line": "37. Bxg5+ Kxg5 38. Rxf3",
+          "mate": false,
+          "rating": 902,
+          "themes": [
+            "advantage",
+            "discoveredAttack",
+            "endgame",
+            "short"
+          ],
+          "url": "https://lichess.org/training/02pop",
+          "gameUrl": "https://lichess.org/HpwP640G/black#72"
+        },
+        {
+          "id": "02KdL",
+          "fen": "4r1k1/p1p1rp1p/1p3np1/8/1QBq4/P1N3PP/1P3P2/5K1R w - - 3 24",
+          "turn": "white",
+          "trigger": "Rae8",
+          "solution": [
+            "Bxf7+",
+            "Qxd4"
+          ],
+          "opponentReplies": [
+            "Rxf7"
+          ],
+          "line": "24. Bxf7+ Rxf7 25. Qxd4",
+          "mate": false,
+          "rating": 942,
+          "themes": [
+            "advantage",
+            "discoveredAttack",
+            "kingsideAttack",
+            "middlegame",
+            "short"
+          ],
+          "url": "https://lichess.org/training/02KdL",
+          "gameUrl": "https://lichess.org/TqQWZ3ix/black#46"
+        }
+      ]
+    },
+    {
+      "theme": "doubleCheck",
+      "label": "Double check",
+      "blurb": "Two pieces give check at once, so the king must run — nothing else helps.",
+      "puzzles": [
+        {
+          "id": "0GuTp",
+          "fen": "rnbkr3/ppp2ppp/8/8/2n1B3/2N5/PPPBK1PP/3R3R w - - 4 14",
+          "turn": "white",
+          "trigger": "Nc4",
+          "solution": [
+            "Bg5#"
+          ],
+          "opponentReplies": [],
+          "line": "14. Bg5#",
+          "mate": true,
+          "rating": 640,
+          "themes": [
+            "discoveredCheck",
+            "doubleCheck",
+            "epauletteMate",
+            "mate",
+            "mateIn1",
+            "middlegame",
+            "oneMove",
+            "pillsburysMate"
+          ],
+          "url": "https://lichess.org/training/0GuTp",
+          "gameUrl": "https://lichess.org/P5Ibp1Ij/black#26"
+        },
+        {
+          "id": "0Krgd",
+          "fen": "r1bqkb1r/pp1n1p1p/2p2pp1/8/3PN3/8/PPP1QPPP/R3KBNR w KQkq - 0 8",
+          "turn": "white",
+          "trigger": "g6",
+          "solution": [
+            "Nd6#"
+          ],
+          "opponentReplies": [],
+          "line": "8. Nd6#",
+          "mate": true,
+          "rating": 656,
+          "themes": [
+            "discoveredCheck",
+            "doubleCheck",
+            "epauletteMate",
+            "mate",
+            "mateIn1",
+            "oneMove",
+            "opening"
+          ],
+          "url": "https://lichess.org/training/0Krgd",
+          "gameUrl": "https://lichess.org/QP9yMTV2/black#14"
+        },
+        {
+          "id": "08XzM",
+          "fen": "r1bqkb1r/p1p1pppp/8/1N1P4/Q1Pn4/8/PP3PPP/n1BK1BNR w kq - 0 10",
+          "turn": "white",
+          "trigger": "Nxa1",
+          "solution": [
+            "Nd6#"
+          ],
+          "opponentReplies": [],
+          "line": "10. Nd6#",
+          "mate": true,
+          "rating": 701,
+          "themes": [
+            "discoveredCheck",
+            "doubleCheck",
+            "mate",
+            "mateIn1",
+            "oneMove",
+            "opening"
+          ],
+          "url": "https://lichess.org/training/08XzM",
+          "gameUrl": "https://lichess.org/GYTR3jqI/black#18"
+        },
+        {
+          "id": "0fNoJ",
+          "fen": "r2qkb1r/pp3ppp/nn1B4/1Npp1b2/Q2P4/P7/1P2PPPP/R3KBNR w KQkq - 2 10",
+          "turn": "white",
+          "trigger": "Nb6",
+          "solution": [
+            "Nc7#"
+          ],
+          "opponentReplies": [],
+          "line": "10. Nc7#",
+          "mate": true,
+          "rating": 710,
+          "themes": [
+            "discoveredCheck",
+            "doubleCheck",
+            "mate",
+            "mateIn1",
+            "oneMove",
+            "opening"
+          ],
+          "url": "https://lichess.org/training/0fNoJ",
+          "gameUrl": "https://lichess.org/6mnPnoA9/black#18"
+        },
+        {
+          "id": "0VasO",
+          "fen": "R7/5pn1/4p1k1/p2pP1P1/Pb1P2Pp/7r/1n2N3/2B3K1 w - - 0 42",
+          "turn": "white",
+          "trigger": "Rxh3",
+          "solution": [
+            "Nf4+",
+            "Nxh3+"
+          ],
+          "opponentReplies": [
+            "Kxg5"
+          ],
+          "line": "42. Nf4+ Kxg5 43. Nxh3+",
+          "mate": false,
+          "rating": 771,
+          "themes": [
+            "advantage",
+            "discoveredCheck",
+            "doubleCheck",
+            "fork",
+            "middlegame",
+            "short"
+          ],
+          "url": "https://lichess.org/training/0VasO",
+          "gameUrl": "https://lichess.org/ubBxLZGf/black#82"
+        },
+        {
+          "id": "0gpDx",
+          "fen": "r1b1r2k/ppNnb1pp/5n2/8/2B5/8/PP3PPP/R1BNK2R b KQ - 0 13",
+          "turn": "black",
+          "trigger": "Nxc7",
+          "solution": [
+            "Bb4+",
+            "Re1#"
+          ],
+          "opponentReplies": [
+            "Kf1"
+          ],
+          "line": "13... Bb4+ 14. Kf1 Re1#",
+          "mate": true,
+          "rating": 851,
+          "themes": [
+            "discoveredCheck",
+            "doubleCheck",
+            "mate",
+            "mateIn2",
+            "opening",
+            "operaMate",
+            "short"
+          ],
+          "url": "https://lichess.org/training/0gpDx",
+          "gameUrl": "https://lichess.org/mKmqHRgz#25"
+        },
+        {
+          "id": "07OHG",
+          "fen": "5Q2/p5pk/1p2p2p/1R6/2RPp3/2P1q3/5nPP/5BK1 b - - 8 32",
+          "turn": "black",
+          "trigger": "Kg1",
+          "solution": [
+            "Nh3+",
+            "Qg1#"
+          ],
+          "opponentReplies": [
+            "Kh1"
+          ],
+          "line": "32... Nh3+ 33. Kh1 Qg1#",
+          "mate": true,
+          "rating": 864,
+          "themes": [
+            "discoveredCheck",
+            "doubleCheck",
+            "endgame",
+            "mate",
+            "mateIn2",
+            "short"
+          ],
+          "url": "https://lichess.org/training/07OHG",
+          "gameUrl": "https://lichess.org/kfi9z6mN#63"
+        },
+        {
+          "id": "0Gk2z",
+          "fen": "r2q3r/p1pp1Bbk/1p2p2p/3bn3/4NRPn/3Q4/PP5P/R1B3K1 w - - 6 21",
+          "turn": "white",
+          "trigger": "Ne5",
+          "solution": [
+            "Nf6#"
+          ],
+          "opponentReplies": [],
+          "line": "21. Nf6#",
+          "mate": true,
+          "rating": 883,
+          "themes": [
+            "discoveredCheck",
+            "doubleCheck",
+            "mate",
+            "mateIn1",
+            "middlegame",
+            "oneMove"
+          ],
+          "url": "https://lichess.org/training/0Gk2z",
+          "gameUrl": "https://lichess.org/ilfXUKGD/black#40"
+        }
+      ]
+    },
+    {
+      "theme": "backRankMate",
+      "label": "Back-rank mate",
+      "blurb": "A boxed-in king is mated along its own back rank.",
+      "puzzles": [
+        {
+          "id": "03wH4",
+          "fen": "2r2b2/p5qk/1p1pR1pp/3Q4/2P1N2B/1P6/P4PPP/6K1 b - - 6 26",
+          "turn": "black",
+          "trigger": "Ne4",
+          "solution": [
+            "Qa1+",
+            "Qxd1#"
+          ],
+          "opponentReplies": [
+            "Qd1"
+          ],
+          "line": "26... Qa1+ 27. Qd1 Qxd1#",
+          "mate": true,
+          "rating": 601,
+          "themes": [
+            "backRankMate",
+            "mate",
+            "mateIn2",
+            "middlegame",
+            "short"
+          ],
+          "url": "https://lichess.org/training/03wH4",
+          "gameUrl": "https://lichess.org/hsjzrv26#51"
+        },
+        {
+          "id": "01zRG",
+          "fen": "r2r2k1/p1p2ppp/2p1p3/4P3/N2R4/1q5P/2b2BP1/3Q1RK1 w - - 1 23",
+          "turn": "white",
+          "trigger": "Bc2",
+          "solution": [
+            "Rxd8+",
+            "Qxd8#"
+          ],
+          "opponentReplies": [
+            "Rxd8"
+          ],
+          "line": "23. Rxd8+ Rxd8 24. Qxd8#",
+          "mate": true,
+          "rating": 603,
+          "themes": [
+            "backRankMate",
+            "mate",
+            "mateIn2",
+            "middlegame",
+            "short"
+          ],
+          "url": "https://lichess.org/training/01zRG",
+          "gameUrl": "https://lichess.org/kOXTd0Lj/black#44"
+        },
+        {
+          "id": "04QuI",
+          "fen": "3rr1k1/ppp2ppp/1q6/4Q3/8/P2b1B1P/5PP1/4R1K1 w - - 1 28",
+          "turn": "white",
+          "trigger": "Rfe8",
+          "solution": [
+            "Qxe8+",
+            "Rxe8#"
+          ],
+          "opponentReplies": [
+            "Rxe8"
+          ],
+          "line": "28. Qxe8+ Rxe8 29. Rxe8#",
+          "mate": true,
+          "rating": 615,
+          "themes": [
+            "backRankMate",
+            "mate",
+            "mateIn2",
+            "middlegame",
+            "short"
+          ],
+          "url": "https://lichess.org/training/04QuI",
+          "gameUrl": "https://lichess.org/c56Zi6Ma/black#54"
+        },
+        {
+          "id": "00TU2",
+          "fen": "1k1r4/1p3Qp1/p2q3p/8/1N6/8/PP3PPP/2R3K1 b - - 0 22",
+          "turn": "black",
+          "trigger": "Nxb4",
+          "solution": [
+            "Qd1+",
+            "Rxd1#"
+          ],
+          "opponentReplies": [
+            "Rxd1"
+          ],
+          "line": "22... Qd1+ 23. Rxd1 Rxd1#",
+          "mate": true,
+          "rating": 623,
+          "themes": [
+            "backRankMate",
+            "endgame",
+            "mate",
+            "mateIn2",
+            "sacrifice",
+            "short"
+          ],
+          "url": "https://lichess.org/training/00TU2",
+          "gameUrl": "https://lichess.org/p32396Rd#43"
+        },
+        {
+          "id": "007mr",
+          "fen": "5k2/p2r3p/1p4pP/3r1q2/4R3/2P5/PP3PQ1/K3R3 b - - 0 33",
+          "turn": "black",
+          "trigger": "Rdxe4",
+          "solution": [
+            "Rd1+",
+            "Rxd1#"
+          ],
+          "opponentReplies": [
+            "Rxd1"
+          ],
+          "line": "33... Rd1+ 34. Rxd1 Rxd1#",
+          "mate": true,
+          "rating": 646,
+          "themes": [
+            "backRankMate",
+            "endgame",
+            "mate",
+            "mateIn2",
+            "short"
+          ],
+          "url": "https://lichess.org/training/007mr",
+          "gameUrl": "https://lichess.org/J12UnEgz#65"
+        },
+        {
+          "id": "0401S",
+          "fen": "2k4r/ppp1Rppp/5n2/8/2Pr4/8/P4PPP/RNB3K1 b - - 0 15",
+          "turn": "black",
+          "trigger": "Rxe7",
+          "solution": [
+            "Rd1+",
+            "Rxe1#"
+          ],
+          "opponentReplies": [
+            "Re1"
+          ],
+          "line": "15... Rd1+ 16. Re1 Rxe1#",
+          "mate": true,
+          "rating": 682,
+          "themes": [
+            "backRankMate",
+            "fork",
+            "mate",
+            "mateIn2",
+            "middlegame",
+            "short"
+          ],
+          "url": "https://lichess.org/training/0401S",
+          "gameUrl": "https://lichess.org/xKw5209k#29"
+        },
+        {
+          "id": "02aw9",
+          "fen": "4n1k1/Q4p2/3p3p/p1pP1Rp1/8/Pr4P1/6PP/7K b - - 0 37",
+          "turn": "black",
+          "trigger": "Rxf5",
+          "solution": [
+            "Rb1+",
+            "Rxf1#"
+          ],
+          "opponentReplies": [
+            "Rf1"
+          ],
+          "line": "37... Rb1+ 38. Rf1 Rxf1#",
+          "mate": true,
+          "rating": 684,
+          "themes": [
+            "backRankMate",
+            "endgame",
+            "mate",
+            "mateIn2",
+            "short"
+          ],
+          "url": "https://lichess.org/training/02aw9",
+          "gameUrl": "https://lichess.org/0i86KI8p#73"
+        },
+        {
+          "id": "02k8t",
+          "fen": "4r1k1/3Q1pp1/p4b1p/1pB1q3/1P6/P7/5PPP/3R2K1 b - - 1 24",
+          "turn": "black",
+          "trigger": "Qd7",
+          "solution": [
+            "Qe1+",
+            "Rxe1#"
+          ],
+          "opponentReplies": [
+            "Rxe1"
+          ],
+          "line": "24... Qe1+ 25. Rxe1 Rxe1#",
+          "mate": true,
+          "rating": 696,
+          "themes": [
+            "backRankMate",
+            "endgame",
+            "mate",
+            "mateIn2",
+            "sacrifice",
+            "short"
+          ],
+          "url": "https://lichess.org/training/02k8t",
+          "gameUrl": "https://lichess.org/fAUXyP2G#47"
+        }
+      ]
+    },
+    {
+      "theme": "mateIn2",
+      "label": "Mate in two",
+      "blurb": "A forcing first move leaves Black no defence against mate next move.",
+      "puzzles": [
+        {
+          "id": "00CpR",
+          "fen": "6k1/B7/2p2pK1/3nr2p/8/1Q3PP1/P6r/8 w - - 1 32",
+          "turn": "white",
+          "trigger": "Re5",
+          "solution": [
+            "Qb8+",
+            "Qxe8#"
+          ],
+          "opponentReplies": [
+            "Re8"
+          ],
+          "line": "32. Qb8+ Re8 33. Qxe8#",
+          "mate": true,
+          "rating": 629,
+          "themes": [
+            "endgame",
+            "mate",
+            "mateIn2",
+            "short"
+          ],
+          "url": "https://lichess.org/training/00CpR",
+          "gameUrl": "https://lichess.org/tX2xyrPX/black#62"
+        },
+        {
+          "id": "00ax2",
+          "fen": "r1b4k/1pp3p1/1b1p1q1p/1p5Q/P1P1Bp2/3P4/6PP/5R1K w - - 2 24",
+          "turn": "white",
+          "trigger": "Qf6",
+          "solution": [
+            "Qe8+",
+            "Qxf8#"
+          ],
+          "opponentReplies": [
+            "Qf8"
+          ],
+          "line": "24. Qe8+ Qf8 25. Qxf8#",
+          "mate": true,
+          "rating": 634,
+          "themes": [
+            "kingsideAttack",
+            "mate",
+            "mateIn2",
+            "middlegame",
+            "short"
+          ],
+          "url": "https://lichess.org/training/00ax2",
+          "gameUrl": "https://lichess.org/zZGnME4m/black#46"
+        },
+        {
+          "id": "008GK",
+          "fen": "1k6/ppp3p1/8/1P5p/8/P3n2P/2P1r1P1/B2rNRK1 w - - 5 32",
+          "turn": "white",
+          "trigger": "Rd1",
+          "solution": [
+            "Rf8+",
+            "Rxd8#"
+          ],
+          "opponentReplies": [
+            "Rd8"
+          ],
+          "line": "32. Rf8+ Rd8 33. Rxd8#",
+          "mate": true,
+          "rating": 651,
+          "themes": [
+            "backRankMate",
+            "endgame",
+            "mate",
+            "mateIn2",
+            "short"
+          ],
+          "url": "https://lichess.org/training/008GK",
+          "gameUrl": "https://lichess.org/9vFFDYsH/black#62"
+        },
+        {
+          "id": "00SLR",
+          "fen": "rnbqk1nr/ppppbppp/4p3/8/5PP1/5N2/PPPPP2P/RNBQKB1R b KQkq - 0 3",
+          "turn": "black",
+          "trigger": "g4",
+          "solution": [
+            "Bh4+",
+            "Qxh4#"
+          ],
+          "opponentReplies": [
+            "Nxh4"
+          ],
+          "line": "3... Bh4+ 4. Nxh4 Qxh4#",
+          "mate": true,
+          "rating": 677,
+          "themes": [
+            "mate",
+            "mateIn2",
+            "opening",
+            "short"
+          ],
+          "url": "https://lichess.org/training/00SLR",
+          "gameUrl": "https://lichess.org/jqepvLa0#5"
+        },
+        {
+          "id": "00eAX",
+          "fen": "6k1/ppp1r1pp/8/8/2r5/2P5/P5PP/3R1RK1 w - - 0 27",
+          "turn": "white",
+          "trigger": "Rxe7",
+          "solution": [
+            "Rd8+",
+            "Rxe8#"
+          ],
+          "opponentReplies": [
+            "Re8"
+          ],
+          "line": "27. Rd8+ Re8 28. Rxe8#",
+          "mate": true,
+          "rating": 696,
+          "themes": [
+            "endgame",
+            "mate",
+            "mateIn2",
+            "rookEndgame",
+            "short"
+          ],
+          "url": "https://lichess.org/training/00eAX",
+          "gameUrl": "https://lichess.org/MrdsMkpV/black#52"
+        },
+        {
+          "id": "00HzH",
+          "fen": "5rk1/p2q2p1/1p2p1Np/3p3P/3Pb1P1/2P5/PP3R2/6K1 w - - 0 34",
+          "turn": "white",
+          "trigger": "Rxf8",
+          "solution": [
+            "Rxf8+",
+            "Rh8#"
+          ],
+          "opponentReplies": [
+            "Kh7"
+          ],
+          "line": "34. Rxf8+ Kh7 35. Rh8#",
+          "mate": true,
+          "rating": 762,
+          "themes": [
+            "endgame",
+            "hookMate",
+            "mate",
+            "mateIn2",
+            "short"
+          ],
+          "url": "https://lichess.org/training/00HzH",
+          "gameUrl": "https://lichess.org/XB8lgZ9N/black#66"
+        },
+        {
+          "id": "00ZWD",
+          "fen": "6k1/4bpp1/4p3/p2pP1N1/1q1P3P/1P1Q2K1/5P2/8 w - - 1 34",
+          "turn": "white",
+          "trigger": "Qb4",
+          "solution": [
+            "Qh7+",
+            "Qh8#"
+          ],
+          "opponentReplies": [
+            "Kf8"
+          ],
+          "line": "34. Qh7+ Kf8 35. Qh8#",
+          "mate": true,
+          "rating": 762,
+          "themes": [
+            "endgame",
+            "mate",
+            "mateIn2",
+            "short"
+          ],
+          "url": "https://lichess.org/training/00ZWD",
+          "gameUrl": "https://lichess.org/2rMTqooF/black#66"
+        },
+        {
+          "id": "00H8a",
+          "fen": "5bk1/2R4p/6p1/8/4NP1P/3bP1K1/r7/8 w - - 3 46",
+          "turn": "white",
+          "trigger": "Bd3",
+          "solution": [
+            "Nf6+",
+            "Rxh7#"
+          ],
+          "opponentReplies": [
+            "Kh8"
+          ],
+          "line": "46. Nf6+ Kh8 47. Rxh7#",
+          "mate": true,
+          "rating": 798,
+          "themes": [
+            "arabianMate",
+            "endgame",
+            "mate",
+            "mateIn2",
+            "short"
+          ],
+          "url": "https://lichess.org/training/00H8a",
+          "gameUrl": "https://lichess.org/7UUQgJDC/black#90"
+        }
+      ]
+    },
+    {
+      "theme": "hangingPiece",
+      "label": "Hanging piece",
+      "blurb": "An undefended piece is simply there to be taken.",
+      "puzzles": [
+        {
+          "id": "04Mpq",
+          "fen": "r2k3r/p1p1qp1p/1p1p4/1B2p3/8/2P2Q2/P1P3PP/1R5K w - - 0 19",
+          "turn": "white",
+          "trigger": "fxe5",
+          "solution": [
+            "Qxa8#"
+          ],
+          "opponentReplies": [],
+          "line": "19. Qxa8#",
+          "mate": true,
+          "rating": 621,
+          "themes": [
+            "endgame",
+            "hangingPiece",
+            "mate",
+            "mateIn1",
+            "oneMove"
+          ],
+          "url": "https://lichess.org/training/04Mpq",
+          "gameUrl": "https://lichess.org/erJb0g8w/black#36"
+        },
+        {
+          "id": "055H8",
+          "fen": "2kr3r/ppp2ppp/5n2/3P4/2P1q3/5Q2/P4PPP/R1B1R1K1 b - - 0 15",
+          "turn": "black",
+          "trigger": "Qxf3",
+          "solution": [
+            "Qxe1#"
+          ],
+          "opponentReplies": [],
+          "line": "15... Qxe1#",
+          "mate": true,
+          "rating": 632,
+          "themes": [
+            "hangingPiece",
+            "kingsideAttack",
+            "mate",
+            "mateIn1",
+            "middlegame",
+            "oneMove"
+          ],
+          "url": "https://lichess.org/training/055H8",
+          "gameUrl": "https://lichess.org/q4uTMtPN#29"
+        },
+        {
+          "id": "04s0y",
+          "fen": "r7/p1qp1rb1/npp1p2k/4P1Np/2PPB1PP/8/PP3P2/R4RK1 w - - 0 26",
+          "turn": "white",
+          "trigger": "Rxf7",
+          "solution": [
+            "Nxf7#"
+          ],
+          "opponentReplies": [],
+          "line": "26. Nxf7#",
+          "mate": true,
+          "rating": 653,
+          "themes": [
+            "hangingPiece",
+            "mate",
+            "mateIn1",
+            "middlegame",
+            "oneMove"
+          ],
+          "url": "https://lichess.org/training/04s0y",
+          "gameUrl": "https://lichess.org/sBEZ032t/black#50"
+        },
+        {
+          "id": "025Et",
+          "fen": "2r3k1/1Q3ppp/8/8/4B3/2q1P3/R4PPP/4R1K1 b - - 0 24",
+          "turn": "black",
+          "trigger": "Rxa2",
+          "solution": [
+            "Qxe1#"
+          ],
+          "opponentReplies": [],
+          "line": "24... Qxe1#",
+          "mate": true,
+          "rating": 660,
+          "themes": [
+            "endgame",
+            "hangingPiece",
+            "mate",
+            "mateIn1",
+            "oneMove"
+          ],
+          "url": "https://lichess.org/training/025Et",
+          "gameUrl": "https://lichess.org/icn5jsCi#47"
+        },
+        {
+          "id": "02Or9",
+          "fen": "2n2r1k/p1q4p/2P3p1/2Q1b3/3P4/7P/P4PP1/5RK1 w - - 0 25",
+          "turn": "white",
+          "trigger": "Bxe5",
+          "solution": [
+            "Qxf8#"
+          ],
+          "opponentReplies": [],
+          "line": "25. Qxf8#",
+          "mate": true,
+          "rating": 679,
+          "themes": [
+            "endgame",
+            "hangingPiece",
+            "mate",
+            "mateIn1",
+            "oneMove"
+          ],
+          "url": "https://lichess.org/training/02Or9",
+          "gameUrl": "https://lichess.org/LDFfzv60/black#48"
+        },
+        {
+          "id": "02MgK",
+          "fen": "2r4k/q5pp/4Qp2/8/1Ppb4/5PPP/7K/4BB2 w - - 1 40",
+          "turn": "white",
+          "trigger": "Kh8",
+          "solution": [
+            "Qxc8#"
+          ],
+          "opponentReplies": [],
+          "line": "40. Qxc8#",
+          "mate": true,
+          "rating": 702,
+          "themes": [
+            "backRankMate",
+            "endgame",
+            "hangingPiece",
+            "mate",
+            "mateIn1",
+            "oneMove"
+          ],
+          "url": "https://lichess.org/training/02MgK",
+          "gameUrl": "https://lichess.org/gyDXOBbe/black#78"
+        },
+        {
+          "id": "01LBw",
+          "fen": "r6r/ppp1kBp1/2np4/4p3/4P1Q1/P2P3q/1PPN1P2/R4RK1 b - - 0 17",
+          "turn": "black",
+          "trigger": "Qxg4",
+          "solution": [
+            "Qxg4#"
+          ],
+          "opponentReplies": [],
+          "line": "17... Qxg4#",
+          "mate": true,
+          "rating": 725,
+          "themes": [
+            "hangingPiece",
+            "kingsideAttack",
+            "mate",
+            "mateIn1",
+            "middlegame",
+            "oneMove"
+          ],
+          "url": "https://lichess.org/training/01LBw",
+          "gameUrl": "https://lichess.org/b4KcZaUU#33"
+        },
+        {
+          "id": "021Lo",
+          "fen": "r2qk2r/pp2bBpp/2n5/4p3/6b1/2P2N2/P4PPP/R1BQ1RK1 b kq - 0 13",
+          "turn": "black",
+          "trigger": "Bxf7+",
+          "solution": [
+            "Kxf7",
+            "Bxg5"
+          ],
+          "opponentReplies": [
+            "Ng5+"
+          ],
+          "line": "13... Kxf7 14. Ng5+ Bxg5",
+          "mate": false,
+          "rating": 778,
+          "themes": [
+            "crushing",
+            "hangingPiece",
+            "middlegame",
+            "short"
+          ],
+          "url": "https://lichess.org/training/021Lo",
+          "gameUrl": "https://lichess.org/PXaz6KFQ#25"
+        }
+      ]
+    },
+    {
+      "theme": "deflection",
+      "label": "Deflection",
+      "blurb": "A defender is dragged away from the square it was guarding.",
+      "puzzles": [
+        {
+          "id": "03H2V",
+          "fen": "6r1/p7/1ppkp1r1/4Np2/3P1P2/P1P2K1P/1P1R2P1/8 b - - 8 39",
+          "turn": "black",
+          "trigger": "Ne5",
+          "solution": [
+            "Rg3+",
+            "Rxg2+"
+          ],
+          "opponentReplies": [
+            "Ke2"
+          ],
+          "line": "39... Rg3+ 40. Ke2 Rxg2+",
+          "mate": false,
+          "rating": 806,
+          "themes": [
+            "advantage",
+            "deflection",
+            "endgame",
+            "interference",
+            "short"
+          ],
+          "url": "https://lichess.org/training/03H2V",
+          "gameUrl": "https://lichess.org/aCxUrrvg#77"
+        },
+        {
+          "id": "01pgJ",
+          "fen": "1R6/6pk/5p1p/2N5/6PK/r6P/8/8 b - - 2 40",
+          "turn": "black",
+          "trigger": "Nc5",
+          "solution": [
+            "g5+",
+            "Rxh3#"
+          ],
+          "opponentReplies": [
+            "Kh5"
+          ],
+          "line": "40... g5+ 41. Kh5 Rxh3#",
+          "mate": true,
+          "rating": 820,
+          "themes": [
+            "deflection",
+            "endgame",
+            "mate",
+            "mateIn2",
+            "short"
+          ],
+          "url": "https://lichess.org/training/01pgJ",
+          "gameUrl": "https://lichess.org/HETqJZ8G#79"
+        },
+        {
+          "id": "01Ie5",
+          "fen": "8/3R3p/6pk/5p2/5PP1/7P/rr1B1K2/8 w - - 1 47",
+          "turn": "white",
+          "trigger": "Rbb2",
+          "solution": [
+            "g5+",
+            "Rxh7#"
+          ],
+          "opponentReplies": [
+            "Kh5"
+          ],
+          "line": "47. g5+ Kh5 48. Rxh7#",
+          "mate": true,
+          "rating": 868,
+          "themes": [
+            "deflection",
+            "endgame",
+            "mate",
+            "mateIn2",
+            "short"
+          ],
+          "url": "https://lichess.org/training/01Ie5",
+          "gameUrl": "https://lichess.org/MSON3n5v/black#92"
+        },
+        {
+          "id": "04fG0",
+          "fen": "2k4r/pp1r1p1p/2pb1p2/8/7N/2P3P1/P1P1P2P/2KR1B1R b - - 0 17",
+          "turn": "black",
+          "trigger": "bxc3",
+          "solution": [
+            "Ba3+",
+            "Rxd1#"
+          ],
+          "opponentReplies": [
+            "Kb1"
+          ],
+          "line": "17... Ba3+ 18. Kb1 Rxd1#",
+          "mate": true,
+          "rating": 886,
+          "themes": [
+            "deflection",
+            "discoveredAttack",
+            "mate",
+            "mateIn2",
+            "middlegame",
+            "queensideAttack",
+            "short"
+          ],
+          "url": "https://lichess.org/training/04fG0",
+          "gameUrl": "https://lichess.org/XgsMpBMv#33"
+        },
+        {
+          "id": "01SLc",
+          "fen": "8/3k1p2/3Pb3/4P1p1/N7/4K3/8/8 w - - 10 55",
+          "turn": "white",
+          "trigger": "Kd7",
+          "solution": [
+            "Nc5+",
+            "Nxe6"
+          ],
+          "opponentReplies": [
+            "Kc6"
+          ],
+          "line": "55. Nc5+ Kc6 56. Nxe6",
+          "mate": false,
+          "rating": 943,
+          "themes": [
+            "crushing",
+            "deflection",
+            "endgame",
+            "short"
+          ],
+          "url": "https://lichess.org/training/01SLc",
+          "gameUrl": "https://lichess.org/UzKjaQjs/black#108"
+        },
+        {
+          "id": "04PCA",
+          "fen": "8/2R4p/6pk/5p2/2rP1KPP/4PP2/8/2r5 w - - 0 42",
+          "turn": "white",
+          "trigger": "Rbxc4",
+          "solution": [
+            "g5+",
+            "Rxh7#"
+          ],
+          "opponentReplies": [
+            "Kh5"
+          ],
+          "line": "42. g5+ Kh5 43. Rxh7#",
+          "mate": true,
+          "rating": 963,
+          "themes": [
+            "deflection",
+            "endgame",
+            "mate",
+            "mateIn2",
+            "rookEndgame",
+            "short"
+          ],
+          "url": "https://lichess.org/training/04PCA",
+          "gameUrl": "https://lichess.org/CYh3htEg/black#82"
+        },
+        {
+          "id": "03JHV",
+          "fen": "6k1/5pbp/q5p1/6N1/1p1nQ3/6P1/P2K1P1P/7r w - - 0 27",
+          "turn": "white",
+          "trigger": "Rxh1",
+          "solution": [
+            "Qe8+",
+            "Qxf7+",
+            "Qxf8#"
+          ],
+          "opponentReplies": [
+            "Bf8",
+            "Kh8"
+          ],
+          "line": "27. Qe8+ Bf8 28. Qxf7+ Kh8 29. Qxf8#",
+          "mate": true,
+          "rating": 972,
+          "themes": [
+            "deflection",
+            "endgame",
+            "long",
+            "mate",
+            "mateIn3"
+          ],
+          "url": "https://lichess.org/training/03JHV",
+          "gameUrl": "https://lichess.org/xKsrHVF9/black#52"
+        },
+        {
+          "id": "02sY0",
+          "fen": "5rk1/pp4pp/3qQ3/6N1/3r4/1P3BP1/P5KP/R7 b - - 0 22",
+          "turn": "black",
+          "trigger": "Qxe6+",
+          "solution": [
+            "Qxe6",
+            "Rd2+",
+            "Rxf3"
+          ],
+          "opponentReplies": [
+            "Nxe6",
+            "Kh3"
+          ],
+          "line": "22... Qxe6 23. Nxe6 Rd2+ 24. Kh3 Rxf3",
+          "mate": false,
+          "rating": 1006,
+          "themes": [
+            "advantage",
+            "deflection",
+            "long",
+            "middlegame"
+          ],
+          "url": "https://lichess.org/training/02sY0",
+          "gameUrl": "https://lichess.org/LVosAl7u#43"
+        }
+      ]
+    },
+    {
+      "theme": "sacrifice",
+      "label": "Sacrifice",
+      "blurb": "Material is given up now for something bigger — usually mate or the queen.",
+      "puzzles": [
+        {
+          "id": "01244",
+          "fen": "4r1k1/5ppp/B1R2b2/5P2/2Q2p1P/pP2qP2/P1P5/1K5R b - - 0 28",
+          "turn": "black",
+          "trigger": "Bxa6",
+          "solution": [
+            "Qe1+",
+            "Rxe1#"
+          ],
+          "opponentReplies": [
+            "Rxe1"
+          ],
+          "line": "28... Qe1+ 29. Rxe1 Rxe1#",
+          "mate": true,
+          "rating": 611,
+          "themes": [
+            "mate",
+            "mateIn2",
+            "middlegame",
+            "queensideAttack",
+            "sacrifice",
+            "short"
+          ],
+          "url": "https://lichess.org/training/01244",
+          "gameUrl": "https://lichess.org/IPXRSTGY#55"
+        },
+        {
+          "id": "02cu7",
+          "fen": "4r1k1/1pb1qpp1/p5p1/2BQ4/8/7P/PP3PP1/3R3K b - - 0 29",
+          "turn": "black",
+          "trigger": "Qxd5",
+          "solution": [
+            "Qe1+",
+            "Rxe1#"
+          ],
+          "opponentReplies": [
+            "Rxe1"
+          ],
+          "line": "29... Qe1+ 30. Rxe1 Rxe1#",
+          "mate": true,
+          "rating": 662,
+          "themes": [
+            "endgame",
+            "mate",
+            "mateIn2",
+            "sacrifice",
+            "short"
+          ],
+          "url": "https://lichess.org/training/02cu7",
+          "gameUrl": "https://lichess.org/KMro4pfd#57"
+        },
+        {
+          "id": "03mkp",
+          "fen": "r1b1r1k1/p1R2pp1/2Q4p/8/3N4/2P1q3/PP4PP/R6K b - - 1 24",
+          "turn": "black",
+          "trigger": "Kh1",
+          "solution": [
+            "Qe1+",
+            "Rxe1#"
+          ],
+          "opponentReplies": [
+            "Rxe1"
+          ],
+          "line": "24... Qe1+ 25. Rxe1 Rxe1#",
+          "mate": true,
+          "rating": 726,
+          "themes": [
+            "backRankMate",
+            "mate",
+            "mateIn2",
+            "middlegame",
+            "sacrifice",
+            "short"
+          ],
+          "url": "https://lichess.org/training/03mkp",
+          "gameUrl": "https://lichess.org/uYptccZH#47"
+        },
+        {
+          "id": "00HEh",
+          "fen": "3r2k1/pp3ppp/2p3b1/2n3P1/2B2q1P/5N2/PPP1QP2/4R1K1 w - - 0 24",
+          "turn": "white",
+          "trigger": "Rxd8",
+          "solution": [
+            "Qe8+",
+            "Rxe8#"
+          ],
+          "opponentReplies": [
+            "Rxe8"
+          ],
+          "line": "24. Qe8+ Rxe8 25. Rxe8#",
+          "mate": true,
+          "rating": 812,
+          "themes": [
+            "kingsideAttack",
+            "mate",
+            "mateIn2",
+            "middlegame",
+            "sacrifice",
+            "short"
+          ],
+          "url": "https://lichess.org/training/00HEh",
+          "gameUrl": "https://lichess.org/ekEf00kl/black#46"
+        },
+        {
+          "id": "03TxG",
+          "fen": "6k1/8/3B1pp1/2PP4/3p2pP/p2K4/r2N1P2/8 b - - 0 41",
+          "turn": "black",
+          "trigger": "c5",
+          "solution": [
+            "Rxd2+",
+            "a2",
+            "a1=Q"
+          ],
+          "opponentReplies": [
+            "Kxd2",
+            "c6"
+          ],
+          "line": "41... Rxd2+ 42. Kxd2 a2 43. c6 a1=Q",
+          "mate": false,
+          "rating": 862,
+          "themes": [
+            "advancedPawn",
+            "crushing",
+            "endgame",
+            "long",
+            "promotion",
+            "sacrifice"
+          ],
+          "url": "https://lichess.org/training/03TxG",
+          "gameUrl": "https://lichess.org/8gukwIS8#81"
+        },
+        {
+          "id": "01LlS",
+          "fen": "4rrk1/ppp1qpp1/7p/6N1/4N1P1/b2Q3P/P4P2/1R4K1 w - - 0 25",
+          "turn": "white",
+          "trigger": "h6",
+          "solution": [
+            "Nf6+",
+            "Qh7#"
+          ],
+          "opponentReplies": [
+            "gxf6"
+          ],
+          "line": "25. Nf6+ gxf6 26. Qh7#",
+          "mate": true,
+          "rating": 870,
+          "themes": [
+            "clearance",
+            "kingsideAttack",
+            "mate",
+            "mateIn2",
+            "middlegame",
+            "sacrifice",
+            "short"
+          ],
+          "url": "https://lichess.org/training/01LlS",
+          "gameUrl": "https://lichess.org/2D65uUUV/black#48"
+        },
+        {
+          "id": "02tV1",
+          "fen": "5r2/p2pb2Q/1k3qp1/1p2N1p1/4R3/2PP4/PP3PPP/R5K1 b - - 3 22",
+          "turn": "black",
+          "trigger": "Ne5",
+          "solution": [
+            "Qxf2+",
+            "Qf1+",
+            "Rxf1#"
+          ],
+          "opponentReplies": [
+            "Kh1",
+            "Rxf1"
+          ],
+          "line": "22... Qxf2+ 23. Kh1 Qf1+ 24. Rxf1 Rxf1#",
+          "mate": true,
+          "rating": 885,
+          "themes": [
+            "backRankMate",
+            "long",
+            "mate",
+            "mateIn3",
+            "middlegame",
+            "sacrifice"
+          ],
+          "url": "https://lichess.org/training/02tV1",
+          "gameUrl": "https://lichess.org/YgTi37hi#43"
+        },
+        {
+          "id": "02nxc",
+          "fen": "r3k2r/pp5p/2q1p1p1/2bN4/P5Pn/8/RPP4P/2BQR2K w kq - 1 20",
+          "turn": "white",
+          "trigger": "Qc6",
+          "solution": [
+            "Rxe6+",
+            "Nc7+",
+            "Nxe6"
+          ],
+          "opponentReplies": [
+            "Qxe6",
+            "Kf7"
+          ],
+          "line": "20. Rxe6+ Qxe6 21. Nc7+ Kf7 22. Nxe6",
+          "mate": false,
+          "rating": 923,
+          "themes": [
+            "advantage",
+            "attraction",
+            "exposedKing",
+            "fork",
+            "long",
+            "middlegame",
+            "sacrifice"
+          ],
+          "url": "https://lichess.org/training/02nxc",
+          "gameUrl": "https://lichess.org/FZ8OHv03/black#38"
+        }
+      ]
+    }
+  ]
+}

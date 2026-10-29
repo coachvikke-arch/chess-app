@@ -62,6 +62,7 @@ import Settings from './pages/Settings';
 import LiveClassroom from './pages/LiveClassroom';
 import MessagesPage from './pages/MessagesPage';
 import ChatRequestsPage from './pages/ChatRequestsPage';
+import Notifications from './pages/Notifications';
 
 import AdminDashboard from './pages/AdminDashboard';
 import CommandCenter from './pages/CommandCenter';
@@ -76,13 +77,13 @@ import StudentCertificates from './pages/StudentCertificates';
 import CertificateSettings from './pages/CertificateSettings';
 import Batches from './pages/Batches';
 import ManageCourses from './pages/ManageCourses';
+import PuzzleGenerator from './pages/PuzzleGenerator';
 import ManageClasses from './pages/ManageClasses';
 import ManageAssignments from './pages/ManageAssignments';
 import PuzzleSolvingReport from './pages/PuzzleSolvingReport';
 import ManageQuizzes from './pages/ManageQuizzes';
 import PuzzleListing from './pages/PuzzleListing';
 
-import Worklist from './pages/Worklist';
 import AcademyHome from './pages/academy/AcademyHome';
 import OpeningsLibrary from './pages/OpeningsLibrary';
 import OpeningDetail from './pages/OpeningDetail';
@@ -461,6 +462,7 @@ export default function App() {
           <Route path="/quizzes/:id" element={<ProtectedRoute role="student"><StudentLayout><TakeQuiz /></StudentLayout></ProtectedRoute>} />
           <Route path="/student/people" element={<ProtectedRoute role="student"><Navigate to="/student/messages?tab=people" replace /></ProtectedRoute>} />
           <Route path="/student/messages" element={<ProtectedRoute role="student"><FeatureRoute feature="messaging_coach"><StudentLayout><MessagesPage /></StudentLayout></FeatureRoute></ProtectedRoute>} />
+          <Route path="/student/notifications" element={<ProtectedRoute role="student"><StudentLayout><Notifications /></StudentLayout></ProtectedRoute>} />
 
           {/* Admin / Coach */}
           <Route path="/admin/dashboard" element={<ProtectedRoute role="admin"><AdminLayout><AdminDashboard /></AdminLayout></ProtectedRoute>} />
@@ -492,12 +494,13 @@ export default function App() {
           <Route path="/admin/admins/:id/report" element={<ProtectedRoute role="superadmin"><AdminLayout><AdminReport /></AdminLayout></ProtectedRoute>} />
           <Route path="/admin/admins/:id/performance" element={<ProtectedRoute role="superadmin"><AdminLayout><CoachReport /></AdminLayout></ProtectedRoute>} />
           <Route path="/admin/courses" element={<ProtectedRoute role="admin"><AdminLayout><ManageCourses /></AdminLayout></ProtectedRoute>} />
+          <Route path="/admin/courses/create-puzzles" element={<ProtectedRoute role="admin"><AdminLayout><PuzzleGenerator /></AdminLayout></ProtectedRoute>} />
           <Route path="/admin/performances" element={<ProtectedRoute role="admin"><AdminLayout><ManagePerformances /></AdminLayout></ProtectedRoute>} />
           <Route path="/admin/classes" element={<ProtectedRoute role="admin"><AdminLayout><ManageClasses /></AdminLayout></ProtectedRoute>} />
           <Route path="/admin/batches" element={<ProtectedRoute role="admin"><AdminLayout><Batches /></AdminLayout></ProtectedRoute>} />
           <Route path="/admin/attendance" element={<ProtectedRoute role="admin"><AdminLayout><Attendance /></AdminLayout></ProtectedRoute>} />
           <Route path="/admin/assignments" element={<ProtectedRoute role="admin"><FeatureRoute feature="assign_lessons"><AdminLayout><ManageAssignments /></AdminLayout></FeatureRoute></ProtectedRoute>} />
-          <Route path="/admin/worklist" element={<ProtectedRoute role="admin"><AdminLayout><Worklist /></AdminLayout></ProtectedRoute>} />
+          <Route path="/admin/worklist" element={<ProtectedRoute role="admin"><Navigate to="/admin/homework" replace /></ProtectedRoute>} />
           <Route path="/admin/game-history" element={<ProtectedRoute role="admin"><Navigate to="/admin/review?tab=history" replace /></ProtectedRoute>} />
           <Route path="/admin/leaderboard" element={<ProtectedRoute role="admin"><AdminLayout><Leaderboard /></AdminLayout></ProtectedRoute>} />
           <Route path="/admin/tournaments" element={<ProtectedRoute role="admin"><AdminLayout><ManageTournaments /></AdminLayout></ProtectedRoute>} />
@@ -506,6 +509,7 @@ export default function App() {
 
           <Route path="/admin/puzzle-listing" element={<ProtectedRoute role="admin"><FeatureRoute feature="puzzle_authoring"><AdminLayout><PuzzleListing /></AdminLayout></FeatureRoute></ProtectedRoute>} />
           <Route path="/admin/homework" element={<ProtectedRoute role="admin"><AdminLayout><AdminHomework /></AdminLayout></ProtectedRoute>} />
+          <Route path="/admin/notifications" element={<ProtectedRoute role="admin"><AdminLayout><Notifications /></AdminLayout></ProtectedRoute>} />
           <Route path="/admin/puzzle-assignments" element={<ProtectedRoute role="admin"><AdminLayout><PuzzleSolvingReport /></AdminLayout></ProtectedRoute>} />
           <Route path="/admin/quizzes" element={<ProtectedRoute role="admin"><AdminLayout><ManageQuizzes /></AdminLayout></ProtectedRoute>} />
           <Route path="/admin/game-analysis" element={<ProtectedRoute role="admin"><AdminLayout><GameAnalysis /></AdminLayout></ProtectedRoute>} />

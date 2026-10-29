@@ -32,6 +32,11 @@ const HW_COMPACT_QUERY =
   '(max-width: 820px) and (orientation: portrait), ' +
   '(max-width: 1100px) and (orientation: landscape) and (max-height: 700px)';
 
+/* Portrait phones get a scrolling solver page: the board fills the phone's
+   width and the nav row + info panel stack underneath it, so it is fitted by
+   width alone instead of being squeezed into the space above a fixed panel. */
+const HW_PORTRAIT_PHONE_QUERY = '(max-width: 820px) and (orientation: portrait)';
+
 const THEME_LABELS = {
   fork: 'Fork', pin: 'Pin', skewer: 'Skewer', sacrifice: 'Sacrifice',
   discoveredAttack: 'Discovered Attack', doubleCheck: 'Double Check',
@@ -63,8 +68,14 @@ export default function Puzzles() {
    * this measurement can never feed back into a container it also sizes.
    */
   const hwCompact = useMediaQuery(HW_COMPACT_QUERY);
+  const hwPortraitPhone = useMediaQuery(HW_PORTRAIT_PHONE_QUERY);
   const hwFit = useFittedSquare({ max: 420, min: 120 });
-  const hwBoardWidth = hwCompact ? hwFit.size : boardWidth;
+  /* The scrolling portrait layout has no bounded height to fit against, so the
+     board is fitted by width only and may grow to the screen's full width. */
+  const hwWideFit = useFittedSquare({ max: 560, min: 160, widthOnly: true });
+  const hwBoardWidth = hwPortraitPhone ? hwWideFit.size : hwCompact ? hwFit.size : boardWidth;
+  const hwAreaRef = hwPortraitPhone ? hwWideFit.areaRef : hwCompact ? hwFit.areaRef : undefined;
+  const hwFitRef = hwPortraitPhone ? hwWideFit.fitRef : hwCompact ? hwFit.fitRef : undefined;
 
   const { assignmentId } = useParams();
   const navigate = useNavigate();
@@ -836,8 +847,8 @@ export default function Puzzles() {
                 {/* The board's slot. In the compact layout it is the measured
                     box the board is fitted into; the fixed-height panel below
                     reserves its own space, so neither can move the board. */}
-                <div className="hw-board-area" ref={hwCompact ? hwFit.areaRef : undefined}>
-                  <div className="hw-board-wrap" ref={hwCompact ? hwFit.fitRef : undefined}>
+                <div className="hw-board-area" ref={hwAreaRef}>
+                  <div className="hw-board-wrap" ref={hwFitRef}>
                     <PuzzlePlayer
                       fen={current.fen}
                       solution={current.solution || EMPTY_SOLUTION}

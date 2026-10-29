@@ -27,7 +27,7 @@ exports.getProfile = async (req, res) => {
       const mine = await studentIdForUser(req.user.id);
       if (mine !== studentId) return res.status(403).json({ message: 'Only your own rating is visible' });
     }
-    const profile = await rating.buildProfile(studentId);
+    const profile = await rating.buildProfile(studentId, { fullHistory: req.query.full === '1' });
     res.json(profile);
   } catch (err) {
     res.status(500).json({ message: 'Failed to load rating profile', error: err.message });

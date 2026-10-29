@@ -21,11 +21,15 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
-const src = readFileSync(join(ROOT, 'src', 'pages', 'PuzzleListing.jsx'), 'utf8');
+/* The catalogue was lifted out of the page into a component so the Admin
+   Homework "Assign puzzles" card can render the same list (task: one shared
+   listing). The card itself is what these properties describe, so the test
+   reads the component, not the one-line page wrapper. */
+const src = readFileSync(join(ROOT, 'src', 'components', 'PuzzleListing.jsx'), 'utf8');
 
 /* The region that opens the card ... and the region that closes it. Anything
  * inside is "part of the one card"; anything outside is not. */
-const cardOpen = src.indexOf('/* ONE card for browsing AND selecting.');
+const cardOpen = src.indexOf('/* ONE card for browsing, filtering');
 /* the card ends at the `</div>` + `)}` that close the {currentSet && ( ... )} */
 const cardEnd = cardOpen === -1 ? -1 : src.slice(cardOpen).search(/\n {8}<\/div>\r?\n {6}\)\}/);
 const inside = cardOpen === -1 || cardEnd === -1 ? '' : src.slice(cardOpen, cardOpen + cardEnd);
@@ -39,7 +43,7 @@ test('browse and select controls live in one card', () => {
     ['page size', 'perPage'],
     ['folder filter', 'FolderTree'],
     ['manage-folders disclosure', 'Manage folders'],
-    ['selection count', 'MAX_SELECT'],
+    ['selection count', 'Selected:'],
     ['select-all', 'Select all'],
     ['deselect-all', 'Deselect all'],
     ['assign action', 'setAssignOpen(true)'],
@@ -73,16 +77,15 @@ test('the folder dropdown filters and the disclosure manages', () => {
     'folder edits must still refresh the sets below');
 });
 
-test('no amber panel survives, and the paginator below the grid matches the card', () => {
+test('no amber panel survives, and the paginator lives inside the card', () => {
   assert.ok(!/border-amber-400\/50 bg-amber-400\/10/.test(src),
     'the amber panel style must be gone from this page');
 
-  const cardShell = /rounded-2xl border border-ink-200 bg-white\/90/;
-  assert.match(src, cardShell, 'the card must use the shared light card shell');
-  assert.ok(
-    (src.match(new RegExp(cardShell.source, 'g')) || []).length >= 2,
-    'the paginator strip below the grid must use the same shell as the card',
-  );
+  /* The card is the only shell now: the second paginator strip that used to
+     sit below the grid was folded into it, which the needle list above proves
+     by finding `{paginator}` inside the card region. */
+  assert.match(src, /rounded-2xl border border-ink-200 bg-white(?:\/\d+)?/,
+    'the card must use the shared light card shell');
 });
 
 test('light-background text is not left in dark-theme colours', () => {

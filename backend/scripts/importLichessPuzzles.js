@@ -1,226 +1,210 @@
 #!/usr/bin/env node
 
 /**
- * Lichess Puzzle Importer
+ * Lichess puzzle importer for the admin Puzzle Generator.
  *
- * Imports puzzles from the official Lichess puzzle CSV database.
+ * Copies lichess_db_puzzle.csv (pipe-delimited) into the `lichess_puzzles`
+ * table, which is what the generator queries by theme + rating. The CSV itself
+ * is never read at request time; importing once keeps generation fast and lets
+ * a deployment run without the 300 MB file.
  *
- * Download the CSV first:
- *   curl -L -o lichess_puzzles.csv https://database.lichess.org/lichess_db_puzzle.csv.zst
- *   (then decompress with: zstd -d lichess_puzzles.csv.zst)
+ * Download (CC0): https://database.lichess.org/#puzzles
+ *   curl -L -o lichess_db_puzzle.csv.zst https://database.lichess.org/lichess_db_puzzle.csv.zst
  *
- * Or grab a smaller subset from: https://database.lichess.org/
+ * Usage (run from backend/):
+ *   node scripts/importLichessPuzzles.js                      # uses LICHESS_PUZZLE_CSV
+ *   node scripts/importLichessPuzzles.js <file.csv|.csv.zst> [--limit N] [--batch 2000]
  *
- * Usage:
- *   node scripts/importLichessPuzzles.js <path-to-csv> [--limit N] [--difficulty Medium]
+ * A .zst source is decompressed on the fly with the `zstd` CLI when present,
+ * else with Python's `zstandard` module. Nothing is written to disk in between.
  *
- * CSV format (pipe-delimited):
- *   PuzzleId|FEN|Moves|Rating|RatingDeviation|Popularity|NbPlays|Themes|GameUrl|OpeningTags
- *
- * The first move in Moves is the "trigger" (opponent's last move before the puzzle).
- * The remaining moves alternate: solver, opponent, solver, …
- * The Rating column is ignored — it is neither validated nor stored.
+ * Columns: PuzzleId|FEN|Moves|Rating|RatingDeviation|Popularity|NbPlays|Themes|GameUrl|OpeningTags
+ * NOTE: `Moves` starts with the opponent's trigger move; it is stored verbatim
+ * here and stripped by the generator when a puzzle is picked.
  */
 
 const fs = require('fs');
 const path = require('path');
-const { Chess } = require('chess.js');
-const { pool } = require('../src/config/database');
+const { spawn, spawnSync } = require('child_process');
+const readline = require('readline');
+const db = require('../src/config/database');
 
 const args = process.argv.slice(2);
-const csvPath = args[0];
-
-if (!csvPath) {
-  console.error('Usage: node scripts/importLichessPuzzles.js <csv-path> [--limit N] [--difficulty Level]');
-  process.exit(1);
-}
-
-function getArg(flag, defaultVal) {
-  const i = args.indexOf(flag);
-  return i !== -1 && args[i + 1] ? (isNaN(Number(args[i + 1])) ? args[i + 1] : Number(args[i + 1])) : defaultVal;
-}
-
-const LIMIT = Number(getArg('--limit', 5000)) || 5000;
-const DIFFICULTY = String(getArg('--difficulty', 'Medium')).trim();
-
-const THEME_MAP = {
-  fork: 'Fork',
-  pin: 'Pin',
-  skewer: 'Skewer',
-  sacrifice: 'Sacrifice',
-  discoveredAttack: 'Discovered Attack',
-  doubleCheck: 'Double Check',
-  trappedPiece: 'Trapped Piece',
-  deflection: 'Deflection',
-  attraction: 'Attraction',
-  intermezzo: 'Intermezzo',
-  xrayAttack: 'X-Ray Attack',
-  zugzwang: 'Zugzwang',
-  hangingPiece: 'Hanging Piece',
-  capturedDefender: 'Capture Defender',
-  clearance: 'Clearance',
-  quietMove: 'Quiet Move',
-  backRankMate: 'Back-Rank Mate',
-  mateIn1: 'Mate in 1',
-  mateIn2: 'Mate in 2',
-  mateIn3: 'Mate in 3',
-  mateIn4: 'Mate in 4',
-  mateIn5: 'Mate in 5',
-  promotion: 'Promotion',
-  underpromotion: 'Underpromotion',
-  enPassant: 'En Passant',
-  castling: 'Castling',
-  cramping: 'Cramping',
-  outOfComputingLine: 'Out of Computing Line',
-  activitiece: 'Activity',
- ':': '',
+const positional = args.filter((a) => !a.startsWith('--'));
+const flag = (name, fallback) => {
+  const i = args.indexOf(name);
+  return i !== -1 && args[i + 1] !== undefined ? args[i + 1] : fallback;
 };
 
-function mapDifficulty() {
-  const v = String(DIFFICULTY).trim();
-  const cap = v.charAt(0).toUpperCase() + v.slice(1).toLowerCase();
-  return ['Easy', 'Medium', 'Hard', 'Expert'].includes(cap) ? cap : 'Medium';
+const source = positional[0] || process.env.LICHESS_PUZZLE_CSV || '';
+const LIMIT = Number(flag('--limit', 0)) || 0;
+const BATCH = Number(flag('--batch', 2000)) || 2000;
+
+function hasCommand(cmd, probeArgs) {
+  const r = spawnSync(cmd, probeArgs, { stdio: 'ignore' });
+  return !r.error && r.status === 0;
 }
 
-function uciToSan(chess, uci) {
-  const from = uci.slice(0, 2);
-  const to = uci.slice(2, 4);
-  const promotion = uci.length > 4 ? uci[4] : undefined;
-  try {
-    const move = chess.move({ from, to, promotion });
-    return move ? move.san : null;
-  } catch {
-    return null;
+const PY_DECOMPRESS = [
+  'import sys, zstandard',
+  'd = zstandard.ZstdDecompressor()',
+  'with open(sys.argv[1], "rb") as f, d.stream_reader(f) as r:',
+  '    out = sys.stdout.buffer',
+  '    while True:',
+  '        chunk = r.read(1 << 20)',
+  '        if not chunk: break',
+  '        out.write(chunk)',
+].join('\n');
+
+function pythonCommand() {
+  for (const cmd of ['python', 'python3', 'py']) {
+    if (hasCommand(cmd, ['--version'])) return cmd;
   }
+  return null;
 }
 
-function processPuzzle(puzzleId, fen, movesStr, popularity, nbPlays, themesStr, gameUrl, openingTagsStr) {
-  const allMoves = movesStr.trim().split(/\s+/);
-  if (allMoves.length < 2) return null;
+/** Stream of decompressed CSV bytes for either a plain or zstd file. */
+function openCsvStream(file) {
+  if (!/\.zst(\.)?$/i.test(file)) return fs.createReadStream(file);
 
-  const triggerMove = allMoves[0];
-  const solutionMoves = allMoves.slice(1);
-
-  // Apply trigger move to get the puzzle starting position
-  const chess1 = new Chess(fen);
-  const triggerSan = uciToSan(chess1, triggerMove);
-  if (!triggerSan) return null;
-  const puzzleFen = chess1.fen();
-
-  // Verify all solution moves are legal
-  const chess2 = new Chess(puzzleFen);
-  const solutionSan = [];
-  for (const uci of solutionMoves) {
-    const san = uciToSan(chess2, uci);
-    if (!san) return null;
-    solutionSan.push(san);
+  if (hasCommand('zstd', ['--version'])) {
+    return spawn('zstd', ['-dc', file], { stdio: ['ignore', 'pipe', 'inherit'] }).stdout;
   }
+  const py = pythonCommand();
+  if (py && hasCommand(py, ['-c', 'import zstandard'])) {
+    return spawn(py, ['-c', PY_DECOMPRESS, file], { stdio: ['ignore', 'pipe', 'inherit'] }).stdout;
+  }
+  throw new Error(
+    'Cannot decompress a .zst file: no `zstd` CLI and no Python `zstandard` module. '
+    + 'Run `zstd -d <file>` first, or `pip install zstandard`.'
+  );
+}
 
-  const themes = themesStr
-    ? themesStr.trim().split(/\s+/).filter(Boolean)
-    : [];
+/** Split one CSV record, honouring double-quoted fields. */
+function splitRow(line, delimiter) {
+  if (delimiter === '|') return line.split('|');
+  const out = [];
+  let field = '';
+  let quoted = false;
+  for (let i = 0; i < line.length; i += 1) {
+    const ch = line[i];
+    if (quoted) {
+      if (ch === '"' && line[i + 1] === '"') { field += '"'; i += 1; }
+      else if (ch === '"') quoted = false;
+      else field += ch;
+    } else if (ch === '"') quoted = true;
+    else if (ch === delimiter) { out.push(field); field = ''; }
+    else field += ch;
+  }
+  out.push(field);
+  return out;
+}
 
-  const primaryTheme = themes.length > 0 ? (THEME_MAP[themes[0]] || themes[0]) : 'Tactics';
+/** The current download is comma-separated; older copies are pipe-separated. */
+function detectDelimiter(headerLine) {
+  const pipes = (headerLine.match(/\|/g) || []).length;
+  const commas = (headerLine.match(/,/g) || []).length;
+  return pipes > commas ? '|' : ',';
+}
 
-  const openingTags = openingTagsStr
-    ? openingTagsStr.trim().split(/\s+/).filter(Boolean)
-    : [];
-
+function parseLine(line, delimiter) {
+  const parts = splitRow(line, delimiter);
+  if (parts.length < 8) return null;
+  const [puzzleId, fen, moves, rating, rdev, popularity, nbPlays, themes, gameUrl, openingTags] = parts;
+  if (!puzzleId || !fen || !moves) return null;
   return {
-    lichess_id: puzzleId,
-    fen: puzzleFen,
-    solution: solutionSan,
-    theme: primaryTheme,
-    themes: themes,
-    difficulty: mapDifficulty(),
-    popularity: Math.round(Number(popularity) || 0),
+    puzzle_id: puzzleId.trim(),
+    fen: fen.trim(),
+    moves: moves.trim(),
+    rating: Number(rating) || null,
+    rating_deviation: Number(rdev) || null,
+    popularity: Number(popularity) || 0,
     nb_plays: Number(nbPlays) || 0,
-    game_url: gameUrl || null,
-    opening_tags: openingTags,
+    themes: (themes || '').trim().split(/\s+/).filter(Boolean),
+    game_url: gameUrl ? gameUrl.trim() : null,
+    opening_tags: (openingTags || '').trim().split(/\s+/).filter(Boolean),
   };
 }
 
+async function insertBatch(rows) {
+  if (!rows.length) return 0;
+  const cols = ['puzzle_id', 'fen', 'moves', 'rating', 'rating_deviation',
+    'popularity', 'nb_plays', 'themes', 'game_url', 'opening_tags'];
+  const values = [];
+  const tuples = rows.map((row, i) => {
+    const base = i * cols.length;
+    values.push(row.puzzle_id, row.fen, row.moves, row.rating, row.rating_deviation,
+      row.popularity, row.nb_plays, row.themes, row.game_url, row.opening_tags);
+    return `(${cols.map((_, j) => `$${base + j + 1}`).join(',')})`;
+  });
+  await db.pool.query(
+    `INSERT INTO lichess_puzzles (${cols.join(',')})
+     VALUES ${tuples.join(',')}
+     ON CONFLICT (puzzle_id) DO UPDATE SET
+       fen = EXCLUDED.fen, moves = EXCLUDED.moves, rating = EXCLUDED.rating,
+       rating_deviation = EXCLUDED.rating_deviation, popularity = EXCLUDED.popularity,
+       nb_plays = EXCLUDED.nb_plays, themes = EXCLUDED.themes,
+       game_url = EXCLUDED.game_url, opening_tags = EXCLUDED.opening_tags`,
+    values
+  );
+  return rows.length;
+}
+
 async function main() {
-  if (!fs.existsSync(csvPath)) {
-    console.error(`File not found: ${csvPath}`);
+  if (!source) {
+    console.error('No CSV given. Pass a path or set LICHESS_PUZZLE_CSV.');
+    console.error('  node scripts/importLichessPuzzles.js C:/data/lichess_db_puzzle.csv');
+    process.exit(1);
+  }
+  const file = path.resolve(source);
+  if (!fs.existsSync(file)) {
+    console.error(`Lichess puzzle file not found: ${file}`);
+    console.error('Set LICHESS_PUZZLE_CSV to the CSV (or .csv.zst) location.');
     process.exit(1);
   }
 
-  console.log(`Reading puzzles from ${csvPath}`);
-  console.log(`Filters: limit=${LIMIT}, difficulty=${mapDifficulty()}`);
+  console.log(`Importing ${file}`);
+  if (LIMIT) console.log(`  limit: ${LIMIT} rows`);
 
-  const content = fs.readFileSync(csvPath, 'utf8');
-  const lines = content.split('\n').filter((l) => l.trim());
+  const stream = openCsvStream(file);
+  const rl = readline.createInterface({ input: stream, crlfDelay: Infinity });
 
+  let read = 0;
   let imported = 0;
   let skipped = 0;
-  let errors = 0;
-  const batch = [];
+  let batch = [];
+  let delimiter = null;
+  const startedAt = Date.now();
 
-  for (let i = 0; i < lines.length && imported < LIMIT; i++) {
-    const line = lines[i].trim();
-    if (!line || line.startsWith('PuzzleId')) continue; // skip header
-
-    const parts = line.split(',');
-    if (parts.length < 7) { errors++; continue; }
-
-    const [puzzleId, fen, moves, , , popularity, nbPlays, themes, gameUrl, openingTags] = parts;
-
-    const puzzle = processPuzzle(puzzleId, fen, moves, popularity, nbPlays, themes, gameUrl, openingTags);
-    if (!puzzle) { errors++; continue; }
-
-    batch.push(puzzle);
-    imported++;
-
-    if (batch.length >= 500) {
-      await insertBatch(batch);
-      batch.length = 0;
-      process.stdout.write(`\r  Imported: ${imported} / ${LIMIT}`);
+  for await (const raw of rl) {
+    const line = raw.trim();
+    if (!line) continue;
+    if (!delimiter) {
+      delimiter = detectDelimiter(line);
+      if (/^PuzzleId[|,]/i.test(line)) continue;   // header
+    }
+    if (LIMIT && read >= LIMIT) break;
+    read += 1;
+    const row = parseLine(line, delimiter);
+    if (!row) { skipped += 1; continue; }
+    batch.push(row);
+    if (batch.length >= BATCH) {
+      imported += await insertBatch(batch);
+      batch = [];
+      const rate = Math.round(imported / Math.max(1, (Date.now() - startedAt) / 1000));
+      process.stdout.write(`\r  imported ${imported} (${rate}/s)   `);
     }
   }
+  imported += await insertBatch(batch);
 
-  if (batch.length > 0) {
-    await insertBatch(batch);
-  }
-
-  console.log(`\n\nDone! Imported: ${imported}, Skipped: ${skipped}, Errors: ${errors}`);
-  await pool.end();
+  const total = await db.pool.query('SELECT COUNT(*)::int AS n FROM lichess_puzzles');
+  console.log(`\nDone — read ${read}, imported ${imported}, skipped ${skipped}.`);
+  console.log(`lichess_puzzles now holds ${total.rows[0].n} puzzles.`);
 }
 
-async function insertBatch(puzzles) {
-  const values = [];
-  const placeholders = [];
-  let idx = 1;
-
-  for (const p of puzzles) {
-    const row = [
-      p.lichess_id, p.fen, JSON.stringify(p.solution), p.theme, p.themes,
-      p.difficulty, p.explanation || null, p.nb_plays,
-      p.popularity, p.game_url, p.opening_tags,
-    ];
-    placeholders.push(
-      `(${row.map(() => `$${idx++}`).join(',')})`
-    );
-    values.push(...row);
-  }
-
-  const sql = `
-    INSERT INTO puzzles (lichess_id, fen, solution, theme, themes, difficulty, explanation, nb_plays, popularity, game_url, opening_tags)
-    VALUES ${placeholders.join(',')}
-    ON CONFLICT (lichess_id) DO UPDATE SET
-      nb_plays = EXCLUDED.nb_plays,
-      popularity = EXCLUDED.popularity
-  `;
-
-  try {
-    await pool.query(sql, values);
-  } catch (err) {
-    console.error('\nBatch insert error:', err.message);
-  }
-}
-
-main().catch((err) => {
-  console.error('Fatal error:', err);
-  pool.end();
-  process.exit(1);
-});
+main()
+  .catch((err) => {
+    console.error('\nImport failed:', err.message);
+    process.exitCode = 1;
+  })
+  .finally(() => db.pool.end());

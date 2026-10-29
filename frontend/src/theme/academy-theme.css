@@ -745,6 +745,7 @@ tbody tr:hover {
     inset 0 1px 0 rgba(255, 255, 255, 0.9);
 }
 .lb-podium--reward .lb-pcard-media {
+  position: relative;
   width: 100%;
   height: 100%;
   display: grid;
@@ -754,13 +755,19 @@ tbody tr:hover {
   background: linear-gradient(145deg, rgba(255, 255, 255, 0.9), var(--lb-rank-tile));
 }
 /* The photo fills the tile; the generated avatar is an SVG at its own inline
-   size, so both are stretched to the frame and cropped by the media wrapper. */
+   size, so both are absolutely inset to the frame and cropped by the media
+   wrapper. Absolute insetting — rather than height 100% on a grid item — is
+   what keeps the square shape, since a percentage height here does not
+   resolve against the tile and the photo would keep its own aspect. */
 .lb-podium--reward .lb-pcard-media img,
 .lb-podium--reward .lb-pcard-media svg {
+  position: absolute;
+  inset: 0;
   width: 100% !important;
   height: 100% !important;
   display: block;
   object-fit: cover;
+  object-position: center;
 }
 .lb-podium--reward .lb-pcard-rankbadge {
   position: absolute;

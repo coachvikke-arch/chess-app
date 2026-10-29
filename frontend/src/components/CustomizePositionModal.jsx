@@ -541,7 +541,6 @@ export default function CustomizePositionModal({ initialFen, onApply, onClose })
                         customBoardStyle={themeStyles.boardStyle || {
                           borderRadius: 10,
                           overflow: 'hidden',
-                          boxShadow: `${boardTheme.highlight}33 0 0 0 1px, 0 10px 26px rgba(23, 23, 23, 0.28)`,
                         }}
                       />
                       <div

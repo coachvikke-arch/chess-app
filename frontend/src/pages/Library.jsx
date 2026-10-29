@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, Fragment } from 'react';
 import { useUrlView } from '../hooks/useUrlView';
 import { Chess } from 'chess.js';
-import { Folder, House, EllipsisVertical } from 'lucide-react';
+import { Folder, House, EllipsisVertical, Puzzle } from 'lucide-react';
 import ChessBoard from '../components/ChessBoard';
 import { Page, Card, Chip, Spinner } from '../components/ui';
 import { useToast } from '../components/Toast';
@@ -1674,6 +1674,10 @@ export default function Library() {
         </div>
         <Button onClick={() => uploadInputRef.current?.click()} variant="secondary" size="md" className="!py-2 !px-4 text-sm">
           ⬆ Bulk PGN or CSV
+        </Button>
+        <Button to="/admin/courses/create-puzzles" variant="secondary" size="md" className="!py-2 !px-4 text-sm">
+          <Puzzle size={16} aria-hidden="true" />
+          Create Puzzles
         </Button>
         <Button
           onClick={() => setFolderModal({ parentId: openFolder ? openFolder.id : null })}

@@ -4,6 +4,7 @@ import { Page, Spinner } from '../components/ui';
 import Pagination from '../components/Pagination';
 import Button from '../components/Button';
 import PuzzleAssignPicker from '../components/PuzzleAssignPicker';
+import PuzzleAssignmentsPanel from '../components/PuzzleAssignmentsPanel';
 
 const PAGE_SIZE = 10;
 
@@ -63,6 +64,9 @@ export default function AdminHomework() {
   const [students, setStudents] = useState([]);
 
   const [assignOpen, setAssignOpen] = useState(false);
+  /* The former standalone Worklist section now lives here as a second view, so
+     every assignment tool sits in one Homework section. */
+  const [view, setView] = useState('homework');
   const [toast, setToast] = useState('');
   const toastTimerRef = useRef(null);
 
@@ -192,6 +196,35 @@ export default function AdminHomework() {
 
   return (
     <Page piece="♟" title="Homework" sub="Puzzle assignments and per-student progress">
+      <div className="hw-viewswitch mb-4 flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          onClick={() => setView('homework')}
+          className={`kt-tab shrink-0 ${view === 'homework' ? 'active' : ''}`}
+          aria-pressed={view === 'homework'}
+        >
+          📋 Homework
+        </button>
+        <button
+          type="button"
+          onClick={() => setView('worklist')}
+          className={`kt-tab shrink-0 ${view === 'worklist' ? 'active' : ''}`}
+          aria-pressed={view === 'worklist'}
+        >
+          ♟ Worklist
+        </button>
+      </div>
+
+      {view === 'worklist' ? (
+        <PuzzleAssignmentsPanel />
+      ) : assignOpen ? (
+        <PuzzleAssignPicker
+          inline
+          onClose={() => setAssignOpen(false)}
+          onAssigned={handleAssigned}
+        />
+      ) : (
+      <>
       <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
         <p className="text-xs text-ivory-500">
           {counts.all} home{counts.all === 1 ? 'work' : 'works'} · 10 per page
@@ -469,12 +502,7 @@ export default function AdminHomework() {
           />
         </>
       )}
-
-      {assignOpen && (
-        <PuzzleAssignPicker
-          onClose={() => setAssignOpen(false)}
-          onAssigned={handleAssigned}
-        />
+      </>
       )}
 
       {toast && (

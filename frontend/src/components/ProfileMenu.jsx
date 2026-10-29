@@ -159,7 +159,7 @@ export default function ProfileMenu({ basePath, roleLabel }) {
             <img
               src={user.profile_image}
               alt=""
-              className="w-9 h-9 rounded-full object-cover ring-2 ring-gold-500/50"
+              className="w-9 h-9 rounded-full object-cover object-center ring-2 ring-gold-500/50"
             />
           ) : (
             <span className="w-9 h-9 rounded-full bg-gradient-to-br from-gold-500 to-gold-700 text-white flex items-center justify-center font-bold text-sm">

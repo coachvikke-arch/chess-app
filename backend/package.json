@@ -61,7 +61,11 @@
     "db:tournament-rating": "node run_migration_tournament_rating.js",
     "test:tournament-rating": "node scripts/test-tournament-rating.js",
     "test:tournament-history": "node scripts/test-tournament-history-http.js",
-    "backfill:tournament-ratings": "node scripts/backfill_tournament_ratings.js"
+    "backfill:tournament-ratings": "node scripts/backfill_tournament_ratings.js",
+    "db:puzzle-generator": "node run_migration_puzzle_generator.js",
+    "db:board-vision": "node run_migration_board_vision.js",
+    "import:lichess": "node scripts/importLichessPuzzles.js",
+    "test:puzzle-detectors": "node --test scripts/test-puzzle-detectors.js"
   },
   "dependencies": {
     "adm-zip": "^0.6.1",

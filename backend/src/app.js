@@ -16,6 +16,8 @@ const classRoutes = require('./routes/classRoutes');
 const assignmentRoutes = require('./routes/assignmentRoutes');
 const gameHistoryRoutes = require('./routes/gameHistoryRoutes');
 const puzzleRoutes = require('./routes/puzzleRoutes');
+const puzzleGeneratorRoutes = require('./routes/puzzleGeneratorRoutes');
+const pgnLibraryRoutes = require('./routes/pgnLibraryRoutes');
 const quizRoutes = require('./routes/quizRoutes');
 const dashboardRoutes = require('./routes/dashboardRoutes');
 const miscRoutes = require('./routes/miscRoutes');
@@ -35,6 +37,7 @@ const botRoutes = require('./routes/botRoutes');
 const permissionRoutes = require('./routes/permissionRoutes');
 const sidebarRoutes = require('./routes/sidebarRoutes');
 const certificateRoutes = require('./routes/certificateRoutes');
+const boardVisionRoutes = require('./routes/boardVisionRoutes');
 const sigmaRoutes = require('./routes/sigmaRoutes');
 const analysisRoutes = require('./routes/analysisRoutes');
 const topPerformanceRoutes = require('./routes/topPerformanceRoutes');
@@ -98,6 +101,10 @@ app.use('/api/classes', classRoutes);
 app.use('/api/assignments', assignmentRoutes);
 app.use('/api/game-history', gameHistoryRoutes);
 app.use('/api/puzzles', puzzleRoutes);
+/* Admin Puzzle Generator (Courses → Create Puzzles). Mounted before the bare
+   `/api` catch-all below so the prefix resolves to this router. */
+app.use('/api/admin/puzzle-generator', puzzleGeneratorRoutes);
+app.use('/api/admin/pgn-library', pgnLibraryRoutes);
 app.use('/api/quizzes', quizRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/documents', documentRoutes);
@@ -120,6 +127,8 @@ app.use('/api/bots', botRoutes);
 app.use('/api/permissions', permissionRoutes);
 app.use('/api/sidebar', sidebarRoutes);
 app.use('/api/certificates', certificateRoutes);
+/* Board Vision training progress — per-user JSON document (cross-device). */
+app.use('/api/board-vision', boardVisionRoutes);
 /* Σ Sigma Moves — mounted before the `/api` catch-all below. */
 app.use('/api/sigma', sigmaRoutes);
 /* Automatic background Stockfish analysis. Mounted BEFORE the bare `/api`

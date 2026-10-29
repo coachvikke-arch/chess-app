@@ -30,6 +30,7 @@
  */
 
 import raw from './tactics.json';
+import sampleRaw from './samples.json';
 
 export const TACTIC_CATEGORIES = [
   'Basic Tactics',
@@ -79,3 +80,28 @@ export function searchTactics(query, list = TACTICS) {
 export function allTacticTags(list = TACTICS) {
   return [...new Set(list.flatMap((t) => t.tags || []))].sort();
 }
+
+/* ── practice puzzles ─────────────────────────────────────────────────────
+ *
+ * These are REAL positions from the Lichess puzzle database (CC0), not the
+ * hand-authored diagrams above. Two differences matter to anything reading
+ * them:
+ *
+ *   fen        the position AFTER the opponent's blunder (`trigger`), so the
+ *              reader is the side to move. Lichess ships the position BEFORE
+ *              it — scripts/build_tactics_samples.mjs advances the trigger and
+ *              drops it from the solution.
+ *   solution   the solver's moves as SAN, with the opponent's answers in
+ *              `opponentReplies` — the same contract TACTIC_CARDS use.
+ *
+ * `themes` is the raw Lichess theme list (kept for search/filtering); `line` is
+ * a numbered SAN string for display only.
+ */
+export const SAMPLE_SOURCE = Object.freeze(sampleRaw.source);
+
+export const SAMPLE_TOPICS = Object.freeze(sampleRaw.topics.map((topic) => Object.freeze({
+  ...topic,
+  puzzles: Object.freeze(topic.puzzles.map((puzzle) => Object.freeze(puzzle))),
+})));
+
+export const SAMPLE_COUNT = SAMPLE_TOPICS.reduce((n, topic) => n + topic.puzzles.length, 0);

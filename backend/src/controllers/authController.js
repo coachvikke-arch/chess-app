@@ -655,15 +655,32 @@ exports.updatePreferences = async (req, res) => {
   }
 };
 
+/* Uploaded photos are served straight from disk, so a replaced or cleared file
+   has to be removed here — nothing else ever deletes it. */
+function unlinkUploadedPhoto(profileImage) {
+  if (!profileImage) return;
+  const fileName = String(profileImage).split('/').pop();
+  if (!fileName) return;
+  const filePath = path.join(__dirname, '..', '..', 'uploads', fileName);
+  try { if (fs.existsSync(filePath)) fs.unlinkSync(filePath); } catch {}
+}
+
 exports.uploadPhoto = async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ message: 'No file provided' });
 
     const publicUrl = `/uploads/${req.file.filename}`;
+    /* A profile photo and a custom avatar are mutually exclusive: uploading a
+       photo replaces whatever the profile was showing, avatar included. */
     const result = await db.query(
-      `UPDATE users SET profile_image = $1, updated_at = NOW()
-       WHERE id = $2
-       RETURNING id, name, email, username, phone, role, profile_image, avatar_config, board_theme, piece_set, board_frame, created_at`,
+      `WITH previous AS (SELECT profile_image FROM users WHERE id = $2)
+       UPDATE users
+          SET profile_image = $1, avatar_config = NULL, updated_at = NOW()
+         FROM previous
+        WHERE users.id = $2
+        RETURNING users.id, users.name, users.email, users.username, users.phone, users.role,
+                  users.profile_image, users.avatar_config, users.board_theme, users.piece_set,
+                  users.board_frame, users.created_at, previous.profile_image AS previous_image`,
       [publicUrl, req.user.id]
     );
     if (result.rows.length === 0) {
@@ -671,7 +688,10 @@ exports.uploadPhoto = async (req, res) => {
       return res.status(404).json({ message: 'User not found' });
     }
 
-    res.json({ user: result.rows[0], profile_image: publicUrl });
+    const { previous_image: previousImage, ...user } = result.rows[0];
+    if (previousImage && previousImage !== publicUrl) unlinkUploadedPhoto(previousImage);
+
+    res.json({ user, profile_image: publicUrl });
   } catch (err) {
     if (req.file) { try { fs.unlinkSync(req.file.path); } catch {} }
     console.error(err);
@@ -681,25 +701,19 @@ exports.uploadPhoto = async (req, res) => {
 
 exports.removePhoto = async (req, res) => {
   try {
-    const current = await db.query(
-      'SELECT profile_image FROM users WHERE id = $1',
+    /* Removing either profile image leaves the default placeholder: neither
+       field is allowed to become the other's fallback. */
+    const result = await db.query(
+      `WITH previous AS (SELECT profile_image FROM users WHERE id = $1)
+       UPDATE users SET profile_image = NULL, avatar_config = NULL, updated_at = NOW()
+         FROM previous
+        WHERE users.id = $1
+        RETURNING previous.profile_image AS previous_image`,
       [req.user.id]
     );
-    if (current.rows.length === 0) return res.status(404).json({ message: 'User not found' });
+    if (result.rows.length === 0) return res.status(404).json({ message: 'User not found' });
 
-    const old = current.rows[0].profile_image;
-    if (path.basename && old) {
-      const fileName = old.split('/').pop();
-      const filePath = path.join(__dirname, '..', '..', 'uploads', fileName);
-      if (fs.existsSync(filePath)) { try { fs.unlinkSync(filePath); } catch {} }
-    }
-
-    await db.query(
-      `UPDATE users SET profile_image = NULL, updated_at = NOW()
-       WHERE id = $1
-       RETURNING id, name, email, username, phone, role, profile_image, avatar_config, board_theme, piece_set, board_frame, created_at`,
-      [req.user.id]
-    );
+    unlinkUploadedPhoto(result.rows[0].previous_image);
     res.json({ profile_image: null });
   } catch (err) {
     res.status(500).json({ message: 'Failed to remove photo', error: err.message });
@@ -728,10 +742,19 @@ exports.updateMyAvatar = async (req, res) => {
       return res.status(400).json({ message: 'avatar_config must include at least one valid field' });
     }
 
-    await db.query(
-      'UPDATE users SET avatar_config = $1, updated_at = NOW() WHERE id = $2',
+    /* The avatar replaces an uploaded photo (and its file), matching the
+       one-image-per-profile rule the upload endpoint enforces. */
+    const result = await db.query(
+      `WITH previous AS (SELECT profile_image FROM users WHERE id = $2)
+       UPDATE users SET avatar_config = $1, profile_image = NULL, updated_at = NOW()
+         FROM previous
+        WHERE users.id = $2
+        RETURNING previous.profile_image AS previous_image`,
       [clean, req.user.id]
     );
+    if (result.rows.length === 0) return res.status(404).json({ message: 'User not found' });
+
+    unlinkUploadedPhoto(result.rows[0].previous_image);
     res.json({ avatar_config: clean });
   } catch (err) {
     console.error(err);
@@ -739,13 +762,20 @@ exports.updateMyAvatar = async (req, res) => {
   }
 };
 
-// Remove the custom avatar so the seeded default (or uploaded photo) shows.
+// Remove the custom avatar so nothing but the default placeholder shows.
 exports.resetMyAvatar = async (req, res) => {
   try {
-    await db.query(
-      'UPDATE users SET avatar_config = NULL, updated_at = NOW() WHERE id = $1',
+    const result = await db.query(
+      `WITH previous AS (SELECT profile_image FROM users WHERE id = $1)
+       UPDATE users SET avatar_config = NULL, profile_image = NULL, updated_at = NOW()
+         FROM previous
+        WHERE users.id = $1
+        RETURNING previous.profile_image AS previous_image`,
       [req.user.id]
     );
+    if (result.rows.length === 0) return res.status(404).json({ message: 'User not found' });
+
+    unlinkUploadedPhoto(result.rows[0].previous_image);
     res.json({ avatar_config: null });
   } catch (err) {
     console.error(err);

@@ -337,7 +337,6 @@ export function getBoardThemeStyles(theme) {
         backgroundSize: '100% 100%',
         borderRadius: '14px',
         overflow: 'hidden',
-        boxShadow: '0 8px 18px rgba(0,0,0,0.25)',
       },
     };
   }

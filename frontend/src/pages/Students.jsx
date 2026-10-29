@@ -19,7 +19,7 @@ function Avatar({ s }) {
     return <StudentAvatar config={s.avatar_config} seed={`user_${s.user_id || ''}`} size={32} className="ring-1 ring-white/15" />;
   }
   return s.profile_image ? (
-    <img src={s.profile_image} alt="" className="w-8 h-8 rounded-full object-cover ring-1 ring-white/15" />
+    <img src={s.profile_image} alt="" className="w-8 h-8 rounded-full object-cover object-center ring-1 ring-white/15" />
   ) : (
     <span className="grid place-items-center w-8 h-8 rounded-full bg-[var(--ink-900)] ring-1 ring-white/10 text-xs font-bold text-gold-400">
       {(s.name || '?').trim().charAt(0).toUpperCase()}

@@ -102,6 +102,9 @@ export default function GameReplay({ gameId, onGameLoad, compact = false }: { ga
   /* Which side the board is viewed from. Drives both the board and the player
      strips, so the two can never disagree about who is who. */
   const [orientation, setOrientation] = useState<'white' | 'black'>('white');
+  /* Phone layout stacks the panels under the board; one tab shows at a time.
+     Desktop renders both cards side by side and ignores this. */
+  const [mobilePanel, setMobilePanel] = useState<'moments' | 'score'>('moments');
   /* Engine verdicts, one entry per ply, filled in progressively as the whole
      game is searched. Kept as a plain array rather than a map so the score
      sheet can read `analysis[move.ply - 1]` directly. */
@@ -692,7 +695,28 @@ export default function GameReplay({ gameId, onGameLoad, compact = false }: { ga
           </div>
         </div>
 
-        <aside className="gm-moves-panel gm-glass-card">
+        <div className="gm-mobile-tabs" role="tablist" aria-label="Game details">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={mobilePanel === 'moments'}
+            onClick={() => setMobilePanel('moments')}
+            className={`kt-tab shrink-0 ${mobilePanel === 'moments' ? 'active' : ''}`}
+          >
+            Key Moments
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={mobilePanel === 'score'}
+            onClick={() => setMobilePanel('score')}
+            className={`kt-tab shrink-0 ${mobilePanel === 'score' ? 'active' : ''}`}
+          >
+            Score Sheet
+          </button>
+        </div>
+
+        <aside className={`gm-moves-panel gm-glass-card${mobilePanel === 'moments' ? ' gm-mobile-hidden' : ''}`}>
           <div className="gm-panel-heading">
             <div className="gm-panel-heading-main">
               <span className="gm-eyebrow">Score sheet</span>
@@ -833,7 +857,7 @@ export default function GameReplay({ gameId, onGameLoad, compact = false }: { ga
           </div>
         </aside>
       </div>
-      <div className={`gm-commentary gm-glass-card${annotation ? ' annotated' : ''}`}>
+      <div className={`gm-commentary gm-glass-card${annotation ? ' annotated' : ''}${mobilePanel === 'score' ? ' gm-mobile-hidden' : ''}`}>
         <div className="gm-commentary-mark">{annotation ? '✦' : '◌'}</div>
         <div><span className="gm-eyebrow">{annotation ? 'Key moment' : 'Engine analysis'}</span><h3>{ply === 0 ? 'The opening setup' : `Move ${currentMove.moveNumber}${currentMove.color === 'w' ? '.' : '…'} ${currentMove.san}`}</h3>{ply === 0
           /* Nothing has been played yet, so there is no move to grade — the

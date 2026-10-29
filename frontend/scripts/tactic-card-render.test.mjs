@@ -40,6 +40,9 @@ async function bundleCard() {
       contents: [
         "export { default as Card } from './src/features/tactics/components/TacticCard.jsx';",
         "export { AuthProvider } from './src/context/AuthContext.jsx';",
+        // AuthProvider redirects forced logouts with useNavigate, so the test
+        // needs a router from the SAME module instance it bundled.
+        "export { MemoryRouter } from 'react-router-dom';",
       ].join('\n'),
       resolveDir: ROOT,
       sourcefile: 'tactic-card-entry.js',
@@ -52,6 +55,10 @@ async function bundleCard() {
     jsx: 'automatic',
     logLevel: 'silent',
     external: ['react', 'react-dom', 'react-dom/server', 'react/jsx-runtime'],
+    /* AuthContext pulls in services/socket, which reads import.meta.env and
+       window.location at module scope. Neither exists here, so the env is
+       stubbed with a URL — that also short-circuits the window fallback. */
+    define: { 'import.meta.env': '{"VITE_SOCKET_URL":"http://localhost"}' },
   });
   return import(pathToFileURL(outfile).href);
 }
@@ -63,8 +70,9 @@ const bySlug = (slug) => tactics.find((t) => t.slug === slug);
 
 let Card;
 let AuthProvider;
+let MemoryRouter;
 before(async () => {
-  ({ Card, AuthProvider } = await bundleCard());
+  ({ Card, AuthProvider, MemoryRouter } = await bundleCard());
 });
 
 /* Fork, Pin, Skewer, Back Rank Mate: one basic, one line, one check, one mate. */
@@ -73,7 +81,8 @@ const pad2 = (n) => String(n).padStart(2, '0');
 
 const render = (slug, solved) =>
   renderToStaticMarkup(
-    h(AuthProvider, null, h(Card, { tactic: bySlug(slug), solved, onExplained: () => {} })),
+    h(MemoryRouter, null,
+      h(AuthProvider, null, h(Card, { tactic: bySlug(slug), solved, onExplained: () => {} }))),
   );
 
 for (const slug of SAMPLE) {

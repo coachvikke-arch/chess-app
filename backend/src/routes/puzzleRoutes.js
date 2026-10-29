@@ -17,6 +17,7 @@ router.patch('/sets/:setCode', authMiddleware, roleMiddleware('admin'), ctrl.ren
 router.delete('/sets/:setCode', authMiddleware, roleMiddleware('admin'), ctrl.deleteSet);
 router.post('/sets/:setCode/reorder', authMiddleware, roleMiddleware('admin'), ctrl.reorderSetPuzzles);
 router.patch('/sets/:setCode/puzzles/:id', authMiddleware, roleMiddleware('admin'), ctrl.updateSetPuzzle);
+router.post('/sets/:setCode/puzzles', authMiddleware, roleMiddleware('admin'), ctrl.addSetPuzzle);
 router.post('/import-csv-set', authMiddleware, roleMiddleware('admin'), ctrl.importCSVSet);
 router.get('/import-jobs/:id', authMiddleware, roleMiddleware('admin'), ctrl.getImportJob);
 router.get('/import-jobs/:id/errors.csv', authMiddleware, roleMiddleware('admin'), ctrl.downloadImportErrors);

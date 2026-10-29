@@ -135,7 +135,7 @@ export default function AdminReport() {
       <div className="chess-card p-5 mb-6">
         <div className="flex flex-wrap items-center gap-5">
           {p.profile_image ? (
-            <img src={p.profile_image} alt="" className="w-20 h-20 rounded-2xl object-cover ring-2 ring-gold-500/40 shrink-0" />
+            <img src={p.profile_image} alt="" className="w-20 h-20 rounded-2xl object-cover object-center ring-2 ring-gold-500/40 shrink-0" />
           ) : (
             <span className="grid place-items-center w-20 h-20 rounded-2xl bg-[var(--ink-900)] ring-2 ring-gold-500/40 text-3xl font-bold text-gold-400 shrink-0">
               {initials(p.name)}

@@ -771,7 +771,7 @@ function computeAge(birthdate) {
 }
 
 /** Full rating profile for display: current rating, badge, progress, history. */
-async function buildProfile(studentId, { limit = 60 } = {}) {
+async function buildProfile(studentId, { limit = 60, fullHistory = false } = {}) {
   const row = await getStudentRatingRow(studentId);
   if (!row) return null;
 
@@ -784,6 +784,27 @@ async function buildProfile(studentId, { limit = 60 } = {}) {
     ? Math.max(0, Math.min(100, Math.round(((row.current_rating - level.min) / (next.min - level.min)) * 100)))
     : 100;
   const pointsToNext = next ? Math.max(0, next.min - row.current_rating) : 0;
+
+  /* The dashboard graphs span from the student's first recorded game to today,
+     so they ask for the complete per-pool history (`?full=1`). Everything else
+     (profile cards, recent strips) keeps the bounded read. */
+  const histAllQuery = fullHistory
+    ? db.query(
+        `SELECT id, opponent_name, result, rating_before, rating_after, rating_change,
+                time_control, game_type, played_at, time_class
+           FROM time_control_rating_history
+          WHERE student_id = $1
+          ORDER BY played_at DESC`,
+        [studentId]
+      )
+    : db.query(
+        `SELECT id, opponent_name, result, rating_before, rating_after, rating_change,
+                time_control, game_type, played_at, time_class
+           FROM time_control_rating_history
+          WHERE student_id = $1
+          ORDER BY played_at DESC LIMIT $2`,
+        [studentId, limit * 4]
+      );
 
   const [history, levels, pools, histAll] = await Promise.all([
     db.query(
@@ -808,15 +829,9 @@ async function buildProfile(studentId, { limit = 60 } = {}) {
        four classes rather than four round trips. `time_class` is already
        normalised here, so the UI never has to re-derive a class from a raw
        "5+0" string. Over-fetched relative to `limit` because one global LIMIT
-       would starve the smaller pools. */
-    db.query(
-      `SELECT id, opponent_name, result, rating_before, rating_after, rating_change,
-              time_control, game_type, played_at, time_class
-         FROM time_control_rating_history
-        WHERE student_id = $1
-        ORDER BY played_at DESC LIMIT $2`,
-      [studentId, limit * 4]
-    ),
+       would starve the smaller pools; `fullHistory` drops the cap entirely for
+       the all-time dashboard graphs. */
+    histAllQuery,
   ]);
 
   const byClass = Object.fromEntries(pools.rows.map((r) => [r.time_class, r]));

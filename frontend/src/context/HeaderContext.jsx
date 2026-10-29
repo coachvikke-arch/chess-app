@@ -49,9 +49,10 @@ export function useHeader() {
  * @param {string} props.title - Page title
  * @param {string} props.subtitle - Page subtitle/description
  * @param {boolean} props.wide - Whether to use wide layout (max-w-[90rem])
+ * @param {string} props.className - Extra class for page-level spacing overrides
  * @param {React.ReactNode} props.children - Page content
  */
-export function PageHeader({ icon, title, subtitle, wide = false, children }) {
+export function PageHeader({ icon, title, subtitle, wide = false, className = '', children }) {
   const { registerHeading, unregisterHeading } = useHeader();
   usePageTitle(title);
 
@@ -61,7 +62,7 @@ export function PageHeader({ icon, title, subtitle, wide = false, children }) {
   }, [icon, title, subtitle, registerHeading, unregisterHeading]);
 
   return (
-    <div className={`chess-page ${wide ? 'chess-page-wide' : ''}`}>
+    <div className={`chess-page ${wide ? 'chess-page-wide' : ''} ${className}`.trim()}>
       {/* Mobile heading - visible below 1024px */}
       <header className="page-header-mobile chess-page-head lg:hidden">
         <h1 className="chess-page-title">

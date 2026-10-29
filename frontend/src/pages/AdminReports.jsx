@@ -12,7 +12,7 @@ function Avatar({ s, size = 32 }) {
     return <StudentAvatar config={s.avatar_config} seed={`user_${s.user_id || ''}`} size={size} className="ring-1 ring-white/15" />;
   }
   return s.profile_image ? (
-    <img src={s.profile_image} alt="" style={{ width: size, height: size }} className="rounded-full object-cover ring-1 ring-white/15" />
+    <img src={s.profile_image} alt="" style={{ width: size, height: size }} className="rounded-full object-cover object-center ring-1 ring-white/15" />
   ) : (
     <span
       style={{ width: size, height: size }}

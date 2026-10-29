@@ -30,7 +30,14 @@ import {
   targetReached,
   xpForSession,
 } from '../features/boardVision/boardVisionLogic';
-import { avgResponse, loadProgress, overallAccuracy, saveProgress } from '../features/boardVision/boardVisionStore';
+import {
+  avgResponse,
+  fetchRemoteProgress,
+  loadProgress,
+  overallAccuracy,
+  saveProgress,
+  saveRemoteProgress,
+} from '../features/boardVision/boardVisionStore';
 
 /**
  * Board Vision — student training page (additive; reuses Page/Card theme).
@@ -48,8 +55,54 @@ export default function BoardVision() {
   const [lastResult, setLastResult] = useState(null);
   const [resultMeta, setResultMeta] = useState(null);
 
-  useEffect(() => { setProgress(loadProgress(userId)); }, [userId]);
-  useEffect(() => { saveProgress(userId, progress); }, [userId, progress]);
+  /* Server copy is the source of truth for a signed-in account; localStorage
+     stays the instant/offline copy. The hydration effect runs once per user:
+     it loads local progress immediately (so training never waits on the
+     network), then replaces it with the server document when one exists, or
+     uploads the local document ONE TIME when the server has nothing yet
+     (migrating progress recorded before server persistence existed). */
+  const remoteReady = useRef(false);
+  const remoteTimer = useRef(null);
+
+  useEffect(() => {
+    let alive = true;
+    remoteReady.current = false;
+    const local = loadProgress(userId);
+    setProgress(local);
+
+    if (!user?.id) {
+      remoteReady.current = true;
+      return () => { alive = false; };
+    }
+
+    fetchRemoteProgress().then((remote) => {
+      if (!alive) return;
+      if (remote) {
+        setProgress(remote);
+        saveProgress(userId, remote);
+      } else if (Number(local.totalSessions || 0) > 0) {
+        saveRemoteProgress(local);
+      }
+      remoteReady.current = true;
+    });
+
+    return () => {
+      alive = false;
+      clearTimeout(remoteTimer.current);
+    };
+  }, [userId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /* Every change lands in localStorage synchronously; the server write is
+     debounced so a fast sequence of answers in a session does not spam the API.
+     `remoteReady` gates it so the pre-hydration default cannot overwrite the
+     server copy. */
+  useEffect(() => {
+    saveProgress(userId, progress);
+    if (!remoteReady.current || !user?.id) return undefined;
+    clearTimeout(remoteTimer.current);
+    remoteTimer.current = setTimeout(() => { saveRemoteProgress(progress); }, 700);
+    return () => clearTimeout(remoteTimer.current);
+  }, [userId, progress, user?.id]);
 
   const freePractice = !!progress.freePractice;
   const level = levelById(levelId);
@@ -162,8 +215,8 @@ export default function BoardVision() {
     <Page title="Board Vision" piece="👁" sub="Train your eyes. Recognize every square. Visualize the board faster.">
       <div className="bv-page">
         <div className="bv-local-note" role="note">
-          <span aria-hidden="true">💾</span>
-          <span>Progress is stored <strong>locally on this device</strong> (no Board Vision server endpoints exist yet). Switching devices or clearing site data resets it.</span>
+          <span aria-hidden="true">☁️</span>
+          <span>Progress is saved to <strong>your account</strong> and kept on this device as an offline backup, so it follows you across devices.</span>
         </div>
         <StudentProgress progress={progress} avgMs={avgResponse(progress)} currentLevelId={levelId} />
         <Card title="Choose your level" piece="♙">

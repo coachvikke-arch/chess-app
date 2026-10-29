@@ -3,13 +3,27 @@ import { useSearchParams } from 'react-router-dom';
 import api from '../services/api';
 import { PageHeader, Spinner } from './ui';
 import Button from './Button';
-import PuzzleCard from './PuzzleCard';
+import PuzzleCard, { MiniBoard } from './PuzzleCard';
 import AssignModal from './AssignModal';
 import FolderTree from './FolderTree';
+import CsvImportSetWizard from './CsvImportSetWizard';
 import { usePuzzleSelection, togglePuzzle, addPuzzles, deselectAll, MAX_SELECT } from '../stores/puzzleSelection';
 
 const PER_PAGE_OPTIONS = [10, 25, 50, 100];
-const DEFAULT_PER_PAGE = 25;
+const DEFAULT_PER_PAGE = 10;
+
+const SORT_OPTIONS = [
+  { value: 'default', label: 'Set order' },
+  { value: 'newest', label: 'Newest first' },
+  { value: 'oldest', label: 'Oldest first' },
+  { value: 'title', label: 'Title A–Z' },
+];
+
+const DIFFICULTIES = ['Easy', 'Medium', 'Hard'];
+
+const FIELD =
+  'w-full rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-800 outline-none transition focus:border-gold-500 focus:ring-2 focus:ring-gold-500/20';
+const LABEL = 'mb-1 block text-[0.65rem] font-bold uppercase tracking-wider text-slate-500';
 
 /* Ellipsis pager: returns entries like [1, '…', 5, 6, 7, '…', 46]. */
 function pager(current, total, radius = 1) {
@@ -28,6 +42,24 @@ function pager(current, total, radius = 1) {
   return out;
 }
 
+function csvCell(value) {
+  const text = value == null ? '' : String(value);
+  return /[",\n\r]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+}
+
+function downloadCsv(fileName, rows) {
+  const csv = rows.map((row) => row.map(csvCell).join(',')).join('\r\n');
+  const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = fileName;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+
 /* MODULE LEVEL ON PURPOSE. This was declared inside PuzzleListing's render body,
  * which made it a new function identity - and so a new component TYPE to React -
  * on every render. React reconciles a changed type by unmounting the old subtree
@@ -41,15 +73,15 @@ function pager(current, total, radius = 1) {
  * index. Rename/delete are only offered where set management is allowed. */
 const SetChip = memo(function SetChip({ set, active, deleting, onSelect, onRename, onDelete }) {
   const frame = active
-    ? 'border-gold-500 bg-gold-500/20 shadow-[0_0_14px_rgba(96,165,250,0.18)]'
-    : 'border-ink-200 bg-white/70 hover:border-ink-300 hover:bg-ink-100';
+    ? 'border-gold-500 bg-gold-500/15 shadow-[0_0_14px_rgba(96,165,250,0.18)]'
+    : 'border-slate-300 bg-white hover:border-slate-400 hover:bg-slate-50';
   return (
-    <div className={`max-w-[10rem] shrink-0 flex items-stretch rounded-lg border transition ${frame}`}>
+    <div className={`flex max-w-[10rem] shrink-0 items-stretch rounded-lg border transition ${frame}`}>
       <button
         type="button"
         title={`${set.set_name} · ${set.puzzle_count} puzzles`}
         onClick={() => onSelect(set)}
-        className="min-w-0 flex-1 px-2.5 py-1.5 text-xs font-bold text-black transition"
+        className="min-w-0 flex-1 rounded-l-lg px-2.5 py-1.5 text-xs font-bold text-slate-700 transition"
       >
         <span className="block truncate">{set.set_name}</span>
       </button>
@@ -59,7 +91,7 @@ const SetChip = memo(function SetChip({ set, active, deleting, onSelect, onRenam
           title={`Rename ${set.set_name}`}
           aria-label={`Rename ${set.set_name}`}
           onClick={() => onRename(set)}
-          className="px-1.5 py-1.5 text-xs font-bold text-black hover:text-gray-500 transition"
+          className="px-1.5 py-1.5 text-xs font-bold text-slate-500 transition hover:text-gold-600"
         >
           ✎
         </button>
@@ -71,8 +103,8 @@ const SetChip = memo(function SetChip({ set, active, deleting, onSelect, onRenam
           aria-label={`Delete ${set.set_name}`}
           disabled={deleting}
           onClick={() => onDelete(set)}
-          className={`px-1.5 py-1.5 text-xs font-bold transition ${
-            deleting ? 'text-gray-300 cursor-not-allowed' : 'text-black hover:text-red-600'
+          className={`rounded-r-lg px-1.5 py-1.5 text-xs font-bold transition ${
+            deleting ? 'cursor-not-allowed text-slate-300' : 'text-slate-500 hover:text-red-600'
           }`}
         >
           {deleting ? '…' : '🗑'}
@@ -82,17 +114,289 @@ const SetChip = memo(function SetChip({ set, active, deleting, onSelect, onRenam
   );
 });
 
+/* Non-interactive preview of one puzzle: the position, the solution line and
+   the tags the cards already show. Read-only on purpose — nothing here can
+   change data, so it is safe in every surface that renders the listing. */
+function PuzzlePreviewModal({ puzzle, onClose }) {
+  const boardRef = useRef(null);
+  const [width, setWidth] = useState(320);
+
+  useEffect(() => {
+    const el = boardRef.current;
+    if (!el) return;
+    const update = () => setWidth(Math.max(220, Math.min(el.clientWidth, 380)));
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  const sideToMove = String(puzzle.fen || '').trim().split(/\s+/)[1] === 'b' ? 'Black to move' : 'White to move';
+  const solution = Array.isArray(puzzle.san) && puzzle.san.length ? puzzle.san : puzzle.uci || [];
+
+  return (
+    <div
+      className="fixed inset-0 z-[var(--z-modal-backdrop)] grid place-items-center bg-black/60 p-4"
+      onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Puzzle preview"
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="flex max-h-[92vh] w-[min(94vw,28rem)] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_20px_60px_rgba(15,23,42,0.25)]"
+        style={{ animation: 'board-pop .25s both' }}
+      >
+        <div className="flex items-start gap-3 border-b border-slate-200 px-4 py-3">
+          <div className="min-w-0 flex-1">
+            <h3 className="truncate text-sm font-bold text-slate-900" title={puzzle.title}>
+              {puzzle.title}
+            </h3>
+            <p className="truncate text-xs font-semibold text-slate-500">
+              {puzzle.set_name}
+              {puzzle.rating != null ? ` · ${puzzle.rating} rating` : ''}
+              {puzzle.difficulty ? ` · ${puzzle.difficulty}` : ''}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close preview"
+            className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-slate-200 text-slate-500 transition hover:bg-slate-50"
+          >
+            ✕
+          </button>
+        </div>
+
+        <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
+          <div ref={boardRef} className="flex justify-center">
+            <MiniBoard fen={puzzle.fen} width={width} />
+          </div>
+
+          <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+            <p className={LABEL}>Solution</p>
+            {solution.length ? (
+              <div className="flex flex-wrap gap-1">
+                {solution.map((move, i) => (
+                  <span
+                    key={`${move}-${i}`}
+                    className="rounded-md border border-slate-200 bg-white px-1.5 py-0.5 font-mono text-[0.7rem] font-bold text-slate-700"
+                  >
+                    {i % 2 === 0 ? `${i / 2 + 1}.` : ''} {move}
+                  </span>
+                ))}
+              </div>
+            ) : (
+              <p className="text-xs text-slate-500">No solution recorded.</p>
+            )}
+          </div>
+
+          <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[0.68rem] font-semibold text-slate-600">
+            <span className="rounded-md border border-slate-200 bg-white px-1.5 py-0.5">{sideToMove}</span>
+            {puzzle.theme && <span className="rounded-md border border-slate-200 bg-white px-1.5 py-0.5">{puzzle.theme}</span>}
+            {(puzzle.themes || []).slice(0, 4).map((t) => (
+              <span key={t} className="rounded-md border border-slate-200 bg-white px-1.5 py-0.5">
+                {t}
+              </span>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* Create / edit one puzzle. Adding writes to the chosen set; editing replaces
+   title, rating, difficulty and — when both are provided — the position and
+   solution together, because a new FEN with the old line cannot replay. */
+function PuzzleEditorModal({ puzzle, sets, defaultSetCode, onClose, onSaved }) {
+  const editing = !!puzzle;
+  const [targetSet, setTargetSet] = useState(defaultSetCode || sets[0]?.set_code || '');
+  const [title, setTitle] = useState(puzzle?.title || '');
+  const [fen, setFen] = useState(puzzle?.fen || '');
+  const [moves, setMoves] = useState(puzzle?.uci?.join(' ') || '');
+  const [rating, setRating] = useState(puzzle?.rating != null ? String(puzzle.rating) : '');
+  const [difficulty, setDifficulty] = useState(puzzle?.difficulty || 'Medium');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+
+  const submit = async (e) => {
+    e.preventDefault();
+    if (busy) return;
+    if (!fen.trim() || !moves.trim()) {
+      setError('A FEN position and the solution moves are required.');
+      return;
+    }
+    if (!editing && !targetSet) {
+      setError('Pick the set this puzzle belongs to.');
+      return;
+    }
+
+    const body = {
+      title: title.trim(),
+      fen: fen.trim(),
+      moves: moves.trim(),
+      rating: rating === '' ? null : Number(rating),
+      difficulty,
+    };
+
+    setBusy(true);
+    setError('');
+    try {
+      if (editing) {
+        await api.patch(`/puzzles/sets/${puzzle.set_code}/puzzles/${puzzle.id}`, body);
+      } else {
+        await api.post(`/puzzles/sets/${targetSet}/puzzles`, body);
+      }
+      onSaved(editing ? 'Puzzle updated' : 'Puzzle added');
+    } catch (err) {
+      setError(err.response?.data?.message || err.message || 'Failed to save puzzle');
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-[var(--z-modal-backdrop)] grid place-items-center bg-black/60 p-4"
+      onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+      aria-label={editing ? 'Edit puzzle' : 'Add puzzle'}
+    >
+      <form
+        onSubmit={submit}
+        onClick={(e) => e.stopPropagation()}
+        className="flex max-h-[92vh] w-[min(94vw,42rem)] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_20px_60px_rgba(15,23,42,0.25)]"
+        style={{ animation: 'board-pop .25s both' }}
+      >
+        <div className="flex items-center gap-3 border-b border-slate-200 px-4 py-3">
+          <div className="min-w-0 flex-1">
+            <h3 className="text-sm font-bold text-slate-900">{editing ? 'Edit puzzle' : 'Add a puzzle'}</h3>
+            <p className="text-xs font-semibold text-slate-500">
+              {editing ? `${puzzle.set_name} · puzzle #${puzzle.id}` : 'The FEN is the puzzle position; the moves are the full solution line.'}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close"
+            className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-slate-200 text-slate-500 transition hover:bg-slate-50"
+          >
+            ✕
+          </button>
+        </div>
+
+        <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            {!editing && (
+              <label className="block min-w-0">
+                <span className={LABEL}>Set</span>
+                <select value={targetSet} onChange={(e) => setTargetSet(e.target.value)} className={FIELD}>
+                  {sets.map((s) => (
+                    <option key={s.set_code} value={s.set_code}>
+                      {s.set_name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+
+            <label className={`block min-w-0 ${editing ? 'sm:col-span-2' : ''}`}>
+              <span className={LABEL}>Title (optional)</span>
+              <input
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                maxLength={200}
+                placeholder="e.g. Back-rank mate in 2"
+                className={FIELD}
+              />
+            </label>
+
+            <label className="block min-w-0 sm:col-span-2">
+              <span className={LABEL}>FEN</span>
+              <textarea
+                value={fen}
+                onChange={(e) => setFen(e.target.value)}
+                rows={3}
+                spellCheck={false}
+                placeholder="rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+                className={`${FIELD} font-mono leading-relaxed`}
+              />
+            </label>
+
+            <label className="block min-w-0 sm:col-span-2">
+              <span className={LABEL}>Solution moves</span>
+              <textarea
+                value={moves}
+                onChange={(e) => setMoves(e.target.value)}
+                rows={2}
+                spellCheck={false}
+                placeholder="e3e5 f1c4 … (SAN or UCI, space separated)"
+                className={`${FIELD} font-mono leading-relaxed`}
+              />
+              <span className="mt-1 block text-[0.68rem] text-slate-500">
+                Solver move first, then the opponent's reply, alternating.
+              </span>
+            </label>
+
+            <label className="block min-w-0">
+              <span className={LABEL}>Rating</span>
+              <input
+                type="number"
+                min="0"
+                max="5000"
+                value={rating}
+                onChange={(e) => setRating(e.target.value)}
+                placeholder="Optional"
+                className={FIELD}
+              />
+            </label>
+
+            <label className="block min-w-0">
+              <span className={LABEL}>Difficulty</span>
+              <select value={difficulty} onChange={(e) => setDifficulty(e.target.value)} className={FIELD}>
+                {DIFFICULTIES.map((d) => (
+                  <option key={d} value={d}>
+                    {d}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+
+          {error && (
+            <p className="mt-3 rounded-lg border border-red-300 bg-red-50 px-3 py-2 text-xs font-semibold text-red-600">{error}</p>
+          )}
+        </div>
+
+        <div className="flex flex-wrap items-center justify-end gap-2 border-t border-slate-200 bg-slate-50 px-4 py-3">
+          <Button type="button" variant="secondary" size="sm" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button type="submit" size="sm" disabled={busy}>
+            {busy ? 'Saving…' : editing ? 'Save changes' : 'Add puzzle'}
+          </Button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
 /**
  * The puzzle catalogue: set rail, folder filter, search, cards and pagination.
  *
  * Used twice:
  *  - the Puzzle Library page (this file's page wrapper): URL-driven state,
- *    full set management (rename / delete / assign to students), and the shared
+ *    full set management (rename / delete / assign to students), puzzle
+ *    authoring (add / edit / delete / CSV import / export) and the shared
  *    `puzzleSelection` store.
  *  - the Admin Homework "Assign puzzles" card: `embedded`, no URL writes (a
- *    modal must not rewrite the page's query string), no destructive set
+ *    modal must not rewrite the page's query string), no destructive
  *    management, and selection handed in through `selection` so the homework
  *    assignment can keep its own map of puzzle ids.
+ *
+ * Everything — controls and grid — lives in ONE bordered card so the whole
+ * surface reads as a single tool instead of stacked panels.
  *
  * `selection` shape:
  *   { size, has(id), toggle(id, puzzle), addMany(puzzles) -> { added, blocked },
@@ -124,6 +428,9 @@ export default function PuzzleListing({
   const [nav, setNav] = useState({ set: null, across: true, page: 1, perPage: DEFAULT_PER_PAGE });
   const syncUrl = !embedded;
 
+  const [puzzleSearch, setPuzzleSearch] = useState('');
+  const [appliedSearch, setAppliedSearch] = useState('');
+  const [sort, setSort] = useState('default');
   const [setFilter, setSetFilter] = useState(''); // filters the set-name chips
   const [folderFilter, setFolderFilter] = useState('all'); // 'all' | 'unfiled' | folder id (number)
   const [folderBrowserOpen, setFolderBrowserOpen] = useState(false);
@@ -135,6 +442,12 @@ export default function PuzzleListing({
   const [nameInput, setNameInput] = useState('');
   const [renameErr, setRenameErr] = useState('');
   const [deletingSet, setDeletingSet] = useState(null); // set_code being deleted
+  const [deletingPuzzle, setDeletingPuzzle] = useState(null); // puzzle id being deleted
+  const [previewPuzzle, setPreviewPuzzle] = useState(null);
+  const [editingPuzzle, setEditingPuzzle] = useState(null); // puzzle | null
+  const [addingPuzzle, setAddingPuzzle] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
   const lastIdxRef = useRef(null);
   const toastTimerRef = useRef(null);
@@ -157,7 +470,6 @@ export default function PuzzleListing({
 
   const currentSet = sets.find((s) => s.set_code === rawSet) || sets[0] || null;
   const setCode = currentSet?.set_code ?? null;
-  const setIndex = sets.findIndex((s) => s.set_code === setCode);
   const page = Math.min(pageFromUrl, Math.max(1, totalPages));
 
   /* Folder-based filtering. `folderTree` is loaded with the sets (below); when a
@@ -225,21 +537,18 @@ export default function PuzzleListing({
     toastTimerRef.current = setTimeout(() => setToast(''), 3500);
   }
 
-  // Load set metadata (set_code, set_name, puzzle_count) for the nav bar.
-  useEffect(() => {
-    api
+  const loadSets = useCallback(() => {
+    return api
       .get('/puzzles/sets')
       .then((res) => {
         const data = res.data?.data ?? res.data ?? {};
         setSets(data.sets || []);
+        setSetsError('');
       })
-      .catch((e) => setSetsError(e.response?.data?.message || e.message || 'Failed to load puzzle sets'))
-      .finally(() => {});
-    refreshFolderTree();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+      .catch((e) => setSetsError(e.response?.data?.message || e.message || 'Failed to load puzzle sets'));
   }, []);
 
-  const refreshFolderTree = () => {
+  const refreshFolderTree = useCallback(() => {
     api
       .get('/folders/tree')
       .then((res) => {
@@ -247,7 +556,13 @@ export default function PuzzleListing({
         setFolderTree(Array.isArray(data) ? data : data.tree || []);
       })
       .catch(() => {});
-  };
+  }, []);
+
+  // Load set metadata (set_code, set_name, puzzle_count) for the rail.
+  useEffect(() => {
+    loadSets();
+    refreshFolderTree();
+  }, [loadSets, refreshFolderTree]);
 
   /* Selection adapter. The library reads the shared store so a selection
      survives route changes; embedded surfaces pass their own map in. */
@@ -281,20 +596,26 @@ export default function PuzzleListing({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [folderFilter, sets.length]);
 
-  // Fetch puzzles for the active set (or the combined "All" view).
+  // Fetch puzzles for the active set (or the combined "All" view). A late
+  // response from a previous query is dropped so fast typing cannot overwrite
+  // newer results.
   useEffect(() => {
     if (!setCode && !across) return;
+    let cancelled = false;
     setLoading(true);
     setError('');
-    const params = { page: pageFromUrl, pageSize: perPage };
+    const params = { page: pageFromUrl, pageSize: perPage, sort };
     let req;
     if (across) {
+      if (appliedSearch) params.q = appliedSearch;
       req = api.get('/puzzles/search', { params });
     } else {
+      if (appliedSearch) params.search = appliedSearch;
       req = api.get(`/puzzles/sets/${setCode}`, { params });
     }
     req
       .then((res) => {
+        if (cancelled) return;
         const data = res.data?.data ?? res.data ?? {};
         setPuzzles(data.puzzles || []);
         setTotal(data.total || 0);
@@ -314,9 +635,14 @@ export default function PuzzleListing({
           setSearchParams(sp, { replace: true });
         }
       })
-      .catch((e) => setError(e.response?.data?.message || e.message || 'Failed to load puzzles'))
-      .finally(() => setLoading(false));
-  }, [setCode, pageFromUrl, perPage, across, refreshKey, setSearchParams, syncUrl]);
+      .catch((e) => {
+        if (!cancelled) setError(e.response?.data?.message || e.message || 'Failed to load puzzles');
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [setCode, pageFromUrl, perPage, across, refreshKey, setSearchParams, syncUrl, appliedSearch, sort]);
 
   // go() pushes a real history entry so the global Back button can step
   // back through sets/pages/search states one at a time.
@@ -353,6 +679,21 @@ export default function PuzzleListing({
     const next = (idx + delta + filteredSets.length) % filteredSets.length;
     go({ set: filteredSets[next].set_code, page: 1 });
   };
+
+  const goRef = useRef(go);
+  useEffect(() => { goRef.current = go; });
+
+  /* Typing is debounced; the query is applied once it settles. Harmless on
+     mount (both values are ''), so no first-run guard is needed. */
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const next = puzzleSearch.trim();
+      if (next === appliedSearch) return;
+      setAppliedSearch(next);
+      goRef.current({ page: 1 });
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [puzzleSearch, appliedSearch]);
 
   const openRename = (set) => {
     setRenaming(set);
@@ -406,6 +747,82 @@ export default function PuzzleListing({
     }
   };
 
+  const deletePuzzle = async (puzzle) => {
+    if (!window.confirm(`Delete "${puzzle.title}"?\n\nThis cannot be undone.`)) return;
+    setDeletingPuzzle(puzzle.id);
+    try {
+      await api.delete(`/puzzles/${puzzle.id}`);
+      setPuzzles((prev) => prev.filter((p) => p.id !== puzzle.id));
+      setTotal((t) => Math.max(0, t - 1));
+      setSets((prev) =>
+        prev.map((s) =>
+          s.set_code === puzzle.set_code
+            ? { ...s, puzzle_count: Math.max(0, (s.puzzle_count || 0) - 1) }
+            : s
+        )
+      );
+      showToast('Puzzle deleted');
+      setRefreshKey((k) => k + 1);
+    } catch (e) {
+      showToast(`Failed to delete puzzle: ${e.response?.data?.message || e.message}`);
+    } finally {
+      setDeletingPuzzle(null);
+    }
+  };
+
+  const puzzleSaved = (message) => {
+    setEditingPuzzle(null);
+    setAddingPuzzle(false);
+    showToast(message);
+    loadSets();
+    setRefreshKey((k) => k + 1);
+  };
+
+  /* Export what is currently on screen — same set, same search, same order —
+     by walking every page. 100 is the backend's maximum page size. */
+  const exportCsv = async () => {
+    setExporting(true);
+    try {
+      const rows = [];
+      for (let pageNo = 1; ; pageNo++) {
+        const params = { page: pageNo, pageSize: 100, sort };
+        let res;
+        if (across) {
+          if (appliedSearch) params.q = appliedSearch;
+          res = await api.get('/puzzles/search', { params });
+        } else {
+          if (appliedSearch) params.search = appliedSearch;
+          res = await api.get(`/puzzles/sets/${setCode}`, { params });
+        }
+        const data = res.data?.data ?? res.data ?? {};
+        const list = data.puzzles || [];
+        rows.push(...list);
+        if (pageNo >= (data.totalPages || 1) || list.length === 0) break;
+      }
+
+      downloadCsv(
+        `mate-zone-${across ? 'all-puzzles' : setCode}.csv`,
+        [
+          ['Title', 'Set', 'FEN', 'Moves', 'Rating', 'Difficulty', 'Themes'],
+          ...rows.map((p) => [
+            p.title,
+            p.set_name,
+            p.fen,
+            (p.uci || []).join(' '),
+            p.rating ?? '',
+            p.difficulty ?? '',
+            (p.themes || []).join(' '),
+          ]),
+        ]
+      );
+      showToast(`Exported ${rows.length} puzzle${rows.length === 1 ? '' : 's'}`);
+    } catch (e) {
+      showToast(`Export failed: ${e.response?.data?.message || e.message}`);
+    } finally {
+      setExporting(false);
+    }
+  };
+
   const toggleCard = (id, idx, ev) => {
     if (!selectable) return;
     if (ev?.shiftKey && lastIdxRef.current != null) {
@@ -444,7 +861,7 @@ export default function PuzzleListing({
   const handleAssigned = (res) => {
     setAssignOpen(false);
     showToast(res?.message || 'Assigned.');
-    deselectAll();
+    sel.clear();
     lastIdxRef.current = null;
   };
 
@@ -463,8 +880,6 @@ export default function PuzzleListing({
 
   /* Stable identities. SetChip is memo'd, so an inline arrow here would defeat
    * the memo on every render and re-render all ~40 chips each time. */
-  const goRef = useRef(go);
-  useEffect(() => { goRef.current = go; });
   const pickSet = useCallback((s) => {
     savedStripScroll.current = setStripRef.current?.scrollLeft || 0;
     goRef.current({ set: s.set_code, page: 1 });
@@ -498,129 +913,165 @@ export default function PuzzleListing({
     />
   );
 
-  /* Shared pagination bar ("1 2 3 … 8" style) rendered both above and below the
-     puzzle grid. */
-  const paginator =
-    totalPages > 1 ? (
-      <div className={`flex flex-wrap items-center justify-center gap-1.5 ${embedded ? '' : 'mt-5'}`}>
-        <button
-          type="button"
-          title="Previous page"
-          disabled={page <= 1}
-          onClick={() => (across ? go({ all: true, page: page - 1 }) : go({ set: setCode, page: page - 1 }))}
-          className="h-8 px-2.5 grid place-items-center rounded-lg border border-amber-500/50 bg-amber-400/15 text-sm font-bold text-amber-700 hover:bg-amber-400/25 disabled:opacity-30 disabled:cursor-not-allowed transition"
-        >
-          ‹
-        </button>
-        {pager(page, totalPages).map((item, i) =>
-          item === '…' ? (
-            <span key={`pg-${i}`} className="px-1 text-ink-400 select-none">
-              …
-            </span>
-          ) : (
-            <button
-              key={item}
-              type="button"
-              onClick={() => (across ? go({ all: true, page: item }) : go({ set: setCode, page: item }))}
-              className={`h-8 w-8 grid place-items-center rounded-lg border text-xs font-bold transition ${
-                item === page
-                  ? 'border-gold-500 bg-gold-500 text-white shadow-[0_4px_12px_rgba(37,99,235,0.3)]'
-                  : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
-              }`}
-            >
-              {item}
-            </button>
-          )
-        )}
-        <button
-          type="button"
-          title="Next page"
-          disabled={page >= totalPages}
-          onClick={() => (across ? go({ all: true, page: page + 1 }) : go({ set: setCode, page: page + 1 }))}
-          className="h-8 px-2.5 grid place-items-center rounded-lg border border-amber-500/50 bg-amber-400/15 text-sm font-bold text-amber-700 hover:bg-amber-400/25 disabled:opacity-30 disabled:cursor-not-allowed transition"
-        >
-          ›
-        </button>
-      </div>
-    ) : null;
+  const paginator = totalPages > 1 ? (
+    <div className="flex flex-wrap items-center justify-center gap-1.5">
+      <button
+        type="button"
+        title="Previous page"
+        disabled={page <= 1}
+        onClick={() => (across ? go({ all: true, page: page - 1 }) : go({ set: setCode, page: page - 1 }))}
+        className="grid h-8 place-items-center rounded-lg border border-slate-300 bg-white px-2.5 text-sm font-bold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-30"
+      >
+        ‹
+      </button>
+      {pager(page, totalPages).map((item, i) =>
+        item === '…' ? (
+          <span key={`pg-${i}`} className="select-none px-1 text-slate-400">
+            …
+          </span>
+        ) : (
+          <button
+            key={item}
+            type="button"
+            onClick={() => (across ? go({ all: true, page: item }) : go({ set: setCode, page: item }))}
+            className={`grid h-8 w-8 place-items-center rounded-lg border text-xs font-bold transition ${
+              item === page
+                ? 'border-gold-500 bg-gold-500 text-white shadow-[0_4px_12px_rgba(37,99,235,0.3)]'
+                : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
+            }`}
+          >
+            {item}
+          </button>
+        )
+      )}
+      <button
+        type="button"
+        title="Next page"
+        disabled={page >= totalPages}
+        onClick={() => (across ? go({ all: true, page: page + 1 }) : go({ set: setCode, page: page + 1 }))}
+        className="grid h-8 place-items-center rounded-lg border border-slate-300 bg-white px-2.5 text-sm font-bold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-30"
+      >
+        ›
+      </button>
+    </div>
+  ) : null;
 
   const body = (
     <>
       {setsError && !sets.length && (
-        <p className="rounded-xl border border-red-400/30 bg-red-500/10 px-4 py-3 text-sm text-red-600 mb-4">{setsError}</p>
+        <p className="mb-4 rounded-xl border border-red-300 bg-red-50 px-4 py-3 text-sm font-semibold text-red-600">{setsError}</p>
       )}
 
       {currentSet && (
-        /* ONE card for browsing AND selecting.
-           These were two separate cards - a white sticky bar and an amber panel
-           below it - with different borders, backgrounds and padding, so the
-           controls read as unrelated. The same folder state also appeared twice:
-           a "All folders" dropdown up top and a "Folder browser - All folders"
-           label underneath. Now: one card, one border, one padding scale, split
-           into labelled rows by a hairline. The folder dropdown stays the filter;
-           the disclosure becomes "Manage folders", which is what it actually is.
-           Embedded (homework card) keeps the same layout but sticks to the top
-           of its own scroll area instead of the app navbar. */
-        <div className={`sticky z-30 mb-5 rounded-2xl border border-ink-200 bg-white/90 backdrop-blur-xl shadow-[0_6px_16px_rgba(0,0,0,0.08)] overflow-hidden ${embedded ? 'top-0' : 'top-[64px] md:top-[70px]'}`}>
-          {/* ── row 1: where you are, navigation, page size ── */}
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 pt-3">
-            <h2 className="text-sm font-bold text-black whitespace-nowrap">
-              <span className="text-black">{across ? 'All' : currentSet.set_name}</span>
-              <span className="mx-1.5 text-black">›</span>
-              <span className="text-black">{across ? 'Combined' : 'Exercises'}</span>
-            </h2>
-
-            <div className="flex items-center gap-1.5">
-              <button
-                type="button"
-                title={across ? 'Browse a single set first' : 'Previous set'}
-                disabled={filteredSets.length < 2 || across}
-                onClick={() => goBy(-1)}
-                className="h-8 w-8 grid place-items-center rounded-lg border border-ink-200 bg-white/70 text-sm font-bold text-black hover:bg-ink-100 disabled:opacity-30 disabled:cursor-not-allowed transition"
-              >
-                ◀
-              </button>
-              <button
-                type="button"
-                title={across ? 'Browse a single set first' : 'Next set'}
-                disabled={filteredSets.length < 2 || across}
-                onClick={() => goBy(1)}
-                className="h-8 w-8 grid place-items-center rounded-lg border border-ink-200 bg-white/70 text-sm font-bold text-black hover:bg-ink-100 disabled:opacity-30 disabled:cursor-not-allowed transition"
-              >
-                ▶
-              </button>
+        /* ONE card for browsing, filtering, authoring and selecting. Everything
+           shares one border, one padding scale and hairline separators, so the
+           whole catalogue reads as a single tool. */
+        <div className="mb-5 overflow-hidden rounded-2xl border border-ink-200 bg-white shadow-[0_6px_20px_rgba(15,23,42,0.06)]">
+          {/* ── header: where you are + sort + page size ── */}
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-ink-200 px-4 py-3">
+            <div className="min-w-0 flex-1">
+              <h2 className="truncate text-sm font-bold text-black">
+                {across ? 'All puzzles' : currentSet.set_name}
+              </h2>
+              <p className="mt-0.5 truncate text-[0.7rem] font-semibold text-slate-500">
+                {across
+                  ? `${sets.length} set${sets.length === 1 ? '' : 's'}`
+                  : `Set ${filteredSets.findIndex((s) => s.set_code === setCode) + 1} of ${filteredSets.length}`}
+                {' · '}
+                {total} puzzle{total === 1 ? '' : 's'}
+                {appliedSearch ? ` · matching “${appliedSearch}”` : ''}
+              </p>
             </div>
 
-            <span className="hidden sm:inline text-xs font-bold text-black whitespace-nowrap">
-              {across
-                ? `All sets · ${totalPuzzles} puzzles`
-                : `${filteredSets.findIndex((s) => s.set_code === setCode) + 1} / ${filteredSets.length} · ${currentSet.puzzle_count} puzzles`}
-            </span>
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  title={across ? 'Browse a single set first' : 'Previous set'}
+                  disabled={filteredSets.length < 2 || across}
+                  onClick={() => goBy(-1)}
+                  className="grid h-8 w-8 place-items-center rounded-lg border border-slate-300 bg-white text-sm font-bold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-30"
+                >
+                  ◀
+                </button>
+                <button
+                  type="button"
+                  title={across ? 'Browse a single set first' : 'Next set'}
+                  disabled={filteredSets.length < 2 || across}
+                  onClick={() => goBy(1)}
+                  className="grid h-8 w-8 place-items-center rounded-lg border border-slate-300 bg-white text-sm font-bold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-30"
+                >
+                  ▶
+                </button>
+              </div>
 
-            <label className="ml-auto flex items-center gap-1.5 text-xs font-bold text-black whitespace-nowrap">
-              <span className="hidden sm:inline">Show</span>
-              <select
-                value={perPage}
-                onChange={(e) =>
-                  across
-                    ? go({ all: true, page: 1, perPage: Number(e.target.value) })
-                    : go({ set: setCode, page: 1, perPage: Number(e.target.value) })
-                }
-                className="rounded-lg border border-ink-200 bg-white/70 px-2 py-1 font-bold text-black outline-none focus:border-gold-500 cursor-pointer"
-              >
-                {PER_PAGE_OPTIONS.map((n) => (
-                  <option key={n} value={n}>
-                    {n}
-                  </option>
-                ))}
-              </select>
-              <span>/ page</span>
-            </label>
+              <label className="flex items-center gap-1.5 text-xs font-bold text-slate-600">
+                <span className="hidden sm:inline">Sort</span>
+                <select
+                  value={sort}
+                  onChange={(e) => {
+                    setSort(e.target.value);
+                    go({ page: 1 });
+                  }}
+                  aria-label="Sort puzzles"
+                  className="h-8 rounded-lg border border-slate-300 bg-white px-2 text-xs font-bold text-slate-800 outline-none focus:border-gold-500"
+                >
+                  {SORT_OPTIONS.map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="flex items-center gap-1.5 text-xs font-bold text-slate-600">
+                <span className="hidden sm:inline">Show</span>
+                <select
+                  value={perPage}
+                  onChange={(e) =>
+                    across
+                      ? go({ all: true, page: 1, perPage: Number(e.target.value) })
+                      : go({ set: setCode, page: 1, perPage: Number(e.target.value) })
+                  }
+                  aria-label="Puzzles per page"
+                  className="h-8 rounded-lg border border-slate-300 bg-white px-2 text-xs font-bold text-slate-800 outline-none focus:border-gold-500"
+                >
+                  {PER_PAGE_OPTIONS.map((n) => (
+                    <option key={n} value={n}>
+                      {n}
+                    </option>
+                  ))}
+                </select>
+                <span>/ page</span>
+              </label>
+            </div>
           </div>
 
-          {/* ── row 2: folder filter + search, then the set chips ── */}
-          <div ref={setStripRef} className="mt-2.5 flex items-center gap-1.5 overflow-x-auto scrollbar-thin px-4 pb-3">
-            <div className="relative shrink-0">
+          {/* ── search + filters, then the set rail ── */}
+          <div className="border-b border-ink-200 px-4 py-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="relative min-w-[10rem] flex-1">
+                <span className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 select-none text-sm text-slate-400">⌕</span>
+                <input
+                  value={puzzleSearch}
+                  onChange={(e) => setPuzzleSearch(e.target.value)}
+                  placeholder={across ? 'Search puzzles across all sets…' : `Search in ${currentSet.set_name}…`}
+                  aria-label="Search puzzles"
+                  className="h-9 w-full rounded-lg border border-slate-300 bg-white pl-8 pr-8 text-xs font-semibold text-slate-800 outline-none transition focus:border-gold-500 placeholder:text-slate-400"
+                />
+                {puzzleSearch && (
+                  <button
+                    type="button"
+                    title="Clear search"
+                    aria-label="Clear search"
+                    onClick={() => setPuzzleSearch('')}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400 transition hover:text-slate-700"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+
               <select
                 value={folderFilter}
                 onChange={(e) => {
@@ -628,7 +1079,8 @@ export default function PuzzleListing({
                   setFolderFilter(v === 'unfiled' ? 'unfiled' : v === 'all' ? 'all' : Number(v));
                 }}
                 title="Filter sets by folder"
-                className="rounded-lg border border-ink-200 bg-white/70 pl-2 pr-7 py-1.5 text-xs font-bold text-black outline-none focus:border-gold-500 cursor-pointer"
+                aria-label="Filter by folder"
+                className="h-9 rounded-lg border border-slate-300 bg-white px-2 text-xs font-bold text-slate-800 outline-none focus:border-gold-500"
               >
                 <option value="all">📁 All folders</option>
                 <option value="unfiled">🗂 Unfiled sets</option>
@@ -638,80 +1090,92 @@ export default function PuzzleListing({
                   </option>
                 ))}
               </select>
+
+              <div className="relative">
+                <input
+                  value={setFilter}
+                  onChange={(e) => setSetFilter(e.target.value)}
+                  placeholder="Filter sets…"
+                  aria-label="Filter sets by name"
+                  className="h-9 w-32 rounded-lg border border-slate-300 bg-white pl-2.5 pr-6 text-xs font-bold text-slate-800 outline-none transition focus:border-gold-500 placeholder:font-semibold placeholder:text-slate-400"
+                />
+                {setFilter && (
+                  <button
+                    type="button"
+                    title="Clear set filter"
+                    aria-label="Clear set filter"
+                    onClick={() => setSetFilter('')}
+                    className="absolute right-1.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400 transition hover:text-slate-700"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
             </div>
 
-            <div className="relative shrink-0">
-              <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-black text-xs pointer-events-none select-none">⌕</span>
-              <input
-                value={setFilter}
-                onChange={(e) => setSetFilter(e.target.value)}
-                placeholder="Filter sets…"
-                className="w-36 rounded-lg border border-ink-200 bg-white/70 pl-7 pr-6 py-1.5 text-xs font-bold text-black outline-none focus:border-gold-500 placeholder:text-ink-400 transition"
-              />
-              {setFilter && (
-                <button
-                  type="button"
-                  title="Clear set filter"
-                  aria-label="Clear set filter"
-                  onClick={() => setSetFilter('')}
-                  className="absolute right-1.5 top-1/2 -translate-y-1/2 text-black hover:text-black text-xs font-bold transition"
-                >
-                  ✕
-                </button>
-              )}
-            </div>
+            <div ref={setStripRef} className="mt-2 flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-thin">
+              <button
+                type="button"
+                title={`All sets combined · ${totalPuzzles} puzzles`}
+                onClick={() => go({ all: true, page: 1 })}
+                className={`max-w-[8.5rem] shrink-0 rounded-lg border px-2.5 py-1.5 text-xs font-bold transition ${
+                  across
+                    ? 'border-gold-500 bg-gold-500/15 text-gold-700 shadow-[0_0_14px_rgba(96,165,250,0.18)]'
+                    : 'border-slate-300 bg-white text-slate-700 hover:border-slate-400 hover:bg-slate-50'
+                }`}
+              >
+                <span className="block truncate">All ({totalPuzzles})</span>
+              </button>
 
-            <button
-              type="button"
-              title={`All sets combined · ${totalPuzzles} puzzles`}
-              onClick={() => go({ all: true, page: 1 })}
-              className={`max-w-[8.5rem] shrink-0 rounded-lg border px-2.5 py-1.5 text-xs font-bold transition ${
-                across
-                  ? 'border-gold-500 bg-gold-500/20 text-black shadow-[0_0_14px_rgba(96,165,250,0.18)]'
-                  : 'border-ink-200 bg-white/70 text-black hover:border-ink-300 hover:bg-ink-100'
-              }`}
-            >
-              <span className="block truncate">All ({totalPuzzles})</span>
-            </button>
-
-            {setFilterText ? (
-              filteredSets.length === 0 ? (
-                <span className="shrink-0 px-3 py-1.5 text-xs text-ink-500 whitespace-nowrap">
-                  No sets found for “{setFilter.trim()}”
-                </span>
-              ) : (
-                filteredSets.map((set) => renderSetChip(set))
-              )
-            ) : (
-              pager(chipIndex, filteredSets.length).map((item, i) =>
-                item === '…' ? (
-                  <span key={`gap-${i}`} className="px-1 text-ink-500 select-none">
-                    …
+              {setFilterText ? (
+                filteredSets.length === 0 ? (
+                  <span className="shrink-0 whitespace-nowrap px-3 py-1.5 text-xs text-slate-500">
+                    No sets found for “{setFilter.trim()}”
                   </span>
                 ) : (
-                  renderSetChip(filteredSets[item - 1])
+                  filteredSets.map((set) => renderSetChip(set))
                 )
-              )
-            )}
+              ) : (
+                pager(chipIndex, filteredSets.length).map((item, i) =>
+                  item === '…' ? (
+                    <span key={`gap-${i}`} className="select-none px-1 text-slate-400">
+                      …
+                    </span>
+                  ) : (
+                    renderSetChip(filteredSets[item - 1])
+                  )
+                )
+              )}
+            </div>
           </div>
 
-          {/* ── row 3: folder MANAGEMENT (create/rename/move), not a second filter.
-              Labelled "Manage folders" on purpose: the dropdown in row 2 already
-              filters by folder, and calling this a second "browser" made the two
-              look like duplicate controls for one piece of state. ── */}
+          {/* ── authoring toolbar (library only) ── */}
           {manageSets && (
-            <div className="border-t border-ink-200 px-4 py-2.5">
+            <div className="flex flex-wrap items-center gap-2 border-b border-ink-200 bg-slate-50/70 px-4 py-2.5">
+              <Button type="button" variant="secondary" size="sm" onClick={() => setImportOpen(true)}>
+                Import CSV
+              </Button>
+              <Button type="button" variant="secondary" size="sm" disabled={exporting || loading} onClick={exportCsv}>
+                {exporting ? 'Exporting…' : 'Export CSV'}
+              </Button>
+              <span className="ml-auto text-xs font-bold tabular-nums text-slate-600">
+                {rangeStart}–{rangeEnd} of {total}
+              </span>
+            </div>
+          )}
+
+          {/* ── folder MANAGEMENT (create/rename/move), not a second filter ── */}
+          {manageSets && (
+            <div className="border-b border-ink-200 px-4 py-2.5">
               <button
                 type="button"
                 onClick={() => setFolderBrowserOpen((o) => !o)}
-                className="flex items-center gap-2 text-xs font-bold text-ink-600 hover:text-gold-600 transition"
+                className="flex items-center gap-2 text-xs font-bold text-slate-600 transition hover:text-gold-600"
                 aria-expanded={folderBrowserOpen}
               >
-                <span className={`inline-grid h-5 w-5 place-items-center rounded border border-ink-300 bg-white/70 text-ink-600 transition-transform ${folderBrowserOpen ? 'rotate-90' : ''}`}>›</span>
+                <span className={`inline-grid h-5 w-5 place-items-center rounded border border-slate-300 bg-white text-slate-600 transition-transform ${folderBrowserOpen ? 'rotate-90' : ''}`}>›</span>
                 Manage folders
-                {folderBrowserOpen && (
-                  <span className="font-bold text-gold-600">{activeFolderLabel}</span>
-                )}
+                {folderBrowserOpen && <span className="font-bold text-gold-600">{activeFolderLabel}</span>}
               </button>
               {folderBrowserOpen && (
                 <div className="mt-2.5">
@@ -731,180 +1195,152 @@ export default function PuzzleListing({
             </div>
           )}
 
-          {/* ── row 4: what is selected + what you can do with it ── */}
-          {manageSets ? (
-            <div className="border-t border-ink-200 px-4 py-3 flex flex-wrap items-center gap-x-4 gap-y-2">
-              <span className="text-sm font-bold text-slate-700 whitespace-nowrap">
-                Selected:{' '}
-                <span
-                  className={
-                    sel.size >= sel.max
-                      ? 'text-amber-600'
-                      : sel.size > 0
-                        ? 'text-amber-600'
-                        : 'text-ink-500'
-                  }
-                >
-                  {sel.size}
-                </span>
-                <span className="text-ink-500"> / {sel.max}</span>
+          {/* ── selection + actions ── */}
+          <div className="flex flex-wrap items-center gap-2 border-b border-ink-200 px-4 py-2.5">
+            <span className="whitespace-nowrap text-sm font-bold text-slate-700">
+              Selected: <span className={sel.size > 0 ? 'text-gold-600' : 'text-slate-400'}>{sel.size}</span>
+              {Number.isFinite(sel.max) && <span className="text-slate-400"> / {sel.max}</span>}
+            </span>
+
+            {manageSets && (
+              <label
+                className={`flex items-center gap-1.5 rounded-lg border px-2 py-1 text-[0.68rem] font-semibold transition ${
+                  applyToAllAssign
+                    ? 'border-gold-500/50 bg-gold-500/10 text-gold-700'
+                    : 'border-slate-200 bg-white text-slate-500'
+                } ${sel.size > 0 ? 'cursor-pointer' : 'pointer-events-none opacity-40'}`}
+                title="Bulk-applies one setting set to every selected puzzle; toggle off to set values per puzzle."
+              >
+                <input
+                  type="checkbox"
+                  checked={applyToAllAssign}
+                  onChange={(e) => setApplyToAllAssign(e.target.checked)}
+                  className="h-3.5 w-3.5 accent-amber-500"
+                />
+                Same settings for all
+              </label>
+            )}
+
+            <Button type="button" variant="secondary" size="sm" onClick={selectPage} disabled={!puzzles.length}>
+              {manageSets ? 'Select all' : 'Select this page'}
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              disabled={sel.size === 0}
+              onClick={() => {
+                sel.clear();
+                lastIdxRef.current = null;
+              }}
+            >
+              Deselect all
+            </Button>
+            {manageSets && (
+              <Button type="button" size="sm" disabled={sel.size === 0} onClick={() => setAssignOpen(true)}>
+                Assign to Student{sel.size === 1 ? '' : 's'}
+              </Button>
+            )}
+
+            <div className="ml-auto flex items-center gap-3">
+              <span className="hidden whitespace-nowrap text-[0.68rem] font-semibold text-slate-500 md:inline">
+                click to select · shift+click for a range
               </span>
-              {sel.size >= sel.max && (
-                <span className="text-xs font-semibold text-amber-600 whitespace-nowrap">Limit reached</span>
-              )}
-              <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
-                <label
-                  className={`flex items-center gap-2 px-2.5 py-1 rounded-lg border text-xs transition ${
-                    applyToAllAssign
-                      ? 'border-amber-500/60 bg-amber-400/20 text-amber-700'
-                      : 'border-ink-200 bg-black/[0.04] text-ink-500'
-                  } ${sel.size > 0 ? 'cursor-pointer' : 'opacity-40 pointer-events-none'}`}
-                  title="Bulk-applies one setting set to every selected puzzle; toggle off to set values per puzzle."
-                >
-                  <input
-                    type="checkbox"
-                    checked={applyToAllAssign}
-                    onChange={(e) => setApplyToAllAssign(e.target.checked)}
-                    className="accent-amber-500 w-3.5 h-3.5"
-                  />
-                  Apply same settings to all puzzles
-                </label>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="sm"
-                  onClick={selectPage}
-                >
-                  Select all
-                </Button>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="sm"
-                  disabled={sel.size === 0}
-                  onClick={() => {
-                    sel.clear();
-                    lastIdxRef.current = null;
-                  }}
-                >
-                  Deselect all
-                </Button>
-                <Button
-                  type="button"
-                  variant="primary"
-                  size="sm"
-                  disabled={sel.size === 0}
-                  onClick={() => setAssignOpen(true)}
-                >
-                  Assign to Student{sel.size === 1 ? '' : 's'}
-                </Button>
-              </div>
-              <div className="ml-auto flex flex-wrap items-center justify-end gap-x-4 gap-y-1">
-                <span className="hidden md:inline text-xs font-semibold text-amber-600/90 whitespace-nowrap">click to select · shift+click to select a range</span>
-                <span className="text-xs font-bold text-amber-700 whitespace-nowrap tabular-nums">
+              {!manageSets && (
+                <span className="whitespace-nowrap text-xs font-bold tabular-nums text-slate-700">
                   {rangeStart}–{rangeEnd} of {total}
                 </span>
+              )}
+            </div>
+          </div>
+
+          {/* ── the grid itself, inside the same card ── */}
+          <div className="px-3 py-3 sm:px-4 sm:py-4">
+            {error && (
+              <p className="mb-3 rounded-xl border border-red-300 bg-red-50 px-4 py-3 text-sm font-semibold text-red-600">{error}</p>
+            )}
+
+            {loading ? (
+              <div className="grid place-items-center py-20">
+                <Spinner text="Loading puzzles…" />
               </div>
-            </div>
-          ) : (
-            <div className="border-t border-ink-200 px-4 py-2.5 flex flex-wrap items-center gap-2">
-              <span className="text-sm font-bold text-slate-700 whitespace-nowrap">
-                Selected: <span className="text-amber-600">{sel.size}</span>
-              </span>
-              <Button type="button" variant="secondary" size="sm" onClick={selectPage} disabled={!puzzles.length}>
-                Select this page
-              </Button>
-              <Button
-                type="button"
-                variant="secondary"
-                size="sm"
-                disabled={sel.size === 0}
-                onClick={() => {
-                  sel.clear();
-                  lastIdxRef.current = null;
-                }}
-              >
-                Deselect all
-              </Button>
-              <span className="ml-auto text-xs font-bold text-amber-700 whitespace-nowrap tabular-nums">
-                {rangeStart}–{rangeEnd} of {total}
-              </span>
-            </div>
-          )}
-
-          {/* ── row 5: page controls, sharing the card's own border ── */}
-          {paginator && (
-            <div className="border-t border-ink-200 px-4 py-3 flex justify-center">
-              {paginator}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* A failed load is a page-level problem, not a navigation control, so it
-          sits outside the card rather than inside it. */}
-      {error && (
-        <p className="rounded-xl border border-red-400/30 bg-red-500/10 px-4 py-3 text-sm text-red-600 mb-4">{error}</p>
-      )}
-
-      {loading ? (
-        <div className="grid place-items-center py-24">
-          <Spinner text="Loading puzzles…" />
-        </div>
-      ) : (
-        /* min-h keeps the document tall while a set with few puzzles is shown,
-         * so switching sets cannot shrink the page under the reader and clamp
-         * the window scroll - which is what made the chip strip appear to jump.
-         * Embedded lists live inside a scrolling modal, so they skip the floor. */
-        <div className={`grid gap-4 grid-cols-1 md:grid-cols-2 xl:grid-cols-4 ${embedded ? '' : 'min-h-[60vh]'}`}>
-          {puzzles.map((p, idx) => (
-            <div key={p.id} className={`relative flex flex-col ${!across && setCode ? 'pb-10' : ''}`}>
-              <PuzzleCard
-                puzzle={p}
-                selected={selectable && sel.has(p.id)}
-                onSelect={selectable ? () => toggleCard(p.id, idx, { shiftKey: false }) : undefined}
-                onKey={
-                  selectable
-                    ? (e) => {
-                        if (e.key === 'Enter' || e.key === ' ') {
-                          e.preventDefault();
-                          toggleCard(p.id, idx, { shiftKey: e.shiftKey });
-                        }
+            ) : puzzles.length === 0 ? (
+              <p className="py-16 text-center text-sm font-semibold text-slate-500">
+                {appliedSearch ? `No puzzles match “${appliedSearch}”.` : 'No puzzles found.'}
+              </p>
+            ) : (
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                {puzzles.map((p, idx) => (
+                  <div key={p.id} className="flex min-w-0 flex-col">
+                    <PuzzleCard
+                      puzzle={p}
+                      selected={selectable && sel.has(p.id)}
+                      onSelect={selectable ? () => toggleCard(p.id, idx, { shiftKey: false }) : undefined}
+                      onKey={
+                        selectable
+                          ? (e) => {
+                              if (e.key === 'Enter' || e.key === ' ') {
+                                e.preventDefault();
+                                toggleCard(p.id, idx, { shiftKey: e.shiftKey });
+                              }
+                            }
+                          : undefined
                       }
-                    : undefined
-                }
-              />
-            </div>
-          ))}
-        </div>
-      )}
+                    />
 
-      {!loading && !error && puzzles.length === 0 && (
-        <p className="text-center text-ink-500 py-16">No puzzles found.</p>
-      )}
+                    <div className="mt-1 flex items-center justify-end gap-1 px-0.5">
+                      <button
+                        type="button"
+                        onClick={() => setPreviewPuzzle(p)}
+                        className="rounded-md border border-slate-200 bg-white px-1.5 py-0.5 text-[0.68rem] font-bold text-slate-600 transition hover:border-gold-500/50 hover:text-gold-700"
+                      >
+                        👁 Preview
+                      </button>
+                      {manageSets && (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => setEditingPuzzle(p)}
+                            className="rounded-md border border-slate-200 bg-white px-1.5 py-0.5 text-[0.68rem] font-bold text-slate-600 transition hover:border-gold-500/50 hover:text-gold-700"
+                          >
+                            ✎ Edit
+                          </button>
+                          <button
+                            type="button"
+                            disabled={deletingPuzzle === p.id}
+                            onClick={() => deletePuzzle(p)}
+                            className="rounded-md border border-slate-200 bg-white px-1.5 py-0.5 text-[0.68rem] font-bold text-slate-600 transition hover:border-red-300 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-40"
+                          >
+                            {deletingPuzzle === p.id ? '…' : '🗑 Delete'}
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
 
-      {/* Within-set/across-set pagination, repeated below the grid. Styled to match the
-          merged navigation card exactly - it used to be an amber panel, which was
-          the reason the page had two different card styles floating around it. */}
-      {!embedded && (
-        <div className="rounded-2xl border border-ink-200 bg-white/90 shadow-[0_6px_16px_rgba(0,0,0,0.08)] px-4 py-3 mt-8 flex justify-center">
-          {paginator && <div className="flex justify-center">{paginator}</div>}
+          {/* ── page controls, sharing the card's own border ── */}
+          {paginator && <div className="border-t border-ink-200 px-4 py-3">{paginator}</div>}
         </div>
       )}
 
       {/* Rename set dialog */}
       {manageSets && renaming && (
         <div
-          className="fixed inset-0 z-[var(--z-modal-backdrop)] grid place-items-center bg-black/60 backdrop-blur-sm p-4"
+          className="fixed inset-0 z-[var(--z-modal-backdrop)] grid place-items-center bg-black/60 p-4"
           onClick={() => setRenaming(null)}
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            className="w-[min(92vw,26rem)] rounded-2xl border border-ivory-700/50 bg-ink-800 p-5 shadow-[0_20px_60px_rgba(0,0,0,0.55)]"
+            className="w-[min(92vw,26rem)] rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_20px_60px_rgba(15,23,42,0.25)]"
+            style={{ animation: 'board-pop .25s both' }}
           >
-            <h3 className="text-base font-semibold text-ivory-300 mb-1">Rename set</h3>
-            <p className="text-xs text-ivory-500 mb-4">
-              Set code <span className="font-mono text-gold-400">{renaming.set_code}</span> is kept — puzzles and
+            <h3 className="mb-1 text-base font-bold text-slate-900">Rename set</h3>
+            <p className="mb-4 text-xs font-semibold text-slate-500">
+              Set code <span className="font-mono text-gold-600">{renaming.set_code}</span> is kept — puzzles and
               existing assignments keep working; only the display name changes.
             </p>
             <input
@@ -917,21 +1353,15 @@ export default function PuzzleListing({
               }}
               placeholder={renaming.set_name}
               maxLength={200}
-              className="w-full rounded-lg border border-ivory-700/50 bg-black/[0.04] px-3 py-2 text-sm text-ivory-300 outline-none focus:border-gold-500/50 placeholder:text-ivory-500 transition"
+              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 outline-none transition focus:border-gold-500 placeholder:text-slate-400"
             />
-            {renameErr && <p className="mt-2 text-xs text-red-600">{renameErr}</p>}
+            {renameErr && <p className="mt-2 text-xs font-semibold text-red-600">{renameErr}</p>}
             <div className="mt-4 flex justify-end gap-2">
-              <Button
-                type="button"
-                variant="secondary"
-                size="sm"
-                onClick={() => setRenaming(null)}
-              >
+              <Button type="button" variant="secondary" size="sm" onClick={() => setRenaming(null)}>
                 Cancel
               </Button>
               <Button
                 type="button"
-                variant="primary"
                 size="sm"
                 disabled={!nameInput.trim() || nameInput.trim() === renaming.set_name}
                 onClick={saveRename}
@@ -941,6 +1371,32 @@ export default function PuzzleListing({
             </div>
           </div>
         </div>
+      )}
+
+      {/* Puzzle preview / editor / import (library only) */}
+      {previewPuzzle && <PuzzlePreviewModal puzzle={previewPuzzle} onClose={() => setPreviewPuzzle(null)} />}
+
+      {manageSets && (addingPuzzle || editingPuzzle) && (
+        <PuzzleEditorModal
+          puzzle={editingPuzzle}
+          sets={sets}
+          defaultSetCode={setCode}
+          onClose={() => {
+            setAddingPuzzle(false);
+            setEditingPuzzle(null);
+          }}
+          onSaved={puzzleSaved}
+        />
+      )}
+
+      {manageSets && importOpen && (
+        <CsvImportSetWizard
+          onClose={() => setImportOpen(false)}
+          onImported={() => {
+            loadSets();
+            setRefreshKey((k) => k + 1);
+          }}
+        />
       )}
 
       {/* Bulk assign dialog */}
@@ -957,7 +1413,7 @@ export default function PuzzleListing({
       {/* Toast */}
       {toast && (
         <div
-          className="fixed bottom-5 left-1/2 -translate-x-1/2 z-[var(--z-modal-backdrop)] px-4 py-2.5 rounded-xl border border-gold-500/40 bg-ink-800 text-sm text-ivory-300 shadow-[0_10px_30px_rgba(0,0,0,0.5)]"
+          className="fixed bottom-5 left-1/2 z-[var(--z-modal-backdrop)] -translate-x-1/2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-[0_10px_30px_rgba(15,23,42,0.18)]"
           style={{ animation: 'board-pop .3s both' }}
         >
           {toast}
@@ -971,6 +1427,7 @@ export default function PuzzleListing({
   return (
     <PageHeader
       wide
+      className="puzzle-listing-page"
       icon="♟"
       title={title}
       subtitle={subtitle ?? (sets.length ? `Browse ${sets.length} sets · ${totalPuzzles} puzzles` : 'Loading puzzle sets…')}

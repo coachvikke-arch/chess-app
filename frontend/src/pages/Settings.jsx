@@ -52,7 +52,6 @@ export function ThemePreview({ themeId, pieceSet, size = 160 }) {
         themeStyles.boardStyle || {
           borderRadius: '10px',
           overflow: 'hidden',
-          boxShadow: '0 8px 18px rgba(0,0,0,0.25)',
           /* Mirrors the real board's ornate edge, so a themed board in the
              picker looks the same as it will once applied. */
           ...(theme.ornate ? { border: '2px solid rgba(96,165,250,0.8)' } : {}),

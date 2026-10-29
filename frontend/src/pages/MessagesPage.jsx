@@ -44,7 +44,7 @@ function isImageType(t) {
 function PersonAvatar({ u, name, size = 40 }) {
   const initial = String(name || '?')[0]?.toUpperCase() || '?';
   if (u?.avatar_config) return <StudentAvatar config={u.avatar_config} seed={`user_${u.id || ''}`} size={size} />;
-  if (u?.profile_image) return <img src={u.profile_image} alt="" className="rounded-full object-cover" style={{ width: size, height: size }} />;
+  if (u?.profile_image) return <img src={u.profile_image} alt="" className="rounded-full object-cover object-center" style={{ width: size, height: size }} />;
   return (
     <span className="rounded-full bg-gradient-to-br from-gold-500 to-gold-700 grid place-items-center font-bold text-white" style={{ width: size, height: size }}>
       {initial}

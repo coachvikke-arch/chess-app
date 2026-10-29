@@ -1293,12 +1293,10 @@ export default function ChessBoard({
                   ? {
                       borderRadius: '10px',
                       overflow: 'hidden',
-                      boxShadow: '0 0 0 1px #E3E8F0, 0 1px 2px rgba(15,23,42,0.06)',
                     }
                   : {
                     borderRadius: '14px',
                     overflow: 'hidden',
-                    boxShadow: `${hexToRgba(pal.gold, 0.5)} 0 0 0 1px, ${hexToRgba(pal.gold, 0.16)} 0 0 24px, 0 14px 36px rgba(8,14,10,0.42)`,
                   }
             }
             customSquareStyles={ornateBase ? { ...ornateBase, ...squareStyles } : squareStyles}

@@ -721,6 +721,22 @@ exports.listSets = async (_req, res) => {
        prefix semantics that used to run in JS after loading the whole set.
    The puzzle_count used to be computed by scanning all sets (loadSets); this
    route now gets it from the same preflight query. */
+/* Ordering menus for the admin listing. `default` keeps the in-set order the
+   library has always shown (order_index, then id); `seq` itself is always
+   computed in that order, so sorting never renumbers a puzzle. */
+const SET_SORT_SQL = {
+  default: { search: 'm.seq ASC', flat: 'COALESCE(order_index, 0) ASC NULLS LAST, id ASC' },
+  newest: { search: 'm.id DESC', flat: 'id DESC' },
+  oldest: { search: 'm.id ASC', flat: 'id ASC' },
+  title: { search: 'LOWER(COALESCE(m.title, m.fallback_title)) ASC, m.id ASC', flat: "LOWER(COALESCE(title, '')) ASC, id ASC" },
+};
+const CROSS_SORT_SQL = {
+  default: 'm.set_name ASC, m.set_code ASC, m.seq ASC',
+  newest: 'm.id DESC',
+  oldest: 'm.id ASC',
+  title: "LOWER(COALESCE(m.title, '')) ASC, m.id ASC",
+};
+
 exports.listSetPuzzles = async (req, res) => {
   const t0 = Date.now();
   try {
@@ -732,6 +748,7 @@ exports.listSetPuzzles = async (req, res) => {
     const pageSize = PAGE_SIZES.includes(Number(req.query.pageSize)) ? Number(req.query.pageSize) : DEFAULT_PAGE_SIZE;
     const page = Math.max(1, parseInt(req.query.page, 10) || 1);
     const search = String(req.query.search || '').trim();
+    const sortKey = Object.prototype.hasOwnProperty.call(SET_SORT_SQL, req.query.sort) ? req.query.sort : 'default';
 
     const set = {
       set_code: setRow.code,
@@ -778,7 +795,7 @@ exports.listSetPuzzles = async (req, res) => {
       const cRes = await db.query(`SELECT COUNT(*)::int AS c ${base} ${where}`, [setRow.code, needle]);
       total = cRes.rows[0].c;
       const pRes = await db.query(
-        `SELECT m.id, m.seq ${base} ${where} ORDER BY m.seq ASC LIMIT $3 OFFSET $4`,
+        `SELECT m.id, m.seq ${base} ${where} ORDER BY ${SET_SORT_SQL[sortKey].search} LIMIT $3 OFFSET $4`,
         [setRow.code, needle, pageSize, offset]
       );
       pageSeq = pRes.rows;
@@ -786,7 +803,7 @@ exports.listSetPuzzles = async (req, res) => {
       const pRes = await db.query(
         `SELECT id, (ROW_NUMBER() OVER (ORDER BY COALESCE(order_index, 0) ASC NULLS LAST, id))::int AS seq
          FROM puzzles WHERE set_code = $1
-         ORDER BY COALESCE(order_index, 0) ASC NULLS LAST, id ASC LIMIT $2 OFFSET $3`,
+         ORDER BY ${SET_SORT_SQL[sortKey].flat} LIMIT $2 OFFSET $3`,
         [setRow.code, pageSize, offset]
       );
       pageSeq = pRes.rows;
@@ -841,6 +858,7 @@ exports.searchPuzzles = async (req, res) => {
     const q = String(req.query.q || '').trim();
     const pageSize = PAGE_SIZES.includes(Number(req.query.pageSize)) ? Number(req.query.pageSize) : DEFAULT_PAGE_SIZE;
     const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const sortKey = Object.prototype.hasOwnProperty.call(CROSS_SORT_SQL, req.query.sort) ? req.query.sort : 'default';
 
     const whereParts = [];
     const params = [];
@@ -880,7 +898,7 @@ exports.searchPuzzles = async (req, res) => {
          FROM puzzles p
          JOIN sets s ON s.code = p.set_code
        ) m ${whereClause}
-       ORDER BY m.set_name ASC, m.set_code ASC, m.seq ASC
+       ORDER BY ${CROSS_SORT_SQL[sortKey]}
        LIMIT $${pageSizeIdx} OFFSET $${params.length}`,
       params
     );
@@ -2972,6 +2990,56 @@ exports.downloadImportErrors = (req, res) => {
 
 /* ── PATCH /api/puzzles/sets/:setCode/puzzles/:id ────────────────────────────────
    Post-import edit: update a puzzle's title / rating / order_index within its set. */
+/* ── POST /api/puzzles/sets/:setCode/puzzles ────────────────────────────────────
+   Add one puzzle to an existing set. `fen` is the puzzle position and `moves`
+   the direct solution line (SAN or UCI, whitespace/comma separated) — the same
+   "moves are the solution" mode the CSV importer defaults to. */
+exports.addSetPuzzle = async (req, res) => {
+  try {
+    const setCode = String(req.params.setCode || '').trim();
+    const setRes = await db.query('SELECT code FROM sets WHERE code = $1', [setCode]);
+    if (setRes.rows.length === 0) return res.status(404).json({ message: 'Puzzle set not found' });
+
+    const fenRaw = String(req.body.fen || '').trim();
+    const movesRaw = String(req.body.moves || '').trim();
+    if (!fenRaw) return res.status(400).json({ message: 'FEN is required' });
+    if (!movesRaw) return res.status(400).json({ message: 'Solution moves are required' });
+
+    let fen;
+    try { fen = new Chess(fenRaw).fen(); } catch { return res.status(400).json({ message: 'Invalid FEN position' }); }
+
+    let uciSolution;
+    try { uciSolution = toUCI(fen, movesRaw.split(/[\s,]+/).filter(Boolean)); }
+    catch (e) { return res.status(400).json({ message: `Illegal move — ${e.message}` }); }
+
+    const ratingNum = req.body.rating === '' || req.body.rating === null || req.body.rating === undefined
+      ? null : Number(req.body.rating);
+    if (ratingNum !== null && (!Number.isFinite(ratingNum) || ratingNum < 0 || ratingNum > 5000)) {
+      return res.status(400).json({ message: 'Rating out of range' });
+    }
+    const difficulty = ['Easy', 'Medium', 'Hard'].includes(req.body.difficulty) ? req.body.difficulty : 'Medium';
+    const themes = Array.isArray(req.body.themes)
+      ? req.body.themes.filter((t) => typeof t === 'string' && t.trim()).map((t) => t.trim().toLowerCase())
+      : [];
+    const themeLabel = THEME_LABELS_FORWARD[themes[0]] || themes[0] || 'Tactics';
+    const title = String(req.body.title || '').trim().slice(0, 200) || null;
+
+    const inserted = await db.query(
+      `INSERT INTO puzzles (fen, solution, theme, themes, difficulty, title, order_index, rating, set_code, is_published)
+       VALUES ($1, $2, $3, $4, $5, $6,
+               COALESCE((SELECT MAX(order_index) FROM puzzles WHERE set_code = $8), 0) + 1,
+               $7, $8, TRUE)
+       RETURNING id`,
+      [fen, JSON.stringify(uciSolution), themeLabel, themes, difficulty, title, ratingNum, setCode]
+    );
+
+    await db.query('UPDATE sets SET updated_at = NOW() WHERE code = $1', [setCode]);
+    res.status(201).json({ id: inserted.rows[0].id, message: 'Puzzle added' });
+  } catch (err) {
+    res.status(500).json({ message: 'Failed to add puzzle', error: err.message });
+  }
+};
+
 exports.updateSetPuzzle = async (req, res) => {
   try {
     const id = Number(req.params.id);
@@ -2983,12 +3051,35 @@ exports.updateSetPuzzle = async (req, res) => {
     if (title !== undefined && title.length > 200) return res.status(400).json({ message: 'Title must be at most 200 characters' });
     if (rating !== undefined && Number.isFinite(rating) && (rating < 0 || rating > 5000)) return res.status(400).json({ message: 'Rating out of range' });
 
+    const difficulty = req.body.difficulty !== undefined ? String(req.body.difficulty) : undefined;
+    if (difficulty !== undefined && !['Easy', 'Medium', 'Hard'].includes(difficulty)) {
+      return res.status(400).json({ message: 'Difficulty must be Easy, Medium or Hard' });
+    }
+
+    /* Position + solution can only be replaced together: a new FEN with the old
+       move line would not replay. */
+    let fen;
+    let uciSolution;
+    if (req.body.fen !== undefined || req.body.moves !== undefined) {
+      const fenRaw = String(req.body.fen || '').trim();
+      const movesRaw = String(req.body.moves || '').trim();
+      if (!fenRaw || !movesRaw) {
+        return res.status(400).json({ message: 'Both FEN and solution moves are required to change the position' });
+      }
+      try { fen = new Chess(fenRaw).fen(); } catch { return res.status(400).json({ message: 'Invalid FEN position' }); }
+      try { uciSolution = toUCI(fen, movesRaw.split(/[\s,]+/).filter(Boolean)); }
+      catch (e) { return res.status(400).json({ message: `Illegal move — ${e.message}` }); }
+    }
+
     const sets = [];
     const vals = [];
     let idx = 1;
     if (title !== undefined) { sets.push(`title = $${idx++}`); vals.push(title || null); }
     if (rating !== undefined) { sets.push(`rating = $${idx++}`); vals.push(Number.isFinite(rating) ? rating : null); }
     if (orderIndex !== undefined) { sets.push(`order_index = $${idx++}`); vals.push(Number.isFinite(orderIndex) ? orderIndex : null); }
+    if (difficulty !== undefined) { sets.push(`difficulty = $${idx++}`); vals.push(difficulty); }
+    if (fen !== undefined) { sets.push(`fen = $${idx++}`); vals.push(fen); }
+    if (uciSolution !== undefined) { sets.push(`solution = $${idx++}`); vals.push(JSON.stringify(uciSolution)); }
     if (sets.length === 0) return res.status(400).json({ message: 'Nothing to update' });
     vals.push(id);
     const setClause = sets.join(', ');

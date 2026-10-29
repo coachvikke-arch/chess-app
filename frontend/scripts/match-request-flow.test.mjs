@@ -25,6 +25,7 @@ import test from 'node:test';
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const bell = readFileSync(join(root, 'src', 'components', 'NotificationBell.jsx'), 'utf8');
 const board = readFileSync(join(root, 'src', 'pages', 'AnalysisBoard.jsx'), 'utf8');
+const routesCode = readFileSync(join(root, 'src', 'utils', 'notificationRoutes.js'), 'utf8');
 
 /* Comments carry code samples of the OLD bug, so assertions run against the
    executable code with comments removed. */
@@ -115,6 +116,10 @@ test('the board path matches the role, as notifTarget already does', () => {
      admin have different shells and different routes. */
   assert.match(bellCode, /boardBase\s*=\s*user\?\.role === 'admin' \|\| user\?\.role === 'superadmin'\s*\?\s*'\/admin'\s*:\s*'\/student'/,
     'the accept target must be role-aware');
-  assert.match(bell, /const base = isAdmin \? '\/admin' : '\/student';/,
+  /* The type -> route map now lives in its own module, so the guard is that both
+     places read the role the same way and derive the same base. */
+  assert.match(routesCode, /const isAdmin = user\?\.role === 'admin' \|\| user\?\.role === 'superadmin';/,
+    'the route map must test the same two admin roles as the bell');
+  assert.match(routesCode, /const base = isAdmin \? '\/admin' : '\/student';/,
     'and must agree with the existing notifTarget base');
 });

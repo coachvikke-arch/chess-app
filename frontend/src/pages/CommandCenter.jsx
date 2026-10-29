@@ -437,59 +437,63 @@ export default function CommandCenter() {
   };
 
   return (
-    <PageHeader title="Command Center" icon="♕" subtitle="Your academy command center — classes, homework, tournaments & more.">
-      <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-        <div className="flex items-center gap-2">
+    <div style={{ background: '#FFFFFF', minHeight: '100vh', padding: '24px', fontFamily: '"Segoe UI", system-ui, sans-serif', fontSize: '14px' }}>
+      <div className="cc-page-title">Command Center</div>
+      <div className="cc-page-subtitle">Your academy command center — classes, homework, tournaments & more.</div>
+
+      {/* Row 1: View tabs */}
+      <div style={{ marginTop: '20px', marginBottom: '12px' }}>
+        <div className="cc-tabs">
           {VIEWS.map((v) => (
-            <button key={v.key} type="button" onClick={() => setView(v.key)} className={`chess-chip ${view === v.key ? 'chess-chip-gold' : ''}`}>
+            <button 
+              key={v.key} 
+              type="button" 
+              onClick={() => setView(v.key)} 
+              className={`cc-tab-btn ${view === v.key ? 'is-active' : ''}`}
+            >
               {v.label}
             </button>
           ))}
         </div>
-        <div className="flex items-center gap-2">
-          <button type="button" className="chess-chip" onClick={gotoPrev}>◀</button>
-          <span className="chess-chip chess-chip-gold">{MONTHS[cursor.m]} {cursor.y}</span>
-          <button type="button" className="chess-chip" onClick={gotoNext}>▶</button>
-          <button type="button" className="chess-chip" onClick={gotoToday}>Today</button>
+      </div>
+
+      {/* Row 2: Nav group and filters */}
+      <div className="cc-nav-row">
+        <div className="cc-nav-left">
+          <button type="button" className="cc-nav-arrow" onClick={gotoPrev}>‹</button>
+          <div className="cc-nav-title">{MONTHS[cursor.m]} {cursor.y}</div>
+          <button type="button" className="cc-nav-arrow" onClick={gotoNext}>›</button>
+          <button type="button" className="cc-today-btn" onClick={gotoToday}>Today</button>
+        </div>
+        <div className="cc-filter-bar">
+          <button
+            type="button"
+            className={`cc-filter-pill ${typeFilter === DEFAULT_FILTER ? 'is-active' : ''}`}
+            onClick={() => setTypeFilter(DEFAULT_FILTER)}
+          >
+            All <span className="cc-filter-count">{rangeCounts.all}</span>
+          </button>
+          {FILTER_TYPES.map((t) => (
+            <button
+              key={t.key}
+              type="button"
+              className={`cc-filter-pill ${typeFilter === t.key ? 'is-active' : ''}`}
+              onClick={() => setTypeFilter(t.key)}
+            >
+              {t.label} <span className="cc-filter-count">{rangeCounts[t.key]}</span>
+            </button>
+          ))}
         </div>
       </div>
 
-      {/* Global event-type filter — one control for every view. Sits under the
-          view tabs so it stays put while Monthly/Weekly/Daily/Agenda swap
-          underneath it, and the counts follow the range each view is showing. */}
-      <div className="cc-filter-bar mb-4" role="group" aria-label="Filter calendar by event type">
-        <button
-          type="button"
-          data-filter={DEFAULT_FILTER}
-          className={`cc-filter-pill ${typeFilter === DEFAULT_FILTER ? 'is-active' : ''}`}
-          aria-pressed={typeFilter === DEFAULT_FILTER}
-          onClick={() => setTypeFilter(DEFAULT_FILTER)}
-        >
-          All <span className="cc-filter-count">{rangeCounts.all}</span>
-        </button>
-        {FILTER_TYPES.map((t) => (
-          <button
-            key={t.key}
-            type="button"
-            data-filter={t.key}
-            className={`cc-filter-pill ${typeFilter === t.key ? 'is-active' : ''}`}
-            aria-pressed={typeFilter === t.key}
-            onClick={() => setTypeFilter(t.key)}
-          >
-            <span aria-hidden="true">{t.emoji}</span> {t.label}{' '}
-            <span className="cc-filter-count">{rangeCounts[t.key]}</span>
-          </button>
-        ))}
-      </div>
-
-      <div className="rounded-xl border border-ivory-700/50 bg-white p-3 text-ivory-100">
-        <div className="flex items-center gap-3 mb-3">
-          <span className="text-lg">🗓</span>
-          <div>
-            <p className="text-sm font-semibold text-ivory-300">{view === 'agenda' ? 'Agenda' : `${MONTHS[cursor.m]} ${cursor.y}`}</p>
-            <p className="text-[0.65rem] text-ivory-500">
-              {monthEventTotal} event{monthEventTotal === 1 ? '' : 's'} this month · tap a day header for its full daily agenda
-            </p>
+      <div className="cc-main-card">
+        <div className="cc-card-header">
+          <span className="cc-card-header-icon">🗓</span>
+          <div className="cc-card-header-text">
+            <div className="cc-card-title">{view === 'agenda' ? 'Agenda' : `${MONTHS[cursor.m]} ${cursor.y}`}</div>
+            <div className="cc-card-subtitle">
+              {monthEventTotal} event{monthEventTotal === 1 ? '' : 's'} this month · tap a day for its full agenda
+            </div>
           </div>
         </div>
 
@@ -497,162 +501,143 @@ export default function CommandCenter() {
           <>
             {monthly && (
               <>
-              <div className="grid grid-cols-7 gap-1">
-                {WEEKDAYS.map((w) => (
-                  <div key={w} className="py-1 text-center text-[0.6rem] font-semibold uppercase tracking-wider text-ivory-500">{w}</div>
-                ))}
-              </div>
-              <div className="grid grid-cols-1 min-[560px]:grid-cols-7 gap-1" data-cal="month-grid">
-                {monthDays.map((cell, i) => !cell ? (
-                  <div key={`blank-${i}`} />
-                ) : (
-                  <button
-                    key={cell.date}
-                    type="button"
-                    onClick={() => setSelectedDate(cell.date)}
-                    className={`min-h-[4.5rem] min-[560px]:min-h-[5.5rem] rounded-lg border p-1.5 text-left transition md:p-1 ${cell.date === selectedDate ? 'border-gold-500 bg-gold-500/10' : cell.date === today ? 'border-gold-500/40' : 'border-ivory-700/40 bg-white/[0.02] hover:border-gold-500/40'}`}
-                  >
-                    <span className={`block text-[0.65rem] font-semibold ${cell.date === today ? 'text-gold-400' : 'text-ivory-400'}`}>{cell.day}</span>
-                    {chipsForDate(gridEvents, cell.date).visible.map((e) => (
-                      <span key={`${e.kind}-${e.id}`} onClick={(ev) => { ev.stopPropagation(); goToRecord(e); }} className="block cursor-pointer truncate rounded px-0.5 text-[0.55rem] leading-tight text-ivory-200">
-                        {e.time && <b>{formatTime12(e.time, e.time)}</b>} {chipMeta[e.kind].label} {e.title}
-                      </span>
-                    ))}
-                    {chipsForDate(gridEvents, cell.date).more > 0 && (
-                      <span className="block rounded px-0.5 text-[0.55rem] font-semibold text-gold-400">+{chipsForDate(gridEvents, cell.date).more} more</span>
-                    )}
-                    {/* A day with nothing left under the active filter reads as
-                        explicitly empty instead of silently blank. */}
-                    {typeFilter !== DEFAULT_FILTER && chipsForDate(gridEvents, cell.date).list.length === 0 && (
-                      <span className="block text-[0.55rem] italic text-ivory-400/70">—</span>
-                    )}
-                  </button>
-                ))}
-              </div>
+                <div className="cc-month-weekdays">
+                  {WEEKDAYS.map((w) => (
+                    <div key={w} className="cc-month-weekday">{w}</div>
+                  ))}
+                </div>
+                <div className="cc-month-wrapper">
+                  <div className="cc-month-grid">
+                    {monthDays.map((cell, i) => {
+                      if (!cell) {
+                        return <div key={`blank-${i}`} className="cc-month-cell" style={{ background: '#FAFAFA' }} />;
+                      }
+                      const isToday = cell.date === today;
+                      const isSelected = cell.date === selectedDate;
+                      const chips = chipsForDate(gridEvents, cell.date);
+                      return (
+                        <button
+                          key={cell.date}
+                          type="button"
+                          onClick={() => setSelectedDate(cell.date)}
+                          className={`cc-month-cell ${isSelected ? 'is-selected' : ''} ${isToday ? 'is-today' : ''}`}
+                        >
+                          <div className="cc-month-day">{cell.day}</div>
+                          <div className="cc-month-chips">
+                            {chips.visible.map((e) => (
+                              <span
+                                key={`${e.kind}-${e.id}`}
+                                onClick={(ev) => { ev.stopPropagation(); goToRecord(e); }}
+                                className={`cc-month-chip ${e.kind === 'class' ? 'class' : e.kind === 'puzzle' ? 'puzzle' : ''}`}
+                                title={e.title}
+                              >
+                                {e.title}
+                              </span>
+                            ))}
+                            {chips.more > 0 && (
+                              <span className="cc-month-more">+{chips.more} more</span>
+                            )}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
               </>
             )}
 
             {weekly && (
-              <>
-              <div className="grid grid-cols-7 gap-1">
-                {WEEKDAYS.map((w) => <div key={w} className="py-1 text-center text-[0.6rem] font-semibold uppercase tracking-wider text-ivory-500">{w}</div>)}
+              <div className="cc-week-grid">
+                {weekDates.map((date) => {
+                  const isToday = date === today;
+                  const events = byDateGrid.get(date) || [];
+                  const d = new Date(date + 'T00:00:00Z');
+                  return (
+                    <div key={date} className={`cc-week-row ${isToday ? 'is-today' : ''}`}>
+                      <div className="cc-week-header">
+                        <span className="cc-week-dayname">{d.toLocaleDateString('en-GB', { weekday: 'long', timeZone: 'UTC' })}</span>
+                        <span className="cc-week-daynum">{d.getUTCDate()}</span>
+                      </div>
+                      <div className="cc-week-body">
+                        {events.length === 0 ? (
+                          <div className="cc-week-empty">Nothing scheduled</div>
+                        ) : (
+                          <div className="cc-week-chips">
+                            {events.slice(0, 10).map((e) => (
+                              <div
+                                key={`${e.kind}-${e.id}`}
+                                onClick={() => goToRecord(e)}
+                                className={`cc-week-chip ${e.kind === 'class' ? 'class' : e.kind === 'puzzle' ? 'puzzle' : ''}`}
+                                title={e.title}
+                              >
+                                {e.title}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
-              <div className="grid grid-cols-1 min-[560px]:grid-cols-7 gap-1" data-cal="week-grid">
-                {weekDates.map((date) => (
-                  <button
-                    key={date}
-                    type="button"
-                    onClick={() => setSelectedDate(date)}
-                    className={`min-h-[5.5rem] min-[560px]:min-h-[8rem] rounded-lg border p-1.5 text-left transition md:p-1 ${date === selectedDate ? 'border-gold-500 bg-gold-500/10' : date === today ? 'border-gold-500/40' : 'border-ivory-700/40 bg-white/[0.02] hover:border-gold-500/40'}`}
-                  >
-                    <span className={`flex items-baseline justify-between gap-1 text-[0.65rem] font-semibold ${date === today ? 'text-gold-400' : 'text-ivory-400'}`}>
-                      <span className="truncate">
-                        {new Date(date + 'T00:00:00Z').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' })}
-                      </span>
-                      {/* Count follows the active filter, like every other view. */}
-                      {(byDateGrid.get(date) || []).length > 0 && (
-                        <span className="shrink-0 text-[0.55rem] tabular-nums text-gold-400">
-                          {(byDateGrid.get(date) || []).length}
-                        </span>
-                      )}
-                    </span>
-                    {(byDateGrid.get(date) || []).slice(0, 8).map((e) => (
-                      <span key={`${e.kind}-${e.id}`} onClick={(ev) => { ev.stopPropagation(); goToRecord(e); }} className="block cursor-pointer truncate rounded px-0.5 text-[0.55rem] leading-tight text-ivory-200">
-                        {e.time && <b>{formatTime12(e.time, e.time)}</b>} {chipMeta[e.kind].label} {e.title}
-                      </span>
-                    ))}
-                    {/* Faint empty marker so a filtered-out day is clearly empty. */}
-                    {(byDateGrid.get(date) || []).length === 0 && (
-                      <span className="block text-[0.55rem] italic text-ivory-400/70">No events</span>
-                    )}
-                  </button>
-                ))}
-              </div>
-              </>
             )}
 
             {daily && (
-              <div className="rounded-lg border border-gold-500/40 bg-gold-500/[0.06] p-3">
-                <p className="text-sm font-semibold text-ivory-300">
-                  {selectedEvents.length === 0
-                    ? (activeTypeLabel ? `No ${activeTypeLabel}` : 'Nothing scheduled')
-                    : `${selectedEvents.length} event${selectedEvents.length === 1 ? '' : 's'}`} · {new Date(selectedDate + 'T00:00:00Z').toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' })}
-                </p>
-                {selectedDate === today && <span className="text-gold-400 text-xs">Today</span>}
-              </div>
+              <></>
             )}
 
-            {/* daily agenda for the selected date (monthly/weekly/daily all show it) */}
-            {!agenda && (
-              <div className="mt-3 rounded-lg border border-ivory-700/50 bg-black/[0.03] p-3">
-                <p className="mb-2 text-sm font-semibold text-ivory-300">
-                  {new Date(selectedDate + 'T00:00:00Z').toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' })}
-                  {selectedDate === today && <span className="text-gold-400 text-xs ml-2">Today</span>}
-                  <span className="block text-[0.65rem] font-normal text-ivory-500 mt-0.5">
-                    {selectedAgenda.length === 0
-                      ? (activeTypeLabel
-                        ? `No ${activeTypeLabel} on this date.`
-                        : 'No classes, homework, tournaments or course files on this date.')
-                      : `All ${selectedAgenda.length} item${selectedAgenda.length === 1 ? '' : 's'} for this date:`}
-                  </span>
-                </p>
-
-                {/* status bar — always visible, even on an empty day. Deliberately shows EVERY
-                    category, not just the active filter: it is the full-day
-                    breakdown, so a zero here explains why a filtered list is
-                    shorter rather than looking like a failed filter. */}
-                <div className="mb-3 flex flex-wrap items-center gap-1.5">
-                  {typeFilter !== DEFAULT_FILTER && (
-                    <span className="text-[0.65rem] italic text-ivory-500">full day:</span>
-                  )}
-                  {STATUS_KINDS.map(({ kind, label }) => {
-                    const n = dayStats.counts[kind] || 0;
-                    const active = n > 0;
-                    return (
-                      <span
-                        key={kind}
-                        className={`chess-chip text-[0.65rem] ${active ? (chipMeta[kind].tone ? `chess-chip-${chipMeta[kind].tone}` : 'chess-chip-gold') : 'opacity-45'}`}
-                        title={`${n} ${label.toLowerCase()} on this date`}
-                      >
-                        {chipMeta[kind].label} {label}: <b>{n}</b>
-                        {kind === 'puzzle' && dayStats.puzzleTotal > 0 && ` (${dayStats.puzzleTotal} puzzles)`}
-                      </span>
-                    );
-                  })}
-                  <span className="chess-chip text-[0.65rem] ml-auto">
-                    {selectedDate === today ? 'Today' : 'Selected'} · {dayStats.total} item{dayStats.total === 1 ? '' : 's'}
-                  </span>
+            {/* Day detail panel - shown below every view */}
+            <div style={{ marginTop: '24px' }}>
+              <div className="cc-daily-header-card">
+                <div className="cc-daily-date">
+                  {new Date(selectedDate + 'T00:00:00Z').toLocaleDateString('en-US', { weekday: 'long', day: 'numeric', month: 'long' })}
+                  {selectedDate === today && ' · Today'}
                 </div>
-                {selectedAgenda.length === 0 ? (
-                  <p className="text-xs text-ivory-500">
-                    {activeTypeLabel
-                      ? `No ${activeTypeLabel} on this date. Switch the filter to All to see everything scheduled.`
-                      : 'Nothing scheduled for this date — the counts above are all zero. Pick another date, or add classes, homework, tournaments and puzzle sets to fill it.'}
-                  </p>
-                ) : (
-                  <ul className="grid grid-cols-1 gap-2">
-                    {selectedAgenda.map((e) => (
-                      <li key={`${e.kind}-${e.id}`} onClick={() => goToRecord(e)} className="flex cursor-pointer items-center gap-2 rounded-md border border-ivory-700/50 bg-white/[0.03] px-2 py-1.5 hover:border-gold-500/40">
-                        <Chip tone={chipMeta[e.kind].tone}>{chipMeta[e.kind].label}</Chip>
-                        <span className="min-w-0 flex-1">
-                          <span className="block truncate text-sm font-semibold text-ivory-300">
-                            {e.title}
-                            {e.kind === 'puzzle' && e.count > 1 && (
-                              <span className="ml-2 text-[0.65rem] font-normal text-gold-400">{e.count} puzzles</span>
-                            )}
-                          </span>
-                          <span className="block text-[0.65rem] text-ivory-500">
-                            {e.kind === 'puzzle' && e.folderName && e.setName ? `${e.setName} · ` : ''}
-                            {e.sub || ''}
-                          </span>
-                        </span>
-                        {e.time && <span className="text-[0.65rem] font-semibold text-gold-400">{formatTime12(e.time, e.time)}</span>}
-                      </li>
-                    ))}
-                  </ul>
-                )}
+                <div className="cc-daily-subtitle">
+                  {selectedAgenda.length === 0 ? '0 items for this date' : `${selectedAgenda.length} item${selectedAgenda.length === 1 ? '' : 's'} for this date`}
+                </div>
+                <div className="cc-daily-pills">
+                  <div className="cc-daily-pill">
+                    Classes <span className="cc-daily-pill-count">{dayStats.counts.class || 0}</span>
+                  </div>
+                  <div className="cc-daily-pill">
+                    Homework <span className="cc-daily-pill-count">{dayStats.counts.homework || 0}</span>
+                  </div>
+                  <div className="cc-daily-pill">
+                    Tournaments <span className="cc-daily-pill-count">{dayStats.counts.tournament || 0}</span>
+                  </div>
+                  <div className="cc-daily-pill">
+                    Puzzle sets <span className="cc-daily-pill-count">{dayStats.puzzleTotal || 0}</span>
+                  </div>
+                  <div className="cc-daily-pill">
+                    Files <span className="cc-daily-pill-count">{dayStats.counts.file || 0}</span>
+                  </div>
+                </div>
               </div>
-            )}
+
+              {selectedAgenda.length === 0 ? (
+                <div className="cc-empty-state">No events on this day</div>
+              ) : (
+                <div className="cc-event-list">
+                  {selectedAgenda.map((e) => (
+                    <div key={`${e.kind}-${e.id}`} onClick={() => goToRecord(e)} className="cc-event-item">
+                      <div className="cc-event-icon">
+                        {e.kind === 'class' ? '🏫' : e.kind === 'homework' ? '📝' : e.kind === 'puzzle' ? '🧩' : e.kind === 'tournament' ? '🏆' : '📁'}
+                      </div>
+                      <div className="cc-event-info">
+                        <div className="cc-event-title">{e.title}</div>
+                        <div className="cc-event-meta">
+                          {e.time ? formatTime12(e.time, e.time) : ''}{e.time && e.sub ? ' · ' : ''}{e.sub || ''}
+                        </div>
+                      </div>
+                      <div className="cc-event-tag">
+                        {e.kind === 'class' ? 'Live class' : e.kind === 'homework' ? 'Homework' : e.kind === 'puzzle' ? 'Puzzles' : e.kind === 'tournament' ? 'Tournament' : 'File'}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
 
             {/* agenda = a 7-column weekly board, one column per visible day */}
             {agenda && (

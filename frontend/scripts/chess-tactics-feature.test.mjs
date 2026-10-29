@@ -16,13 +16,15 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const read = (...p) => readFileSync(join(ROOT, ...p), 'utf8');
 
 const studentShell = read('src', 'components', 'StudentAppShell.jsx');
-const sidebar = read('src', 'components', 'Sidebar.jsx');
+/* The menu entries live in the shared sidebar config, not in Sidebar.jsx —
+   the component renders whatever config it is handed. */
+const sidebarConfigs = read('src', 'config', 'sidebarConfigs.js');
 const app = read('src', 'App.jsx');
 const featureAccess = read('src', 'pages', 'FeatureAccess.jsx');
 
 test('both menus expose Chess Tactics, gated on the same feature key', () => {
-  assert.match(sidebar, /to: '\/admin\/tactics'.*feature: 'chess_tactics'/);
-  assert.match(studentShell, /to: '\/student\/tactics'.*feature: 'chess_tactics'/);
+  assert.match(sidebarConfigs, /to: '\/admin\/tactics'.*feature: 'chess_tactics'/);
+  assert.match(sidebarConfigs, /to: '\/student\/tactics'.*feature: 'chess_tactics'/);
 });
 
 test('both shell routes are gated so a direct URL cannot bypass the switch', () => {

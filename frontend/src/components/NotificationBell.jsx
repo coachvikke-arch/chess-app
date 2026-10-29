@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from './Toast';
 import { matchRequestKey } from '../utils/toastDedupe';
+import { notificationTarget } from '../utils/notificationRoutes';
 import api from '../services/api';
 import { onNotification, on } from '../services/socket';
 import StudentAvatar from './StudentAvatar';
@@ -35,111 +36,6 @@ function notifMeta(n) {
   if (/(match request|request|invited|challeng)/.test(t)) return { icon: '⚔️', color: '#4f7dff' };
   if (/(game|review|analysis|result)/.test(t)) return { icon: '♟', color: '#ff7b7b' };
   return { icon: '🔔', color: '#a3a3a3' };
-}
-
-/**
- * Where tapping a notification should take you. Returns `{ to, state }` for
- * react-router.
- *
- * Every notification resolves to a real page — there is deliberately no `null`
- * return, because a tap that does nothing is the most annoying kind of dead
- * control. Resolution goes through three tiers, cheapest first:
- *
- *   1. `type`            – today only chat and match requests actually set this.
- *                          (The other typed cases below are forward-compat: no
- *                          controller writes them yet, and the `type` values used
- *                          by the activity feed and game-history API are NOT
- *                          notification types.)
- *   2. `#class-<id>`     – class reminders embed this token in the message.
- *   3. the title         – this is the tier that does the real work, because
- *                          classController, tournamentController,
- *                          authController and adminController all call a bare
- *                          `notify()` that writes `type = NULL`. Each rule
- *                          below matches a title written in exactly one place,
- *                          so the mapping is unambiguous.
- *
- * If all three somehow miss, it falls back to the role's dashboard — always a
- * real page, and far better than staying put.
- */
-function notifTarget(n, user) {
-  if (!n) return null;
-  const isAdmin = user?.role === 'admin' || user?.role === 'superadmin';
-  const base = isAdmin ? '/admin' : '/student';
-  const home = `${base}/dashboard`;
-  const id = Number(n.related_id);
-  const hasId = Number.isInteger(id) && id > 0;
-
-  switch (n.type) {
-    /* Chat. MessagesPage already accepts these state keys and clears them
-       after opening, so revisiting Messages won't re-open the thread. */
-    case 'message':
-      return hasId ? { to: `${base}/messages`, state: { openUserId: id } } : { to: `${base}/messages` };
-    case 'group_message':
-      return hasId ? { to: `${base}/messages`, state: { openGroupId: id } } : { to: `${base}/messages` };
-    /* related_id is a MESSAGE id here, not a person, so open the list only. */
-    case 'chat_reaction':
-      return { to: `${base}/messages` };
-    /* Online games / challenges are surfaced by the Analysis page — that is
-       where acceptGame/declineGame and "Challenge waiting" live. */
-    case 'match_request':
-      return { to: `${base}/analysis` };
-    /* Coach-approved chat requests. related_id is the REQUEST id, not a user
-       id, so it must NOT be passed as openUserId - that would try to open a
-       conversation with a request. Coaches land on their queue, and a student
-       has no queue, so they land on Messages where the People tab carries the
-       request buttons. */
-    case 'chat_request':
-      return isAdmin ? { to: `${base}/chat-requests` } : { to: `${base}/messages?tab=people` };
-
-    case 'assignment':
-      return { to: `${base}/assignments` };
-    case 'puzzle':
-      return { to: isAdmin ? `${base}/puzzle-listing` : `${base}/puzzles` };
-    case 'review':
-      return { to: `${base}/review` };
-    case 'tournament':
-      return hasId ? { to: `${base}/tournaments/${id}` } : { to: `${base}/tournaments` };
-    case 'announcement':
-      return { to: isAdmin ? `${base}/announcements` : '/announcements' };
-    case 'quiz':
-      return hasId ? { to: `/quizzes/${id}` } : home;
-    case 'class':
-    case 'lesson':
-      return isAdmin ? { to: `${base}/classes` } : { to: `${base}/live-meetings` };
-    default:
-      break;
-  }
-
-  /* Tier 2 — class reminders carry a routable class id in the body. */
-  const classToken = /#class-(\d+)/.exec(`${n.message || ''}`);
-  if (classToken) return { to: `/live-class/${classToken[1]}` };
-
-  /* Tier 3 — the real title strings written by the bare notify() calls. */
-  const t = `${n.title || ''} ${n.message || ''}`.toLowerCase();
-  if (!t.trim()) return { to: home, fallback: true };
-
-  /* These two are written ONLY by tournamentController, and carry no keyword
-     that says "tournament", so they are matched before the general rules. */
-  if (/(game result recorded|game finished)/.test(t)) return { to: `${base}/tournaments` };
-
-  if (/(tournament|registered for|you were added to)/.test(t)) {
-    return hasId ? { to: `${base}/tournaments/${id}` } : { to: `${base}/tournaments` };
-  }
-  if (/(class starting soon|class|meeting|live class)/.test(t)) {
-    return isAdmin ? { to: `${base}/classes` } : { to: `${base}/live-meetings` };
-  }
-  /* Credential/security notices are written only by authController and
-     adminController; Profile is where a user would go to secure their account. */
-  if (/(password|credential|sign-in|sign in|invalid)/.test(t)) return { to: `${base}/profile` };
-  if (/(welcome)/.test(t)) return { to: home };
-  if (/(assignment|homework)/.test(t)) return { to: `${base}/assignments` };
-  if (/(puzzle)/.test(t)) return { to: isAdmin ? `${base}/puzzle-listing` : `${base}/puzzles` };
-  if (/(announcement)/.test(t)) return { to: isAdmin ? `${base}/announcements` : '/announcements' };
-  if (/(message|chat|reacted)/.test(t)) return { to: `${base}/messages` };
-  if (/(leaderboard|rating|badge)/.test(t)) return { to: `${base}/leaderboard` };
-  if (/(attendance)/.test(t)) return { to: `${base}/attendance` };
-  if (/(review|analysis|game report)/.test(t)) return { to: `${base}/review` };
-  return { to: home, fallback: true };
 }
 
 /** Map a notification title to a toast tone (success / error / warning / info). */
@@ -231,7 +127,8 @@ export default function NotificationBell() {
   const navigate = useNavigate();
 
   /* Where the board lives for this role. Accepting a match request navigates
-     here, and it must match `notifTarget`'s base so an admin and a student both
+     here, and it must match `notificationTarget`'s base so an admin and a
+     student both
      land on the board that actually exists for them. */
   const boardBase = user?.role === 'admin' || user?.role === 'superadmin' ? '/admin' : '/student';
 
@@ -270,7 +167,23 @@ export default function NotificationBell() {
     console.log(`[toast-debug] CLAIM-SEEN notif-row id=${id} t=${new Date().toISOString()}`);
   }, []);
 
-  /** Show toasts for fresh (never-before-toasted) notifications. */
+  /** Mark one notification read: optimistic locally, persisted server-side. */
+  const markRead = useCallback((id) => {
+    api.put(`/notifications/${id}/read`, {}).catch(() => { });
+    setItems((prev) => prev.map((n) => (n.id === id ? { ...n, is_read: true } : n)));
+    setUnread((u) => Math.max(0, u - 1));
+  }, []);
+
+  /** Tapping a popup: mark the notification read and open the page its type
+   *  maps to (notificationRoutes.js holds the single type → route map). */
+  const openFromPopup = useCallback((n) => {
+    markRead(n.id);
+    const target = notificationTarget(n, user);
+    if (target?.to) navigate(target.to, target.state ? { state: target.state } : undefined);
+  }, [markRead, navigate, user]);
+
+  /** Every fresh notification (socket or fetched) surfaces as a clickable
+   *  popup that marks it read and navigates to its page. */
   const toastNew = useCallback((arr) => {
     const fresh = arr.filter((n) => !knownIds.current.has(n.id));
     if (fresh.length === 0) return;
@@ -278,21 +191,30 @@ export default function NotificationBell() {
     persistSeen();
 
     if (fresh.length > 5) {
-      // Too many at once — collapse into one summary instead of a wall of toasts.
-      showToast('Tap the bell to catch up on everything you missed.', {
+      // Too many at once — collapse into one summary instead of a wall of popups.
+      showToast('Tap to see everything you missed.', {
         tone: 'info',
         title: `${fresh.length} new notifications`,
+        placement: 'notification',
+        duration: 6000,
+        source: 'NotificationBell:notif_summary',
+        onClick: () => navigate(`${boardBase}/notifications`),
       });
       return;
     }
     // Oldest → newest so the most recent notification lands at the bottom (by the edge).
     fresh.slice().reverse().forEach((n) => {
-      showToast(n.message || 'Tap the bell to view the details.', {
+      showToast(n.message || 'Tap to open the details.', {
         tone: notifTone(n.title),
         title: n.title,
+        placement: 'notification',
+        duration: 6000,
+        dedupeKey: `notif:${n.id}`,
+        source: 'NotificationBell:notif_popup',
+        onClick: () => openFromPopup(n),
       });
     });
-  }, [showToast]);
+  }, [showToast, openFromPopup, navigate, boardBase]);
 
   /** Fetch the feed, update the list + badge, and surface fresh items as toasts. */
   const syncFeed = useCallback(() => {
@@ -367,21 +289,14 @@ export default function NotificationBell() {
     });
   }, [user, showToast, navigate]);
 
-  const markRead = (id) => {
-    api.put(`/notifications/${id}/read`, {});
-    setItems((prev) => prev.map((n) => (n.id === id ? { ...n, is_read: true } : n)));
-    setUnread((u) => Math.max(0, u - 1));
-  };
-
   /** Tap a notification: mark it read, then go to the section it belongs to.
-   *  Falls back to mark-read-only when no destination is trustworthy, and always
-   *  closes the panel so the page underneath is actually visible. */
+   *  Always closes the panel so the page underneath is actually visible. */
   const openNotification = useCallback((n) => {
     markRead(n.id);
-    const target = notifTarget(n, user);
+    const target = notificationTarget(n, user);
     if (target) navigate(target.to, target.state ? { state: target.state } : undefined);
     setOpen(false);
-  }, [navigate, user]);
+  }, [markRead, navigate, user]);
 
   /** Accept or decline an incoming match request from its notification card. */
   const actOnRequest = useCallback((n, action) => {
@@ -561,7 +476,7 @@ export default function NotificationBell() {
                   const read = n.is_read;
                   /* Only advertise a jump when there is a real destination, so the chevron
                      never appears on an item that just marks itself read. */
-                  const target = notifTarget(n, user);
+                  const target = notificationTarget(n, user);
 
                   // ── Match request cards: avatar + sender name + Accept / Decline actions ──
                   if (n.type === 'match_request') {

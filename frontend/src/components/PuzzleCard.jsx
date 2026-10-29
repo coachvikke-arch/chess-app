@@ -31,7 +31,7 @@ export function MiniBoard({ fen, width }) {
       /* Ornate themes are a marble texture, not two flat colours — without this
          the card would show a plainer board than the puzzle it opens. */
       customSquareStyles={ornateSquareStyles(boardTheme) || undefined}
-      customBoardStyle={themeStyles.boardStyle || { borderRadius: '10px', overflow: 'hidden', boxShadow: '0 8px 18px rgba(15,23,42,0.25)' }}
+      customBoardStyle={themeStyles.boardStyle || { borderRadius: '10px', overflow: 'hidden' }}
     />
   );
 }

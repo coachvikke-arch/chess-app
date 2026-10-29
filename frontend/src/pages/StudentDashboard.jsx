@@ -33,6 +33,22 @@ const W = 320;
 const H = 150;
 const PAD = 22;
 
+/** Local-date key (YYYY-MM-DD) — avoids the UTC off-by-one that `toISOString`
+ *  introduces for users east/west of Greenwich. */
+function dayKey(date) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+function shortDay(day) {
+  if (!day) return '';
+  const d = new Date(`${day}T00:00:00`);
+  if (Number.isNaN(d.getTime())) return day;
+  return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+}
+
 /** Build an SVG line/area series from [{day, value}] with gold dots + gradient area. */
 function TrendChart({ data, color = '#3b82f6' }) {
   const series = data.map((d) => ({ day: d.day, value: d.count ?? d.value ?? 0 }));
@@ -56,6 +72,10 @@ function TrendChart({ data, color = '#3b82f6' }) {
   const area = `${line} L ${pts[pts.length - 1].x} ${H - PAD} L ${pts[0].x} ${H - PAD} Z`;
   const id = color.replace('#', '');
 
+  /* A dot per day turns into a solid smear once the history spans months, so
+     only short series get every marker; longer ones keep the two endpoints. */
+  const dotEvery = n <= 40 ? 1 : 0;
+
   return (
     <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto" preserveAspectRatio="xMidYMid meet">
       <defs>
@@ -71,7 +91,9 @@ function TrendChart({ data, color = '#3b82f6' }) {
       <path d={area} fill={`url(#area-${id})`} />
       <path d={line} fill="none" stroke={color} strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />
       {pts.map((p, i) => (
-        <circle key={i} cx={p.x} cy={p.y} r={series.length === 1 ? 4 : 3.2} fill="#ffffff" stroke={color} strokeWidth="2" />
+        dotEvery === 0 && i !== 0 && i !== pts.length - 1 ? null : (
+          <circle key={i} cx={p.x} cy={p.y} r={series.length === 1 ? 4 : dotEvery ? 3.2 : 2.6} fill="#ffffff" stroke={color} strokeWidth="2" />
+        )
       ))}
       {series.length === 1 && (
         <text x={pts[0].x} y={pts[0].y - 10} textAnchor="middle" fontSize="10" fill={color} fontWeight="700">
@@ -82,62 +104,78 @@ function TrendChart({ data, color = '#3b82f6' }) {
   );
 }
 
-function lastDays(rows, key) {
+/** Daily series across the WHOLE history: first recorded day → today, with
+ *  empty days filled in so the line stays continuous. */
+function fullDailySeries(rows, key) {
+  if (!rows || rows.length === 0) return [];
   const map = {};
-  rows.forEach((r) => (map[r.day] = r[key] ?? 0));
+  let first = null;
+  rows.forEach((r) => {
+    const day = String(r.day || '').slice(0, 10);
+    if (!day) return;
+    map[day] = (map[day] || 0) + (Number(r[key]) || 0);
+    if (!first || day < first) first = day;
+  });
+  if (!first) return [];
+
   const out = [];
-  for (let i = 13; i >= 0; i--) {
-    const d = new Date();
-    d.setDate(d.getDate() - i);
-    const day = d.toISOString().slice(0, 10);
-    out.push({ day, value: map[day] ?? 0 });
+  const d = new Date(`${first}T00:00:00`);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  // Hard stop keeps a malformed row from looping forever.
+  let guard = 0;
+  while (d <= today && guard++ < 4000) {
+    const day = dayKey(d);
+    out.push({ day, value: map[day] || 0 });
+    d.setDate(d.getDate() + 1);
   }
   return out;
 }
 
 /**
- * Build a daily rating series for the last 14 days from an ASCENDING history
- * array. Days without a game carry the last known rating forward so the line
- * stays continuous.
+ * Build a daily rating series from the student's first recorded game until
+ * today, from an ASCENDING history array. Days without a game carry the last
+ * known rating forward so the line stays continuous.
  *
  * Returns an EMPTY ARRAY (not null) when there is no history — the caller
  * distinguishes "still loading" (null) from "this pool has no games" ([]). An
  * earlier version returned null for both, which left a pool the student has
  * never played showing an endless loading spinner.
  */
-function ratingSeriesLast14Days(history) {
+function ratingSeries(history) {
   if (!history || history.length === 0) return [];
+
   const byDay = {};
+  let first = null;
   history.forEach((h) => {
-    const d = String(h.played_at || '').slice(0, 10);
-    if (d) byDay[d] = Number(h.rating_after ?? h.rating ?? 0);
+    const day = String(h.played_at || '').slice(0, 10);
+    if (!day) return;
+    byDay[day] = Number(h.rating_after ?? h.rating ?? 0);
+    if (!first || day < first) first = day;
   });
+  if (!first) return [];
 
-  const threshold = new Date();
-  threshold.setDate(threshold.getDate() - 13);
-  threshold.setHours(0, 0, 0, 0);
-  const thresholdStr = threshold.toISOString().slice(0, 10);
-
-  // Seed with the most recent rating recorded before the window.
-  let carry = null;
-  history.forEach((h) => {
-    const d = String(h.played_at || '').slice(0, 10);
-    if (d < thresholdStr) carry = Number(h.rating_after ?? h.rating ?? 0);
-  });
+  // Start from this pool's first known rating (the "before" of its first game).
+  let carry = Number(
+    history[0].rating_before ?? history[0].rating_after ?? history[0].rating ?? 0
+  );
 
   const out = [];
-  for (let i = 13; i >= 0; i--) {
-    const d = new Date();
-    d.setDate(d.getDate() - i);
-    const day = d.toISOString().slice(0, 10);
+  const d = new Date(`${first}T00:00:00`);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  let guard = 0;
+  while (d <= today && guard++ < 4000) {
+    const day = dayKey(d);
     if (byDay[day] !== undefined) carry = byDay[day];
     out.push({ day, value: carry ?? 0 });
+    d.setDate(d.getDate() + 1);
   }
   return out;
 }
 
 /**
- * "Rating · Last 14 days" chart card (uses /students/ratings/me).
+ * "Rating · All time" chart card (uses /students/ratings/me?full=1).
  *
  * The four time-control pools are SEPARATE ELO pools, so drawing them on one
  * line produced a meaningless saw-tooth whenever a bullet game sat next to a
@@ -156,7 +194,7 @@ function RatingTrendCard() {
   useEffect(() => {
     if (user && user.role !== 'student') return;
     let cancelled = false;
-    api.get('/students/ratings/me', { cache: false })
+    api.get('/students/ratings/me?full=1', { cache: false })
       .then((res) => {
         if (!cancelled) setData(res.data || null);
       })
@@ -177,7 +215,7 @@ function RatingTrendCard() {
   /* Fall back to the combined `history` when the server predates the per-pool
      split — the card still works then, just unfiltered. */
   const rows = byClass ? (byClass[tc] || []) : (data?.history || []);
-  const series = data ? ratingSeriesLast14Days(rows) : null;
+  const series = data ? ratingSeries(rows) : null;
   const label = pools[tc]?.label || tc;
   /* `series` is null while the request is still in flight — the SAME null the
      render uses to pick the loading spinner. This used to read `series.length`
@@ -186,7 +224,7 @@ function RatingTrendCard() {
   const hasGames = !!series && series.length > 0 && series.some((d) => d.value !== 0);
 
   return (
-    <Card title="Rating · Last 14 days" piece="♚">
+    <Card title="Rating · All time" piece="♚">
       {error ? (
         <p className="text-sm chess-empty">{error}</p>
       ) : series === null ? (
@@ -224,14 +262,14 @@ function RatingTrendCard() {
 
           {!hasGames ? (
             <div className="h-[150px] grid place-items-center text-sm chess-empty">
-              No rated {label} games in the last 14 days.
+              No rated {label} games yet.
             </div>
           ) : (
             <>
               <TrendChart data={series} />
-              <div className="flex items-center justify-between text-xs text-ivory-500 mt-1">
-                <span>2 weeks ago</span>
-                <span>
+              <div className="flex items-center justify-between text-xs text-ivory-500 mt-1 gap-2">
+                <span>{shortDay(series[0].day)}</span>
+                <span className="text-center">
                   {label} · {series[series.length - 1].value}
                 </span>
                 <span>Today</span>
@@ -398,7 +436,7 @@ export default function StudentDashboard() {
   if (!data) return <Spinner />;
 
   const { profile, puzzles } = data;
-  const puzzleTrend = lastDays(data.puzzleTrend || [], 'attempts');
+  const puzzleTrend = fullDailySeries(data.puzzleTrend || [], 'attempts');
 
   const puzzleAttempted = Number(puzzles?.attempted ?? 0);
   const puzzleCorrect = Number(puzzles?.correct ?? 0);
@@ -580,10 +618,13 @@ export default function StudentDashboard() {
 
       {/* Live graphs */}
       <div className="grid md:grid-cols-2 gap-6 mb-8">
-        <Card title="Puzzles Attempted · Last 14 days" piece="♞">
+        <Card title="Puzzles Attempted · All time" piece="♞">
           <TrendChart data={puzzleTrend.map((d) => ({ day: d.day, count: d.value }))} color="#3b82f6" />
-          <div className="flex items-center justify-between text-xs text-ivory-500 mt-1">
-            <span>2 weeks ago</span>
+          <div className="flex items-center justify-between text-xs text-ivory-500 mt-1 gap-2">
+            <span>{puzzleTrend.length ? shortDay(puzzleTrend[0].day) : 'No activity'}</span>
+            <span className="text-center">
+              {puzzleTrend.reduce((sum, d) => sum + d.value, 0)} attempts
+            </span>
             <span>Today</span>
           </div>
         </Card>

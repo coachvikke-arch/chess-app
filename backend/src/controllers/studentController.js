@@ -12,6 +12,18 @@ const { isRecentlyMailed, markMailed, buildLoginUrl } = mailService;
 const { generateRecoveryCode, hashRecoveryCode } = require('../services/recoveryCode');
 const { normalisePhone } = require('../utils/phone');
 const bcrypt = require('bcryptjs');
+const fs = require('fs');
+const path = require('path');
+
+/* Uploaded photos are served straight from disk, so a photo replaced by an
+   avatar has to be removed here — nothing else ever deletes it. */
+function unlinkUploadedPhoto(profileImage) {
+  if (!profileImage) return;
+  const fileName = String(profileImage).split('/').pop();
+  if (!fileName) return;
+  const filePath = path.join(__dirname, '..', '..', 'uploads', fileName);
+  try { if (fs.existsSync(filePath)) fs.unlinkSync(filePath); } catch {}
+}
 
 // Get student record id for a given user id
 async function studentIdForUser(userId) {
@@ -507,10 +519,19 @@ exports.updateAvatar = async (req, res) => {
       userId = st.rows[0].user_id;
     }
 
-    await db.query(
-      'UPDATE users SET avatar_config = $1, updated_at = NOW() WHERE id = $2',
+    /* One image per profile: saving an avatar clears (and deletes) any uploaded
+       photo, so the two can never disagree about what is shown. */
+    const saved = await db.query(
+      `WITH previous AS (SELECT profile_image FROM users WHERE id = $2)
+       UPDATE users SET avatar_config = $1, profile_image = NULL, updated_at = NOW()
+         FROM previous
+        WHERE users.id = $2
+        RETURNING previous.profile_image AS previous_image`,
       [clean, userId]
     );
+    if (saved.rows.length === 0) return res.status(404).json({ message: 'Student not found' });
+
+    unlinkUploadedPhoto(saved.rows[0].previous_image);
     res.json({ avatar_config: clean });
   } catch (err) {
     console.error(err);
@@ -518,7 +539,7 @@ exports.updateAvatar = async (req, res) => {
   }
 };
 
-// Remove the custom avatar so the seeded default (or the uploaded photo) shows.
+// Remove the custom avatar so nothing but the default placeholder shows.
 // Same self ('me') / admin (numeric student id) resolution as updateAvatar.
 exports.resetAvatar = async (req, res) => {
   try {
@@ -532,10 +553,17 @@ exports.resetAvatar = async (req, res) => {
       userId = st.rows[0].user_id;
     }
 
-    await db.query(
-      'UPDATE users SET avatar_config = NULL, updated_at = NOW() WHERE id = $1',
+    const result = await db.query(
+      `WITH previous AS (SELECT profile_image FROM users WHERE id = $1)
+       UPDATE users SET avatar_config = NULL, profile_image = NULL, updated_at = NOW()
+         FROM previous
+        WHERE users.id = $1
+        RETURNING previous.profile_image AS previous_image`,
       [userId]
     );
+    if (result.rows.length === 0) return res.status(404).json({ message: 'Student not found' });
+
+    unlinkUploadedPhoto(result.rows[0].previous_image);
     res.json({ avatar_config: null });
   } catch (err) {
     console.error(err);
@@ -759,7 +787,6 @@ exports.getDashboard = async (req, res) => {
                 COUNT(*)::int AS attempts,
                 COUNT(*) FILTER (WHERE result = 'correct')::int AS correct
          FROM puzzle_attempts WHERE student_id = $1
-           AND attempted_at >= CURRENT_DATE - INTERVAL '13 days'
          GROUP BY 1 ORDER BY 1`,
         [studentId]
       ),
