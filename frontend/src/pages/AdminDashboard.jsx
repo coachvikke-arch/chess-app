@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../services/api';
 import { PageHeader, Card, Chip } from '../components/ui';
-import DashboardTournaments from '../features/tournaments/DashboardTournaments';
 import {
   LineChart, BarChart, PctBar, DonutChart, DonutLegend,
   CompareBars, rollingWinRateSeries, gamesPerMonth,
@@ -102,378 +101,316 @@ export default function AdminDashboard() {
     labels: activityData.map((d) => d.date),
   }), [activityData]);
 
+  /* Colour only — the values are the same fields as before. The dashboard is a
+     blue-and-white page, so the series read as steps of one blue rather than
+     traffic-light greens and reds. */
   const assignmentChart = useMemo(() => {
     const total = aData.total_assigned || 0;
     return [
-      { label: 'Assigned', value: total, color: '#60a5fa' },
-      { label: 'Submitted', value: aData.submitted || 0, color: '#22c55e' },
-      { label: 'Graded', value: aData.graded || 0, color: '#3b82f6' },
-      { label: 'Overdue', value: aData.overdue || 0, color: '#ef4444' },
+      { label: 'Assigned', value: total, color: '#2563eb' },
+      { label: 'Submitted', value: aData.submitted || 0, color: '#3b82f6' },
+      { label: 'Graded', value: aData.graded || 0, color: '#8fb1e8' },
+      { label: 'Overdue', value: aData.overdue || 0, color: '#bfd4f2' },
     ];
   }, [aData]);
 
   const chessChart = useMemo(() => {
     const total = cData.totalGames || 0;
     return [
-      { label: 'Wins', value: cData.whiteWins || 0, color: '#22c55e' },
-      { label: 'Draws', value: cData.draws || 0, color: '#64748b' },
-      { label: 'Losses', value: cData.blackWins || 0, color: '#ef4444' },
+      { label: 'Wins', value: cData.whiteWins || 0, color: '#2563eb' },
+      { label: 'Draws', value: cData.draws || 0, color: '#8fb1e8' },
+      { label: 'Losses', value: cData.blackWins || 0, color: '#bfd4f2' },
     ];
   }, [cData]);
 
+  /* ── Attendance column chart geometry (presentation only) ──
+     Reads the rows the page already fetched and turns them into a bar height
+     per day. The scale tops out at a round multiple of 4 so the four grid
+     lines land on whole percentages; no value is invented or smoothed. */
+  const attendanceChart = useMemo(() => {
+    const rows = attData.data || [];
+    const values = rows.map((d) => Number(d.attendance_rate) || 0);
+    const hi = Math.max(8, Math.ceil(Math.max(...values, 0) / 4) * 4);
+    const ticks = [4, 3, 2, 1, 0].map((i) => Math.round((hi * i) / 4));
+    const labelStep = Math.max(1, Math.ceil(rows.length / 8));
+    return {
+      ticks,
+      columns: rows.map((d, i) => ({
+        key: d.date || `day-${i}`,
+        date: d.date,
+        value: values[i],
+        pct: (values[i] / hi) * 100,
+        showLabel: i % labelStep === 0 || i === rows.length - 1,
+      })),
+    };
+  }, [attData]);
+
   if (loading) {
     return (
-      <PageHeader title="Admin Dashboard" icon="♕" subtitle="Your command center — see the whole board at a glance.">
-        <div className="flex items-center justify-center h-64"><span className="text-ivory-500">Loading…</span></div>
+      <PageHeader title="Admin Dashboard" icon="♕" subtitle="Your command center — see the whole board at a glance." className="adb-page">
+        <div className="adb"><div className="adb-loading">Loading…</div></div>
       </PageHeader>
     );
   }
 
   if (error) {
     return (
-      <PageHeader title="Admin Dashboard" icon="♕" subtitle="Your command center — see the whole board at a glance.">
-        <div className="chess-card p-8 text-center">
-          <p className="chess-error">{error}</p>
-          <Button type="button" onClick={fetchAll} variant="primary" size="md" className="mt-4">Retry</Button>
+      <PageHeader title="Admin Dashboard" icon="♕" subtitle="Your command center — see the whole board at a glance." className="adb-page">
+        <div className="adb">
+          <div className="chess-card adb-error">
+            <p className="chess-error">{error}</p>
+            <Button type="button" onClick={fetchAll} variant="primary" size="md" className="adb-error-btn">Retry</Button>
+          </div>
         </div>
       </PageHeader>
     );
   }
 
   return (
-    <PageHeader title="Admin Dashboard" icon="♕" subtitle="Your command center — see the whole board at a glance.">
-      <div className="space-y-6">
-        {/* ── Header row: date range + refresh ── */}
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <h2 className="text-lg font-display font-semibold text-ivory-100">Admin Dashboard</h2>
-            <p className="text-ivory-500 text-sm">{APP_NAME}</p>
+    <PageHeader title="Admin Dashboard" icon="♕" subtitle="Your command center — see the whole board at a glance." className="adb-page">
+      <div className="adb">
+        {/* ── Header row: title + date range + refresh ── */}
+        <div className="adb-head">
+          <div className="adb-head-left">
+            <h2 className="adb-title">Admin Dashboard</h2>
+            <p className="adb-brand">{APP_NAME}</p>
           </div>
 
-          <div className="flex items-center gap-2">
-            <span className="text-ivory-500 text-sm">Data range:</span>
-            <div className="flex flex-wrap gap-1">
+          <div className="adb-head-right">
+            <span className="adb-range-label">Data range:</span>
+            <div className="adb-range">
               {['7', '30', '90'].map((d) => (
                 <button
                   key={d}
                   type="button"
                   onClick={() => setRange(d)}
-                  className={`chess-chip ${range === d ? 'chess-chip-gold' : ''}`}
+                  className={range === d ? 'adb-range-btn adb-range-btn--on' : 'adb-range-btn'}
                 >
                   Last {d} Days
                 </button>
               ))}
-              <Button
-                type="button"
-                onClick={fetchAll}
-                variant="secondary" size="sm" className="!px-3 !py-1.5 text-xs flex items-center gap-1 transition"
-              >
-                <span>⟳</span> Refresh
-              </Button>
             </div>
+            <Button type="button" onClick={fetchAll} variant="secondary" size="sm" className="adb-refresh">
+              <span aria-hidden="true">⟳</span> Refresh
+            </Button>
           </div>
         </div>
 
-        {/* ── Tournaments (live from /api/tournaments) ── */}
-        <DashboardTournaments role="admin" />
-
         {/* ── Row 1: Key metrics ── */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-          <Card className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs text-ivory-500 uppercase tracking-wider">Total Students</p>
-                <p className="text-2xl font-display font-bold text-ivory-100">{o.totalStudents || 0}</p>
-              </div>
-              <div className="w-10 h-10 rounded-lg bg-gold-500/10 flex items-center justify-center text-gold-400">
-                ♙
-              </div>
+        <div className="adb-stat-grid">
+          <Card className="adb-stat">
+            <div className="adb-stat-text">
+              <p className="adb-stat-label">Total Students</p>
+              <p className="adb-stat-value">{o.totalStudents || 0}</p>
             </div>
+            <span className="adb-stat-icon" aria-hidden="true">♙</span>
           </Card>
-          <Card className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs text-ivory-500 uppercase tracking-wider">Active Students (30d)</p>
-                <p className="text-2xl font-display font-bold text-ivory-100">{o.activeStudents || 0}</p>
-              </div>
-              <div className="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center text-blue-600">
-                ♖
-              </div>
+          <Card className="adb-stat">
+            <div className="adb-stat-text">
+              <p className="adb-stat-label">Active Students (30d)</p>
+              <p className="adb-stat-value">{o.activeStudents || 0}</p>
             </div>
+            <span className="adb-stat-icon" aria-hidden="true">♖</span>
           </Card>
-          <Card className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs text-ivory-500 uppercase tracking-wider">Assignments</p>
-                <p className="text-2xl font-display font-bold text-ivory-100">{aData.total_assigned || 0}</p>
-              </div>
-              <div className="w-10 h-10 rounded-lg bg-purple-50 flex items-center justify-center text-purple-600">
-                ✍
-              </div>
+          <Card className="adb-stat">
+            <div className="adb-stat-text">
+              <p className="adb-stat-label">Assignments</p>
+              <p className="adb-stat-value">{aData.total_assigned || 0}</p>
             </div>
+            <span className="adb-stat-icon" aria-hidden="true">✍</span>
           </Card>
-          <Card className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs text-ivory-500 uppercase tracking-wider">Puzzle Attempts</p>
-                <p className="text-2xl font-display font-bold text-ivory-100">{pData.total_attempts || 0}</p>
-              </div>
-              <div className="w-10 h-10 rounded-lg bg-amber-50 flex items-center justify-center text-amber-700">
-                🧩
-              </div>
+          <Card className="adb-stat">
+            <div className="adb-stat-text">
+              <p className="adb-stat-label">Puzzle Attempts</p>
+              <p className="adb-stat-value">{pData.total_attempts || 0}</p>
             </div>
+            <span className="adb-stat-icon" aria-hidden="true">🧩</span>
           </Card>
-          <Card className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs text-ivory-500 uppercase tracking-wider">Games Played</p>
-                <p className="text-2xl font-display font-bold text-ivory-100">{cData.totalGames || 0}</p>
-              </div>
-              <div className="w-10 h-10 rounded-lg bg-red-50 flex items-center justify-center text-red-700">
-                ♟
-              </div>
+          <Card className="adb-stat">
+            <div className="adb-stat-text">
+              <p className="adb-stat-label">Games Played</p>
+              <p className="adb-stat-value">{cData.totalGames || 0}</p>
             </div>
+            <span className="adb-stat-icon" aria-hidden="true">♟</span>
           </Card>
         </div>
 
-        {/* ── Row 2: Charts ── */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Student activity line chart */}
-          <Card className="p-6">
-            <h3 className="chess-card-title mb-4">
-              <span className="chess-card-piece">📈</span>
-              <span className="flex-1">Student Activity</span>
+        {/* ── Student activity trend, full width ── */}
+        <Card className="adb-card">
+          <h3 className="adb-card-title">
+            <span className="adb-card-icon" aria-hidden="true">📈</span>
+            <span>Student Activity</span>
+          </h3>
+          <LineChart
+            points={activityChart.points}
+            labels={activityChart.labels.map(fmtDate)}
+            height={160}
+            stroke="#2563eb"
+            maxLabels={8}
+          />
+          <p className="adb-caption">
+            Unique students with any activity (attendance, puzzle attempt, assignment submission) per day.
+          </p>
+        </Card>
+
+        {/* ── Row 2: Assignments, puzzles and games ── */}
+        <div className="adb-grid3">
+          <Card className="adb-card">
+            <h3 className="adb-card-title">
+              <span className="adb-card-icon" aria-hidden="true">✍</span>
+              <span>Assignment Progress</span>
             </h3>
-            <div className="h-[200px] w-full">
-              <LineChart points={activityChart.points} labels={activityChart.labels} height={160} stroke="#19bdf2" />
-            </div>
-            <p className="text-xs text-ivory-500 mt-2">
-              Unique students with any activity (attendance, puzzle attempt, assignment submission) per day.
+            <CompareBars rows={assignmentChart} />
+            <p className="adb-foot">
+              <span>Completion</span>
+              <strong>{aData.completion_rate || 0}%</strong>
             </p>
           </Card>
 
-          {/* Assignment progress stacked bar */}
-          <Card className="p-6">
-            <h3 className="chess-card-title mb-4">
-              <span className="chess-card-piece">✍</span>
-              <span className="flex-1">Assignment Progress</span>
+          <Card className="adb-card">
+            <h3 className="adb-card-title">
+              <span className="adb-card-icon" aria-hidden="true">🧩</span>
+              <span>Puzzle Training</span>
             </h3>
-            <div className="h-[200px] w-full">
-              <BarChart items={assignmentChart} height={160} />
-            </div>
-            <div className="mt-4 grid grid-cols-4 gap-4 text-xs">
-              <div className="flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-blue-500"></span>
-                <span className="text-ivory-300">Submitted: {aData.submitted || 0}</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-green-500"></span>
-                <span className="text-ivory-300">Graded: {aData.graded || 0}</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-red-500"></span>
-                <span className="text-ivory-300">Overdue: {aData.overdue || 0}</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-ivory-700/30"></span>
-                <span className="text-ivory-300">Completion: {aData.completion_rate || 0}%</span>
-              </div>
-            </div>
-          </Card>
-        </div>
-
-        {/* ── Row 3: Puzzle & Chess analytics ── */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Puzzle donut */}
-          <Card className="p-6">
-            <h3 className="chess-card-title mb-4">
-              <span className="chess-card-piece">🧩</span>
-              <span className="flex-1">Puzzle Training</span>
-            </h3>
-            <div className="flex flex-col items-center justify-center h-[200px]">
-              <DonutChart
-                segments={[
-                  { key: 'correct', label: 'Correct', value: pData.correct_attempts || 0, color: '#22c55e' },
-                  { key: 'incorrect', label: 'Incorrect', value: Math.max(0, (pData.total_attempts || 0) - (pData.correct_attempts || 0)), color: '#ef4444' },
-                ]}
-                size={160}
-                thickness={24}
-                centerValue={pData.success_rate || 0}
-                centerLabel="% correct"
-              />
-            </div>
-            <div className="mt-4 grid grid-cols-3 gap-2 text-xs">
-              <div className="flex items-center gap-1.5">
-                <span className="text-ivory-500">Attempts:</span>
-                <span className="text-ivory-100 font-semibold">{pData.total_attempts || 0}</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <span className="text-ivory-500">Puzzles:</span>
-                <span className="text-ivory-100 font-semibold">{pData.unique_puzzles || 0}</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <span className="text-ivory-500">Students:</span>
-                <span className="text-ivory-100 font-semibold">{pData.unique_students || 0}</span>
-              </div>
+            <DonutChart
+              segments={[
+                { key: 'correct', label: 'Correct', value: pData.correct_attempts || 0, color: '#2563eb' },
+                { key: 'incorrect', label: 'Incorrect', value: Math.max(0, (pData.total_attempts || 0) - (pData.correct_attempts || 0)), color: '#bfd4f2' },
+              ]}
+              size={140}
+              thickness={20}
+              centerValue={`${pData.success_rate || 0}%`}
+              centerLabel="correct"
+            />
+            <div className="adb-pair-grid">
+              <p className="adb-pair"><span>Attempts</span><strong>{pData.total_attempts || 0}</strong></p>
+              <p className="adb-pair"><span>Puzzles</span><strong>{pData.unique_puzzles || 0}</strong></p>
+              <p className="adb-pair"><span>Students</span><strong>{pData.unique_students || 0}</strong></p>
             </div>
             {pData.top_themes && pData.top_themes.length > 0 && (
-              <div className="mt-4">
-                <p className="text-xs text-ivory-500 uppercase tracking-wider mb-2">Top Themes</p>
+              <div className="adb-themes">
+                <p className="adb-subhead">Top Themes</p>
                 <DonutLegend segments={pData.top_themes.map((t) => ({
                   key: t.theme,
                   label: t.theme,
                   value: t.attempts,
-                  color: t.attempts > 0 ? '#19bdf2' : '#64748b',
+                  color: t.attempts > 0 ? '#2563eb' : '#bfd4f2',
                 }))} />
               </div>
             )}
           </Card>
 
-          {/* Chess performance donut */}
-          <Card className="p-6">
-            <h3 className="chess-card-title mb-4">
-              <span className="chess-card-piece">♟</span>
-              <span className="flex-1">Chess Performance</span>
+          <Card className="adb-card">
+            <h3 className="adb-card-title">
+              <span className="adb-card-icon" aria-hidden="true">♟</span>
+              <span>Chess Performance</span>
             </h3>
-            <div className="flex flex-col items-center justify-center h-[200px]">
-              <DonutChart
-                segments={[
-                  { key: 'white', label: 'Wins', value: cData.whiteWins || 0, color: '#22c55e' },
-                  { key: 'draw', label: 'Draws', value: cData.draws || 0, color: '#64748b' },
-                  { key: 'black', label: 'Losses', value: cData.blackWins || 0, color: '#ef4444' },
-                ]}
-                size={160}
-                thickness={24}
-                centerValue={cData.totalGames || 0}
-                centerLabel="Games"
-              />
-            </div>
-            <div className="mt-4 grid grid-cols-4 gap-2 text-xs">
-              <div className="flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-green-500"></span>
-                <span className="text-ivory-300">Wins: {cData.whiteWins || 0}</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-gray-500"></span>
-                <span className="text-ivory-300">Draws: {cData.draws || 0}</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-red-500"></span>
-                <span className="text-ivory-300">Losses: {cData.blackWins || 0}</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <span className="text-ivory-500">Win %:</span>
-                <span className="text-ivory-100 font-semibold">{cData.totalDecisive > 0 ? cData.whiteWinRate : 0}%</span>
-              </div>
-            </div>
+            <p className="adb-big-number">{cData.totalGames || 0}</p>
+            <p className="adb-big-label">Games</p>
+            <CompareBars rows={chessChart} />
+            <p className="adb-foot">
+              <span>Win %</span>
+              <strong>{cData.totalDecisive > 0 ? cData.whiteWinRate : 0}%</strong>
+            </p>
           </Card>
         </div>
 
-        {/* ── Row 3b: Attendance ── */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <Card className="p-6">
-            <h3 className="chess-card-title mb-4">
-              <span className="chess-card-piece">📊</span>
-              <span className="flex-1">Attendance</span>
+        {/* ── Row 3: Attendance trend + what needs a coach's attention ── */}
+        <div className="adb-grid-bottom">
+          <Card className="adb-card">
+            <h3 className="adb-card-title">
+              <span className="adb-card-icon" aria-hidden="true">📊</span>
+              <span>Attendance</span>
             </h3>
-            <div className="h-[200px] w-full">
-              <LineChart
-                points={attData.data.map((d, i) => ({ x: i, value: d.attendance_rate || 0 }))}
-                labels={attData.data.map((d) => d.date)}
-                height={160}
-                stroke="#22c55e"
-                format={(v) => `${v}%`}
-              />
+            <div className="adb-bars">
+              <div className="adb-bars-y" aria-hidden="true">
+                {attendanceChart.ticks.map((t, i) => (
+                  <span key={t} className="adb-bars-tick" style={{ top: `${(i / (attendanceChart.ticks.length - 1)) * 100}%` }}>
+                    {t}%
+                  </span>
+                ))}
+              </div>
+              <div className="adb-bars-plot" role="img" aria-label={`Attendance rate per day, ${attendanceChart.columns.length} days`}>
+                {attendanceChart.columns.map((c) => (
+                  <span
+                    key={c.key}
+                    className="adb-bar"
+                    style={{ height: `${c.pct}%` }}
+                    title={`${fmtDate(c.date)} · ${c.value}%`}
+                  />
+                ))}
+              </div>
+              <div className="adb-bars-x" aria-hidden="true">
+                {attendanceChart.columns.map((c) => (
+                  <span key={c.key} className="adb-bars-xslot">{c.showLabel ? fmtDate(c.date) : ''}</span>
+                ))}
+              </div>
             </div>
-            <div className="mt-4 grid grid-cols-4 gap-4 text-xs">
-              <div className="flex items-center gap-1.5">
-                <span className="text-ivory-500">Rate:</span>
-                <span className="text-ivory-100 font-semibold">{attData.overall?.attendanceRate || 0}%</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <span className="text-ivory-500">Present:</span>
-                <span className="text-ivory-100 font-semibold">{attData.overall?.present || 0}</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <span className="text-ivory-500">Absent:</span>
-                <span className="text-ivory-100 font-semibold">{attData.overall?.absent || 0}</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <span className="text-ivory-500">Late:</span>
-                <span className="text-ivory-100 font-semibold">{attData.overall?.late || 0}</span>
-              </div>
+            <div className="adb-quad-grid">
+              <p className="adb-quad"><span>Rate</span><strong>{attData.overall?.attendanceRate || 0}%</strong></p>
+              <p className="adb-quad"><span>Present</span><strong>{attData.overall?.present || 0}</strong></p>
+              <p className="adb-quad"><span>Absent</span><strong>{attData.overall?.absent || 0}</strong></p>
+              <p className="adb-quad"><span>Late</span><strong>{attData.overall?.late || 0}</strong></p>
             </div>
           </Card>
 
           {/* Actionable overview: Needs Attention */}
-          <Card className="p-6">
-            <h3 className="chess-card-title mb-4">
-              <span className="chess-card-piece">⚠</span>
-              <span className="flex-1">Needs Attention</span>
+          <Card className="adb-card">
+            <h3 className="adb-card-title">
+              <span className="adb-card-icon" aria-hidden="true">⚠</span>
+              <span>Needs Attention</span>
             </h3>
-            <div className="space-y-3">
+            <div className="adb-notes">
               {aData.overdue && aData.overdue > 0 ? (
-                <div className="flex items-center justify-between p-3 rounded-lg bg-red-500/10 border border-red-500/20">
+                <div className="adb-note adb-note--warn">
                   <div>
-                    <p className="text-sm font-medium text-ivory-100">Overdue Assignments</p>
-                    <p className="text-xs text-ivory-500">{aData.overdue} assignment(s) past due date without submission</p>
+                    <p className="adb-note-title">Overdue Assignments</p>
+                    <p className="adb-note-body">{aData.overdue} assignment(s) past due date without submission</p>
                   </div>
-                  <Link to="/admin/assignments" className="text-xs text-gold-400 font-medium hover:underline">View →</Link>
+                  <Link to="/admin/assignments" className="adb-note-link">View →</Link>
                 </div>
               ) : (
-                <div className="flex items-center justify-between p-3 rounded-lg bg-green-500/10 border border-green-500/20">
-                  <span className="text-sm text-emerald-700">✓ No overdue assignments</span>
-                </div>
+                <p className="adb-note adb-note--ok"><span className="adb-note-check" aria-hidden="true">✓</span> No overdue assignments</p>
               )}
               {pData.total_attempts && pData.total_attempts > 0 && pData.success_rate < 50 ? (
-                <div className="flex items-center justify-between p-3 rounded-lg bg-red-500/10 border border-red-500/20">
+                <div className="adb-note adb-note--warn">
                   <div>
-                    <p className="text-sm font-medium text-ivory-100">Low Puzzle Success Rate</p>
-                    <p className="text-xs text-ivory-500">{pData.success_rate}% average — students may need easier puzzles or hints</p>
+                    <p className="adb-note-title">Low Puzzle Success Rate</p>
+                    <p className="adb-note-body">{pData.success_rate}% average — students may need easier puzzles or hints</p>
                   </div>
-                  <Link to="/admin/puzzle-listing" className="text-xs text-gold-400 font-medium hover:underline">Review →</Link>
+                  <Link to="/admin/puzzle-listing" className="adb-note-link">Review →</Link>
                 </div>
               ) : (
-                <div className="flex items-center justify-between p-3 rounded-lg bg-green-500/10 border border-green-500/20">
-                  <span className="text-sm text-emerald-700">✓ Puzzle engagement healthy</span>
-                </div>
+                <p className="adb-note adb-note--ok"><span className="adb-note-check" aria-hidden="true">✓</span> Puzzle engagement healthy</p>
               )}
               {attData.overall && attData.overall.attendanceRate < 70 ? (
-                <div className="flex items-center justify-between p-3 rounded-lg bg-red-500/10 border border-red-500/20">
+                <div className="adb-note adb-note--warn">
                   <div>
-                    <p className="text-sm font-medium text-ivory-100">Low Attendance</p>
-                    <p className="text-xs text-ivory-500">{attData.overall.attendanceRate}% average — consider reaching out to absent students</p>
+                    <p className="adb-note-title">Low Attendance</p>
+                    <p className="adb-note-body">{attData.overall.attendanceRate}% average — consider reaching out to absent students</p>
                   </div>
-                  <Link to="/admin/attendance" className="text-xs text-gold-400 font-medium hover:underline">View →</Link>
+                  <Link to="/admin/attendance" className="adb-note-link">View →</Link>
                 </div>
               ) : (
-                <div className="flex items-center justify-between p-3 rounded-lg bg-green-500/10 border border-green-500/20">
-                  <span className="text-sm text-emerald-700">✓ Attendance healthy</span>
-                </div>
+                <p className="adb-note adb-note--ok"><span className="adb-note-check" aria-hidden="true">✓</span> Attendance healthy</p>
               )}
               {aData.total_assigned && aData.submitted === 0 ? (
-                <div className="flex items-center justify-between p-3 rounded-lg bg-amber-500/10 border border-amber-500/20">
+                <div className="adb-note adb-note--warn">
                   <div>
-                    <p className="text-sm font-medium text-ivory-100">No Submissions Yet</p>
-                    <p className="text-xs text-ivory-500">{aData.total_assigned} assignment(s) have zero submissions</p>
+                    <p className="adb-note-title">No Submissions Yet</p>
+                    <p className="adb-note-body">{aData.total_assigned} assignment(s) have zero submissions</p>
                   </div>
-                  <Link to="/admin/assignments" className="text-xs text-gold-400 font-medium hover:underline">Review →</Link>
+                  <Link to="/admin/assignments" className="adb-note-link">Review →</Link>
                 </div>
               ) : null}
               {!aData.total_assigned && (
-                <div className="flex items-center justify-between p-3 rounded-lg bg-ivory-700/10 border border-ivory-700/20">
-                  <span className="text-sm text-ivory-500">No assignments created yet</span>
-                </div>
+                <p className="adb-note">No assignments created yet</p>
               )}
               {attData.overall && attData.overall.total === 0 && (
-                <div className="flex items-center justify-between p-3 rounded-lg bg-ivory-700/10 border border-ivory-700/20">
-                  <span className="text-sm text-ivory-500">No attendance data recorded yet</span>
-                </div>
+                <p className="adb-note">No attendance data recorded yet</p>
               )}
               {cData.totalGames === 0 && (
-                <div className="flex items-center justify-between p-3 rounded-lg bg-ivory-700/10 border border-ivory-700/20">
-                  <span className="text-sm text-ivory-500">No completed games recorded yet</span>
-                </div>
+                <p className="adb-note">No completed games recorded yet</p>
               )}
             </div>
           </Card>

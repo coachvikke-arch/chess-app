@@ -19,8 +19,8 @@
 
   /* ── Tournaments palette, promoted to global tokens ───────────────────── */
   --tn-bg: #ffffff;
-  --tn-bg2: #f8fafc;
-  --tn-panel: #f1f5f9;
+  --tn-bg2: #ffffff;
+  --tn-panel: #f8fafc;
   --tn-panel2: #e2e8f0;
   --tn-line: #cbd5e1;
   --tn-blue: #2563eb;
@@ -33,8 +33,8 @@
   --tn-amber: #d97706;
 
   /* ── Existing ramps, re-pointed at the light theme ────────────────────── */
-  --ink-950: #f1f5f9;   /* app canvas */
-  --ink-900: #f8fafc;   /* subtle inset surface */
+  --ink-950: #ffffff;   /* app canvas */
+  --ink-900: #ffffff;   /* subtle inset surface */
   --ink-800: #ffffff;   /* cards / panels / popovers */
   --ink-700: #e2e8f0;   /* light borders and inset rows */
   --ink-600: #cbd5e1;
@@ -65,11 +65,11 @@
 /* ── base ─────────────────────────────────────────────────────────────────── */
 
 html {
-  background: #f1f5f9;
+  background: #ffffff;
 }
 
 body {
-  background: #f1f5f9;
+  background: #ffffff;
   color: #1e293b;
 }
 
@@ -86,45 +86,42 @@ body {
   height: 10px;
 }
 ::-webkit-scrollbar-track {
-  background: #f1f5f9;
+  background: #ffffff;
 }
 ::-webkit-scrollbar-thumb {
   background: #cbd5e1;
   border-radius: 8px;
-  border: 2px solid #f1f5f9;
+  border: 2px solid #ffffff;
 }
 ::-webkit-scrollbar-thumb:hover {
   background: #94a3b8;
 }
 
-/* The decorative board art was cyan-on-ice-blue. Keep the texture, drop the
-   tint so every page sits on the same near-white canvas as Tournaments. */
+/* The page sits on flat white: the board-art wash, the grid texture and the
+   floating-piece glow are decorative layers over what is meant to be a plain
+   surface, so they are dropped. The elements stay in the DOM (their mount
+   points are shared) — only the painting is removed. */
 .chess-bg {
-  background:
-    radial-gradient(1100px 700px at 82% -10%, rgba(37, 99, 235, 0.06), transparent 60%),
-    radial-gradient(900px 620px at 5% 110%, rgba(59, 130, 246, 0.05), transparent 55%),
-    linear-gradient(160deg, #f8fafc, #f1f5f9);
+  background: #ffffff;
 }
 .chess-bg-grid {
-  background:
-    repeating-conic-gradient(rgba(255, 255, 255, 0.35) 0% 25%, rgba(37, 99, 235, 0.04) 0% 50%),
-    repeating-conic-gradient(rgba(37, 99, 235, 0.025) 0% 12.5%, transparent 0% 25%);
+  background: none;
 }
 .chess-bg-piece {
-  color: rgba(37, 99, 235, 0.28);
-  text-shadow: 0 0 22px rgba(37, 99, 235, 0.12);
+  color: rgba(37, 99, 235, 0.18);
+  text-shadow: none;
 }
 .chess-bg-vignette {
-  background: radial-gradient(ellipse at center, transparent 65%, rgba(148, 163, 184, 0.12));
+  background: none;
 }
 
 /* ── app shell ───────────────────────────────────────────────────────────── */
 
 .admin-shell {
-  background: #f1f5f9;
+  background: #ffffff;
 }
 .admin-content {
-  background: #f1f5f9;
+  background: #ffffff;
 }
 .admin-content::-webkit-scrollbar-thumb {
   background: #cbd5e1;
@@ -153,41 +150,63 @@ body {
 
 /* ── navigation (landing header, public bar, app top bar) ────────────────── */
 
-/* The top navigation is the only dark surface in the light app: a slate-900
-   chrome band with a 3px blue rule along its bottom edge. The page canvas
-   (#f1f5f9) and its white .chess-page cards stay light, so the bar, the
-   canvas and the cards read as three separate surfaces. */
+/* The top bar is white like the rest of the app, separated from the page by a
+   hairline and the 3px blue accent rule. Its children were written for a dark
+   chrome (white / slate-200 / blue-300 labels, translucent-white hovers), so
+   those are re-mapped here instead of editing every header component. */
 .nav-glass {
-  background: #0f172a;
-  border-bottom: 1px solid #1e293b;
+  background: #ffffff;
+  border-bottom: 1px solid #e2e8f0;
   box-shadow:
     inset 0 -3px 0 #2563eb,
-    0 10px 24px -16px rgba(2, 6, 23, 0.7);
+    0 1px 2px rgba(15, 23, 42, 0.04);
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
-  color: #e2e8f0;
+  color: #0f172a;
 }
 
+/* The phone-height override matched the desktop bar; keep it identical. */
 @media (max-width: 767px) {
   .nav-glass-phone-white {
-    background: #0f172a !important;
-    border-bottom: 1px solid #1e293b;
+    background: #ffffff !important;
+    border-bottom: 1px solid #e2e8f0;
     box-shadow: inset 0 -3px 0 #2563eb;
   }
 }
 
-/* Hover tints inside the dark bar are translucent white, never a light fill. */
-.nav-glass [class*="hover:bg-white/"]:hover {
-  background-color: rgba(255, 255, 255, 0.12);
+/* Labels that were pale-on-dark are ink / muted / accent on white. */
+.nav-glass .text-white {
+  color: #0f172a;
+}
+.nav-glass .text-slate-200,
+.nav-glass .text-slate-300 {
+  color: #475569;
+}
+.nav-glass .text-blue-300 {
+  color: #2563eb;
+}
+.nav-glass .hover\:text-white:hover {
+  color: #2563eb;
 }
 
-/* White labels that sit on a saturated chip inside the now-white bar (the
-   unread count, the avatar) still need to be white, so the nav's dark-ink
-   defaults must never win there. */
-.nav-glass .bg-red-500,
-.nav-glass .bg-blue-600,
-.nav-glass .bg-gradient-to-br {
+/* Hover fills use the light blue tint, not translucent white. */
+.nav-glass [class*="hover:bg-white/"]:hover {
+  background-color: #eff6ff;
+}
+
+/* White text still belongs on a saturated chip — the unread count, the avatar
+   circle. These are declared after the ink defaults above so they win on equal
+   specificity and keep those labels legible. */
+.nav-glass .bg-red-500.text-white,
+.nav-glass .bg-red-600.text-white,
+.nav-glass .bg-blue-600.text-white,
+.nav-glass .bg-gradient-to-br.text-white {
   color: #ffffff;
+}
+
+/* The account chip is a white pill on a now-white bar: give it a visible edge. */
+.nav-glass .bg-white.border-slate-300 {
+  border-color: #cbd5e1;
 }
 
 /* ── page surface ────────────────────────────────────────────────────────── */
@@ -222,8 +241,7 @@ body {
 }
 
 /* Gradient headlines rendered transparent on white. Solid ink is the
-   Tournaments treatment and is readable everywhere — except in the dark top
-   bar, where the same words need a light blue fill. */
+   Tournaments treatment; inside the top bar the brand words take the accent. */
 .chess-gradient-text {
   background: none !important;
   -webkit-background-clip: border-box !important;
@@ -235,8 +253,8 @@ body {
   background: none !important;
   -webkit-background-clip: border-box !important;
   background-clip: border-box !important;
-  color: #bfdbfe !important;
-  -webkit-text-fill-color: #bfdbfe;
+  color: #2563eb !important;
+  -webkit-text-fill-color: #2563eb;
 }
 
 .chess-link,
@@ -1763,6 +1781,300 @@ tbody tr:hover {
   background: #fef2f2;
   border-color: #fecaca;
   color: #b91c1c;
+}
+
+/* ── pure-white pass: the interface surfaces that were still dark ────────── */
+
+/* Anything that paints a dark panel, or a light-on-dark control, outside the
+   page/card rules above. Chess-board semantics deliberately stay dark: the
+   board frame and plinth (.chess-board-frame / .rem-outer), the black-square
+   swatches, black-piece dots, the eval bar's black half, and the certificate
+   artwork are all representations of the game or a printed document, not
+   application chrome. */
+
+/* Ask-quiz / drill picker. Base is near-black, the live-room copy is cream and
+   gold; both become the white + blue card the rest of the app uses. */
+.live-drill-modal,
+.live-room .live-drill-modal {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  box-shadow: 0 18px 44px rgba(15, 23, 42, 0.16);
+}
+.live-drill-modal-title,
+.live-room .live-drill-modal-title {
+  color: #0f172a;
+}
+.live-drill-modal-x,
+.live-room .live-drill-modal-x {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  color: #475569;
+}
+.live-drill-modal-x:hover,
+.live-room .live-drill-modal-x:hover {
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+.live-drill-search,
+.live-drill-config input,
+.live-drill-config select,
+.live-room .live-drill-search,
+.live-room .live-drill-config input,
+.live-room .live-drill-config select {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  color: #0f172a;
+}
+.live-drill-search:focus,
+.live-drill-config input:focus,
+.live-drill-config select:focus,
+.live-room .live-drill-search:focus,
+.live-room .live-drill-config input:focus,
+.live-room .live-drill-config select:focus {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.14);
+}
+.live-drill-config select option,
+.live-room .live-drill-config select option {
+  background: #ffffff;
+  color: #0f172a;
+}
+.live-drill-search-label,
+.live-room .live-drill-search-label {
+  color: #64748b;
+}
+.live-drill-field,
+.live-room .live-drill-field {
+  color: #475569;
+}
+.live-drill-result {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+}
+.live-drill-result:hover {
+  border-color: #93c5fd;
+  background: #f8fafc;
+}
+.live-drill-result-on {
+  border-color: #2563eb;
+  background: #eff6ff;
+}
+.live-drill-result-title {
+  color: #0f172a;
+}
+.live-drill-result-sub {
+  color: #64748b;
+}
+.live-drill-preview {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+}
+.live-room .live-drill-preview {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+}
+.live-room .live-drill-breadcrumb-all,
+.live-room .live-drill-breadcrumb-sep,
+.live-room .live-drill-breadcrumb-name {
+  color: #64748b;
+}
+.live-room .live-drill-breadcrumb-name {
+  color: #1d4ed8;
+}
+.live-drill-modal-backdrop {
+  background: rgba(15, 23, 42, 0.4);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+.live-room .live-drill-modal-backdrop {
+  background: rgba(15, 23, 42, 0.4);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+/* Spectate: match header band and the sticky score-sheet header. */
+.spec-card {
+  background: #ffffff;
+  color: #0f172a;
+}
+.spec-head {
+  background: #ffffff;
+}
+.spec-score-head {
+  background: #ffffff;
+  border-bottom: 1px solid #e2e8f0;
+  color: #64748b;
+}
+
+/* Video tiles: no camera feed means an empty frame, which reads better as a
+   light placeholder than a black rectangle on a white page. Labels move to a
+   solid light chip so they stay legible over any feed behind them. */
+.live-vtile {
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+}
+.live-vtile-placeholder {
+  background: #f1f5f9;
+}
+.live-vtile-novideo {
+  color: #64748b;
+}
+.live-vtile-avatar {
+  background: #2563eb;
+  color: #ffffff;
+}
+.live-vtile-micbadge {
+  background: #ffffff;
+  color: #475569;
+  border: 1px solid #e2e8f0;
+}
+.live-vtile-name {
+  background: #ffffff;
+  color: #0f172a;
+  border-top: 1px solid #e2e8f0;
+}
+.live-vtile-host {
+  color: #1d4ed8;
+  border-color: #bfdbfe;
+  background: #eff6ff;
+}
+.live-vtile-actions button {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  color: #334155;
+}
+.live-vtile-actions button:hover {
+  background: #eff6ff;
+  color: #1d4ed8;
+  filter: none;
+}
+
+/* GM viewer: the score-sheet header band is opaque (it is sticky) and the
+   player-initials tiles were dark navy. */
+.gm-score-head {
+  background: #ffffff;
+  color: #64748b;
+  border-bottom: 1px solid #e2e8f0;
+}
+.gm-score-head .is-white,
+.gm-admin-game-modal .gm-score-head .is-white {
+  color: #0f172a;
+}
+.gm-score-head .is-black,
+.gm-admin-game-modal .gm-score-head .is-black {
+  color: #475569;
+}
+.gm-admin-game-modal .gm-score-head {
+  background: #ffffff;
+  color: #64748b;
+  border-bottom: 1px solid #e2e8f0;
+}
+.gm-player-avatar,
+.gm-profile-avatar {
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  color: #1d4ed8;
+}
+.chat-drawer-header {
+  background: #ffffff !important;
+  color: #0f172a !important;
+  border-bottom: 1px solid #e2e8f0;
+}
+.gm-admin-game-modal .gm-score::-webkit-scrollbar-thumb,
+.gm-catalog-scroll::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+}
+.gm-admin-game-modal .gm-score::-webkit-scrollbar-thumb:hover,
+.gm-catalog-scroll::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* PGN block and the rating-chart tooltip were console-dark. */
+.pg-pgn {
+  background: #f8fafc;
+  color: #0f172a;
+  border: 1px solid #e2e8f0;
+}
+.tr-chart-tip {
+  background: #ffffff;
+  color: #0f172a;
+  border: 1px solid #cbd5e1;
+  box-shadow: 0 10px 26px rgba(15, 23, 42, 0.16);
+}
+
+/* Overall-champion ribbon on the leaderboard podium. */
+.lb-champ {
+  background: #eff6ff;
+  color: #1d4ed8;
+  border: 1px solid #bfdbfe;
+}
+
+/* ── one accent: the cyan/teal actives join the blue ramp ────────────────── */
+
+.set-switch:checked {
+  background: #2563eb;
+  border-color: #2563eb;
+}
+.set-switch:focus-visible {
+  outline-color: #2563eb;
+}
+.online-pick-check {
+  background: #2563eb;
+  color: #ffffff;
+}
+.live-move-chip-current,
+.live-move-chip-current:hover,
+.live-move-chip-readonly.live-move-chip-current:hover,
+.pvp-play-move-current,
+.pvp-play-move-current:hover {
+  background: #2563eb;
+  color: #ffffff;
+}
+.cc-filter-pill.is-active {
+  background: #2563eb;
+  border-color: #2563eb;
+  color: #ffffff;
+}
+.cc-filter-pill.is-active:hover {
+  background: #1d4ed8;
+  border-color: #1d4ed8;
+}
+.analysis-progress div,
+.gr-accbar-fill,
+.pg-progress-fill {
+  background: #2563eb;
+}
+
+/* Gradient-clipped headings render as pale washes on white; solid ink or solid
+   accent is what stays readable. */
+.game-over-title,
+.party-acc-num {
+  background: none;
+  -webkit-background-clip: border-box;
+  background-clip: border-box;
+  -webkit-text-fill-color: currentColor;
+  color: #2563eb;
+}
+
+/* Promotion pill: it labels a board square, so it keeps a solid fill but joins
+   the accent ramp and loses the teal glow. */
+.pfx-badge {
+  background: #2563eb;
+  color: #ffffff;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.28);
+}
+
+/* Drop shadows cast by the white bar's floating panels were near-black; on a
+   white page a soft ink shadow reads as depth without the heaviness. */
+#landing-nav nav {
+  background-color: #ffffff;
+  border-top-color: #e2e8f0;
+  box-shadow: 0 12px 24px -14px rgba(15, 23, 42, 0.28);
+}
+.notif-panel {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 18px 40px -18px rgba(15, 23, 42, 0.28);
 }
 
 /* ── motion: keep gameplay, drop decorative loops ────────────────────────── */

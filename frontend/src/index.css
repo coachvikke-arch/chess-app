@@ -6735,6 +6735,518 @@ body {
   }
 }
 
+/* ── Admin dashboard ────────────────────────────────────────────────────────
+   Blue on white, nothing else: one accent, one tint, one hairline. Every rule
+   is scoped under .adb-page, because the dashboard borrows .chess-card, the
+   shared tournament cards and the report chart primitives (.cp-*), all of which
+   other pages still render in their own skin. Where a chart paints with an SVG
+   presentation attribute (grid lines, marker fill, donut track) a CSS selector
+   is the only way to recolour it without touching the shared component. */
+.adb-page {
+  --adb-blue: #2563eb;
+  --adb-ink: #0f172a;
+  --adb-muted: #64748b;
+  --adb-line: #e3e8f0;
+  --adb-tint: #eaf1ff;
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  font-size: 14px;
+  color: var(--adb-ink);
+  background: #ffffff;
+}
+.adb-page .font-display,
+.adb-page .chess-page-title,
+.adb-page .chess-page-sub,
+.adb-page .chess-card-title,
+.adb-page .chess-chip {
+  font-family: inherit;
+}
+.adb-page .chess-page-head {
+  border-bottom: 1px solid var(--adb-line);
+}
+.adb-page .chess-page-title {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--adb-ink);
+}
+.adb-page .chess-page-sub {
+  font-size: 12.5px;
+  color: var(--adb-muted);
+}
+.adb-page .chess-card,
+.adb-page .chess-card-hover:hover {
+  background: #ffffff;
+  border: 1px solid var(--adb-line);
+  border-radius: 12px;
+  box-shadow: none;
+  padding: 16px;
+}
+.adb-page .chess-card-hover:hover {
+  transform: none;
+  border-color: var(--adb-line);
+}
+.adb-page .chess-card::before {
+  display: none;
+}
+
+.adb {
+  display: grid;
+  gap: 16px;
+}
+
+/* headings: the page icon becomes a small tinted square, same shape in every
+   card, so a row of cards reads as one surface rather than eight fonts. */
+.adb-card-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 12px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--adb-ink);
+}
+.adb-card-icon {
+  flex: none;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--adb-tint);
+  color: var(--adb-blue);
+  font-size: 13px;
+}
+.adb-card {
+  height: 100%;
+}
+.adb-card > .chess-card {
+  height: 100%;
+}
+
+/* header row */
+.adb-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+}
+.adb-title {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--adb-ink);
+}
+.adb-brand {
+  margin: 3px 0 0;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--adb-muted);
+}
+.adb-head-right {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+.adb-range-label {
+  font-size: 13px;
+  color: var(--adb-muted);
+}
+/* one connected box: the three ranges share a single border and hairline
+   dividers, so the control reads as one choice rather than three buttons. */
+.adb-range {
+  display: inline-flex;
+  border: 1px solid var(--adb-line);
+  border-radius: 6px;
+  overflow: hidden;
+  background: #ffffff;
+}
+.adb-range-btn {
+  border: 0;
+  border-right: 1px solid var(--adb-line);
+  background: #ffffff;
+  color: var(--adb-muted);
+  font: inherit;
+  font-size: 12.5px;
+  padding: 7px 12px;
+  cursor: pointer;
+}
+.adb-range-btn:last-child {
+  border-right: 0;
+}
+.adb-range-btn:hover {
+  background: var(--adb-tint);
+  color: var(--adb-blue);
+}
+.adb-range-btn:focus-visible {
+  outline: 2px solid var(--adb-blue);
+  outline-offset: -2px;
+}
+.adb-range-btn--on,
+.adb-range-btn--on:hover {
+  background: var(--adb-blue);
+  color: #ffffff;
+}
+.adb-refresh {
+  border-radius: 10px !important;
+  font-family: inherit;
+}
+
+/* stat cards */
+.adb-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 12px;
+}
+.adb-stat {
+  height: 100%;
+}
+.adb-stat > .chess-card {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 14px 16px;
+}
+.adb-stat-text {
+  min-width: 0;
+}
+.adb-stat-label {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--adb-muted);
+}
+.adb-stat-value {
+  margin: 2px 0 0;
+  font-size: 26px;
+  font-weight: 600;
+  line-height: 1.15;
+  color: var(--adb-ink);
+  font-variant-numeric: tabular-nums;
+}
+.adb-stat-icon {
+  flex: none;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--adb-tint);
+  color: var(--adb-blue);
+  font-size: 17px;
+}
+
+/* chart plumbing — line, donut, comparison bars */
+.adb-page .cp-chart line {
+  stroke: var(--adb-line);
+}
+.adb-page .cp-chart-tick {
+  font-size: 11px;
+  font-weight: 500;
+  fill: var(--adb-muted);
+}
+/* the area under the line is a gradient wash; on a 20px-tall card it reads as
+   a smear, so the trend keeps only its 2px stroke. */
+.adb-page .cp-chart path[fill^='url('] {
+  display: none;
+}
+.adb-page .cp-chart circle:not([fill='transparent']) {
+  fill: #ffffff;
+}
+.adb-page .cp-chart-empty {
+  border: 1px solid var(--adb-line);
+  border-radius: 10px;
+  color: var(--adb-muted);
+  font-size: 12.5px;
+}
+.adb-page .cp-donut {
+  justify-content: flex-start;
+}
+.adb-page .cp-donut svg circle:not([stroke-dasharray]) {
+  stroke: var(--adb-line);
+}
+.adb-page .cp-donut-value {
+  font-size: 20px;
+  font-weight: 600;
+  fill: var(--adb-ink);
+}
+.adb-page .cp-donut-label {
+  font-size: 11px;
+  font-weight: 500;
+  fill: var(--adb-muted);
+}
+.adb-page .cp-donut-legend {
+  gap: 6px;
+}
+.adb-page .cp-donut-legend-label {
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--adb-muted);
+}
+.adb-page .cp-donut-legend-value {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--adb-ink);
+}
+.adb-page .cp-donut-legend-value em {
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--adb-muted);
+}
+.adb-page .cp-compare-bars {
+  gap: 10px;
+}
+.adb-page .cp-compare-row {
+  grid-template-columns: 5.5rem minmax(0, 1fr) 3rem;
+  gap: 10px;
+}
+.adb-page .cp-compare-name {
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--adb-muted);
+}
+.adb-page .cp-compare-track {
+  height: 6px;
+  border-radius: 6px;
+  background: var(--adb-line);
+}
+.adb-page .cp-compare-fill {
+  border-radius: 6px;
+}
+.adb-page .cp-compare-val {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--adb-ink);
+}
+
+/* label / value lines under the charts */
+.adb-foot,
+.adb-pair,
+.adb-quad {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--adb-muted);
+}
+.adb-foot strong,
+.adb-pair strong,
+.adb-quad strong {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--adb-ink);
+  font-variant-numeric: tabular-nums;
+}
+.adb-foot {
+  margin-top: 14px;
+  padding-top: 10px;
+  border-top: 1px solid var(--adb-line);
+}
+.adb-pair-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 16px;
+  margin-top: 14px;
+  padding-top: 10px;
+  border-top: 1px solid var(--adb-line);
+}
+.adb-quad-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 14px;
+  padding-top: 10px;
+  border-top: 1px solid var(--adb-line);
+}
+.adb-big-number {
+  margin: 0;
+  font-size: 30px;
+  font-weight: 600;
+  line-height: 1.1;
+  color: var(--adb-ink);
+  font-variant-numeric: tabular-nums;
+}
+.adb-big-label {
+  margin: 0 0 12px;
+  font-size: 12.5px;
+  color: var(--adb-muted);
+}
+.adb-caption {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: var(--adb-muted);
+}
+.adb-themes {
+  margin-top: 14px;
+  padding-top: 10px;
+  border-top: 1px solid var(--adb-line);
+}
+.adb-subhead {
+  margin: 0 0 6px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--adb-muted);
+}
+
+/* attendance column chart — grid lines from the same four steps the y-axis
+   labels carry, so the two can never drift apart. */
+.adb-bars {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  column-gap: 8px;
+  row-gap: 4px;
+}
+.adb-bars-y {
+  position: relative;
+  width: 30px;
+  height: 150px;
+}
+.adb-bars-tick {
+  position: absolute;
+  right: 0;
+  transform: translateY(-50%);
+  font-size: 11px;
+  line-height: 1;
+  color: var(--adb-muted);
+  font-variant-numeric: tabular-nums;
+}
+.adb-bars-plot {
+  position: relative;
+  height: 150px;
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  border-bottom: 1px solid var(--adb-line);
+  background-image: repeating-linear-gradient(to bottom, var(--adb-line) 0 1px, transparent 1px 25%);
+}
+.adb-bar {
+  flex: 1 1 0;
+  min-width: 0;
+  border-radius: 3px 3px 0 0;
+  background: var(--adb-blue);
+}
+.adb-bars-x {
+  grid-column: 2;
+  display: flex;
+  gap: 4px;
+}
+.adb-bars-xslot {
+  flex: 1 1 0;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-align: center;
+  font-size: 10.5px;
+  color: var(--adb-muted);
+}
+
+/* needs attention */
+.adb-notes {
+  display: grid;
+  gap: 10px;
+}
+.adb-note {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--adb-line);
+  border-radius: 10px;
+  background: #ffffff;
+  font-size: 13px;
+  color: var(--adb-muted);
+}
+.adb-note-check {
+  margin-right: 6px;
+  font-weight: 700;
+  color: var(--adb-blue);
+}
+.adb-note--warn {
+  background: var(--adb-tint);
+  border-left: 3px solid var(--adb-blue);
+}
+.adb-note-title {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--adb-ink);
+}
+.adb-note-body {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: var(--adb-muted);
+}
+.adb-note-link {
+  flex: none;
+  padding: 6px 10px;
+  border: 1px solid var(--adb-blue);
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--adb-blue);
+  text-decoration: none;
+}
+.adb-note-link:hover {
+  background: var(--adb-blue);
+  color: #ffffff;
+}
+
+/* layout rows */
+.adb-grid3 {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+.adb-grid-bottom {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+  gap: 12px;
+}
+
+.adb-loading {
+  padding: 40px 0;
+  text-align: center;
+  font-size: 13px;
+  color: var(--adb-muted);
+}
+.adb-error {
+  text-align: center;
+}
+.adb-page .chess-error {
+  color: var(--adb-muted);
+}
+.adb-error-btn {
+  margin-top: 12px;
+}
+
+@media (max-width: 860px) {
+  .adb-stat-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .adb-grid3,
+  .adb-grid-bottom {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+@media (max-width: 520px) {
+  .adb-head-right {
+    width: 100%;
+  }
+  .adb-quad-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 /* ── Class report sheet (ClassDetailModal) ──────────────────────────────────
    Horizontal by construction: header row, an auto-fit row of summary cards and
    one bordered card of roster rows. Every track is a grid/flex cell with
