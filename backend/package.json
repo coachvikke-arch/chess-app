@@ -65,7 +65,10 @@
     "db:puzzle-generator": "node run_migration_puzzle_generator.js",
     "db:board-vision": "node run_migration_board_vision.js",
     "import:lichess": "node scripts/importLichessPuzzles.js",
-    "test:puzzle-detectors": "node --test scripts/test-puzzle-detectors.js"
+    "test:puzzle-detectors": "node --test scripts/test-puzzle-detectors.js",
+    "db:offline-attendance": "node run_migration.js migrations/add_offline_attendance_markers.sql",
+    "test:offline-attendance": "node --test scripts/test-offline-attendance-markers.mjs scripts/test-offline-attendance-admin.mjs",
+    "test:class-list-exclude-status": "node --test scripts/test-class-list-exclude-status.mjs"
   },
   "dependencies": {
     "adm-zip": "^0.6.1",

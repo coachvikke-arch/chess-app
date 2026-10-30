@@ -91,7 +91,7 @@ export default function ClassDetailModal({ classId, initial, onClose, manageHist
             </h3>
             {data && (
               <p className="cdm-dateline">
-                <span>{fmtDate(data.class_date)}</span>
+                <span className="cdm-date">{fmtDate(data.class_date)}</span>
                 <span>·</span>
                 <span>
                   {data.end_time

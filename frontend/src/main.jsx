@@ -7,6 +7,10 @@ import { PermissionProvider } from './context/PermissionContext.jsx';
 import { SidebarOrderProvider } from './context/SidebarOrderContext.jsx';
 import { ChatProvider } from './context/ChatContext.jsx';
 import { SoundProvider } from './context/SoundContext.jsx';
+/* The toast provider has to sit above the router's pages: every page and the
+   chat composer call useToast(), and without it that call returns null and
+   destructuring it throws on first use. */
+import { ToastProvider } from './components/Toast.jsx';
 import './index.css';
 /* Certificates module styles. After index.css so it can rely on the same custom
    properties and shared .chess-* classes. */
@@ -30,7 +34,9 @@ ReactDOM.createRoot(document.getElementById('root')).render(
               {/* Outermost inside the router: the sound preference is app-wide, so */}
               {/* every board and settings surface reads the same value. */}
               <SoundProvider>
-                <App />
+                <ToastProvider>
+                  <App />
+                </ToastProvider>
               </SoundProvider>
             </ChatProvider>
           </SidebarOrderProvider>

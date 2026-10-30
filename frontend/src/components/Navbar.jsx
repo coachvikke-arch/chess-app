@@ -5,6 +5,7 @@ import NotificationBell from './NotificationBell';
 import { homeForRole, isAdminRole } from '../utils/roles';
 import { APP_NAME, APP_NAME_SHORT } from '../config/brand';
 import Button from './Button';
+import Logo from './Logo';
 
 /* Site links. These are rendered by the landing-page header only (see
    App.jsx `landingNavLinks`); the in-app Navbar deliberately shows no
@@ -30,11 +31,11 @@ export default function Navbar({ hideLinks = false }) {
     <header className="nav-glass sticky top-0">
       <div className="max-w-7xl mx-auto flex items-center justify-between gap-2 px-3 sm:px-4 py-3">
         <Link to={logoLink} aria-label={APP_NAME} className="flex items-center gap-2 sm:gap-2.5 group min-w-0">
-          <span className="text-2xl piece-glyph-spin text-blue-300" aria-hidden="true">♞</span>
-          <span className="font-bold text-sm sm:text-base md:text-lg font-display text-white truncate">
-            <span className="sm:hidden">{APP_NAME_SHORT}</span>
-            <span className="hidden sm:inline">{APP_NAME}</span>
-          </span>
+          <Logo
+            alt="Mate Zone Chess Academy"
+            height={44}
+            className="shrink-0"
+          />
         </Link>
 
         {/* No section links here on purpose — the Courses / Openings / About /

@@ -93,6 +93,7 @@
     "@livekit/components-react": "^2.0.0",
     "axios": "^1.7.4",
     "chess.js": "^1.0.0",
+    "gsap": "^3.15.0",
     "html-to-image": "^1.11.13",
     "html2canvas": "^1.4.1",
     "jspdf": "^4.2.1",

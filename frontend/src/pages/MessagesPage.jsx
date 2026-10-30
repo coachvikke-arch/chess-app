@@ -14,6 +14,12 @@ import usePageTitle from '../hooks/usePageTitle';
 import { useFullHeight } from '../context/FullHeightContext';
 import { listContacts, createGroup, addGroupMembers, removeGroupMember, updateGroupAvatar } from '../utils/chat';
 import ChatRequestButton from '../components/ChatRequestButton';
+import AdminChatRequestButton from '../components/AdminChatRequestButton';
+import {
+  isAdminChannelPair,
+  adminChannelStatusLabel,
+  adminChannelRowCopy,
+} from '../utils/chatAdminRequests';
 import StudentAvatar from '../components/StudentAvatar';
 import Button from '../components/Button';
 import { useToast } from '../components/Toast';
@@ -315,17 +321,36 @@ export default function MessagesPage() {
   const [requestTarget, setRequestTarget] = useState(null);
   const { showToast } = useToast();
 
+  /* The directory by user id. Declared before the row handlers because a 403 from
+     the server has to be read back against the row it came from: "this pair needs
+     a request" means the coach/learner flow or the peer flow, and only the peer's
+     role in the contact list says which. */
+  const contactById = useMemo(
+    () => new Map((chat.contacts || []).map((u) => [Number(u.id), u])),
+    [chat.contacts]
+  );
+
   /* Open a conversation from a row tap. openThread() rejects when the server
-     disagrees with the list (approval revoked since the list loaded) or the
-     network drops — without this catch the tap silently does nothing, which
-     reads as "the row is not clickable". A 403 drops into the request flow
-     like the deep-link path does; anything else gets an error toast. */
+     disagrees with the list (a request withdrawn or an allocation changed since
+     the list loaded) or the network drops — without this catch the tap silently
+     does nothing, which reads as "the row is not clickable".
+     A 403 is a state, not a crash, so it re-renders the row's own flow: a peer
+     pair drops into the request panel like the deep-link path does, and a
+     coach/learner pair is explained in place, because that channel is opened by
+     the button beside the row and never by this panel. Anything else gets an
+     error toast. */
   const openRowConversation = useCallback((id, name, stayOnTab) => {
     setTab('inbox');
     Promise.resolve(chat.openThread(Number(id))).catch((err) => {
       if (err?.response?.status === 403) {
         setTab(stayOnTab);
-        setRequestTarget({ id: Number(id), name: err.response.data?.message || name || 'This user' });
+        const message = err.response.data?.message || name || 'This user';
+        const peer = contactById.get(Number(id));
+        if (isAdminChannelPair(user?.role, peer?.role)) {
+          showToast(message, { tone: 'info', title: 'Chat not open yet' });
+          return;
+        }
+        setRequestTarget({ id: Number(id), name: message });
         return;
       }
       showToast(err.response?.data?.message || 'Could not open this chat. Check your connection and try again.', {
@@ -333,7 +358,7 @@ export default function MessagesPage() {
         title: 'Chat failed to open',
       });
     });
-  }, [chat, showToast]);
+  }, [chat, showToast, contactById, user?.role]);
 
   /* Keep the URL in step with the visible tab, so a reload — or a shared link —
      lands on the same panel, and Back returns to the inbox. */
@@ -414,11 +439,6 @@ export default function MessagesPage() {
   const openSheet = useCallback((m, scope, mine, canModerate) =>
     setSheetFor({ messageId: m.id, scope, mine, canModerate, reactions: m.reactions || [] }), []);
 
-  const contactById = useMemo(
-    () => new Map((chat.contacts || []).map((u) => [Number(u.id), u])),
-    [chat.contacts]
-  );
-
   const {
     threadFor, messages, conversations, contacts, searchQuery,
     groups, groupUnreadByGroup, activeGroupId, groupMessages, activeGroup, activeGroupMembers,
@@ -497,6 +517,31 @@ export default function MessagesPage() {
   }, [conversations, groups, groupUnreadByGroup]);
   const groupItems = inboxItems.groups;
   const dmItems = inboxItems.dms;
+
+  /* The People list is alphabetical, because that is how a directory is scanned —
+     with one exception: a request that is waiting on THIS caller goes first. A
+     coach who opens People is there to answer it, and making them find it in a
+     list of forty students turns a one-tap decision into a search.
+     Partitioned rather than sorted, so the server's own name order is preserved
+     for every row that is not a decision. Display-only: the unread badge, the
+     preview and the search all keep working off the same payload. */
+  const peopleRows = useMemo(() => {
+    const list = contacts || [];
+    return [...list.filter((u) => u.canDecideAdminRequest), ...list.filter((u) => !u.canDecideAdminRequest)];
+  }, [contacts]);
+
+  /* An empty directory means different things to each role, and the honest one is
+     "nobody is allocated to you yet", not "no matches" with an empty box. */
+  const peopleEmptyCopy = useMemo(() => {
+    if (searchQuery) return `No matches for "${searchQuery}".`;
+    if (user?.role === 'student') {
+      return 'No coach allocated yet. Ask the academy to assign a coach, and they will appear here.';
+    }
+    if (user?.role === 'admin') {
+      return 'No students allocated yet. The students you coach will appear here.';
+    }
+    return 'Nobody else in the academy yet.';
+  }, [searchQuery, user?.role]);
 
   const renderInboxRow = (it) => {
     const unread = Number(it.unread || 0);
@@ -810,56 +855,87 @@ export default function MessagesPage() {
                   className="w-full bg-ink-900 border border-ivory-700/30 rounded-lg px-3.5 py-2.5 text-base text-ivory-300 placeholder:text-ivory-600 outline-none focus:border-gold-500/60 transition" />
               </div>
               <div className="flex-1 min-h-0 overflow-y-auto chat-scroll chat-scroll-thin">
-                {contacts.length === 0 ? (
-                  <p className="px-4 py-10 text-center text-sm text-ivory-500">No matches for "{searchQuery}".</p>
-                ) : contacts.map((u) => {
+                {peopleRows.length === 0 ? (
+                  <p className="px-4 py-10 text-center text-sm text-ivory-500">{peopleEmptyCopy}</p>
+                ) : peopleRows.map((u) => {
                   const online = isOnline(u.id);
-                  /* canMessage comes from the server's listContacts payload. When
-                     it is false the row still exists (the user is real and
-                     searchable) but it opens a request prompt instead of a
-                     thread, so a blocked contact is visibly blocked rather than
-                     silently failing after the click. */
-                  const canMessage = u.canMessage !== false;
-                  const blocked = !canMessage;
+                  /* canMessage and chatState come from the server's listContacts
+                     payload. When canMessage is false the row still exists (the
+                     user is real and searchable) but it does not open a thread, so
+                     a blocked contact is visibly blocked rather than silently
+                     failing after the click. */
+                  const blocked = u.canMessage === false;
+                  /* Two request flows share this row and neither can use the
+                     other's controls: the peer queue is answered by a panel that
+                     replaces the thread area, the coach/learner channel by the
+                     button beside the row. Which one applies is the pair's roles,
+                     read from the same rule the backend uses. */
+                  const adminPair = isAdminChannelPair(user?.role, u.role);
+                  const asCoachView = user?.role === 'admin';
+                  const adminChip = adminPair && blocked && u.chatState !== 'accepted';
                   return (
-                    <button key={u.id} type="button" onClick={() => {
-                      if (blocked) { setRequestTarget(u); return; }
-                      openRowConversation(Number(u.id), u.name, 'people');
-                    }}
-                      className={"w-full flex items-center gap-3 px-4 py-3.5 text-left transition " + (blocked ? 'opacity-70 hover:bg-slate-50' : 'hover:bg-slate-100')}>
-                      <span className="relative shrink-0">
-                        <PersonAvatar u={u} name={u.name} size={48} />
-                        <span className={"online-dot absolute -bottom-0.5 -right-0.5 ring-2 ring-ink-800 " + (online ? 'online-dot-on' : '')} />
-                      </span>
-                      <span className="min-w-0 flex-1">
-                        <span className="flex items-center justify-between gap-2">
-                          <span className="text-base font-bold text-ivory-300 truncate">{u.name}</span>
-                          <span className="flex shrink-0 items-center gap-1.5">
-                            {u.chatState === 'pending' && (
-                              <span className="chess-chip chess-chip-amber text-[10px]">Pending</span>
-                            )}
-                            {u.chatState === 'rejected' && (
-                              <span className="chess-chip chess-chip-red text-[10px]">Rejected</span>
-                            )}
-                            {u.chatState === 'cancelled' && (
-                              <span className="chess-chip text-[10px]">Cancelled</span>
-                            )}
-                            {u.chatState === 'none' && (
-                              <span className="chess-chip text-[10px]">Request</span>
-                            )}
-                            <span className="text-[10px] uppercase tracking-wide px-2 py-0.5 rounded-md bg-gold-500/15 text-gold-400 font-bold">{u.role}</span>
+                    <div key={u.id}
+                      className={"flex items-center gap-2 px-4 py-3.5 transition " +
+                        (blocked ? 'opacity-80 hover:bg-slate-50' : 'hover:bg-slate-100')}>
+                      <button type="button" onClick={() => {
+                        if (blocked) {
+                          if (adminPair) {
+                            showToast(adminChannelRowCopy(u.chatState, u.name, asCoachView), {
+                              tone: 'info',
+                              title: `Chat with ${u.name} is not open`,
+                            });
+                            return;
+                          }
+                          setRequestTarget(u);
+                          return;
+                        }
+                        openRowConversation(Number(u.id), u.name, 'people');
+                      }}
+                        className="flex-1 min-w-0 flex items-center gap-3 text-left">
+                        <span className="relative shrink-0">
+                          <PersonAvatar u={u} name={u.name} size={48} />
+                          <span className={"online-dot absolute -bottom-0.5 -right-0.5 ring-2 ring-ink-800 " + (online ? 'online-dot-on' : '')} />
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          <span className="flex items-center justify-between gap-2">
+                            <span className="text-base font-bold text-ivory-300 truncate">{u.name}</span>
+                            <span className="flex shrink-0 items-center gap-1.5">
+                              {adminChip && (
+                                <span className={"chess-chip text-[10px] " +
+                                  (u.chatState === 'pending' ? 'chess-chip-amber'
+                                    : u.chatState === 'not_allocated' ? 'chess-chip-red' : '')}>
+                                  {adminChannelStatusLabel(u.chatState, asCoachView)}
+                                </span>
+                              )}
+                              {!adminPair && u.chatState === 'pending' && (
+                                <span className="chess-chip chess-chip-amber text-[10px]">Pending</span>
+                              )}
+                              {!adminPair && u.chatState === 'rejected' && (
+                                <span className="chess-chip chess-chip-red text-[10px]">Rejected</span>
+                              )}
+                              {!adminPair && u.chatState === 'cancelled' && (
+                                <span className="chess-chip text-[10px]">Cancelled</span>
+                              )}
+                              {!adminPair && u.chatState === 'none' && (
+                                <span className="chess-chip text-[10px]">Request</span>
+                              )}
+                              <span className="text-[10px] uppercase tracking-wide px-2 py-0.5 rounded-md bg-gold-500/15 text-gold-400 font-bold">{u.role}</span>
+                            </span>
+                          </span>
+                          <span className="mt-0.5 block text-sm text-ivory-600">
+                            {blocked
+                              ? (adminPair
+                                ? adminChannelRowCopy(u.chatState, u.name, asCoachView)
+                                : (u.chatState === 'pending' ? 'Chat request pending'
+                                  : u.chatState === 'rejected' ? 'Rejected by coach'
+                                  : u.chatState === 'cancelled' ? 'This chat was cancelled'
+                                  : 'Approval required to chat'))
+                              : (online ? 'Online now' : 'Offline')}
                           </span>
                         </span>
-                        <span className="mt-0.5 block text-sm text-ivory-600">
-                          {blocked
-                            ? (u.chatState === 'pending' ? 'Chat request pending'
-                              : u.chatState === 'rejected' ? 'Rejected by coach'
-                              : u.chatState === 'cancelled' ? 'This chat was cancelled'
-                              : 'Approval required to chat')
-                            : (online ? 'Online now' : 'Offline')}
-                        </span>
-                      </span>
-                    </button>
+                      </button>
+                      {adminPair && <AdminChatRequestButton contact={u} />}
+                    </div>
                   );
                 })}
               </div>

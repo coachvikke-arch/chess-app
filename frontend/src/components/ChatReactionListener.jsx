@@ -36,3 +36,8 @@ export default function ChatReactionListener() {
 
   return null;
 }
+
+/* Both import styles are exported on purpose: this component is pulled in by
+   default in App.jsx, and a named import elsewhere must keep resolving rather
+   than fail the whole bundle with "does not provide an export named". */
+export { ChatReactionListener };

@@ -6340,7 +6340,7 @@ body {
   min-width: 0;
 }
 .xc-day {
-  font-size: 1.05rem;
+  font-size: 2.1rem;
   font-weight: 800;
   color: #15803d;
   letter-spacing: 0.01em;
@@ -7323,6 +7323,11 @@ body {
   font-size: 0.82rem;
   color: #64748b;
 }
+/* The date only: same line, same colour, bigger size. Everything else in the
+   sheet, including the header layout, is untouched. */
+.cdm-date {
+  font-size: 1.2rem;
+}
 .cdm-head-side {
   display: flex;
   align-items: center;
@@ -7643,6 +7648,9 @@ body {
   }
   .cdm-stat-value {
     font-size: 1.2rem;
+  }
+  .cdm-date {
+    font-size: 1.08rem;
   }
   .cdm-roster-head {
     align-items: flex-start;
@@ -17734,7 +17742,10 @@ body:has(.openings-library) {
 @media (max-width: 767px) {
   .gm-admin-game-modal-overlay {
     display: block;
-    padding: 0;
+    /* The bar is `fixed`-covering and sits under this scrim, so the sheet has
+       to start below it: the measured navbar height plus a small gap. The
+       desktop rule uses the same anchor (78px here was its hard-coded guess). */
+    padding: calc(var(--app-nav-h, 64px) + 8px) 0 0;
     overflow-y: auto;
     overflow-x: hidden;
     -webkit-overflow-scrolling: touch;
@@ -17750,7 +17761,7 @@ body:has(.openings-library) {
     max-width: none;
     height: auto;
     max-height: none;
-    min-height: 100dvh;
+    min-height: calc(100dvh - var(--app-nav-h, 64px) - 8px);
     margin: 0;
     padding: .75rem .75rem 1.75rem;
     border: 0;

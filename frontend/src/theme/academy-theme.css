@@ -150,63 +150,35 @@ body {
 
 /* ── navigation (landing header, public bar, app top bar) ────────────────── */
 
-/* The top bar is white like the rest of the app, separated from the page by a
-   hairline and the 3px blue accent rule. Its children were written for a dark
-   chrome (white / slate-200 / blue-300 labels, translucent-white hovers), so
-   those are re-mapped here instead of editing every header component. */
+/* The top bar is navy blue and is the app's only dark surface. It carries no
+   border and no accent line — the colour alone separates it from the white
+   page. Its children were written for a dark chrome (white / slate-200 /
+   blue-300 labels, translucent-white hovers), so those utilities are left to
+   Tailwind; only the brand gradient words are re-pointed below. Dropdowns that
+   open from the bar (notifications, account) are white panels and keep their
+   own ink colours, so nothing here is allowed to bleed into them. */
 .nav-glass {
-  background: #ffffff;
-  border-bottom: 1px solid #e2e8f0;
-  box-shadow:
-    inset 0 -3px 0 #2563eb,
-    0 1px 2px rgba(15, 23, 42, 0.04);
+  background: #0b2545;
+  border-bottom: 0;
+  box-shadow: none;
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
-  color: #0f172a;
+  color: #f8fafc;
 }
 
-/* The phone-height override matched the desktop bar; keep it identical. */
+/* The phone-width variant matched the desktop bar; keep it identical. */
 @media (max-width: 767px) {
   .nav-glass-phone-white {
-    background: #ffffff !important;
-    border-bottom: 1px solid #e2e8f0;
-    box-shadow: inset 0 -3px 0 #2563eb;
+    background: #0b2545 !important;
+    border-bottom: 0;
+    box-shadow: none;
   }
 }
 
-/* Labels that were pale-on-dark are ink / muted / accent on white. */
-.nav-glass .text-white {
-  color: #0f172a;
-}
-.nav-glass .text-slate-200,
-.nav-glass .text-slate-300 {
-  color: #475569;
-}
-.nav-glass .text-blue-300 {
-  color: #2563eb;
-}
-.nav-glass .hover\:text-white:hover {
-  color: #2563eb;
-}
-
-/* Hover fills use the light blue tint, not translucent white. */
-.nav-glass [class*="hover:bg-white/"]:hover {
-  background-color: #eff6ff;
-}
-
-/* White text still belongs on a saturated chip — the unread count, the avatar
-   circle. These are declared after the ink defaults above so they win on equal
-   specificity and keep those labels legible. */
-.nav-glass .bg-red-500.text-white,
-.nav-glass .bg-red-600.text-white,
-.nav-glass .bg-blue-600.text-white,
-.nav-glass .bg-gradient-to-br.text-white {
-  color: #ffffff;
-}
-
-/* The account chip is a white pill on a now-white bar: give it a visible edge. */
-.nav-glass .bg-white.border-slate-300 {
-  border-color: #cbd5e1;
+/* The avatar circle and the unread badge are saturated tiles on navy; a pale
+   ring keeps the circle's edge from dissolving into the bar. */
+.nav-glass .ring-gold-500\/50 {
+  --tw-ring-color: rgba(147, 197, 253, 0.55);
 }
 
 /* ── page surface ────────────────────────────────────────────────────────── */
@@ -253,8 +225,14 @@ body {
   background: none !important;
   -webkit-background-clip: border-box !important;
   background-clip: border-box !important;
-  color: #2563eb !important;
-  -webkit-text-fill-color: #2563eb;
+  color: #19bdf2 !important;
+  -webkit-text-fill-color: #19bdf2;
+}
+
+/* The flat blue action button is barely lighter than the navy bar; a hairline
+   halo separates it without changing its size. */
+.nav-glass .app-btn--primary {
+  box-shadow: 0 0 0 1px rgba(191, 219, 254, 0.45);
 }
 
 .chess-link,
@@ -2064,7 +2042,7 @@ tbody tr:hover {
   box-shadow: 0 2px 8px rgba(15, 23, 42, 0.28);
 }
 
-/* Drop shadows cast by the white bar's floating panels were near-black; on a
+/* Drop shadows cast by the navbar's floating panels were near-black; on a
    white page a soft ink shadow reads as depth without the heaviness. */
 #landing-nav nav {
   background-color: #ffffff;

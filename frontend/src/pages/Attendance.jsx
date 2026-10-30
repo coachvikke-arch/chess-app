@@ -1,149 +1,242 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import api from '../services/api';
-import { PageHeader, Chip, Stat, Bar, Spinner } from '../components/ui';
+import { PageHeader, Stat, Spinner } from '../components/ui';
 import ClassDetailModal from '../components/ClassDetailModal';
 import Pagination, { PAGE_SIZE } from '../components/Pagination';
 import { usePagination } from '../hooks/usePagination';
 import { useAuth } from '../context/AuthContext';
 import { formatTime12 } from '../utils/time';
 import Button from '../components/Button';
+import OfflineAttendance from './OfflineAttendance';
 
-const ATT_STATUS = [
-  { id: 'present', label: 'Present', cls: 'border-emerald-400/50 bg-emerald-500/15 text-emerald-700' },
-  { id: 'late', label: 'Late', cls: 'border-amber-400/50 bg-amber-500/15 text-amber-600' },
-  { id: 'absent', label: 'Absent', cls: 'border-red-400/50 bg-red-500/15 text-red-600' },
-];
 const STATUS_META = {
   present: { cls: 'border-emerald-400/50 bg-emerald-500/15 text-emerald-700', label: '✓ Present' },
   late: { cls: 'border-amber-400/50 bg-amber-500/15 text-amber-600', label: '◷ Late' },
   absent: { cls: 'border-red-400/50 bg-red-500/15 text-red-600', label: '✕ Absent' },
 };
-const CYCLE = ['present', 'late', 'absent'];
+/* Present → Late → Absent → cleared. The fourth step is what lets a coach undo
+   a wrong mark; the DELETE behind an empty status is also what makes the record
+   vanish from the student's page. */
+const CYCLE = ['present', 'late', 'absent', ''];
+
+const TYPE_TABS = [
+  { key: 'all', label: 'All' },
+  { key: 'online', label: 'Online' },
+  { key: 'offline', label: 'Offline' },
+];
 
 export default function Attendance() {
   const { user } = useAuth();
-  const role = user?.role;
 
-  const [classes, setClasses] = useState([]);
+  /* The student's list and the admin day register share this route only because
+     both are "attendance"; the class-cell register stays inside Manage Classes. */
+  if (user?.role === 'student') return <StudentAttendance />;
+  return <OfflineAttendance />;
+}
+
+/* ────────────────────── student: my attendance ──────────────────────
+   Online class attendance and offline marks in one date-ordered list. Paging,
+   the type chips and the month all go to the server as query params, so the
+   summary cards and the pager always describe the same slice of records. */
+function StudentAttendance() {
+  const [page, setPage] = useState(1);
+  const [type, setType] = useState('all');
+  const [month, setMonth] = useState('');
+  const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const listTopRef = useRef(null);
 
-  /* The register has its own column pager; only the student's class cards use
-     ?page=. */
-  const pager = usePagination(role === 'student' ? classes : [], PAGE_SIZE, {
-    syncUrl: role === 'student',
-    scrollRef: listTopRef,
-  });
-
-  /* student summary */
-  const summary = useMemo(() => {
-    const counts = { present: 0, late: 0, absent: 0 };
-    let marked = 0;
-    for (const c of classes) {
-      if (c.my_status && counts[c.my_status] !== undefined) {
-        counts[c.my_status] += 1;
-        marked += 1;
-      }
-    }
-    const pct = marked ? Math.round((counts.present / marked) * 100) : 0;
-    return { ...counts, marked, total: classes.length, pct };
-  }, [classes]);
-
-  useEffect(() => {
+  const load = useCallback(async () => {
+    setLoading(true);
     setError('');
-    if (role !== 'student') {
+    try {
+      const res = await api.get('/attendance/me', { params: { page, limit: PAGE_SIZE, type, month } });
+      setData(res.data);
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to load attendance');
+    } finally {
       setLoading(false);
-      return;
     }
-    api
-      .get('/classes/online', { cache: false })
-      .then((res) => setClasses(Array.isArray(res.data) ? res.data : []))
-      .catch((e) => setError(e.response?.data?.message || 'Failed to load classes'))
-      .finally(() => setLoading(false));
-  }, [role]);
+  }, [page, type, month]);
 
-  if (loading) return <Spinner />;
+  useEffect(() => { load(); }, [load]);
 
-  /* ── Student view: their own attendance ── */
-  if (role === 'student') {
-    return (
-      <PageHeader title="My Attendance" icon="📋" subtitle="Your presence across online classes.">
-        {error && <div className="chess-card mb-4"><p className="chess-error">{error}</p></div>}
+  const summary = data?.summary;
+  const records = data?.records || [];
 
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
-          <Stat label="Classes" value={summary.total} icon="📚" />
-          <Stat label="Present" value={summary.present} icon="✓" />
-          <Stat label="Late" value={summary.late} icon="◷" />
-          <Stat label="Absent" value={summary.absent} icon="✕" />
-        </div>
-
-        {summary.marked > 0 && (
-          <div className="chess-card mb-6">
-            <div className="flex items-center justify-between gap-4 mb-2">
-              <p className="text-sm text-ivory-300 font-medium">
-                Attendance so far — <span className="text-gold-400">{summary.pct}% present</span>
-              </p>
-              <span className="text-[0.7rem] text-ivory-500">
-                {summary.present}/{summary.marked} marked
-              </span>
-            </div>
-            <Bar pct={summary.pct} />
-          </div>
-        )}
-
-        <div ref={listTopRef} className="space-y-3">
-          {classes.length === 0 && (
-            <div className="chess-card text-center py-14">
-              <span className="block text-5xl mb-3 text-gold-500/40">📋</span>
-              <p className="chess-empty">No classes scheduled for you yet.</p>
-            </div>
-          )}
-          {pager.currentItems.map((c) => {
-            const meta = STATUS_META[c.my_status];
-            return (
-              <div key={c.id} className="chess-card flex justify-between items-center gap-4">
-                <div className="min-w-0">
-                  <p className="font-medium text-ivory-100 flex items-center gap-2 flex-wrap">
-                    <span className="text-gold-400">♘</span>{c.title}
-                    {c.topic && <span className="text-ivory-500 text-sm">— {c.topic}</span>}
-                  </p>
-                  <p className="text-sm text-ivory-500 mt-1 flex items-center gap-1.5 flex-wrap">
-                    <span className="text-gold-400">⚑</span>{c.class_date} at {formatTime12(c.start_time, c.start_time)}
-                    {c.coach_name && <><span className="text-ivory-500">· Coach:</span> {c.coach_name}</>}
-                  </p>
-                </div>
-                {meta ? (
-                  <span className={`shrink-0 text-[0.7rem] px-2.5 py-1 rounded-full border ${meta.cls}`}>
-                    {meta.label}
-                  </span>
-                ) : (
-                  <span className="shrink-0 text-[0.7rem] px-2.5 py-1 rounded-full border border-ivory-700/50 bg-black/[0.03] text-ivory-500">
-                    Not marked
-                  </span>
-                )}
-              </div>
-            );
-          })}
-        </div>
-
-        <Pagination
-          currentPage={pager.currentPage}
-          totalPages={pager.totalPages}
-          totalItems={pager.totalItems}
-          onPageChange={pager.setPage}
-          itemLabel="classes"
-        />
-      </PageHeader>
-    );
-  }
-
-  /* ── Admin view: attendance register (embedded panel for the merged
-        Classes & Attendance page, or wrapped in Page by this component) ── */
   return (
-    <PageHeader title="Attendance Register" icon="📋" subtitle="Every student × every class. Click a cell to cycle Present → Late → Absent.">
-      <AttendancePanel />
+    <PageHeader
+      title="My Attendance"
+      icon="📋"
+      subtitle="Every class and offline mark, newest first."
+    >
+      {error && (
+        <div className="chess-card mb-4">
+          <p className="chess-error">{error}</p>
+          <Button onClick={load} variant="secondary" size="sm" className="mt-3">Retry</Button>
+        </div>
+      )}
+
+      {/* ── summary for the selected range ── */}
+      <div className="mb-1 flex flex-wrap items-center gap-2">
+        <h2 className="text-sm font-semibold text-ivory-300">
+          {month ? monthLabel(month) : 'All time'}
+        </h2>
+        {summary && summary.graded > 0 && (
+          <span className="text-[0.7rem] text-ivory-500">
+            {summary.present}/{summary.graded} marked present
+          </span>
+        )}
+      </div>
+
+      {loading && !data ? (
+        <div className="tr-skeleton-stats mb-6">
+          {[0, 1, 2, 3, 4].map((i) => <div key={i} className="tr-skeleton-stat" />)}
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-6">
+          <Stat label="Total" value={summary?.total ?? 0} icon="📋" />
+          <Stat label="Present" value={summary?.present ?? 0} icon="✓" />
+          <Stat label="Absent" value={summary?.absent ?? 0} icon="✕" />
+          <Stat label="Late" value={summary?.late ?? 0} icon="◷" />
+          <Stat label="Attendance Rate" value={`${summary?.rate ?? 0}%`} icon="♟" />
+        </div>
+      )}
+
+      {/* ── type chips + month picker ── */}
+      <div className="flex flex-wrap items-center gap-2 mb-4">
+        {TYPE_TABS.map((t) => (
+          <button
+            key={t.key}
+            type="button"
+            onClick={() => { setType(t.key); setPage(1); }}
+            aria-pressed={type === t.key}
+            className={`chess-chip ${type === t.key ? 'chess-chip-gold' : ''}`}
+          >
+            {t.label}
+          </button>
+        ))}
+        <label className="ml-auto flex items-center gap-2 shrink-0">
+          <span className="text-xs text-ivory-500">Month</span>
+          <input
+            type="month"
+            value={month}
+            onChange={(e) => { setMonth(e.target.value); setPage(1); }}
+            className="chess-input !py-1.5 !text-xs"
+            aria-label="Filter attendance by month"
+          />
+          {month && (
+            <button
+              type="button"
+              onClick={() => { setMonth(''); setPage(1); }}
+              className="text-xs text-ivory-500 hover:text-gold-400 whitespace-nowrap"
+            >
+              All months
+            </button>
+          )}
+        </label>
+      </div>
+
+      {loading ? (
+        <div className="tr-skeleton tr-skeleton-table">
+          {[0, 1, 2].map((i) => <div key={i} className="tr-skeleton-row" />)}
+        </div>
+      ) : error && !data ? null : records.length === 0 ? (
+        <div className="chess-card text-center py-14">
+          <span className="block text-5xl mb-3 text-gold-500/40">📋</span>
+          <p className="chess-empty">No attendance records yet.</p>
+        </div>
+      ) : (
+        <>
+          <div className="space-y-3">
+            {records.map((r) => <AttendanceRecord key={recordKey(r)} r={r} />)}
+          </div>
+          <Pagination
+            currentPage={data.page}
+            totalPages={data.totalPages}
+            totalItems={data.total}
+            pageSize={PAGE_SIZE}
+            onPageChange={setPage}
+            itemLabel="records"
+          />
+        </>
+      )}
     </PageHeader>
+  );
+}
+
+/* A record can be an attendance row or an unmarked class; both are keyed by
+   class when they have one, and by date + status when they do not. */
+function recordKey(r) {
+  return r.classId != null ? `c${r.classId}` : `${r.date}-${r.type}-${r.status}`;
+}
+
+/** "2026-10" → "October 2026", without letting Date parse it as UTC. */
+function monthLabel(month) {
+  const [y, m] = String(month).split('-').map(Number);
+  const NAMES = ['January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December'];
+  return `${NAMES[m - 1] || m} ${y}`;
+}
+
+function AttendanceRecord({ r }) {
+  const meta = STATUS_META[r.status];
+  const isOffline = r.type === 'offline';
+  const isSuper = r.markedByRole === 'superadmin' || r.markedByRole === 'super_admin';
+  /* Rows written before the marker columns existed have no name stored; the
+     brief is explicit that they still load and read as "Unknown". */
+  const markerName = r.markedByName || 'Unknown';
+
+  return (
+    <div className="chess-card">
+      <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
+        <div className="min-w-0 flex-1">
+          <p className="flex flex-wrap items-center gap-2">
+            <span className="font-semibold text-ivory-100">{r.dateLabel}</span>
+            {meta ? (
+              <span className={`text-[0.65rem] px-2 py-0.5 rounded-full border ${meta.cls}`}>
+                {meta.label}
+              </span>
+            ) : (
+              <span className="text-[0.65rem] px-2 py-0.5 rounded-full border border-ivory-700/50 text-ivory-500">
+                Not marked
+              </span>
+            )}
+            {isOffline && (
+              <span className="text-[0.65rem] px-2 py-0.5 rounded-full border border-blue-500/40 bg-blue-500/10 text-blue-600">
+                Offline
+              </span>
+            )}
+          </p>
+
+          {r.classTitle && (
+            <p className="text-sm text-ivory-500 mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-1">
+              <span className="text-gold-400">♘</span>
+              <span className="break-words">{r.classTitle}</span>
+              {r.topic && <span>— {r.topic}</span>}
+              {r.startTime && (
+                <span>· {formatTime12(r.startTime, r.startTime)}</span>
+              )}
+              {r.coachName && <span>· Coach: {r.coachName}</span>}
+            </p>
+          )}
+
+          {isOffline && (
+            <p className="text-xs text-ivory-500 mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1">
+              <span className="break-words">Marked by: {markerName}</span>
+              {isSuper && (
+                <span className="text-[0.6rem] px-1.5 py-0.5 rounded-full bg-blue-600 text-white font-semibold whitespace-nowrap">
+                  Super Admin
+                </span>
+              )}
+              {r.markedAt && (
+                <span className="text-[0.65rem] text-ivory-500/80">{r.markedAt}</span>
+              )}
+            </p>
+          )}
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -177,7 +270,13 @@ export function AttendancePanel({ filterClassId = null }) {
     if (filterClassId) setFilter(String(filterClassId));
   }, [filterClassId]);
 
-  const cycleStatus = (status) => CYCLE[(CYCLE.indexOf(status) + 1) % CYCLE.length] || 'present';
+  /* `?? ''` matters: an unmarked cell is undefined, and CYCLE's last step is the
+     empty string, so the cycle must be looked up by index rather than by
+     truthiness — `|| 'present'` would make clearing impossible. */
+  const cycleStatus = (status) => {
+    const i = CYCLE.indexOf(status ?? '');
+    return CYCLE[(i + 1 + CYCLE.length) % CYCLE.length];
+  };
 
   async function mark(studentId, classId) {
     const cur = records.statuses[studentId]?.[classId];
@@ -379,7 +478,7 @@ export function AttendancePanel({ filterClassId = null }) {
                                 type="button"
                                 disabled={busy}
                                 onClick={() => mark(s.id, cls.id)}
-                                title={`${s.name} — Cycle status for ${cls.title}`}
+                                title={`${s.name} — ${cls.title}: Present → Late → Absent → cleared`}
                                 className={`att-chip ${meta ? meta.cls : 'border-ivory-700/60 bg-black/[0.03] text-ivory-500 hover:border-ivory-50/40'} ${busy ? 'opacity-50' : ''}`}
                               >
                                 {busy ? '…' : meta ? meta.label : '·'}

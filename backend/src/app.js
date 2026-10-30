@@ -13,6 +13,7 @@ const courseRoutes = require('./routes/courseRoutes');
 const libraryRoutes = require('./routes/libraryRoutes');
 const lessonRoutes = require('./routes/lessonRoutes');
 const classRoutes = require('./routes/classRoutes');
+const attendanceRoutes = require('./routes/attendanceRoutes');
 const assignmentRoutes = require('./routes/assignmentRoutes');
 const gameHistoryRoutes = require('./routes/gameHistoryRoutes');
 const puzzleRoutes = require('./routes/puzzleRoutes');
@@ -24,6 +25,7 @@ const miscRoutes = require('./routes/miscRoutes');
 const onlineRoutes = require('./routes/onlineRoutes');
 const chatRoutes = require('./routes/chatRoutes');
   const chatRequestRoutes = require('./routes/chatRequestRoutes');
+const chatAdminRequestRoutes = require('./routes/chatAdminRequestRoutes');
 const documentRoutes = require('./routes/documentRoutes');
 const folderRoutes = require('./routes/folderRoutes');
 const tournamentRoutes = require('./routes/tournamentRoutes');
@@ -98,6 +100,7 @@ app.use('/api/lessons', lessonRoutes);
 /* Shared Chess Library (PGN/FEN folders) — one library for all admins. */
 app.use('/api/library', libraryRoutes);
 app.use('/api/classes', classRoutes);
+app.use('/api/attendance', attendanceRoutes);
 app.use('/api/assignments', assignmentRoutes);
 app.use('/api/game-history', gameHistoryRoutes);
 app.use('/api/puzzles', puzzleRoutes);
@@ -113,6 +116,7 @@ app.use('/api/online', onlineRoutes);
 app.use('/api/chat', chatRoutes);
   app.use('/api/chat-requests', chatRequestRoutes);
 app.use('/api/chat-requests', chatRequestRoutes);
+app.use('/api/chat-admin-requests', chatAdminRequestRoutes);
 /* Tournaments. Live-board routes (/games/...) are mounted first so they can never
    be captured by the /:id routes. Both sit before the bare `/api` catch-all. */
 app.use('/api/tournaments', tournamentGameRoutes);

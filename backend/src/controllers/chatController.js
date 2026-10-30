@@ -16,11 +16,14 @@
  *
  * ── Who is allowed to use that channel ──
  * Deriving history does NOT mean deriving permission. Chat access is governed by
- * chatPermissionService: staff <-> student is open (the supervision channel),
- * and student <-> student requires an APPROVED chat request. A `conversations`
- * row exists to hold an approved pair that has no messages yet, so an approved
- * contact still shows up in the inbox before anyone has written anything - but
- * it is a pairing record, not a source of truth for message content.
+ * chatPermissionService, and the directory a caller is shown is decided here by
+ * allowedPeerIds() from the SAME roster: Super Admin reaches everyone, a coach
+ * reaches their allocated students and the owner, and a student reaches their
+ * classmates, their own coaches, and an owner who has written to them. A coach and
+ * a learner need an accepted chat_admin_requests row on top of a live allocation.
+ * A `conversations` row exists to hold an approved pair that has no messages yet,
+ * so an approved contact still shows up in the inbox before anyone has written
+ * anything - but it is a pairing record, not a source of truth for message content.
  *
  * Every read AND write path below calls chatPerm.assertCanMessage() first. That
  * is deliberate and load-bearing: the UI hides the Message button, but a hidden
@@ -39,6 +42,8 @@
 const db = require('../config/database');
 const notif = require('../services/notificationService');
 const chatPerm = require('../services/chatPermissionService');
+const adminReq = require('../services/chatAdminRequestService');
+const { isAdminRole } = require('../middleware/roleMiddleware');
 const fs = require('fs');
 const path = require('path');
 
@@ -170,9 +175,6 @@ function attachReactions(rows, reactionsById) {
 /* REST                                                                */
 /* ------------------------------------------------------------------ */
 
-/* GET /api/chat/users?q=   - every user I can talk to (students + coaches),
- * with live online state + lastSeen. `q` filters by name (case-insensitive
- * substring) so the "find a student or coach" search works. */
 /* ── Coach-approval gate ──
  * Single helper every DM read/write path uses. Returns true when the caller may
  * proceed; otherwise it has already written the 403 and the caller must return
@@ -197,6 +199,7 @@ async function chatGate(req, res, otherId) {
         state: err.access ? err.access.state : null,
         canRequest: err.access ? err.access.canRequest : false,
         cooldownEndsAt: err.access ? err.access.cooldownEndsAt : null,
+        requestId: err.access ? err.access.requestId : null,
       });
       return false;
     }
@@ -204,6 +207,14 @@ async function chatGate(req, res, otherId) {
   }
 }
 
+/* GET /api/chat/users?q=   - the people this caller is allowed to talk to,
+ * with live online state + lastSeen. `q` filters by name or email (case-
+ * insensitive substring) so the "find a coach or a student" search works.
+ *
+ * The search runs INSIDE the permitted set, not across all of users: a student
+ * typing a coach's name must learn that coach is not theirs by getting no row,
+ * the same way the row was never listed, rather than by finding it through the
+ * search box and then being refused. */
 exports.listContacts = async (req, res) => {
   try {
     const me = req.user.id;
@@ -212,39 +223,41 @@ exports.listContacts = async (req, res) => {
 
     const onlineIds = io ? await fetchOnlineUserIds(io) : new Set();
 
-    let r;
-    if (q) {
-      r = await db.query(
+    /* One roster, three consumers. The People list, the inbox and the send gate
+     * all start from allowedPeerIds(), so what a user is shown can never be
+     * wider than what the API will let them do. */
+    const directoryIds = [...(await allowedPeerIds(me, req.user.role))];
+
+    let rows = [];
+    if (directoryIds.length > 0) {
+      const params = [directoryIds];
+      let where = 'id = ANY($1::int[])';
+      if (q) {
+        params.push(q);
+        where += ` AND (name ILIKE '%' || $2 || '%' OR email ILIKE '%' || $2 || '%')`;
+      }
+      const r = await db.query(
         `SELECT id, name, email, role, last_seen_at, profile_image, avatar_config
            FROM users
-          WHERE id <> $1 AND (name ILIKE '%' || $2 || '%' OR email ILIKE '%' || $2 || '%')
-          ORDER BY name ASC
-          LIMIT 50`,
-        [me, q]
-      );
-    } else {
-      r = await db.query(
-        `SELECT id, name, email, role, last_seen_at, profile_image, avatar_config
-           FROM users
-          WHERE id <> $1
+          WHERE ${where}
           ORDER BY name ASC
           LIMIT 200`,
-        [me]
+        params
       );
+      rows = r.rows;
     }
 
     const seen = await db.query('SELECT last_seen_at FROM users WHERE id = $1', [me]);
     await markSeen(me);
 
-    /* Annotate every contact with the permission state so the People list can
-     * render Message / Send Chat Request / Chat request pending / not approved
-     * without each row firing its own eligibility request.
+    /* Annotate every row with its permission state so the People list can render
+     * Message / Request chat / Request pending / Accept+Cancel without each row
+     * firing its own eligibility request.
      *
-     * One query for the whole page, keyed on the canonical pair, rather than a
-     * per-row lookup: with 200 contacts the naive version would be 200 round
-     * trips every time the tab is opened. Staff pairs short-circuit to allowed
-     * without touching chat_requests at all, because they never need one. */
-    const contacts = r.rows.map((u) => ({
+     * One query per KIND of row for the whole page rather than one per row: with
+     * two hundred contacts the naive version is two hundred round trips every time
+     * the tab is opened. */
+    const contacts = rows.map((u) => ({
       id: u.id,
       name: u.name,
       email: u.email,
@@ -255,14 +268,45 @@ exports.listContacts = async (req, res) => {
       avatar_config: u.avatar_config,
     }));
 
-    const staffIds = contacts.filter((u) => chatPerm.isStaffPair(req.user.role, u.role));
-    const staffSet = new Set(staffIds);
-    for (const u of staffIds) {
-      u.chatState = 'not_required';
-      u.canMessage = true;
+    /* A Super Admin row needs no state read at all - that channel is open by
+     * rule, and a student only ever gets such a row listed when the owner has
+     * already written first, which is the roster's decision, not this one. */
+    const isStudentCaller = req.user.role === 'student';
+    const callerIsSuperadmin = req.user.role === 'superadmin';
+    for (const u of contacts) {
+      if (callerIsSuperadmin || u.role === 'superadmin') {
+        u.chatState = 'not_required';
+        u.canMessage = true;
+      }
     }
 
-    const peerIds = contacts.filter((u) => !staffSet.has(u)).map((u) => Number(u.id));
+    /* Coach <-> learner rows: the allocated-admin request table decides. */
+    const adminChannelRows = contacts.filter((u) => u.chatState === undefined &&
+      ((isStudentCaller && u.role === 'admin') || (!isStudentCaller && u.role === 'student')));
+    const adminChannelSet = new Set(adminChannelRows);
+
+    if (adminChannelRows.length > 0) {
+      const latest = await adminReq.latestRequestsForPeers(
+        me, adminChannelRows.map((u) => Number(u.id)), isStudentCaller
+      );
+      for (const u of adminChannelRows) {
+        const found = latest.get(Number(u.id)) || null;
+        const state = adminReq.stateFromRow(found ? { id: found.requestId, status: found.status } : null);
+        u.chatState = state.state;
+        u.canMessage = state.allowed;
+        u.adminRequestId = found ? found.requestId : null;
+        /* A pending row is a decision, and only the coach it was sent to owns it.
+         * The UI renders Accept and Cancel from this flag instead of inferring it
+         * from "I am a coach and this student is in my list". */
+        u.canDecideAdminRequest = !isStudentCaller && Boolean(found) &&
+          found.status === adminReq.ADMIN_REQUEST_STATUS.PENDING;
+      }
+    }
+
+    /* Student <-> student rows: the peer chat_requests queue, unchanged. */
+    const peerIds = contacts
+      .filter((u) => u.chatState === undefined && !adminChannelSet.has(u))
+      .map((u) => Number(u.id));
     if (peerIds.length > 0) {
       // Compare on the CANONICAL pair (LEAST/GREATEST) so one row-value IN
       // clause covers both request directions. Matching on
@@ -328,7 +372,10 @@ exports.listContacts = async (req, res) => {
       const cancelledSet = new Set(cancelledRows.rows.map((row) => `${row.lo}:${row.hi}`));
 
       for (const u of contacts) {
-        if (staffSet.has(u)) continue;
+        /* Only the peer rows are still undecided here: a Super Admin row or a
+         * coach/learner row already carries its state, and writing 'none' over it
+         * would make an open channel look blocked in the People list. */
+        if (u.chatState !== undefined || adminChannelSet.has(u)) continue;
         const key = chatPerm.pairKey(me, u.id).join(':');
         if (approvedSet.has(key)) {
           u.chatState = 'approved';
@@ -359,35 +406,95 @@ exports.listContacts = async (req, res) => {
   }
 };
 
-/* Every peer `me` is currently allowed to DM, as a Set of user ids.
+/* Every peer `me` may see and message, as a Set of user ids.
  *
- * Needed by listConversations for two opposite reasons:
- *   - hide threads that exist in chat_messages but are NOT permitted. Legacy
- *     rows predate the approval gate, and a request that was cancelled or
- *     reversed must stop the thread being listed even though the messages are
- *     still on disk.
- *   - surface an APPROVED pair that has no messages yet. Otherwise a freshly
- *     approved contact is invisible in the inbox and the approval appears to do
- *     nothing until someone guesses the right URL.
+ * This is THE directory rule, and both the People list and the inbox read it.
+ * That is deliberate: a list built from one rule and a thread gate built from
+ * another eventually disagree, and the disagreement is always the user being able
+ * to reach something they were shown as off-limits (or the reverse). Hiding a
+ * contact is presentation; deriving the visible list, the inbox and the 403 from
+ * one query is the actual control.
  *
- * Staff can DM anyone; a student can DM staff plus approved peers. */
+ * Three rosters:
+ *   Super Admin  every account. Oversight has to be able to reach anyone.
+ *   Admin        the students allocated to them, plus every Super Admin. Not
+ *                fellow coaches - the People list was scoped to "my students and
+ *                the owner", and a list that hides a pair the gate allows is a
+ *                hole waiting to be found.
+ *   Student      every classmate (the peer-request flow has to be able to FIND
+ *                someone before it can ask for them), their own coaches, and a
+ *                Super Admin only once that owner has written to them first.
+ *
+ * Allocation is the live roster - students.coach_id for the primary coach and
+ * student_coaches for the rest. There is no second allocation table, so moving a
+ * student to another coach hides the old coach here on the next read, and the
+ * accepted request that pair once held stops counting: an approval opens a pair
+ * inside the roster, it does not widen the roster.
+ */
 async function allowedPeerIds(me, role) {
-  if (chatPerm.isStaffPair(role, role)) {
+  if (role === 'superadmin') {
     const all = await db.query('SELECT id FROM users WHERE id <> $1', [me]);
     return new Set(all.rows.map((row) => Number(row.id)));
   }
 
-  const peers = await db.query(
-    `SELECT id FROM users
-      WHERE id <> $1 AND role IN ('admin', 'superadmin')
-      UNION
-     SELECT CASE WHEN requester_user_id = $1 THEN target_user_id ELSE requester_user_id END AS id
-       FROM chat_requests
-      WHERE status = 'approved'
-        AND (requester_user_id = $1 OR target_user_id = $1)`,
+  if (isAdminRole(role)) {
+    const r = await db.query(
+      `SELECT id FROM users WHERE id <> $1 AND role = 'superadmin'
+       UNION
+       SELECT s.user_id AS id
+         FROM students s
+        WHERE s.coach_id = $1 AND s.user_id IS NOT NULL AND COALESCE(s.active, TRUE)
+       UNION
+       SELECT s.user_id AS id
+         FROM students s
+         JOIN student_coaches sc ON sc.student_id = s.id
+        WHERE sc.coach_id = $1 AND s.user_id IS NOT NULL AND COALESCE(s.active, TRUE)`,
+      [me]
+    );
+    return new Set(r.rows.map((row) => Number(row.id)));
+  }
+
+  const r = await db.query(
+    `SELECT u.id AS id FROM users u
+      WHERE u.id <> $1 AND u.role = 'student'
+     UNION
+     SELECT s.coach_id AS id
+       FROM students s
+      WHERE s.user_id = $1 AND s.coach_id IS NOT NULL
+     UNION
+     SELECT sc.coach_id AS id
+       FROM students s
+       JOIN student_coaches sc ON sc.student_id = s.id
+      WHERE s.user_id = $1 AND sc.coach_id IS NOT NULL
+     UNION
+     /* Reachable back only because the owner wrote first - this is the whole of
+        "a Super Admin appears once they have messaged the student". */
+     SELECT m.sender_id AS id
+       FROM chat_messages m
+       JOIN users sa ON sa.id = m.sender_id AND sa.role = 'superadmin'
+      WHERE m.is_private IS TRUE AND m.recipient_id = $1
+     UNION
+     SELECT CASE WHEN c.user1_id = $1 THEN c.user2_id ELSE c.user1_id END AS id
+       FROM conversations c
+       JOIN users sa
+         ON sa.id = CASE WHEN c.user1_id = $1 THEN c.user2_id ELSE c.user1_id END
+        AND sa.role = 'superadmin'
+      WHERE c.status = 'active'
+        AND (c.user1_id = $1 OR c.user2_id = $1)`,
     [me]
   );
-  return new Set(peers.rows.map((row) => Number(row.id)));
+  return new Set(r.rows.map((row) => Number(row.id)));
+}
+
+/* True when exactly one side is a learner and the other is a plain coach.
+ *
+ * Names the rows that the allocated-admin request flow governs, so the People
+ * list and the inbox ask about the same set of pairs and neither guesses from a
+ * role string. A Super Admin on either side is never such a pair: that channel is
+ * open by rule and needs no request. */
+function isAdminChannelPair(callerRole, peerRole) {
+  if (callerRole === 'superadmin' || peerRole === 'superadmin') return false;
+  return (callerRole === 'student') !== (peerRole === 'student');
 }
 
 /* GET /api/chat/conversations   - my 1:1 DM list: one entry per person I have
@@ -444,27 +551,10 @@ exports.listConversations = async (req, res) => {
 
     await markSeen(me);
 
-    /* Derived threads that are still permitted. */
-    const rows = r.rows
-      .filter((row) => allowed.has(Number(row.other_id)))
-      .map((row) => ({
-        otherId: Number(row.other_id),
-        otherName: row.other_name,
-        otherRole: row.other_role,
-        otherOnline: onlineIds.has(Number(row.other_id)),
-        otherLastSeen: row.other_last_seen,
-        lastMessage: row.last_message,
-        lastAttachment: row.last_attachment,
-        lastAttachmentName: row.last_attachment_name,
-        lastMessageAt: row.last_message_at,
-        lastIsPrivate: row.last_is_private,
-        unread: row.unread_count,
-      }));
-
     /* Approved pairs with no messages yet, so a new approval is visible in the
      * inbox straight away rather than only after the first message. Sorted to
      * the bottom by the final sort below, using the conversation row's own
-     * updated_at as the timestamp. */
+     * created_at as the timestamp. */
     const empty = await db.query(
       `SELECT c.user1_id, c.user2_id, c.created_at,
               u.id AS other_id, u.name AS other_name, u.role AS other_role,
@@ -481,14 +571,57 @@ exports.listConversations = async (req, res) => {
           )`,
       [me]
     );
-    for (const row of empty.rows) {
-      const otherId = Number(row.other_id);
-      if (!allowed.has(otherId)) continue;
-      rows.push({
-        otherId,
+
+    /* Two questions have to be answered YES before a thread is listed, and the
+     * messages being on disk answers neither of them:
+     *   allowed - is this person in my directory at all? (roster rule, above)
+     *   open    - may this pair still write? A coach/learner pair needs an
+     *             ACCEPTED request, so a thread that exists only because it came
+     *             in through a side door - a live-class private note, history from
+     *             before the gate, a re-allocation - is not a channel around it.
+     * The second is one batched read for the whole page, exactly like the People
+     * list, and the two surfaces share isAdminChannelPair so they cannot disagree
+     * about which rows the question even applies to. */
+    const directory = r.rows.filter((row) => allowed.has(Number(row.other_id)));
+    const pairings = empty.rows.filter((row) => allowed.has(Number(row.other_id)));
+
+    const adminPeers = [...new Set(
+      [...directory, ...pairings]
+        .filter((row) => isAdminChannelPair(req.user.role, row.other_role))
+        .map((row) => Number(row.other_id))
+    )];
+    const liveAdmin = await adminReq.latestRequestsForPeers(
+      me, adminPeers, req.user.role === 'student'
+    );
+    const mayList = (row) => {
+      if (!isAdminChannelPair(req.user.role, row.other_role)) return true;
+      const found = liveAdmin.get(Number(row.other_id));
+      return Boolean(found) && found.status === adminReq.ADMIN_REQUEST_STATUS.ACCEPTED;
+    };
+
+    const rows = directory
+      .filter(mayList)
+      .map((row) => ({
+        otherId: Number(row.other_id),
         otherName: row.other_name,
         otherRole: row.other_role,
-        otherOnline: onlineIds.has(otherId),
+        otherOnline: onlineIds.has(Number(row.other_id)),
+        otherLastSeen: row.other_last_seen,
+        lastMessage: row.last_message,
+        lastAttachment: row.last_attachment,
+        lastAttachmentName: row.last_attachment_name,
+        lastMessageAt: row.last_message_at,
+        lastIsPrivate: row.last_is_private,
+        unread: row.unread_count,
+      }));
+
+    for (const row of pairings) {
+      if (!mayList(row)) continue;
+      rows.push({
+        otherId: Number(row.other_id),
+        otherName: row.other_name,
+        otherRole: row.other_role,
+        otherOnline: onlineIds.has(Number(row.other_id)),
         otherLastSeen: row.other_last_seen,
         lastMessage: null,
         lastAttachment: null,

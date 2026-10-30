@@ -9,18 +9,20 @@ import { APP_NAME, APP_TAGLINE, APP_COPYRIGHT } from '../config/brand';
 /**
  * Writes a headline whole-word by whole-word ("writing" effect): each word
  * fades+slides up once, one after another, and stays. Runs exactly once —
- * words are never re-animated.
+ * words are never re-animated. `active` holds the effect, so a page can start
+ * the sentence only when it wants to.
  */
-function WriteWords({ words, className = '', wordMs = 340, caret = '▌', gradientFrom = Infinity }) {
+function WriteWords({ words, className = '', wordMs = 340, caret = '▌', gradientFrom = Infinity, active = true }) {
   const [count, setCount] = useState(0);
   // Reveal one whole word at a time: count increments until words.length is
   // reached, then stays put (no loop).
   const done = count >= words.length;
   useEffect(() => {
-    if (done) return; // finished — leave the words as they are
+    if (!active || done) return; // held, or finished — leave the words as they are
     const t = setTimeout(() => setCount((c) => c + 1), wordMs);
     return () => clearTimeout(t);
-  }, [count, done, wordMs]);
+  }, [active, count, done, wordMs]);
+  if (!active) return <span className={className} />;
   const shown = words.slice(0, count);
   return (
     <span className={className}>
@@ -47,11 +49,12 @@ const steps = [
 
 export default function Home() {
   usePageTitle('Home');
+
   return (
     <div>
-      {/* Hero */}
-      <section className="relative overflow-hidden">
-        <div className="max-w-7xl mx-auto px-4 py-16 md:py-24 grid md:grid-cols-2 gap-12 items-center">
+      {/* Hero — the only dark band on the page. */}
+      <section className="landing-hero relative overflow-hidden">
+        <div className="max-w-7xl mx-auto px-4 py-16 md:py-24 grid md:grid-cols-2 gap-12 items-center w-full">
           <div>
             <Reveal>
               <span className="inline-flex items-center gap-2 chess-chip chess-chip-gold mb-5">

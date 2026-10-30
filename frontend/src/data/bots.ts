@@ -257,8 +257,7 @@ export function rankForRating(rating: number): DifficultyRank {
 /* Avatar lookup.
  *
  * Bot portraits are real PNGs in `public/assets/bots/`, addressed with a plain
- * absolute path — the same scheme `config/pieceTheme.jsx` uses for
- * `/pieces/green/*.svg`. That is deliberate and replaces an earlier approach:
+ * absolute path. That is deliberate and replaces an earlier approach:
  *
  *  - `new URL('../assets/bots/' + id + '.webp', import.meta.url)` cannot work,
  *    because a template literal is not statically analysable, so Vite ships a

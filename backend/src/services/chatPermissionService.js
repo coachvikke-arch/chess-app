@@ -1,23 +1,32 @@
 const db = require('../config/database');
 const { isAdminRole } = require('../middleware/roleMiddleware');
+const adminReq = require('./chatAdminRequestService');
 
-/* Coach-approval gate for 1:1 DMs.
+/* 1:1 chat access rules.
  *
- * The rule this encodes was agreed as: the gate applies to STUDENT <-> STUDENT
- * peer messaging, while the staff <-> student supervision channel stays open.
+ * Four kinds of pair, decided in exactly this order:
  *
- * That split is not cosmetic. A coach has no coach of their own, so routing
- * "student messages their coach" through an approval workflow is not merely
- * pointless, it is unimplementable - there is no approver to name. And a coach
- * approving a request to message their own student is a self-approval loop.
- * Meanwhile the staff channel is the one that has to keep working: it is how
- * coaches contact students today, and it is a supervision relationship, not
- * peer contact.
+ *   Super Admin <-> anyone    open in both directions, with one exception. A
+ *                             student may only write to a Super Admin who has
+ *                             already opened a thread with them, so the academy
+ *                             owner is never on the receiving end of unsolicited
+ *                             mail from every learner in the system.
+ *   Admin <-> student         PERMISSIONED. The student must be allocated to that
+ *                             admin (students.coach_id or student_coaches) AND
+ *                             that admin must have accepted a chat request. This
+ *                             is the flow chatAdminRequestService owns. It used
+ *                             to be wide open - see the note on isStaffPair.
+ *   Admin <-> admin           not part of the chat directory. The academy scoped
+ *                             the messenger to "your students and the owner", so
+ *                             a coach no longer finds a colleague in the People
+ *                             list.
+ *   Student <-> student       unchanged: an APPROVED peer chat_request is
+ *                             required, decided by the two coaches plus Super
+ *                             Admin as a panel.
  *
- * Everything else (two students) requires an APPROVED chat_request. Note the
- * asymmetry that falls out of this: a student may DM their coach or any coach
- * at any time, but may not DM a classmate until that classmate's coach has
- * approved it.
+ * Note the asymmetry that falls out of this: a student may only reach the coach
+ * who owns them, and only once that coach says yes, but a coach reaches any of
+ * their own students the moment a request is accepted.
  */
 
 /* Roles that are staff. Kept as a set rather than reusing isAdminRole at each
@@ -49,9 +58,133 @@ function pairKey(a, b) {
   return lo < hi ? [lo, hi] : [hi, lo];
 }
 
-/** True when either side of the pair is staff (a coach or the academy owner). */
+/**
+ * True when either side of the pair holds a staff account.
+ *
+ * This no longer means "messaging is open". It used to short-circuit the gate for
+ * every staff pair, which is how a student could message any coach in the academy
+ * without anyone approving it. Callers now use it only to route INTO
+ * evaluateStaffChannel(), which decides each staff shape separately.
+ */
 function isStaffPair(meRole, otherRole) {
   return STAFF_ROLES.has(meRole) || STAFF_ROLES.has(otherRole);
+}
+
+/**
+ * True once a private 1:1 channel between two users has been opened by someone.
+ *
+ * Either a private message in either direction, or an active pairing row with no
+ * mail yet. This is what a student->Super Admin pair is measured by: the door is
+ * open because the owner walked through it first, not because the student asked.
+ */
+async function dmChannelOpened(userA, userB) {
+  const r = await db.query(
+    `SELECT 1
+       FROM chat_messages
+      WHERE is_private IS TRUE
+        AND ((sender_id = $1 AND recipient_id = $2)
+          OR (sender_id = $2 AND recipient_id = $1))
+      LIMIT 1`,
+    [userA, userB]
+  );
+  if (r.rows.length > 0) return true;
+  const c = await db.query(
+    `SELECT 1 FROM conversations
+      WHERE status = 'active'
+        AND ((user1_id = $1 AND user2_id = $2) OR (user1_id = $2 AND user2_id = $1))
+      LIMIT 1`,
+    [userA, userB]
+  );
+  return c.rows.length > 0;
+}
+
+/**
+ * Human copy for each allocated-admin channel state.
+ *
+ * The 403 body carries this, and the People row and the request panel show it, so
+ * a blocked student reads WHY they are blocked instead of a generic refusal. Kept
+ * beside evaluateStaffChannel rather than in the frontend because the server owns
+ * the state machine.
+ */
+function adminChannelCopy(state, otherName) {
+  const name = otherName || 'this coach';
+  switch (state) {
+    case 'accepted':
+      return `You and ${name} can chat.`;
+    case 'pending':
+      return 'Chat request pending';
+    case 'cancelled':
+      return 'Your chat request was cancelled. You can ask again.';
+    case 'not_allocated':
+      return 'This coach is not allocated to you.';
+    case 'unavailable':
+      return 'That user could not be found.';
+    default:
+      return `You need ${name}'s acceptance before you can start chatting.`;
+  }
+}
+
+/**
+ * The staff half of the rules, with the two roles already known to include at
+ * least one of 'admin' / 'superadmin'.
+ *
+ * Kept apart from evaluateAccess so that function's peer-request machine is
+ * untouched: the states, the cooldown and the coach panel below are all about two
+ * students, and none of that applies to a coach and a learner.
+ */
+async function evaluateStaffChannel(meId, otherId, meRole, otherRole, otherName) {
+  const base = {
+    requiresApproval: false, canRequest: false, requestId: null,
+    cooldownEndsAt: null, coachName: null, coachNames: [],
+  };
+
+  if (meRole === 'superadmin' || otherRole === 'superadmin') {
+    /* Oversight stays open. The owner is how a coach escalates and how a student
+       is reached by the academy, so no request is involved and none is offered. */
+    if (meRole === 'student' && !(await dmChannelOpened(meId, otherId))) {
+      return {
+        ...base,
+        allowed: false,
+        state: 'superadmin_unopened',
+        reason: 'superadmin_unopened',
+        message: `${otherName} has not messaged you, so there is no open channel to write to.`,
+      };
+    }
+    return {
+      ...base,
+      allowed: true,
+      state: 'not_required',
+      reason: 'superadmin_channel',
+      message: `You can message ${otherName} directly.`,
+    };
+  }
+
+  if (meRole !== 'student' && otherRole !== 'student') {
+    /* Two coaches. The People list is scoped to "my students and the owner", so
+     * the directory never offers this, and the gate has to agree with the
+     * directory rather than leaving a URL-reachable hole behind it. */
+    return {
+      ...base,
+      allowed: false,
+      state: 'staff_pair_closed',
+      reason: 'staff_pair_closed',
+      message: 'Coaches cannot message each other directly. Use a group chat.',
+    };
+  }
+
+  /* One coach, one learner: the allocated-admin request flow decides this pair,
+   * and it answers the same way whichever side is asking. */
+  const studentIsMe = meRole === 'student';
+  const channel = await adminReq.evaluateChannel(
+    studentIsMe ? meId : otherId,
+    studentIsMe ? otherId : meId
+  );
+  return {
+    ...base,
+    ...channel,
+    requiresApproval: true,
+    message: adminChannelCopy(channel.state, otherName),
+  };
 }
 
 /**
@@ -330,15 +463,12 @@ async function evaluateAccess(meId, otherId, meRole) {
   const otherRole = otherRes.rows[0].role;
   const otherName = otherRes.rows[0].name;
 
-  // The supervision channel. Staff may always DM a student and vice versa, so
-  // no request is involved and none is offered.
+  /* ── Staff channels ──
+   * Three shapes, decided by evaluateStaffChannel: the owner is always reachable,
+   * a coach and a learner need an accepted request plus a live allocation, and two
+   * coaches are outside the directory. */
   if (isStaffPair(meRole, otherRole)) {
-    return {
-      allowed: true, requiresApproval: false, state: 'not_required',
-      reason: 'supervision_channel',
-      message: `You can message ${otherName} directly.`,
-      canRequest: false, requestId: null, cooldownEndsAt: null, coachName: null, coachNames: [],
-    };
+    return evaluateStaffChannel(me, other, meRole, otherRole, otherName);
   }
 
   // Student <-> student: an approval is required, so everything below is
@@ -443,8 +573,11 @@ async function assertCanMessage(meId, otherId, meRole) {
 
 module.exports = {
   STATUS,
+  STAFF_ROLES,
   pairKey,
   isStaffPair,
+  dmChannelOpened,
+  adminChannelCopy,
   resolveTargetCoachId,
       resolveTargetCoachIds,
 resolveRequestParties,

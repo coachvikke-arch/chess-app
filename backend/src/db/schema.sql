@@ -191,9 +191,20 @@ CREATE TABLE IF NOT EXISTS attendance (
   class_id INTEGER REFERENCES classes(id) ON DELETE CASCADE,
   student_id INTEGER REFERENCES students(id) ON DELETE CASCADE,
   status VARCHAR(20) DEFAULT 'absent', -- present | absent | late
+  attendance_date DATE,                -- copied from classes.class_date at mark time
+  type VARCHAR(20) NOT NULL DEFAULT 'offline', -- offline (register) | online (join)
+  marked_by INTEGER,                   -- user id of the admin/superadmin who marked it
+  marked_by_name VARCHAR(150),         -- their display name, frozen at mark time
+  marked_by_role VARCHAR(20),          -- admin | superadmin
+  marked_at TIMESTAMP,
   created_at TIMESTAMP DEFAULT NOW(),
   UNIQUE(class_id, student_id)
 );
+CREATE INDEX IF NOT EXISTS idx_attendance_student_date
+    ON attendance (student_id, attendance_date DESC);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_attendance_offline_student_date
+    ON attendance (student_id, attendance_date)
+    WHERE class_id IS NULL AND type = 'offline';
 
 -- Direct student membership for a class (replaces group-only assignment in the
 -- Schedule Class form). A class is visible to its explicit class_students; if a

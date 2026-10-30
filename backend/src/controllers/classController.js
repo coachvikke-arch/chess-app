@@ -1,5 +1,6 @@
 const db = require('../config/database');
 const { normalizeMeetingUrl } = require('../utils/meetingUrl');
+const notif = require('../services/notificationService');
 
 async function notifyStudentUserIds(classId, groupId) {
   if (classId) {
@@ -119,6 +120,15 @@ exports.listClasses = async (req, res) => {
     if (statusFilter) {
       params.push(statusFilter);
       conditions.push(`cl.status = $${params.length}`);
+    }
+    /* The one status to leave out. The Classes tab lists what still has to be
+       run, so a finished class would otherwise sit there as well as on the
+       Completed tab. Applied to the COUNT and the page alike, so the totals and
+       the pager stay in step. */
+    const excludeStatus = String(req.query.exclude_status || '').trim();
+    if (excludeStatus) {
+      params.push(excludeStatus);
+      conditions.push(`cl.status <> $${params.length}`);
     }
     const search = String(req.query.q || '').trim().slice(0, 80);
     if (search) {
@@ -404,14 +414,100 @@ exports.deleteClass = async (req, res) => {
   }
 };
 
+const ATTENDANCE_STATUSES = new Set(['present', 'late', 'absent']);
+const STATUS_LABEL = { present: 'Present', late: 'Late', absent: 'Absent' };
+/* A cell that is cleared rather than re-marked. The register used to cycle
+   present → late → absent forever with no way back to "not marked", so any of
+   these spellings arriving as the status means "delete this record". */
+const CLEAR_TOKENS = new Set(['', 'null', 'none', 'clear', 'cleared', 'remove', 'removed', 'unmarked']);
+
+/**
+ * Offline attendance register write (Admin and Super Admin).
+ *
+ * One record per (class, student): re-marking the same pair updates it in place
+ * and refreshes who marked it, so the register can never hold a duplicate, and
+ * clearing removes the row so it disappears from the student's page.
+ *
+ * The date is copied off the class because the student portal lists attendance
+ * by date, not by class, and the marker's name is frozen at mark time — a coach
+ * renamed next month must not rewrite history the student already read.
+ */
 exports.markAttendance = async (req, res) => {
   try {
-    const { studentId, status } = req.body;
-    const result = await db.query(
-      `INSERT INTO attendance (class_id, student_id, status) VALUES ($1,$2,$3)
-       ON CONFLICT (class_id, student_id) DO UPDATE SET status = EXCLUDED.status RETURNING *`,
-      [req.params.id, studentId, status]
+    const classId = req.params.id;
+    const studentId = Number(req.body.studentId);
+    if (!Number.isInteger(studentId) || studentId <= 0) {
+      return res.status(400).json({ message: 'A valid studentId is required' });
+    }
+
+    const clsRes = await db.query(
+      `SELECT id,
+              to_char(class_date, 'YYYY-MM-DD') AS date_key,
+              to_char(class_date, 'DD Mon YYYY') AS date_label
+         FROM classes WHERE id = $1`,
+      [classId]
     );
+    if (clsRes.rows.length === 0) return res.status(404).json({ message: 'Class not found' });
+    const cls = clsRes.rows[0];
+
+    const status = req.body.status == null ? '' : String(req.body.status).trim().toLowerCase();
+    const isClear = CLEAR_TOKENS.has(status);
+
+    if (isClear) {
+      await db.query(
+        'DELETE FROM attendance WHERE class_id = $1 AND student_id = $2',
+        [classId, studentId]
+      );
+      return res.json({ class_id: Number(classId), student_id: studentId, status: null, cleared: true });
+    }
+
+    if (!ATTENDANCE_STATUSES.has(status)) {
+      return res.status(400).json({ message: 'status must be present, late or absent' });
+    }
+
+    const marker = {
+      id: req.user?.id ?? null,
+      name: req.user?.name || null,
+      role: req.user?.role || null,
+    };
+
+    const result = await db.query(
+      `INSERT INTO attendance
+         (class_id, student_id, status, attendance_date, type,
+          marked_by, marked_by_name, marked_by_role, marked_at)
+       VALUES ($1, $2, $3, $4::date, 'offline', $5, $6, $7, NOW())
+       ON CONFLICT (class_id, student_id) DO UPDATE SET
+         status          = EXCLUDED.status,
+         attendance_date = EXCLUDED.attendance_date,
+         type            = 'offline',
+         marked_by       = EXCLUDED.marked_by,
+         marked_by_name  = EXCLUDED.marked_by_name,
+         marked_by_role  = EXCLUDED.marked_by_role,
+         marked_at       = NOW()
+       RETURNING *`,
+      [classId, studentId, status, cls.date_key, marker.id, marker.name, marker.role]
+    );
+
+    /* Tell the student. Best-effort by design: the attendance row is already
+       committed, and a notification failure must not show the coach a "failed"
+       toast for a mark that did save. */
+    try {
+      const stuRes = await db.query('SELECT user_id FROM students WHERE id = $1', [studentId]);
+      const studentUserId = stuRes.rows[0]?.user_id;
+      if (studentUserId) {
+        const by = marker.name || 'an admin';
+        await notif.push(
+          req.app.get('io'),
+          studentUserId,
+          'Attendance updated',
+          `Your offline attendance for ${cls.date_label} was marked ${STATUS_LABEL[status]} by ${by}`,
+          { type: 'attendance', senderId: marker.id, relatedId: Number(classId) }
+        );
+      }
+    } catch (err) {
+      console.warn('[markAttendance] notification skipped:', err.message);
+    }
+
     res.json(result.rows[0]);
   } catch (err) {
     res.status(500).json({ message: 'Failed to mark attendance', error: err.message });

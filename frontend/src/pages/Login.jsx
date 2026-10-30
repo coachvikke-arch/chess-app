@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { useToast } from '../components/Toast';
 import { AUTH_MESSAGE_KEY } from '../services/api';
 import { Piece, Reveal } from '../components/ui';
+import Logo from '../components/Logo';
 import PasswordInput from '../components/PasswordInput';
 import AnimatedBoard from '../components/AnimatedBoard';
 import { homeForRole } from '../utils/roles';
@@ -84,12 +85,11 @@ export default function Login() {
         {/* Decorative panel */}
         <Reveal className="hidden md:block">
           <div className="h-full rounded-l-3xl border border-ivory-700/50 bg-gradient-to-br from-gold-500/[0.07] via-transparent to-transparent p-8 flex flex-col justify-center overflow-hidden relative bg-ink-800">
-            <span className="absolute -top-4 -left-2 text-8xl text-gold-500/15 piece-glyph-spin">♞</span>
-            <span className="absolute bottom-2 right-0 text-7xl text-gold-500/12 piece-glyph-spin" style={{ animationDelay: '1s' }}>♜</span>
-            <span className="text-6xl piece-glyph-spin text-gold-400">♕</span>
-            <h2 className="font-display text-2xl font-bold mt-4 text-ivory-100">
-              Welcome back to the <span className="chess-gradient-text">board</span>.
-            </h2>
+            <Logo
+              alt="Mate Zone Chess Academy"
+              height={64}
+              className="shrink-0"
+            />
             <p className="text-ivory-300 text-sm mt-3 leading-relaxed">
               Your classes, puzzles and progress are waiting. It's your move, coach.
             </p>
@@ -103,9 +103,6 @@ export default function Login() {
         <Reveal delay={0.1}>
           <div className="chess-card chess-card-hover rounded-none md:rounded-r-3xl md:rounded-l-none px-8 pb-8 pt-12 h-full">
             <div className="flex flex-col items-center text-center mb-3 mt-10">
-              <p className="text-[0.65rem] font-semibold uppercase tracking-[0.22em] text-ivory-500 mb-2">{APP_NAME}</p>
-              <span className="inline-block text-4xl text-gold-500 piece-glyph-spin mb-1">♛</span>
-              <br />
               <h1 className="font-display text-3xl font-bold text-ivory-100">Login</h1>
               <p className="text-ivory-300 text-sm mt-1">Enter the arena to continue.</p>
               <br />

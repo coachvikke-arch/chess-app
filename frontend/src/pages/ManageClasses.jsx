@@ -107,8 +107,11 @@ export function ClassesPanel({ onGoToAttendance, onClassesChanged }) {
   function load(targetPage = pageFromUrl) {
     setClassesLoading(true);
     setClassesError('');
+    /* Finished classes live on the Completed tab only — this list is the one
+       you still have to run, so the server leaves `completed` out for us
+       rather than the page filtering its own slice and going short. */
     api
-      .get('/classes', { params: { page: targetPage, limit: PAGE_SIZE } })
+      .get('/classes', { params: { page: targetPage, limit: PAGE_SIZE, exclude_status: 'completed' } })
       .then((res) => {
         const data = res.data;
         if (Array.isArray(data)) {

@@ -225,7 +225,22 @@ const offUnread = on('chat_unread_changed', (payload) => {
       searchContacts(searchQueryRef.current);
     });
 
-    return () => { offPresence?.(); offDm?.(); offUnread?.(); offGroupMsg?.(); offGroupUnread?.(); offGroupAdded?.(); offGroupRemoved?.(); offGroupUpdated?.(); offReaction?.(); offDeleted?.(); offRequestBell?.(); offCancelled?.(); };
+    /* A coach/learner request changed state — sent, accepted or cancelled. The
+       server pushes it to BOTH sides with each side's own `otherId`, so neither
+       waits for the 15s poll: the student's row goes Request chat → Request
+       pending → Message as the coach answers, and the coach's Accept/Cancel pair
+       disappears once used.
+       The contacts and the inbox are simply re-read rather than patched by hand:
+       the directory is a server-side rule, so a client that recomputes it would be
+       free to be wrong. Cancelling an OPEN chat also sends `chat_cancelled` above,
+       which is what flips a live thread to read-only - this event does not have to
+       duplicate that. */
+    const offAdminRequest = on('admin_chat_request', () => {
+      searchContacts(searchQueryRef.current);
+      refreshConversations();
+    });
+
+    return () => { offPresence?.(); offDm?.(); offUnread?.(); offGroupMsg?.(); offGroupUnread?.(); offGroupAdded?.(); offGroupRemoved?.(); offGroupUpdated?.(); offReaction?.(); offDeleted?.(); offRequestBell?.(); offCancelled?.(); offAdminRequest?.(); };
   }, [meId]); // threadFor read via ref-free effect dependency handled below
 
   const threadForRef = useRef(threadFor);

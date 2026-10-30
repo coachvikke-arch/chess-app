@@ -334,20 +334,6 @@ export const PIECE_THEMES = {
     black: { color: '#31240f', shadow: '0 0 4px rgba(249,239,212,0.75), 0 2px 5px rgba(0,0,0,0.55)', scale: 0.78 },
   },
 
-  /* ── Emerald art, black pieces recolored green → black (CSS filter) ── */
-  emerald_black: {
-    id: 'emerald_black',
-    name: 'Emerald Black',
-    type: 'img',
-    scale: 1,
-    blackFilter: 'grayscale(1) brightness(0.4) contrast(1.25)',
-    images: {
-      wK: '/pieces/green/wK.svg', wQ: '/pieces/green/wQ.svg', wR: '/pieces/green/wR.svg',
-      wB: '/pieces/green/wB.svg', wN: '/pieces/green/wN.svg', wP: '/pieces/green/wP.svg',
-      bK: '/pieces/green/bK.svg', bQ: '/pieces/green/bQ.svg', bR: '/pieces/green/bR.svg',
-      bB: '/pieces/green/bB.svg', bN: '/pieces/green/bN.svg', bP: '/pieces/green/bP.svg',
-    },
-  },
 };
 
 export const CURRENT_PIECE_THEME = 'cburnett';
@@ -360,7 +346,7 @@ export const CURRENT_PIECE_THEME = 'cburnett';
  */
 export const PIECE_THEMES_HIDDEN_IN_SETTINGS = new Set([
   /* Settings offers a deliberately small, classic set: classic, wood, glass,
-     metal, unicode, merida, cburnett and Emerald Black. Everything else is
+     metal, unicode, merida and cburnett. Everything else is
      hidden here rather than deleted, so a user who already picked one keeps
      rendering it everywhere (getPieceTheme still resolves it) — it just is no
      longer offered as a new choice. */

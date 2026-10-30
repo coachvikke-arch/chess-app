@@ -4,7 +4,6 @@ import api from '../services/api';
 import { PageHeader, Chip } from '../components/ui';
 import { useToast } from '../components/Toast';
 import { FeatureAccessPanel } from './FeatureAccess';
-import { CoachReportsPanel } from './CoachReport';
 import SidebarOrder from './SidebarOrder';
 import SuperAdminPasswords from '../components/SuperAdminPasswords';
 import Button from '../components/Button';
@@ -22,7 +21,6 @@ const SECTIONS = [
   { key: 'passwords', label: '♟ Passwords' },
   { key: 'features', label: '♜ Feature Access' },
   { key: 'sidebar', label: '↕ Sidebar Order' },
-  { key: 'reports', label: '♘ Coach Reports' },
 ];
 
 const GENDERS = ['Male', 'Female', 'Non-binary', 'Prefer not to say'];
@@ -274,8 +272,6 @@ export default function SuperAdmin() {
               <FeatureAccessPanel />
             ) : key === 'sidebar' ? (
               <SidebarOrder />
-            ) : key === 'reports' ? (
-              <CoachReportsPanel />
             ) : key === 'passwords' ? (
               <SuperAdminPasswords />
             ) : (

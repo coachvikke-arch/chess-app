@@ -1,3 +1,4 @@
+
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -12,8 +13,7 @@ import { framePalette, shade } from '../config/ornateTheme';
 import { searchBest, searchTopMoves, stopEngineSearch } from '../utils/engine';
 import { BOT_LEVELS, botLevelConfig, suggestedLevelForRating } from '../utils/botLevels';
 
-
-import { Page, Card, Piece, Chip, Reveal, Spinner } from '../components/ui';
+import { Card } from '../components/ui';
 import usePageTitle from '../hooks/usePageTitle';
 import { playSound, unlockAudio } from '../utils/sound';
 import { formatDateTime12 } from '../utils/time';
@@ -413,12 +413,28 @@ const PLAY_ARENA_UI_CSS = `
   scrollbar-width:thin;
 }
 
-/* Emoji / Share / Download */
+/* Share / Download */
 .ab-root.ab-root .ab-actions{
-  display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;flex:0 0 auto;
+  display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;flex:0 0 auto;
   position:relative;
 }
 .ab-root.ab-root .ab-react-anchor{position:relative;display:flex;min-width:0}
+/* The emoji trigger inside a player card: a square icon button that never
+   shrinks, sitting left of the clock. The popover is right-anchored so it
+   cannot run past the card's edge, and ab-react-below (the top card) opens
+   it downward because the board column clips its own overflow. */
+.ab-root.ab-root .ab-react-inline{flex:none;align-items:center}
+.ab-root.ab-root .ab-react-inline .ab-react-picker{left:auto;right:0;transform:none}
+.ab-root.ab-root .ab-react-below .ab-react-picker{bottom:auto;top:calc(100% + 6px)}
+.ab-root.ab-root .ab-react-btn{
+  flex:none;width:32px;height:32px;border-radius:8px;display:grid;place-items:center;
+  background:#fff;border:1px solid #E3E8F0;color:#0F172A;
+  font-size:16px;line-height:1;cursor:pointer;
+  box-shadow:0 1px 2px rgba(15,23,42,.06);
+  transition:background .15s,border-color .15s;
+}
+.ab-root.ab-root .ab-react-btn:hover,
+.ab-root.ab-root .ab-react-btn[aria-expanded="true"]{background:#EAF1FF;border-color:#2563EB}
 .ab-root.ab-root .ab-action-btn{
   display:flex;align-items:center;justify-content:center;gap:6px;
   width:100%;height:40px;border-radius:10px;
@@ -2746,6 +2762,15 @@ export default function AnalysisBoard() {
             </span>
             <CapturedTray pieces={topCaptured}
               diff={captured[`${topColor}Value`] - captured[`${topColor === 'white' ? 'black' : 'white'}Value`]} />
+            {topColor === 'white' && (
+              <EmojiReactControl
+                below
+                open={showReactPicker}
+                onToggle={() => setShowReactPicker((v) => !v)}
+                onReact={onReact}
+                onClose={() => setShowReactPicker(false)}
+              />
+            )}
             <ClockBox
               color={topColor}
               time={clock ? fmtClock(liveRemaining(topColor), clock.incMs === 0) : null}
@@ -2941,6 +2966,14 @@ export default function AnalysisBoard() {
             </span>
             <CapturedTray pieces={bottomCaptured}
               diff={captured[`${orientation}Value`] - captured[`${orientation === 'white' ? 'black' : 'white'}Value`]} />
+            {orientation === 'white' && (
+              <EmojiReactControl
+                open={showReactPicker}
+                onToggle={() => setShowReactPicker((v) => !v)}
+                onReact={onReact}
+                onClose={() => setShowReactPicker(false)}
+              />
+            )}
             <ClockBox
               color={orientation}
               time={clock ? fmtClock(liveRemaining(orientation), clock.incMs === 0) : null}
@@ -3036,23 +3069,9 @@ export default function AnalysisBoard() {
             </pre>
           </div>
 
-          {/* Emoji / Share / Download — same handlers as before. */}
+          {/* Share / Download — same handlers as before. The emoji trigger
+              moved into the White player's card (see EmojiReactControl). */}
           <div className="ab-actions">
-            <div className="ab-react-anchor">
-              <button
-                type="button"
-                className="ab-action-btn"
-                onClick={() => setShowReactPicker((v) => !v)}
-                title="React"
-                aria-expanded={showReactPicker}
-              >
-                <span aria-hidden>😊</span>
-                <span>Emoji</span>
-              </button>
-              {showReactPicker && (
-                <ReactionPicker onReact={onReact} onClose={() => setShowReactPicker(false)} />
-              )}
-            </div>
             <button type="button" className="ab-action-btn" onClick={share} title="Share">
               <span aria-hidden>🔗</span>
               <span>Share</span>
@@ -4196,6 +4215,28 @@ function ReactionPicker({ onReact, onClose }) {
         <button key={e} onClick={() => onReact(e)} className="ab-react-emoji" title={e}>{e}</button>
       ))}
     </div>
+  );
+}
+
+/* The emoji trigger that lives inside a player card, beside that player's
+   clock. `below` flips the popover downward — the picker must always open
+   toward the board, because the board column clips its own overflow and a
+   popover reaching past the top row would be cut off. */
+function EmojiReactControl({ open, onToggle, onReact, onClose, below }) {
+  return (
+    <span className={`ab-react-anchor ab-react-inline${below ? ' ab-react-below' : ''}`}>
+      <button
+        type="button"
+        className="ab-react-btn"
+        onClick={onToggle}
+        title="React"
+        aria-label="React"
+        aria-expanded={open}
+      >
+        <span aria-hidden>😊</span>
+      </button>
+      {open && <ReactionPicker onReact={onReact} onClose={onClose} />}
+    </span>
   );
 }
 

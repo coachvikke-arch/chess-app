@@ -18,7 +18,10 @@
       name="description"
       content="MATE ZONE CHESS ACADEMY is an online chess academy: structured opening courses, live coaching, puzzles, game analysis, tournaments and play against bots."
     />
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>♞</text></svg>" />
+    <!-- The academy logo in the tab: same asset the headers use, so Vite hashes
+         and serves it in both dev and the build. -->
+    <link rel="icon" type="image/jpeg" href="/src/assets/logo.jpeg" />
+    <link rel="apple-touch-icon" href="/src/assets/logo.jpeg" />
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="MATE ZONE CHESS ACADEMY" />
     <meta property="og:title" content="MATE ZONE CHESS ACADEMY" />

@@ -1,10 +1,13 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import api from '../services/api';
 import { Page, Spinner } from '../components/ui';
 import Pagination from '../components/Pagination';
 import Button from '../components/Button';
 import PuzzleAssignPicker from '../components/PuzzleAssignPicker';
-import PuzzleAssignmentsPanel from '../components/PuzzleAssignmentsPanel';
+import HomeworkFilterPanel, {
+  HOMEWORK_FILTER_DEFAULTS,
+  countHomeworkFilters,
+} from '../components/HomeworkFilterPanel';
 
 const PAGE_SIZE = 10;
 
@@ -34,14 +37,10 @@ const TABS = [
   { key: 'pending', label: 'Pending' },
 ];
 
-const EMPTY_FILTERS = { classId: '', studentId: '', dueFrom: '', dueTo: '', search: '' };
+const EMPTY_FILTERS = { ...HOMEWORK_FILTER_DEFAULTS, search: '' };
 
 function formatDate(value) {
   return value ? new Date(value).toLocaleDateString() : '—';
-}
-
-function countApplied(filters) {
-  return Object.values(filters).filter((v) => String(v).trim() !== '').length;
 }
 
 /**
@@ -59,14 +58,15 @@ export default function AdminHomework() {
   const [error, setError] = useState('');
 
   const [panelOpen, setPanelOpen] = useState(false);
-  const [draft, setDraft] = useState(EMPTY_FILTERS);
+  /* The search box lives in the toolbar, not the drawer — like the worklist it
+     narrows the list as you type, so the typed value is kept apart from the
+     debounced one that goes into the query. */
+  const [searchInput, setSearchInput] = useState('');
+  const filterBtnRef = useRef(null);
   const [classes, setClasses] = useState([]);
   const [students, setStudents] = useState([]);
 
   const [assignOpen, setAssignOpen] = useState(false);
-  /* The former standalone Worklist section now lives here as a second view, so
-     every assignment tool sits in one Homework section. */
-  const [view, setView] = useState('homework');
   const [toast, setToast] = useState('');
   const toastTimerRef = useRef(null);
 
@@ -112,17 +112,28 @@ export default function AdminHomework() {
     api.get('/students').then((res) => setStudents(res.data || [])).catch(() => {});
   }, []);
 
-  /* Close the filter panel on Escape (the mobile sheet has no visible backdrop
-     on desktop, where it is a dropdown). */
+  /* The toolbar search box is debounced before it reaches the query: the list is
+     narrowed by the server, so a typed word must not fire one request per
+     keystroke. */
   useEffect(() => {
-    if (!panelOpen) return undefined;
-    const onKey = (e) => { if (e.key === 'Escape') setPanelOpen(false); };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [panelOpen]);
+    const timer = setTimeout(() => {
+      setFilters((f) => (f.search === searchInput ? f : { ...f, search: searchInput }));
+      setPage(1);
+      setOpenId(null);
+      setDetail(null);
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [searchInput]);
 
-  const appliedCount = countApplied(filters);
-  const isFiltered = status !== 'all' || appliedCount > 0;
+  /* Both exits — Done and dismiss — hand focus back to the chip that opened the
+     drawer, so a keyboard user is not dropped at the top of the page. */
+  const closePanel = useCallback(() => {
+    setPanelOpen(false);
+    filterBtnRef.current?.focus();
+  }, []);
+
+  const appliedCount = countHomeworkFilters(filters);
+  const isFiltered = status !== 'all' || appliedCount > 0 || filters.search.trim() !== '';
   const counts = data.counts || { all: 0, draft: 0, active: 0, pending: 0, completed: 0 };
 
   function changeTab(next) {
@@ -133,22 +144,17 @@ export default function AdminHomework() {
     setDetail(null);
   }
 
-  function openPanel() {
-    setDraft(filters);
-    setPanelOpen(true);
-  }
-
-  function applyFilters() {
-    setFilters({ ...draft });
+  function applyFilters(next) {
+    setFilters({ ...next, search: filters.search });
     setPage(1);
     setOpenId(null);
     setDetail(null);
-    setPanelOpen(false);
+    closePanel();
   }
 
   function clearFilters() {
-    setDraft(EMPTY_FILTERS);
     setFilters(EMPTY_FILTERS);
+    setSearchInput('');
     setStatus('all');
     setPage(1);
     setOpenId(null);
@@ -189,37 +195,9 @@ export default function AdminHomework() {
     else setPage(1);
   }
 
-  const filterSummary = useMemo(() => {
-    if (!appliedCount) return '';
-    return `${appliedCount} filter${appliedCount === 1 ? '' : 's'} applied`;
-  }, [appliedCount]);
-
   return (
     <Page piece="♟" title="Homework" sub="Puzzle assignments and per-student progress">
-      <div style={{ marginBottom: '16px' }}>
-        <div className="box-tabs">
-          <button
-            type="button"
-            onClick={() => setView('homework')}
-            className={`box-tab ${view === 'homework' ? 'is-active' : ''}`}
-            aria-pressed={view === 'homework'}
-          >
-            📋 Homework
-          </button>
-          <button
-            type="button"
-            onClick={() => setView('worklist')}
-            className={`box-tab ${view === 'worklist' ? 'is-active' : ''}`}
-            aria-pressed={view === 'worklist'}
-          >
-            ♟ Worklist
-          </button>
-        </div>
-      </div>
-
-      {view === 'worklist' ? (
-        <PuzzleAssignmentsPanel />
-      ) : assignOpen ? (
+      {assignOpen ? (
         <PuzzleAssignPicker
           inline
           onClose={() => setAssignOpen(false)}
@@ -230,7 +208,6 @@ export default function AdminHomework() {
       <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
         <p style={{ fontSize: '13px', color: 'var(--cc-text-muted)' }}>
           {counts.all} home{counts.all === 1 ? 'work' : 'works'} · 10 per page
-          {filterSummary && <span style={{ marginLeft: '8px', color: 'var(--cc-accent)', fontWeight: '500' }}>{filterSummary}</span>}
         </p>
         <button
           onClick={() => setAssignOpen(true)}
@@ -250,138 +227,63 @@ export default function AdminHomework() {
         </button>
       </div>
 
-      {/* ── status tabs + filters ─────────────────────────────────────────── */}
-      <div className="mb-4 flex items-center gap-2" style={{ flexWrap: 'wrap' }}>
-        <div className="box-tabs" style={{ flex: '1 1 auto' }}>
-          {TABS.map((t) => (
-            <button
-              key={t.key}
-              type="button"
-              onClick={() => changeTab(t.key)}
-              className={`box-tab ${status === t.key ? 'is-active' : ''}`}
-              aria-pressed={status === t.key}
-            >
-              {t.label}
-              <span className="box-tab-count">{counts[t.key] ?? 0}</span>
-            </button>
-          ))}
-        </div>
-
-        <div className="relative shrink-0">
-          <Button
+      {/* ── status chips, search box and the filter drawer ──────────────────
+          The assignment worklist's toolbar, moved onto homework: chips for the
+          status axis, the live search box pushed to the right, and one chip
+          that opens a right-edge sheet for everything else. ─────────────── */}
+      <div className="flex flex-wrap items-center gap-2 mb-4">
+        {TABS.map((t) => (
+          <button
+            key={t.key}
             type="button"
-            variant={appliedCount ? 'primary' : 'secondary'}
-            size="sm"
-            className="!px-3 !py-1.5 text-xs whitespace-nowrap"
-            onClick={() => (panelOpen ? setPanelOpen(false) : openPanel())}
-            aria-expanded={panelOpen}
-            aria-haspopup="dialog"
+            onClick={() => changeTab(t.key)}
+            aria-pressed={status === t.key}
+            className={`chess-chip ${status === t.key ? 'chess-chip-gold' : ''}`}
           >
-            <span aria-hidden="true">⛃</span> Filters
-            {appliedCount > 0 && (
-              <span className="ml-1.5 inline-grid h-4 min-w-4 place-items-center rounded-full bg-white/25 px-1 text-[0.6rem] font-bold">
-                {appliedCount}
-              </span>
-            )}
-          </Button>
-
-          {panelOpen && (
-            <>
-              <div
-                className="fixed inset-0 z-40 bg-black/40 sm:hidden"
-                onClick={() => setPanelOpen(false)}
-                aria-hidden="true"
-              />
-              <div
-                role="dialog"
-                aria-label="Filter homework"
-                className="fixed inset-x-0 bottom-0 z-50 max-h-[85vh] overflow-y-auto rounded-t-2xl border-t border-slate-200 bg-white p-4 shadow-[0_-12px_40px_rgba(15,23,42,0.18)] sm:absolute sm:inset-x-auto sm:bottom-auto sm:right-0 sm:top-full sm:mt-2 sm:w-[24rem] sm:rounded-xl sm:border sm:shadow-[0_18px_44px_rgba(15,23,42,0.16)]"
-              >
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-sm font-bold text-slate-800">Filter homework</h3>
-                  <button
-                    type="button"
-                    onClick={() => setPanelOpen(false)}
-                    className="grid h-7 w-7 place-items-center rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50"
-                    aria-label="Close filters"
-                  >
-                    ✕
-                  </button>
-                </div>
-
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <label className="block sm:col-span-2">
-                    <span className="block text-[0.65rem] font-semibold uppercase tracking-wider text-slate-500 mb-1">Homework title</span>
-                    <input
-                      value={draft.search}
-                      onChange={(e) => setDraft((d) => ({ ...d, search: e.target.value }))}
-                      placeholder="Search title…"
-                      className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 outline-none focus:border-blue-500"
-                    />
-                  </label>
-
-                  <label className="block sm:col-span-2">
-                    <span className="block text-[0.65rem] font-semibold uppercase tracking-wider text-slate-500 mb-1">Class</span>
-                    <select
-                      value={draft.classId}
-                      onChange={(e) => setDraft((d) => ({ ...d, classId: e.target.value }))}
-                      className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 outline-none focus:border-blue-500"
-                    >
-                      <option value="">All classes</option>
-                      {classes.map((c) => (
-                        <option key={c.id} value={c.id}>{c.name}</option>
-                      ))}
-                    </select>
-                  </label>
-
-                  <label className="block sm:col-span-2">
-                    <span className="block text-[0.65rem] font-semibold uppercase tracking-wider text-slate-500 mb-1">Student</span>
-                    <select
-                      value={draft.studentId}
-                      onChange={(e) => setDraft((d) => ({ ...d, studentId: e.target.value }))}
-                      className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 outline-none focus:border-blue-500"
-                    >
-                      <option value="">All students</option>
-                      {students.map((s) => (
-                        <option key={s.id} value={s.id}>{s.name}</option>
-                      ))}
-                    </select>
-                  </label>
-
-                  <label className="block">
-                    <span className="block text-[0.65rem] font-semibold uppercase tracking-wider text-slate-500 mb-1">Due from</span>
-                    <input
-                      type="date"
-                      value={draft.dueFrom}
-                      onChange={(e) => setDraft((d) => ({ ...d, dueFrom: e.target.value }))}
-                      className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 outline-none focus:border-blue-500"
-                    />
-                  </label>
-
-                  <label className="block">
-                    <span className="block text-[0.65rem] font-semibold uppercase tracking-wider text-slate-500 mb-1">Due to</span>
-                    <input
-                      type="date"
-                      value={draft.dueTo}
-                      onChange={(e) => setDraft((d) => ({ ...d, dueTo: e.target.value }))}
-                      className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 outline-none focus:border-blue-500"
-                    />
-                  </label>
-                </div>
-
-                <div className="mt-4 flex gap-2">
-                  <Button type="button" variant="secondary" size="sm" className="flex-1" onClick={clearFilters}>
-                    Clear
-                  </Button>
-                  <Button type="button" variant="primary" size="sm" className="flex-1" onClick={applyFilters}>
-                    Apply
-                  </Button>
-                </div>
-              </div>
-            </>
-          )}
-        </div>
+            {t.label}: {counts[t.key] ?? 0}
+          </button>
+        ))}
+        <input
+          placeholder="Search homework title…"
+          value={searchInput}
+          onChange={(e) => setSearchInput(e.target.value)}
+          className="chess-input !text-xs w-full sm:w-64 ml-auto"
+        />
+        {/* The count is what tells the coach the list is narrowed — a bare
+            filter icon next to the results looks identical either way. */}
+        <button
+          type="button"
+          ref={filterBtnRef}
+          onClick={() => setPanelOpen(true)}
+          aria-haspopup="dialog"
+          className={`chess-chip ${appliedCount > 0 ? 'chess-chip-red' : ''}`}
+        >
+          <svg
+            aria-hidden="true"
+            viewBox="0 0 16 16"
+            className="h-3.5 w-3.5 shrink-0"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.6"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M1.5 2.5h13L9.5 8.5v4.5l-3 1.5V8.5L1.5 2.5Z" />
+          </svg>
+          Filters{appliedCount > 0 ? ` (${appliedCount})` : ''}
+        </button>
       </div>
+
+      {panelOpen && (
+        <HomeworkFilterPanel
+          open
+          value={filters}
+          classes={classes}
+          students={students}
+          onApply={applyFilters}
+          onClose={closePanel}
+        />
+      )}
 
       {loading ? (
         <Spinner />

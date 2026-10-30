@@ -25,9 +25,17 @@ export const NOTIFICATION_TYPE_ROUTES = {
      the People tab carries the request buttons. */
   chat_request: ({ base, isAdmin }) =>
     isAdmin ? { to: `${base}/chat-requests` } : { to: `${base}/messages?tab=people` },
+  /* The coach/learner channel. related_id is the REQUEST id, never a user id, and
+     there is no separate queue page for it — the decision lives on the People row
+     itself, so both roles go to the same tab and see the button they need
+     (Accept/Cancel for the coach, the request state for the student). */
+  chat_admin_request: ({ base }) => ({ to: `${base}/messages?tab=people` }),
 
   assignment: ({ base }) => ({ to: `${base}/assignments` }),
   homework: ({ base }) => ({ to: `${base}/homework` }),
+  /* Both portals own an /attendance route — the student's own list and the
+     admin register — so the same target works for either role. */
+  attendance: ({ base }) => ({ to: `${base}/attendance` }),
   puzzle: ({ base, isAdmin }) => ({ to: isAdmin ? `${base}/puzzle-listing` : `${base}/puzzles` }),
   review: ({ base }) => ({ to: `${base}/review` }),
   tournament: ({ base, hasId, id }) =>

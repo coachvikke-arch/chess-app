@@ -27,8 +27,8 @@ async function registerAttendanceOnJoin(classId, userId) {
     );
     if (studentRes.rows.length === 0) return;
     await db.query(
-      `INSERT INTO attendance (class_id, student_id, status)
-       VALUES ($1, $2, 'present')
+      `INSERT INTO attendance (class_id, student_id, status, attendance_date, type)
+       VALUES ($1, $2, 'present', (SELECT class_date FROM classes WHERE id = $1)::date, 'online')
        ON CONFLICT (class_id, student_id) DO NOTHING`,
       [classId, studentRes.rows[0].id]
     );
