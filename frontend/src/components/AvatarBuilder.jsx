@@ -1,3 +1,4 @@
+import Portal from './Portal';
 import { useState } from 'react';
 import ChessAvatar from './ChessAvatar';
 import Background from '../avatar-assets/backgrounds/Background';
@@ -51,7 +52,7 @@ export default function AvatarBuilder({ config, onSave, onClose }) {
   };
 
   return (
-    <div className="fixed inset-0 z-[var(--z-modal-backdrop)] overflow-y-auto bg-black/60 grid place-items-center p-4" onClick={onClose}>
+    <Portal><div className="fixed inset-0 z-[var(--z-modal-backdrop)] overflow-y-auto bg-black/60 grid place-items-center p-4" onClick={onClose}>
       <div
         className="w-full max-w-lg chess-card !p-5 my-6 max-h-[90vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
@@ -197,6 +198,6 @@ export default function AvatarBuilder({ config, onSave, onClose }) {
           </Button>
         </div>
       </div>
-    </div>
+    </div></Portal>
   );
 }

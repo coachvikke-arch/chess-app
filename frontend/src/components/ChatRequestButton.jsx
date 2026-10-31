@@ -8,6 +8,7 @@ import {
 import { useAuth } from '../context/AuthContext';
 import { coachNamesFrom } from '../utils/coachNames';
 import Button from './Button';
+import Portal from './Portal';
 
 export default function ChatRequestButton({ targetUserId, targetName, size = 'sm', className = '' }) {
   const { user } = useAuth();
@@ -158,6 +159,7 @@ export default function ChatRequestButton({ targetUserId, targetName, size = 'sm
       {/* Confirmation before submitting, so a request never leaves without the
           user seeing exactly who it goes to. */}
       {confirming && (
+        <Portal>
         <div
           className="fixed inset-0 z-[var(--z-modal-backdrop)] grid place-items-center bg-black/70 p-4"
           onClick={(e) => { if (e.target === e.currentTarget) setConfirming(false); }}
@@ -201,6 +203,7 @@ export default function ChatRequestButton({ targetUserId, targetName, size = 'sm
             </div>
           </div>
         </div>
+        </Portal>
       )}
     </div>
   );

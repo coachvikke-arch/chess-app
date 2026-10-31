@@ -1,3 +1,4 @@
+import Portal from '../Portal';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Button from '../../components/Button';
 import { useLiveClass } from '../../context/LiveClassContext';
@@ -187,7 +188,7 @@ export default function WatchClassmatesModal({ onClose }) {
     : 294;
 
   return (
-    <div className="spec-overlay spec-browse-overlay" onClick={onClose}>
+    <Portal><div className="spec-overlay spec-browse-overlay" onClick={onClose}>
       <div
         className="spec-card spec-browse-card"
         role="dialog"
@@ -267,6 +268,6 @@ export default function WatchClassmatesModal({ onClose }) {
           )}
         </div>
       </div>
-    </div>
+    </div></Portal>
   );
 }

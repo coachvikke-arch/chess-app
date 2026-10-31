@@ -1,3 +1,4 @@
+import Portal from './Portal';
 import { useOverlayHistory } from '../hooks/useOverlayHistory';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Chess } from 'chess.js';
@@ -432,7 +433,7 @@ export default function CustomizePositionModal({ initialFen, onApply, onClose })
   );
 
   return (
-    <div
+    <Portal><div
       className="fixed inset-0 z-[var(--z-modal-backdrop)] grid place-items-center p-3 sm:p-6"
       style={{ background: 'rgba(28, 33, 23, 0.55)' }}
       onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}
@@ -723,6 +724,6 @@ export default function CustomizePositionModal({ initialFen, onApply, onClose })
           </span>
         )}
       </div>
-    </div>
+    </div></Portal>
   );
 }

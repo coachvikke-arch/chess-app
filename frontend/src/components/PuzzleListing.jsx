@@ -1,3 +1,4 @@
+import Portal from './Portal';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import api from '../services/api';
@@ -135,7 +136,7 @@ function PuzzlePreviewModal({ puzzle, onClose }) {
   const solution = Array.isArray(puzzle.san) && puzzle.san.length ? puzzle.san : puzzle.uci || [];
 
   return (
-    <div
+    <Portal><div
       className="fixed inset-0 z-[var(--z-modal-backdrop)] grid place-items-center bg-black/60 p-4"
       onClick={onClose}
       role="dialog"
@@ -202,7 +203,7 @@ function PuzzlePreviewModal({ puzzle, onClose }) {
           </div>
         </div>
       </div>
-    </div>
+    </div></Portal>
   );
 }
 
@@ -256,7 +257,7 @@ function PuzzleEditorModal({ puzzle, sets, defaultSetCode, onClose, onSaved }) {
   };
 
   return (
-    <div
+    <Portal><div
       className="fixed inset-0 z-[var(--z-modal-backdrop)] grid place-items-center bg-black/60 p-4"
       onClick={onClose}
       role="dialog"
@@ -378,7 +379,7 @@ function PuzzleEditorModal({ puzzle, sets, defaultSetCode, onClose, onSaved }) {
           </Button>
         </div>
       </form>
-    </div>
+    </div></Portal>
   );
 }
 
@@ -1329,7 +1330,7 @@ export default function PuzzleListing({
 
       {/* Rename set dialog */}
       {manageSets && renaming && (
-        <div
+        <Portal><div
           className="fixed inset-0 z-[var(--z-modal-backdrop)] grid place-items-center bg-black/60 p-4"
           onClick={() => setRenaming(null)}
         >
@@ -1370,7 +1371,7 @@ export default function PuzzleListing({
               </Button>
             </div>
           </div>
-        </div>
+        </div></Portal>
       )}
 
       {/* Puzzle preview / editor / import (library only) */}
@@ -1413,7 +1414,7 @@ export default function PuzzleListing({
       {/* Toast */}
       {toast && (
         <div
-          className="fixed bottom-5 left-1/2 z-[var(--z-modal-backdrop)] -translate-x-1/2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-[0_10px_30px_rgba(15,23,42,0.18)]"
+          className="fixed bottom-5 left-1/2 z-[var(--z-toast)] -translate-x-1/2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-[0_10px_30px_rgba(15,23,42,0.18)]"
           style={{ animation: 'board-pop .3s both' }}
         >
           {toast}

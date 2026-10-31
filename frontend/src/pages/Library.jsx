@@ -1,3 +1,4 @@
+import Portal from '../components/Portal';
 import { useCallback, useEffect, useMemo, useRef, useState, Fragment } from 'react';
 import { useUrlView } from '../hooks/useUrlView';
 import { Chess } from 'chess.js';
@@ -312,14 +313,14 @@ function fitBoardToViewport(raw, docW) {
 
 function Overlay({ children, onClose, wide }) {
   return (
-    <div className="fixed inset-0 z-[var(--z-modal)] grid place-items-center bg-black/60 backdrop-blur-[2px] p-4" onMouseDown={onClose}>
+    <Portal><div className="fixed inset-0 z-[var(--z-modal)] grid place-items-center bg-black/60 backdrop-blur-[2px] p-4" onMouseDown={onClose}>
       <div
         onMouseDown={(e) => e.stopPropagation()}
         className={`w-full ${wide ? 'max-w-lg' : 'max-w-md'} rounded-2xl border border-ivory-700/50 bg-ink-900 shadow-[0_24px_70px_-20px_rgba(0,0,0,0.7)] p-5 max-h-[92vh] overflow-y-auto`}
       >
         {children}
       </div>
-    </div>
+    </div></Portal>
   );
 }
 
@@ -1807,8 +1808,8 @@ export default function Library() {
                 </button>
                 {folderKebabFor === cf.id && (
                   <>
-                    <div className="fixed inset-0 z-10" onClick={() => setFolderKebabFor(null)} />
-                    <div className="absolute right-2 top-11 z-20 w-44 rounded-xl border border-ivory-700/50 bg-ink-800 p-1.5 shadow-2xl flex flex-col">
+                    <div className="fixed inset-0 z-[var(--z-dropdown)]" onClick={() => setFolderKebabFor(null)} />
+                    <div className="absolute right-2 top-11 z-[var(--z-dropdown)] w-44 rounded-xl border border-ivory-700/50 bg-ink-800 p-1.5 shadow-2xl flex flex-col">
                       {[
                         { label: 'Rename', fn: () => { setRenameFolderState(cf); setFolderKebabFor(null); } },
                         { label: 'Move', fn: () => { setMoveFolderState(cf); setFolderKebabFor(null); } },
@@ -1928,8 +1929,8 @@ export default function Library() {
 
                   {menuFor === it.id && (
                     <>
-                      <div className="fixed inset-0 z-10" onClick={() => setMenuFor(null)} />
-                      <div className="absolute right-2 top-10 z-20 w-44 rounded-xl border border-ivory-700/50 bg-ink-800 shadow-2xl p-1.5 flex flex-col">
+                      <div className="fixed inset-0 z-[var(--z-dropdown)]" onClick={() => setMenuFor(null)} />
+                      <div className="absolute right-2 top-10 z-[var(--z-dropdown)] w-44 rounded-xl border border-ivory-700/50 bg-ink-800 shadow-2xl p-1.5 flex flex-col">
                         {[
                           { label: 'Rename', fn: () => setItemModal({ editing: it }) },
                           { label: 'Delete', fn: () => deleteItem(it.id), danger: true },

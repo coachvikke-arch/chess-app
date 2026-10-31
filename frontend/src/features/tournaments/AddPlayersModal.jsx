@@ -1,3 +1,4 @@
+import Portal from '../../components/Portal';
 import { useEffect, useState } from 'react';
 import { StudentPicker } from './TournamentFormModal';
 import { getStudentPool, addPlayers, errorMessage } from '../../services/tournamentsApi';
@@ -16,7 +17,7 @@ export default function AddPlayersModal({ tournamentId, existingIds, onClose, on
   }
   const n = picked.length;
   return (
-    <div className="tn-backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+    <Portal><div className="tn-backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="tn-modal tn-modal-flex" style={{ width: 'min(600px,100%)' }}>
         <div className="tn-modal-head">
           <h2>Add players</h2>
@@ -36,6 +37,6 @@ export default function AddPlayersModal({ tournamentId, existingIds, onClose, on
           </div>
         </div>
       </div>
-    </div>
+    </div></Portal>
   );
 }

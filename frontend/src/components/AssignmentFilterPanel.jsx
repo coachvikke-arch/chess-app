@@ -1,3 +1,4 @@
+import Portal from './Portal';
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import Button from './Button';
 
@@ -205,7 +206,7 @@ export default function AssignmentFilterPanel({ open, value, students, onApply, 
   const statusFilters = statusFiltersFor(draft);
 
   return (
-    <div className="fixed inset-0 z-[var(--z-modal-backdrop)] flex justify-end" onKeyDown={onKeyDown}>
+    <Portal><div className="fixed inset-0 z-[var(--z-modal-backdrop)] flex justify-end" onKeyDown={onKeyDown}>
       <div className="absolute inset-0 bg-black/60" onClick={onClose} aria-hidden="true" />
 
       <div
@@ -304,7 +305,7 @@ export default function AssignmentFilterPanel({ open, value, students, onApply, 
           </Button>
         </footer>
       </div>
-    </div>
+    </div></Portal>
   );
 }
 

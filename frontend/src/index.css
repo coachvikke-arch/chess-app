@@ -2789,7 +2789,7 @@ button.set-row:active {
 .play-mode-overlay {
   position: fixed;
   inset: 0;
-  z-index: 1000;
+  z-index: var(--z-popup);
   display: flex;
   flex-direction: row;
   background: var(--ink-950);
@@ -2806,7 +2806,7 @@ button.set-row:active {
   position: fixed;
   top: 0.85rem;
   right: 0.85rem;
-  z-index: 1005;
+  z-index: var(--z-popup);
   width: 2.35rem;
   height: 2.35rem;
   display: grid;
@@ -5299,7 +5299,7 @@ body {
 .pgr-overlay {
   position: fixed;
   inset: 0;
-  z-index: 220;
+  z-index: var(--z-popup);
   display: grid;
   place-items: center;
   padding: 12px;
@@ -5672,7 +5672,7 @@ body {
 .levelup-overlay {
   position: fixed;
   inset: 0;
-  z-index: 999;
+  z-index: var(--z-popup);
   display: grid;
   place-items: center;
   background: rgba(13, 27, 44, 0.62);
@@ -5760,7 +5760,7 @@ body {
   position: fixed;
   top: 76px;
   right: 16px;
-  z-index: var(--z-modal-backdrop);
+  z-index: var(--z-notification);
   width: min(360px, calc(100vw - 32px));
   border-radius: 1.1rem;
   background: rgba(255, 255, 255, 0.98);
@@ -5863,9 +5863,9 @@ body {
   display: flex;
   flex-direction: column;
   overflow: visible;
-  background: radial-gradient(1200px 600px at 50% -10%, rgba(33, 49, 78, 0.35), transparent 65%),
-              linear-gradient(180deg, #0d1a2e, #111d30 70%);
-  color: #f5f7fa;
+  background: radial-gradient(1200px 600px at 50% -10%, rgba(37, 99, 235, 0.07), transparent 65%),
+              linear-gradient(180deg, #ffffff, #f4f9fd 70%);
+  color: #0f172a;
 }
 /* Immersive view: the bar steps aside so the board owns the whole screen.
    It comes back on hover of the top edge - it is hidden, not removed. */
@@ -5886,9 +5886,9 @@ body {
   flex: none;
   flex-wrap: nowrap;
   padding: 7px 14px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(13, 27, 44, 0.75);
-  backdrop-filter: blur(6px);
+  border-bottom: 1px solid #e2e8f0;
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
   position: relative;
   top: 0;
   z-index: 30;
@@ -5906,46 +5906,46 @@ body {
   font-size: 1rem;
   line-height: 1;
   border-radius: 9px;
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  background: rgba(255, 255, 255, 0.06);
-  color: inherit;
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
+  color: #334155;
   cursor: pointer;
   transition: background 0.15s ease, border-color 0.15s ease;
 }
-.live-room-back:hover { background: rgba(255, 255, 255, 0.14); border-color: rgba(255, 255, 255, 0.3); }
+.live-room-back:hover { background: #eff6ff; border-color: #93c5fd; color: #1d4ed8; }
 
 /* The leaving control itself. Under the header with the rest of the room's
    chrome, not floating over the position — it ends the session for everyone. */
 .live-room-leavebar { display: flex; justify-content: flex-end; padding: 4px 10px 0; }
 .live-live-indicator {
   display: inline-flex; align-items: center; gap: 6px;
-  background: rgba(220, 38, 38, 0.15);
-  border: 1px solid rgba(248, 113, 113, 0.5);
+  background: #fef2f2;
+  border: 1px solid #fecaca;
   padding: 2px 9px; border-radius: 999px;
   flex: none;
 }
-.live-live-text { font-size: 0.66rem; font-weight: 800; letter-spacing: 0.12em; color: #f87171; text-transform: uppercase; }
+.live-live-text { font-size: 0.66rem; font-weight: 800; letter-spacing: 0.12em; color: #dc2626; text-transform: uppercase; }
 .live-room-title {
   font-size: 0.98rem; font-weight: 700; font-family: 'Playfair Display', serif;
   margin: 0;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .live-room-subtitle {
-  font-size: 0.72rem; color: rgba(125, 162, 196, 0.9);
+  font-size: 0.72rem; color: #64748b;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   min-width: 0;
 }
 .live-room-header-right { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; flex: none; }
-.live-room-count { font-size: 0.75rem; color: rgba(117, 223, 255, 0.95); }
+.live-room-count { font-size: 0.75rem; color: #1d4ed8; }
 /* The bar reads as one line: the connection text and the subtitle are the
    first things to go when the window narrows, never the actions. */
 @media (max-width: 1280px) { .live-room .live-room-subtitle { display: none; } }
 @media (max-width: 760px) { .live-room .live-conn-text { display: none; } }
 
 .live-btn-leave {
-  background: rgba(190, 18, 60, 0.85);
+  background: #dc2626;
   color: #fff;
-  border: 1px solid rgba(251, 113, 133, 0.5);
+  border: 1px solid #b91c1c;
   font-size: 0.76rem;
   font-weight: 700;
   padding: 5px 12px;
@@ -5983,14 +5983,11 @@ body {
   gap: 2px;
   padding: 6px;
   border-radius: 12px;
-  /* Light card, matching the room's ivory/gold panels - not the old dark navy
-     slab. The row text/hover rules under .live-room below already expect a
-     light background (dark #2a3b49 labels, #0b7ba6 actions, #f0f6fa hover),
-     so only the panel chrome changes here. */
-  border: 1px solid rgba(201, 168, 31, 0.45);
-  background: linear-gradient(180deg, #fffdf7, #fbf5e9);
+  /* White card with a hairline — the same popover the rest of the app uses. */
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
   box-shadow:
-    0 12px 30px rgba(120, 96, 12, 0.18),
+    0 12px 30px rgba(15, 23, 42, 0.16),
     inset 0 1px 0 rgba(255, 255, 255, 0.9);
   animation: live-menu-in 0.16s ease both;
 }
@@ -6019,8 +6016,8 @@ body {
   padding: 7px 9px;
   border-radius: 8px;
   font-size: 0.74rem;
-  /* Dark ink for the light card (was near-white for the old navy panel). */
-  color: #2a3b49;
+  /* Dark ink on the white card. */
+  color: #334155;
   text-decoration: none;
 }
 .live-menu-label { font-weight: 700; }
@@ -6044,16 +6041,16 @@ body {
   flex-wrap: wrap;
   margin: 4px 18px 10px;
   padding: 7px 14px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  border: 1px solid #bfdbfe;
   border-radius: 12px;
-  background: rgba(13, 27, 44, 0.5);
+  background: #eff6ff;
   font-size: 0.78rem;
 }
 .live-external-icon { font-size: 1rem; }
-.live-external-label { font-weight: 700; color: #ecd089; font-family: 'Playfair Display', serif; }
+.live-external-label { font-weight: 700; color: #1d4ed8; font-family: 'Playfair Display', serif; }
 .live-external-link {
-  background: linear-gradient(135deg, #ecd089, #bff1ff);
-  color: #171717;
+  background: #2563eb;
+  color: #ffffff;
   font-weight: 800;
   font-size: 0.72rem;
   padding: 5px 12px;
@@ -6064,7 +6061,7 @@ body {
 .live-external-link:hover { filter: brightness(1.08); }
 .live-external-url {
   font-size: 0.66rem;
-  color: rgba(125, 162, 196, 0.8);
+  color: #64748b;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -6075,15 +6072,15 @@ body {
   font-size: 0.7rem;
   padding: 4px 10px;
   border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: rgba(0, 0, 0, 0.02);
-  color: rgba(240, 249, 255, 0.85);
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
+  color: #475569;
 }
 
 /* ── dots ── */
 .live-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
-.live-dot-on { background: #bff1ff; box-shadow: 0 0 8px rgba(25, 189, 242, 0.9); animation: live-pulse 1.6s infinite; }
-.live-dot-warn { background: #19bdf2; box-shadow: 0 0 6px rgba(25, 189, 242, 0.8); }
+.live-dot-on { background: #2563eb; box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.18); animation: live-pulse 1.6s infinite; }
+.live-dot-warn { background: #d97706; box-shadow: 0 0 0 3px rgba(217, 119, 6, 0.16); }
 @keyframes live-pulse {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.35; }
@@ -6098,10 +6095,10 @@ body {
   font-weight: 700;
   letter-spacing: 0.06em;
 }
-.live-badge-live { background: rgba(220, 38, 38, 0.2); border: 1px solid rgba(248, 113, 113, 0.5); color: #f87171; }
-.live-badge-upcoming { background: rgba(25, 189, 242, 0.15); border: 1px solid rgba(25, 189, 242, 0.4); color: #bff1ff; }
-.live-badge-done { background: rgba(25, 189, 242, 0.15); border: 1px solid rgba(25, 189, 242, 0.4); color: #bff1ff; }
-.live-badge-cancel { background: rgba(244, 63, 94, 0.15); border: 1px solid rgba(244, 63, 94, 0.4); color: #fb7185; }
+.live-badge-live { background: #fef2f2; border: 1px solid #fecaca; color: #b91c1c; }
+.live-badge-upcoming { background: #eff6ff; border: 1px solid #bfdbfe; color: #1d4ed8; }
+.live-badge-done { background: #f1f5f9; border: 1px solid #cbd5e1; color: #475569; }
+.live-badge-cancel { background: #fef2f2; border: 1px solid #fecaca; color: #b91c1c; }
 
 /* ── chips / tabs ── */
 .live-chip {
@@ -6109,27 +6106,27 @@ body {
   font-size: 0.7rem; font-weight: 600;
   padding: 5px 10px;
   border-radius: 0.55rem;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  color: rgba(240, 249, 255, 0.9);
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  color: #334155;
   cursor: pointer;
   transition: all 0.15s ease;
 }
-.live-chip:hover { background: rgba(255, 255, 255, 0.12); }
-.live-chip-on { background: linear-gradient(135deg, rgba(236,205,118,0.25), rgba(212,169,47,0.2)); border-color: rgba(117, 223, 255, 0.6); color: #ecd089; }
+.live-chip:hover { background: #f8fafc; border-color: #cbd5e1; }
+.live-chip-on { background: #eff6ff; border-color: #93c5fd; color: #1d4ed8; }
 .live-tab {
   display: inline-flex; align-items: center;
   font-size: 0.78rem; font-weight: 700;
   padding: 7px 14px;
   border-radius: 0.6rem;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  color: rgba(240, 249, 255, 0.8);
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  color: #475569;
   cursor: pointer;
   transition: all 0.15s ease;
 }
-.live-tab:hover { background: rgba(255, 255, 255, 0.1); }
-.live-tab-on { background: linear-gradient(135deg, #ecd089, #bff1ff); color: #171717; border-color: #bff1ff; }
+.live-tab:hover { background: #f8fafc; }
+.live-tab-on { background: #2563eb; color: #ffffff; border-color: #2563eb; }
 
 /* Online Classes page status tabs (Upcoming / Live / Completed) —
    scoped here so the live-room tabs keep their compact look.
@@ -7255,7 +7252,7 @@ body {
 .cdm-overlay {
   position: fixed;
   inset: 0;
-  z-index: var(--z-modal-backdrop, 1000);
+  z-index: var(--z-modal-backdrop);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -7692,9 +7689,9 @@ body {
   min-height: 0;
   max-height: 42vh;
   margin: 0 16px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid #e2e8f0;
   border-radius: 14px;
-  background: rgba(255, 255, 255, 0.04);
+  background: #ffffff;
   overflow: hidden;
 }
 .live-extras-head {
@@ -7711,8 +7708,8 @@ body {
   font-size: 0.76rem;
   cursor: pointer;
 }
-.live-extras-head:hover { background: rgba(255, 255, 255, 0.06); }
-.live-extras-caret { font-size: 0.7rem; color: #ecd089; }
+.live-extras-head:hover { background: #f8fafc; }
+.live-extras-caret { font-size: 0.7rem; color: #64748b; }
 .live-extras-title { font-weight: 700; letter-spacing: 0.02em; }
 .live-extras-hint { margin-left: auto; font-size: 0.66rem; opacity: 0.65; }
 .live-extras-body {
@@ -7734,9 +7731,9 @@ body {
   flex-direction: column;
   height: calc(100vh - 160px);
   min-height: 380px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid #e2e8f0;
   border-radius: 14px;
-  background: rgba(13, 27, 44, 0.5);
+  background: #ffffff;
   overflow: hidden;
 }
 /* Compact card for the external-meeting info panel */
@@ -7754,10 +7751,10 @@ body {
 .live-video-topbar {
   display: flex; align-items: center; justify-content: space-between;
   padding: 8px 12px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(255, 255, 255, 0.03);
+  border-bottom: 1px solid #e2e8f0;
+  background: #f8fafc;
 }
-.live-video-count { display: flex; align-items: center; gap: 7px; font-size: 0.72rem; color: rgba(240,249,255,0.8); }
+.live-video-count { display: flex; align-items: center; gap: 7px; font-size: 0.72rem; color: #64748b; }
 .live-video-toggles { display: flex; gap: 6px; }
 
 .live-conn-overlay {
@@ -7768,7 +7765,7 @@ body {
   text-align: center;
 }
 .live-banner { padding: 7px 12px; font-size: 0.75rem; font-weight: 700; text-align: center; }
-.live-banner-warn { background: rgba(25, 189, 242, 0.18); color: #bff1ff; border-bottom: 1px solid rgba(212,169,47,0.3); }
+.live-banner-warn { background: #fffbeb; color: #b45309; border-bottom: 1px solid #fde68a; }
 
 .live-grid {
   flex: 1;
@@ -7782,7 +7779,7 @@ body {
 .live-grid-empty {
   grid-column: 1 / -1;
   display: grid; place-items: center;
-  color: rgba(125, 162, 196, 0.7);
+  color: #64748b;
   font-size: 0.8rem;
   min-height: 140px;
 }
@@ -7791,8 +7788,8 @@ body {
   aspect-ratio: 4 / 3;
   border-radius: 12px;
   overflow: hidden;
-  background: #0a1828;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
   min-height: 90px;
 }
 .live-vtile-video {
@@ -7804,20 +7801,20 @@ body {
   position: absolute; inset: 0;
   display: flex; flex-direction: column; align-items: center; justify-content: center;
   gap: 6px;
-  background: linear-gradient(160deg, #16233a, #0a1828);
+  background: linear-gradient(160deg, #f8fafc, #e8eff9);
 }
 .live-vtile-avatar {
   width: 42px; height: 42px;
   border-radius: 50%;
   display: grid; place-items: center;
-  background: linear-gradient(135deg, #ecd089, #bff1ff);
-  color: #171717;
+  background: linear-gradient(135deg, #2563eb, #60a5fa);
+  color: #ffffff;
   font-weight: 800; font-size: 1.1rem;
 }
-.live-vtile-novideo { font-size: 0.62rem; color: rgba(169,180,154,0.8); }
+.live-vtile-novideo { font-size: 0.62rem; color: #64748b; }
 .live-vtile-micbadge {
   position: absolute; top: 6px; right: 6px;
-  background: rgba(13, 27, 44, 0.8);
+  background: rgba(248, 250, 252, 0.9);
   border-radius: 6px;
   padding: 2px 5px;
   font-size: 0.7rem;
@@ -7832,8 +7829,8 @@ body {
 }
 .live-vtile-host {
   font-size: 0.55rem; font-weight: 800; letter-spacing: 0.05em;
-  color: #ecd089;
-  border: 1px solid rgba(236,205,118,0.5);
+  color: #bfdbfe;
+  border: 1px solid rgba(191, 219, 254, 0.55);
   padding: 0 5px; border-radius: 4px;
 }
 .live-vtile-actions {
@@ -7860,24 +7857,24 @@ body {
   display: flex; align-items: center; justify-content: center;
   gap: 10px;
   padding: 10px;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(255, 255, 255, 0.03);
+  border-top: 1px solid #e2e8f0;
+  background: #f8fafc;
 }
 .live-ctrl {
   width: 40px; height: 40px;
   border-radius: 50%;
   display: grid; place-items: center;
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  color: #f5f7fa;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  color: #334155;
   font-size: 1rem;
   cursor: pointer;
   transition: all 0.15s ease;
 }
-.live-ctrl:hover { background: rgba(255, 255, 255, 0.2); }
-.live-ctrl-off { background: rgba(220, 38, 38, 0.5); border-color: rgba(248, 113, 113, 0.6); }
-.live-ctrl-on { background: linear-gradient(135deg, #ecd089, #bff1ff); color: #171717; }
-.live-ctrl-leave { background: rgba(190, 18, 60, 0.9); border-color: rgba(251, 113, 133, 0.6); color: #fff; }
+.live-ctrl:hover { background: #eff6ff; border-color: #93c5fd; }
+.live-ctrl-off { background: #fef2f2; border-color: #fecaca; color: #b91c1c; }
+.live-ctrl-on { background: #2563eb; border-color: #1d4ed8; color: #ffffff; }
+.live-ctrl-leave { background: #dc2626; border-color: #b91c1c; color: #fff; }
 
 /* ═══ SHARED BOARD ═══
    The panel is a stage, not a card: no border, no radius, no background of its
@@ -7903,10 +7900,10 @@ body {
   gap: 8px; flex-wrap: nowrap; min-width: 0;
 }
 .live-board-title { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
-.live-board-header-label { font-weight: 800; font-size: 0.85rem; color: #ecd089; font-family: 'Playfair Display', serif; white-space: nowrap; }
-.live-board-turn { font-size: 0.72rem; color: rgba(240, 249, 255, 0.85); white-space: nowrap; }
+.live-board-header-label { font-weight: 800; font-size: 0.85rem; color: #1d4ed8; font-family: 'Playfair Display', serif; white-space: nowrap; }
+.live-board-turn { font-size: 0.72rem; color: #334155; white-space: nowrap; }
 .live-board-caption {
-  font-size: 0.66rem; color: rgba(125, 162, 196, 0.8);
+  font-size: 0.66rem; color: #64748b;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; text-align: right;
 }
 
@@ -7937,8 +7934,8 @@ body {
   min-width: 0;
   padding: 6px 10px;
   border-radius: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: rgba(13, 27, 44, 0.5);
+  border: 1px solid #bfdbfe;
+  background: #eff6ff;
 }
 .live-drill-strip-top {
   display: flex; align-items: center; gap: 8px;
@@ -7946,7 +7943,7 @@ body {
 }
 .live-drill-strip-name {
   font-size: 0.72rem; font-weight: 800;
-  color: #ecd089; font-family: 'Playfair Display', serif;
+  color: #1d4ed8; font-family: 'Playfair Display', serif;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0;
 }
 .live-drill-strip-stats {
@@ -7974,9 +7971,9 @@ body {
   padding: 10px;
   box-sizing: border-box;
   border-radius: 14px;
-  border: 1px solid rgba(201, 168, 31, 0.45);
-  background: linear-gradient(180deg, #fffdf7, #fbf5e9);
-  box-shadow: 0 16px 40px rgba(17, 21, 23, 0.28);
+  border: 1px solid #bfdbfe;
+  background: linear-gradient(180deg, #ffffff, #f8fafc);
+  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.16);
   opacity: 0;
   transform: translateX(10px);
   pointer-events: none;
@@ -8062,12 +8059,12 @@ body {
   display: flex; align-items: center; justify-content: space-between;
   gap: 8px; margin-bottom: 6px;
 }
-.live-board-side-title { font-size: 0.66rem; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: #8a6a1c; }
+.live-board-side-title { font-size: 0.66rem; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: #1d4ed8; }
 .live-board-side-x {
   width: 22px; height: 22px;
   display: grid; place-items: center;
-  border: 1px solid rgba(17, 21, 23, 0.14);
-  background: #ffffff; color: #2a3b49;
+  border: 1px solid #cbd5e1;
+  background: #ffffff; color: #334155;
   border-radius: 7px; font-size: 0.75rem; cursor: pointer;
 }
 
@@ -8084,15 +8081,15 @@ body {
   font-weight: 600;
   padding: 5px 9px;
   border-radius: 0.5rem;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  color: rgba(240, 249, 255, 0.9);
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  color: #334155;
   cursor: pointer;
   transition: all 0.15s ease;
 }
 .live-board-controls button:hover,
 .live-board-annotations button:hover,
-.live-board-flip button:hover { background: rgba(255, 255, 255, 0.14); }
+.live-board-flip button:hover { background: #eff6ff; border-color: #93c5fd; }
 .live-board-controls button:disabled { opacity: 0.35; cursor: not-allowed; }
 /* compact square icon-only buttons for the board rail (Resize/Play/New game/Load FEN/Setup/Flip) —
    same look as the move-nav / best-move buttons, laid out in a 2-column grid */
@@ -8109,19 +8106,20 @@ body {
   display: grid; place-items: center;
   padding: 0 !important;
   font-size: 1.1rem; font-weight: 700; line-height: 1;
-  background: rgba(25, 189, 242, 0.15);
-  border: 1px solid rgba(25, 189, 242, 0.4);
-  color: #ecd089;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  color: #334155;
   border-radius: 0.55rem;
   flex-shrink: 0;
   cursor: pointer;
   transition: all 0.15s ease;
 }
-.live-icobtn:hover:not(:disabled) { background: rgba(25, 189, 242, 0.28); }
+.live-icobtn:hover:not(:disabled) { background: #eff6ff; border-color: #93c5fd; color: #1d4ed8; }
 .live-icobtn:disabled { opacity: 0.35; cursor: not-allowed; }
 .live-icobtn.live-chip-on {
-  background: rgba(236, 208, 137, 0.22);
-  border-color: #ecd089;
+  background: #eff6ff;
+  border-color: #93c5fd;
+  color: #1d4ed8;
 }
 /* 🤖 Computer-vs-Students match card — the card that appears when an
    instructor clicks the bot-symbol rail button. Pick students, side,
@@ -8191,7 +8189,7 @@ body {
   font-weight: 800;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: #94a3b8;
+  color: #64748b;
 }
 .live-bot-card-student-list {
   display: grid;
@@ -8212,7 +8210,7 @@ body {
   cursor: pointer;
   transition: all 0.14s ease;
 }
-.live-bot-card-student:hover { border-color: #19bdf2; background: #f0f9ff; }
+.live-bot-card-student:hover { border-color: #93c5fd; background: #eff6ff; }
 .live-bot-card-student.live-bot-card-student-on {
   border-color: #22c55e;
   background: #ecfdf5;
@@ -8238,7 +8236,7 @@ body {
   padding: 14px 8px;
   text-align: center;
   font-size: 0.78rem;
-  color: #94a3b8;
+  color: #64748b;
 }
 .live-bot-card-sides {
   display: grid;
@@ -8346,7 +8344,7 @@ body {
   font-weight: 800;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: #94a3b8;
+  color: #64748b;
 }
 .live-pos-error {
   font-size: 0.75rem;
@@ -8366,9 +8364,9 @@ body {
 .live-pos-foot .live-chip:disabled { opacity: 0.45; cursor: not-allowed; }
 .live-pos-foot .app-btn:last-child { grid-column: 1 / -1; }
 .live-btn-on {
-  background: linear-gradient(135deg, rgba(212,169,47,0.25), rgba(212,169,47,0.15)) !important;
-  border-color: rgba(25, 189, 242, 0.5) !important;
-  color: #bff1ff !important;
+  background: #eff6ff !important;
+  border-color: #93c5fd !important;
+  color: #1d4ed8 !important;
 }
 .live-side-toggle {
   display: inline-flex;
@@ -8376,11 +8374,11 @@ body {
   gap: 4px;
   padding-left: 8px;
   margin-left: 4px;
-  border-left: 1px solid rgba(255, 255, 255, 0.12);
+  border-left: 1px solid #e2e8f0;
 }
-.live-side-toggle-label { font-size: 0.66rem; font-weight: 600; color: rgba(125, 162, 196, 0.85); text-transform: uppercase; letter-spacing: 0.03em; }
+.live-side-toggle-label { font-size: 0.66rem; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.03em; }
 .live-side-toggle .live-chip { text-transform: capitalize; font-size: 0.6rem; padding: 2px 7px; border-radius: 0.4rem; gap: 3px; }
-.live-side-toggle .live-chip.live-chip-on { background: rgba(117, 223, 255, 0.2) !important; border-color: #ecd089 !important; color: #ecd089 !important; }
+.live-side-toggle .live-chip.live-chip-on { background: #2563eb !important; border-color: #1d4ed8 !important; color: #ffffff !important; }
 
 /* The move-grant colour picker. The white/black/both dots the board already
    understands: a comfortable 36px hit target, with the swatch itself drawn as a
@@ -8403,13 +8401,13 @@ body {
   width: 20px;
   height: 20px;
   border-radius: 50%;
-  border: 2px solid rgba(255, 255, 255, 0.4);
+  border: 2px solid rgba(100, 116, 139, 0.5);
   transition: transform 0.15s ease, box-shadow 0.15s ease;
 }
 .live-grant-dot.is-white::after { background: #f1f5f9; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.15); }
 .live-grant-dot.is-black::after { background: #1a1c22; }
-.live-grant-dot.is-both::after { background: #bff1ff; }
-.live-grant-dot.on::after { transform: scale(1.15); border-color: #ffffff; box-shadow: 0 0 0 3px rgba(117, 223, 255, 0.5); }
+.live-grant-dot.is-both::after { background: #93c5fd; }
+.live-grant-dot.on::after { transform: scale(1.15); border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.25); }
 .live-grant-dot:hover:not(:disabled):not(.on)::after { transform: scale(1.1); }
 .live-grant-dot:disabled { cursor: not-allowed; opacity: 0.32; }
 .live-grant-dot.is-taken::after { filter: grayscale(0.6); }
@@ -8429,12 +8427,12 @@ body {
   transition: box-shadow 0.15s ease, border-color 0.15s ease, color 0.15s ease, background 0.15s ease;
 }
 .live-board-body button:active {
-  box-shadow: 0 0 0 3px rgba(117, 223, 255, 0.45), 0 0 12px rgba(117, 223, 255, 0.35);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.3);
 }
 .live-btn-flash {
-  box-shadow: 0 0 0 3px rgba(117, 223, 255, 0.85), 0 0 16px rgba(117, 223, 255, 0.65) !important;
-  border-color: #ecd089 !important;
-  color: #ecd089 !important;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.5), 0 0 16px rgba(37, 99, 235, 0.3) !important;
+  border-color: #2563eb !important;
+  color: #1d4ed8 !important;
 }
 /* `margin: auto 0` centres the board on the cross axis and, unlike
    `align-items: center`, falls back to 0 on overflow - so on a window too short
@@ -8463,8 +8461,8 @@ body {
   gap: 10px;
   padding: 12px;
   border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: rgba(13, 27, 44, 0.5);
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
   overflow-y: auto;
 }
 /* The whole card takes the colour of the attempt, so the status reads from the
@@ -8477,24 +8475,24 @@ body {
   font-size: 0.82rem;
   font-weight: 800;
   font-family: 'Playfair Display', serif;
-  color: #ecd089;
+  color: #1d4ed8;
   line-height: 1.25;
   overflow-wrap: anywhere;
 }
 .live-drill-info-worth { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 0.72rem; }
-.live-drill-info-rating { display: inline-flex; align-items: center; gap: 3px; color: rgba(240, 249, 255, 0.9); font-variant-numeric: tabular-nums; }
-.live-drill-info-star { color: #f5c451; }
-.live-drill-info-points { color: rgba(125, 162, 196, 0.9); font-variant-numeric: tabular-nums; }
-.live-drill-info-points.is-earned { color: #4ade80; font-weight: 800; }
-.live-drill-info-clock { color: rgba(125, 162, 196, 0.9); font-variant-numeric: tabular-nums; margin-left: auto; }
-.live-drill-info-clock.is-out { color: #f87171; font-weight: 700; }
+.live-drill-info-rating { display: inline-flex; align-items: center; gap: 3px; color: #334155; font-variant-numeric: tabular-nums; }
+.live-drill-info-star { color: #d97706; }
+.live-drill-info-points { color: #64748b; font-variant-numeric: tabular-nums; }
+.live-drill-info-points.is-earned { color: #15803d; font-weight: 800; }
+.live-drill-info-clock { color: #64748b; font-variant-numeric: tabular-nums; margin-left: auto; }
+.live-drill-info-clock.is-out { color: #dc2626; font-weight: 700; }
 
 .live-drill-info-progress { display: flex; flex-direction: column; gap: 4px; }
-.live-drill-info-prow { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; font-size: 0.68rem; color: rgba(240, 249, 255, 0.75); }
-.live-drill-info-plabel b { color: #ecd089; font-variant-numeric: tabular-nums; }
-.live-drill-info-plabel-dim { color: rgba(125, 162, 196, 0.7); font-variant-numeric: tabular-nums; }
-.live-drill-info-bar { height: 6px; border-radius: 999px; background: rgba(255, 255, 255, 0.1); overflow: hidden; }
-.live-drill-info-fill { display: block; height: 100%; border-radius: 999px; background: linear-gradient(90deg, rgba(117, 223, 255, 0.85), #ecd089); transition: width 0.25s ease; }
+.live-drill-info-prow { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; font-size: 0.68rem; color: #475569; }
+.live-drill-info-plabel b { color: #1d4ed8; font-variant-numeric: tabular-nums; }
+.live-drill-info-plabel-dim { color: #64748b; font-variant-numeric: tabular-nums; }
+.live-drill-info-bar { height: 6px; border-radius: 999px; background: #e2e8f0; overflow: hidden; }
+.live-drill-info-fill { display: block; height: 100%; border-radius: 999px; background: linear-gradient(90deg, #93c5fd, #2563eb); transition: width 0.25s ease; }
 .live-drill-info-fill.is-done { background: linear-gradient(90deg, #22c55e, #4ade80); }
 
 .live-drill-info-status { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
@@ -8507,14 +8505,14 @@ body {
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: rgba(125, 162, 196, 0.7);
+  color: #64748b;
 }
 
 /* The list itself owns its scroll: the card scrolls as a whole on a short
    screen, and this keeps a long solve from pushing the status off the top. */
 .live-drill-movelist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 3px; }
 .live-drill-moverow { display: flex; align-items: baseline; gap: 6px; min-width: 0; }
-.live-drill-movenum { flex: none; width: 1.1em; text-align: right; font-size: 0.66rem; color: rgba(125, 162, 196, 0.65); font-variant-numeric: tabular-nums; }
+.live-drill-movenum { flex: none; width: 1.1em; text-align: right; font-size: 0.66rem; color: #64748b; font-variant-numeric: tabular-nums; }
 .live-drill-movebody { display: flex; align-items: baseline; gap: 5px; flex-wrap: wrap; min-width: 0; }
 .live-drill-move {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
@@ -8527,13 +8525,13 @@ body {
   line-height: 1.4;
 }
 button.live-drill-move { cursor: pointer; }
-button.live-drill-move:hover { border-color: rgba(117, 223, 255, 0.45); }
-.live-drill-move-good { color: #4ade80; background: rgba(34, 197, 94, 0.12); }
-.live-drill-move-reply { color: rgba(240, 249, 255, 0.72); background: rgba(255, 255, 255, 0.06); }
-.live-drill-move-bad { color: #f87171; background: rgba(239, 68, 68, 0.14); }
-.live-drill-move-empty { color: rgba(125, 162, 196, 0.4); }
-.live-drill-move-live { color: #75dfff; border-color: rgba(117, 223, 255, 0.4); cursor: pointer; }
-.live-drill-move.is-current { outline: 2px solid rgba(117, 223, 255, 0.85); outline-offset: 1px; }
+button.live-drill-move:hover { border-color: #93c5fd; }
+.live-drill-move-good { color: #15803d; background: rgba(34, 197, 94, 0.12); }
+.live-drill-move-reply { color: #475569; background: #f1f5f9; }
+.live-drill-move-bad { color: #b91c1c; background: rgba(239, 68, 68, 0.14); }
+.live-drill-move-empty { color: #cbd5e1; }
+.live-drill-move-live { color: #2563eb; border-color: #bfdbfe; cursor: pointer; }
+.live-drill-move.is-current { outline: 2px solid rgba(37, 99, 235, 0.7); outline-offset: 1px; }
 
 /* Narrow screen: no room beside the board, so the card stacks UNDER it and the
    board keeps the full width. It gives height back, which the fit measures. */
@@ -8575,15 +8573,15 @@ button.live-drill-move:hover { border-color: rgba(117, 223, 255, 0.45); }
 
   padding: 8px 6px;
   border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.03));
+  border: 1px solid #e2e8f0;
+  background: linear-gradient(180deg, #f8fafc, #f1f5f9);
 }
 .live-captured-label {
   font-size: 0.56rem;
   font-weight: 800;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  color: rgba(236, 208, 137, 0.9);
+  color: #1d4ed8;
   white-space: nowrap;
 }
 .live-captured-pieces {
@@ -8600,8 +8598,8 @@ button.live-drill-move:hover { border-color: rgba(117, 223, 255, 0.45); }
   width: 22px;
   height: 22px;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
 }
 .live-captured .cp {
   font-size: 1rem;
@@ -8628,26 +8626,26 @@ button.live-drill-move:hover { border-color: rgba(117, 223, 255, 0.45); }
   place-items: center;
   font-size: 0.72rem;
   line-height: 1;
-  color: #ecd089;
-  background: rgba(25, 189, 242, 0.15);
-  border: 1px solid rgba(25, 189, 242, 0.45);
+  color: #1d4ed8;
+  background: #ffffff;
+  border: 1px solid #93c5fd;
   border-radius: 0.45rem;
   cursor: nwse-resize;
   user-select: none;
   z-index: 3;
   touch-action: none;
 }
-.live-board-resize:hover { background: rgba(25, 189, 242, 0.3); }
+.live-board-resize:hover { background: #eff6ff; }
 .live-play-offer {
   display: flex;
   flex-direction: column;
   gap: 6px;
   padding: 8px;
-  border: 1px solid rgba(25, 189, 242, 0.45);
+  border: 1px solid #bfdbfe;
   border-radius: 0.6rem;
-  background: rgba(25, 189, 242, 0.1);
+  background: #eff6ff;
 }
-.live-play-offer-txt { font-size: 0.68rem; font-weight: 700; color: #bff1ff; }
+.live-play-offer-txt { font-size: 0.68rem; font-weight: 700; color: #1d4ed8; }
 /* The desktop rail is a two-column icon grid. Give the play invitation the
    full rail width instead of letting its button overflow a single 48px cell. */
 @media (min-width: 901px) {
@@ -8689,31 +8687,31 @@ button.live-drill-move:hover { border-color: rgba(117, 223, 255, 0.45); }
   font-size: 0.78rem;
   font-weight: 700;
   line-height: 1;
-  background: rgba(25, 189, 242, 0.15);
-  border: 1px solid rgba(25, 189, 242, 0.4);
-  color: #ecd089;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  color: #334155;
   border-radius: 0.45rem;
   cursor: pointer;
   transition: all 0.15s ease;
 }
-.live-movenav-btn:hover:not(:disabled) { background: rgba(25, 189, 242, 0.28); }
+.live-movenav-btn:hover:not(:disabled) { background: #eff6ff; border-color: #93c5fd; color: #1d4ed8; }
 .live-movenav-btn:disabled { opacity: 0.35; cursor: not-allowed; }
 .live-movenav-btn-best {
   width: 30px;
-  background: rgba(117, 223, 255, 0.15);
-  border-color: rgba(117, 223, 255, 0.45);
-  color: #ecd089;
+  background: #eff6ff;
+  border-color: #93c5fd;
+  color: #1d4ed8;
   font-size: 0.78rem;
 }
-.live-movenav-btn-best:hover:not(:disabled) { background: rgba(117, 223, 255, 0.28); }
+.live-movenav-btn-best:hover:not(:disabled) { background: #dbeafe; }
 
 .live-board-toast {
   position: absolute;
   left: 50%; bottom: 12px;
   transform: translateX(-50%);
-  background: rgba(13, 27, 44, 0.95);
-  border: 1px solid rgba(117, 223, 255, 0.5);
-  color: #ecd089;
+  background: rgba(15, 23, 42, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  color: #ffffff;
   font-size: 0.78rem;
   font-weight: 700;
   padding: 7px 14px;
@@ -8728,16 +8726,16 @@ button.live-drill-move:hover { border-color: rgba(117, 223, 255, 0.45); }
 }
 
 .live-movelist {
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid #e2e8f0;
   border-radius: 10px;
-  background: rgba(255, 255, 255, 0.03);
+  background: #f8fafc;
   padding: 9px;
 }
-.live-movelist-title { font-size: 0.7rem; font-weight: 800; letter-spacing: 0.05em; color: #ecd089; margin-bottom: 6px; }
-.live-movelist-empty { font-size: 0.7rem; color: rgba(125, 162, 196, 0.7); }
+.live-movelist-title { font-size: 0.7rem; font-weight: 800; letter-spacing: 0.05em; color: #1d4ed8; margin-bottom: 6px; }
+.live-movelist-empty { font-size: 0.7rem; color: #64748b; }
 .live-movelist-pairs { display: flex; flex-wrap: wrap; gap: 8px; max-height: none; }
 .live-movelist-row { display: flex; gap: 6px; font-size: 0.72rem; }
-.live-movelist-num { color: rgba(125, 162, 196, 0.6); }
+.live-movelist-num { color: #64748b; }
 .live-moves-pairs { display: flex; flex-wrap: wrap; gap: 8px 14px; }
 
 /* move history styled like the SpectatorBoard panel (light theme) */
@@ -8747,22 +8745,22 @@ button.live-drill-move:hover { border-color: rgba(117, 223, 255, 0.45); }
   font-weight: 800;
   letter-spacing: 0.05em;
   text-transform: uppercase;
-  color: #37485a;
+  color: #334155;
   padding: 2px 2px 8px;
 }
 .live-move-count-num { margin-left: 6px; opacity: 0.6; font-size: 0.68rem; font-weight: 700; }
 .live-move-list {
   flex: none;
   border-radius: 12px;
-  border: 1px solid rgba(17, 21, 23, 0.1);
-  background: rgba(255, 255, 255, 0.85);
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
   padding: 10px;
   overscroll-behavior: contain;
   scrollbar-width: thin;
-  scrollbar-color: rgba(25, 189, 242, 0.45) transparent;
+  scrollbar-color: rgba(37, 99, 235, 0.4) transparent;
 }
 .live-move-list::-webkit-scrollbar { width: 6px; }
-.live-move-list::-webkit-scrollbar-thumb { background: rgba(25, 189, 242, 0.45); border-radius: 999px; }
+.live-move-list::-webkit-scrollbar-thumb { background: rgba(37, 99, 235, 0.4); border-radius: 999px; }
 .live-move-rows { display: flex; flex-direction: column; gap: 2px; }
 .live-move-row {
   display: grid;
@@ -8772,43 +8770,43 @@ button.live-drill-move:hover { border-color: rgba(117, 223, 255, 0.45); }
   padding: 3px 4px;
   border-radius: 8px;
 }
-.live-move-row:hover { background: rgba(25, 189, 242, 0.06); }
-.live-move-row-current { background: rgba(25, 189, 242, 0.12); box-shadow: inset 0 0 0 1px rgba(25, 189, 242, 0.3); }
+.live-move-row:hover { background: #f1f5f9; }
+.live-move-row-current { background: #eff6ff; box-shadow: inset 0 0 0 1px #bfdbfe; }
 .live-move-num { font-size: 0.72rem; color: #7b8792; text-align: right; font-weight: 600; }
 .live-move-chip {
   font-size: 0.82rem;
   font-weight: 600;
   padding: 3px 8px;
   border-radius: 8px;
-  background: rgba(25, 189, 242, 0.08);
-  color: #111517;
+  background: #f1f5f9;
+  color: #0f172a;
   text-align: center;
   cursor: pointer;
 }
-.live-move-chip:hover { background: rgba(25, 189, 242, 0.16); }
+.live-move-chip:hover { background: #e2e8f0; }
 .live-move-chip-current {
-  background: #0b7ba6;
+  background: #2563eb;
   color: #fff;
-  box-shadow: 0 2px 6px rgba(11, 123, 166, 0.35);
+  box-shadow: 0 2px 6px rgba(37, 99, 235, 0.35);
 }
-.live-move-chip-current:hover { background: #0b7ba6; color: #fff; }
+.live-move-chip-current:hover { background: #2563eb; color: #fff; }
 /* The move whose position is on the board (while reviewing an earlier ply) —
-   gold, so it reads as "you are here" against the blue live marker. */
+   slate, so it reads as "you are here" against the blue live marker. */
 .live-move-chip-view {
-  background: #b7791f;
+  background: #475569;
   color: #fff;
-  box-shadow: 0 0 0 2px rgba(251, 191, 36, 0.6);
+  box-shadow: 0 0 0 2px rgba(71, 85, 105, 0.5);
 }
-.live-move-chip-view:hover { background: #b7791f; color: #fff; }
+.live-move-chip-view:hover { background: #475569; color: #fff; }
 /* Students and spectators read the move list but cannot scrub it — only the
    instructor steps the room through a game — so their chips must not look or
    behave like buttons. */
 .live-move-chip-readonly { cursor: default; }
-.live-move-chip-readonly:hover { background: rgba(25, 189, 242, 0.08); }
-.live-move-chip-readonly.live-move-chip-current:hover { background: #0b7ba6; color: #fff; }
-.live-move-chip-readonly.live-move-chip-view:hover { background: #b7791f; color: #fff; }
+.live-move-chip-readonly:hover { background: #f1f5f9; }
+.live-move-chip-readonly.live-move-chip-current:hover { background: #2563eb; color: #fff; }
+.live-move-chip-readonly.live-move-chip-view:hover { background: #475569; color: #fff; }
 .live-board-backtolive { font-weight: 700; white-space: nowrap; }
-.live-board-reviewing { font-weight: 600; white-space: nowrap; background: rgba(251, 191, 36, 0.18); color: #b7791f; }
+.live-board-reviewing { font-weight: 600; white-space: nowrap; background: #fffbeb; color: #b45309; }
 .live-move-empty { min-height: 20px; }
 
 /* ═══ CHAT PANEL ═══ */
@@ -8817,19 +8815,19 @@ button.live-drill-move:hover { border-color: rgba(117, 223, 255, 0.45); }
   display: flex;
   flex-direction: column;
   min-height: 0;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid #e2e8f0;
   border-radius: 14px;
-  background: rgba(13, 27, 44, 0.5);
+  background: #ffffff;
   overflow: hidden;
 }
 .live-chat-head {
   display: flex; align-items: center; justify-content: space-between;
   gap: 8px;
   padding: 9px 12px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(255, 255, 255, 0.03);
+  border-bottom: 1px solid #e2e8f0;
+  background: #f8fafc;
 }
-.live-chat-title { font-weight: 800; font-size: 0.82rem; color: #ecd089; font-family: 'Playfair Display', serif; }
+.live-chat-title { font-weight: 800; font-size: 0.82rem; color: #1d4ed8; font-family: 'Playfair Display', serif; }
 .live-chat-modes { display: flex; gap: 5px; flex-wrap: wrap; }
 /* The chat's own controls, on their own row under the heading. Same chips, but
    out of the tab bar: that bar chooses WHICH panel you are looking at, and
@@ -8838,10 +8836,10 @@ button.live-drill-move:hover { border-color: rgba(117, 223, 255, 0.45); }
 .live-chat-modebar {
   display: flex; gap: 5px; flex-wrap: wrap; align-items: center;
   padding: 7px 12px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(255, 255, 255, 0.02);
+  border-bottom: 1px solid #e2e8f0;
+  background: #ffffff;
 }
-.live-chat-error { padding: 6px 12px; font-size: 0.72rem; color: #f87171; background: rgba(220, 38, 38, 0.12); }
+.live-chat-error { padding: 6px 12px; font-size: 0.72rem; color: #b91c1c; background: #fef2f2; }
 .live-chat-tabbody { flex: 1; display: flex; flex-direction: column; min-height: 0; }
 .live-chat-tabbody > .live-chat-panel {
   border: none;
@@ -8851,24 +8849,24 @@ button.live-drill-move:hover { border-color: rgba(117, 223, 255, 0.45); }
   min-height: 0;
   overflow: hidden;
 }
-.live-chat-notice { padding: 6px 12px; font-size: 0.7rem; color: #bff1ff; }
+.live-chat-notice { padding: 6px 12px; font-size: 0.7rem; color: #475569; }
 .live-dm-mailbox {
   margin: 8px 10px 0;
   padding: 8px 10px;
-  background: rgba(97, 175, 239, 0.08);
-  border: 1px solid rgba(97, 175, 239, 0.25);
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
   border-radius: 10px;
   max-height: none;
 }
-.live-dm-mailbox-title { font-size: 0.7rem; font-weight: 800; color: #ecd089; margin-bottom: 6px; }
-.live-dm-mailbox .live-msg { background: rgba(97, 175, 239, 0.06); border-color: rgba(97, 175, 239, 0.18); }
-.live-dm-mailbox .live-msg-name { color: #ecd089; }
+.live-dm-mailbox-title { font-size: 0.7rem; font-weight: 800; color: #1d4ed8; margin-bottom: 6px; }
+.live-dm-mailbox .live-msg { background: #ffffff; border-color: #dbeafe; }
+.live-dm-mailbox .live-msg-name { color: #1d4ed8; }
 .live-chat-dm-form {
-  border-top: 1px solid rgba(97, 175, 239, 0.25);
-  background: rgba(97, 175, 239, 0.05);
+  border-top: 1px solid #bfdbfe;
+  background: #eff6ff;
 }
-.live-chat-dm-form .live-chat-input { border-color: rgba(97, 175, 239, 0.45); }
-.live-chat-dm-form .live-chat-send { background: linear-gradient(135deg, #ecd089, #3b82f6); color: #0d1a2e; }
+.live-chat-dm-form .live-chat-input { border-color: #93c5fd; }
+.live-chat-dm-form .live-chat-send { background: linear-gradient(135deg, #2563eb, #1d4ed8); color: #ffffff; }
 .live-chat-list {
   flex: none;
   overflow: visible;
@@ -8878,40 +8876,40 @@ button.live-drill-move:hover { border-color: rgba(117, 223, 255, 0.45); }
   gap: 8px;
   min-height: 80px;
 }
-.live-chat-empty { font-size: 0.74rem; color: rgba(125, 162, 196, 0.7); text-align: center; margin-top: 20px; }
+.live-chat-empty { font-size: 0.74rem; color: #64748b; text-align: center; margin-top: 20px; }
 .live-msg {
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.07);
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
   border-radius: 10px;
   padding: 6px 9px;
 }
-.live-msg-instructor { border-left: 3px solid #ecd089; background: rgba(117, 223, 255, 0.07); }
+.live-msg-instructor { border-left: 3px solid #2563eb; background: #eff6ff; }
 .live-msg-meta { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
-.live-msg-name { font-size: 0.68rem; font-weight: 700; color: #ecd089; }
-.live-msg-host { font-size: 0.55rem; color: #ecd089; border: 1px solid rgba(236,205,118,0.4); padding: 0 4px; border-radius: 4px; }
-.live-msg-time { font-size: 0.6rem; color: rgba(125, 162, 196, 0.65); }
-.live-msg-body { font-size: 0.78rem; color: #f5f7fa; margin-top: 2px; white-space: pre-wrap; word-break: break-word; }
+.live-msg-name { font-size: 0.68rem; font-weight: 700; color: #1d4ed8; }
+.live-msg-host { font-size: 0.55rem; color: #b45309; border: 1px solid #fde68a; padding: 0 4px; border-radius: 4px; }
+.live-msg-time { font-size: 0.6rem; color: #64748b; }
+.live-msg-body { font-size: 0.78rem; color: #0f172a; margin-top: 2px; white-space: pre-wrap; word-break: break-word; }
 
 .live-chat-form {
   display: flex;
   gap: 7px;
   padding: 10px;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  border-top: 1px solid #e2e8f0;
 }
 .live-chat-input {
   flex: 1;
-  background: rgba(255, 255, 255, 0.07);
-  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
   border-radius: 0.6rem;
-  color: #f5f7fa;
+  color: #0f172a;
   padding: 8px 11px;
   font-size: 0.8rem;
   outline: none;
 }
-.live-chat-input:focus { border-color: rgba(117, 223, 255, 0.6); }
+.live-chat-input:focus { border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15); }
 .live-chat-send {
-  background: linear-gradient(135deg, #ecd089, #bff1ff);
-  color: #171717;
+  background: linear-gradient(135deg, #2563eb, #1d4ed8);
+  color: #ffffff;
   border: none;
   border-radius: 0.6rem;
   padding: 0 14px;
@@ -8922,15 +8920,15 @@ button.live-drill-move:hover { border-color: rgba(117, 223, 255, 0.45); }
 .live-chat-send:disabled { opacity: 0.4; cursor: not-allowed; }
 
 .live-participants {
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  border-top: 1px solid #e2e8f0;
   padding: 9px 12px;
 }
 .live-participants-title {
   display: flex; align-items: center; justify-content: space-between;
-  font-size: 0.72rem; font-weight: 800; color: rgba(117, 223, 255, 0.9);
+  font-size: 0.72rem; font-weight: 800; color: #1d4ed8;
   margin-bottom: 6px;
 }
-.live-participants-hint { font-size: 0.6rem; font-weight: 400; color: rgba(125, 162, 196, 0.7); }
+.live-participants-hint { font-size: 0.6rem; font-weight: 400; color: #64748b; }
 /* Instructor-only kill switch at the top of the roster: red while students can
    move (the action is "stop"), green once they are stopped (the action is
    "allow"). Same switch as the Board tools chip, so one click changes both. */
@@ -8965,7 +8963,7 @@ button.live-drill-move:hover { border-color: rgba(117, 223, 255, 0.45); }
 }
 .live-stop-btn:hover { filter: brightness(1.08); }
 .live-stop-btn:active { transform: translateY(1px); }
-.live-stop-btn:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+.live-stop-btn:focus-visible { outline: 2px solid #1d4ed8; outline-offset: 2px; }
 /* Same readability-pass problem as Open Video: the chat panel forces
    #111517 !important on every button inside it, so the red/green fill needs
    its white label declared with !important and a selector that out-ranks it. */
@@ -8994,7 +8992,7 @@ button.live-drill-move:hover { border-color: rgba(117, 223, 255, 0.45); }
   max-height: min(52vh, 460px);
   overflow-y: auto;
 }
-.live-participants-empty { font-size: 0.7rem; color: rgba(125, 162, 196, 0.7); }
+.live-participants-empty { font-size: 0.7rem; color: #64748b; }
 .live-participant { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 0.76rem; }
 .live-participant-avatar {
   position: relative;
@@ -9006,8 +9004,8 @@ button.live-drill-move:hover { border-color: rgba(117, 223, 255, 0.45); }
   place-items: center;
   font-size: 0.72rem;
   font-weight: 800;
-  color: #08222e;
-  background: linear-gradient(135deg, #bfe9ff, #7dd3fc);
+  color: #1d4ed8;
+  background: linear-gradient(135deg, #dbeafe, #bfdbfe);
 }
 .live-participant-avatar.is-online::after {
   content: '';
@@ -9017,8 +9015,8 @@ button.live-drill-move:hover { border-color: rgba(117, 223, 255, 0.45); }
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: #34d399;
-  border: 2px solid #0b1116;
+  background: #22c55e;
+  border: 2px solid #ffffff;
 }
 .live-participant-name {
   flex: 1 1 auto;
@@ -9026,35 +9024,35 @@ button.live-drill-move:hover { border-color: rgba(117, 223, 255, 0.45); }
   display: flex;
   align-items: center;
   gap: 6px;
-  color: #f5f7fa;
+  color: #0f172a;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.live-participant-host { font-size: 0.55rem; color: #ecd089; }
+.live-participant-host { font-size: 0.55rem; color: #b45309; }
 .live-participant-activity { font-size: 0.55rem; font-weight: 700; margin-left: 4px; }
-.live-participant-activity.is-live { color: #4ade80; }
-.live-participant-activity.is-done { color: #fbbf24; }
-.live-participant-colour { flex: none; width: 10px; height: 10px; border-radius: 50%; border: 1px solid rgba(255, 255, 255, 0.5); }
+.live-participant-activity.is-live { color: #15803d; }
+.live-participant-activity.is-done { color: #d97706; }
+.live-participant-colour { flex: none; width: 10px; height: 10px; border-radius: 50%; border: 1px solid rgba(15, 23, 42, 0.25); }
 .live-participant-colour.is-white { background: #f1f5f9; }
 .live-participant-colour.is-black { background: #1a1c22; }
-.live-participant-colour.is-both { background: #bff1ff; }
+.live-participant-colour.is-both { background: #93c5fd; }
 .live-participant-actions { display: flex; align-items: center; gap: 2px; margin-left: auto; }
 .live-participant-actions button {
   min-width: 36px;
   min-height: 36px;
   display: grid;
   place-items: center;
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
   border-radius: 8px;
   font-size: 0.72rem;
   cursor: pointer;
 }
-.live-participant-actions button:hover:not(:disabled) { filter: brightness(1.3); }
+.live-participant-actions button:hover:not(:disabled) { background: #eff6ff; border-color: #93c5fd; }
 .live-participant-grant { width: auto; padding: 0 10px; font-weight: 700; }
-.live-participant-revoke { color: #fca5a5; font-weight: 800; }
-.live-participant-remove { color: #f87171; }
+.live-participant-revoke { color: #dc2626; font-weight: 800; }
+.live-participant-remove { color: #b91c1c; }
 /* The colour dot is an action button too, but it paints itself through ::after,
    so it must not inherit the action button's box. */
 .live-participant-actions .live-grant-dot { background: transparent; border: none; }
@@ -9064,7 +9062,7 @@ button.live-drill-move:hover { border-color: rgba(117, 223, 255, 0.45); }
 .live-room-tabs {
   display: flex; gap: 6px;
   padding: 10px 14px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  border-bottom: 1px solid #e2e8f0;
 }
 .live-room-tabs .live-tab { flex: 1; justify-content: center; }
 .live-room-mobile-body {
@@ -9076,10 +9074,10 @@ button.live-drill-move:hover { border-color: rgba(117, 223, 255, 0.45); }
 
 /* visible scrollbars inside the classroom areas */
 .live-room ::-webkit-scrollbar { width: 10px; height: 10px; }
-.live-room ::-webkit-scrollbar-track { background: rgba(0, 0, 0, 0.1); border-radius: 999px; }
-.live-room ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.22); border-radius: 999px; }
-.live-room ::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.35); }
-.live-room { scrollbar-width: thin; scrollbar-color: rgba(255, 255, 255, 0.25) transparent; }
+.live-room ::-webkit-scrollbar-track { background: #f1f5f9; border-radius: 999px; }
+.live-room ::-webkit-scrollbar-thumb { background: rgba(100, 116, 139, 0.35); border-radius: 999px; }
+.live-room ::-webkit-scrollbar-thumb:hover { background: rgba(100, 116, 139, 0.55); }
+.live-room { scrollbar-width: thin; scrollbar-color: rgba(100, 116, 139, 0.4) transparent; }
 .live-room-mobile-body .live-video-panel,
 .live-room-mobile-body .live-board-wrap,
 .live-room-mobile-body .live-chat-panel {
@@ -9094,9 +9092,9 @@ button.live-drill-move:hover { border-color: rgba(117, 223, 255, 0.45); }
   min-height: 100vh;
   display: grid;
   place-items: center;
-  background: radial-gradient(900px 500px at 50% 30%, rgba(33, 49, 78, 0.4), transparent 65%),
-              linear-gradient(180deg, #0d1a2e, #111d30 70%);
-  color: #f5f7fa;
+  background: radial-gradient(900px 500px at 50% 30%, rgba(37, 99, 235, 0.07), transparent 65%),
+              linear-gradient(180deg, #ffffff, #f4f9fd 70%);
+  color: #0f172a;
   padding: 20px;
 }
 .live-room-boot-card,
@@ -9104,24 +9102,24 @@ button.live-drill-move:hover { border-color: rgba(117, 223, 255, 0.45); }
   max-width: 420px;
   width: 100%;
   text-align: center;
-  background: rgba(13, 27, 44, 0.8);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
   border-radius: 18px;
   padding: 34px 28px;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.45);
+  box-shadow: 0 20px 60px rgba(15, 23, 42, 0.12);
 }
 .live-boot-spinner {
   width: 40px; height: 40px;
   margin: 0 auto 16px;
-  border: 3px solid rgba(117, 223, 255, 0.25);
-  border-top-color: #ecd089;
+  border: 3px solid rgba(37, 99, 235, 0.2);
+  border-top-color: #2563eb;
   border-radius: 50%;
   animation: live-spin 0.8s linear infinite;
 }
 @keyframes live-spin { to { transform: rotate(360deg); } }
 .live-room-ended-glyph { font-size: 2.6rem; display: block; margin-bottom: 10px; }
 .live-room-ended-title { font-family: 'Playfair Display', serif; font-size: 1.4rem; margin: 0 0 8px; }
-.live-room-ended-sub { font-size: 0.85rem; color: rgba(125, 162, 196, 0.9); margin: 0 0 18px; line-height: 1.5; }
+.live-room-ended-sub { font-size: 0.85rem; color: #64748b; margin: 0 0 18px; line-height: 1.5; }
 
 /* ═══ NOTIFICATION FEED (Feed with Dark Mode style) ═══ */
 
@@ -9671,8 +9669,8 @@ button.live-drill-move:hover { border-color: rgba(117, 223, 255, 0.45); }
   place-items: center;
   font-size: 0.8rem;
   font-weight: 800;
-  color: #0d1b2c;
-  background: linear-gradient(135deg, #75dfff, #ecd089);
+  color: #ffffff;
+  background: linear-gradient(135deg, #60a5fa, #2563eb);
 }
 .join-toast-body { min-width: 0; flex: 1; }
 .join-toast-title {
@@ -9860,8 +9858,8 @@ button.live-drill-move:hover { border-color: rgba(117, 223, 255, 0.45); }
   font-size: 1.85rem;
   letter-spacing: 0.03em;
   line-height: 1;
-  color: #bff1ff;
-  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.55), 0 0 26px rgba(117, 223, 255, 0.6);
+  color: #1d4ed8;
+  text-shadow: 0 2px 10px rgba(255, 255, 255, 0.9), 0 0 26px rgba(37, 99, 235, 0.3);
   animation: cc-msg-pop 0.5s cubic-bezier(0.18, 1.4, 0.36, 1) both;
 }
 @keyframes cc-msg-pop {
@@ -9870,8 +9868,8 @@ button.live-drill-move:hover { border-color: rgba(117, 223, 255, 0.45); }
 }
 .cc-mate-title {
   font-size: 2.5rem;
-  color: #ecd089;
-  background: linear-gradient(105deg, #f4e9c8, #ecd089 45%, #ffdf8a 60%, #bff1ff);
+  color: #1d4ed8;
+  background: linear-gradient(105deg, #1d4ed8, #2563eb 45%, #60a5fa 60%, #1d4ed8);
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
@@ -9891,12 +9889,12 @@ button.live-drill-move:hover { border-color: rgba(117, 223, 255, 0.45); }
   font-weight: 800;
   font-size: 0.92rem;
   line-height: 1;
-  color: #ecd089;
+  color: #1d4ed8;
   padding: 0.28rem 0.75rem;
   border-radius: 999px;
-  background: rgba(19, 26, 37, 0.82);
-  border: 1px solid rgba(117, 223, 255, 0.55);
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4), 0 0 16px rgba(117, 223, 255, 0.25);
+  background: #ffffff;
+  border: 1px solid #bfdbfe;
+  box-shadow: 0 6px 20px rgba(15, 23, 42, 0.18), 0 0 16px rgba(37, 99, 235, 0.18);
   animation: cc-xp-rise 1.55s ease-out both;
 }
 @keyframes cc-xp-rise {
@@ -9912,8 +9910,8 @@ button.live-drill-move:hover { border-color: rgba(117, 223, 255, 0.45); }
   animation: cc-flame 0.8s ease-in-out infinite alternate;
 }
 @keyframes cc-flame {
-  from { transform: scale(1) rotate(-8deg); filter: drop-shadow(0 0 4px rgba(25, 189, 242, 0.85)); }
-  to   { transform: scale(1.22) rotate(8deg); filter: drop-shadow(0 0 16px rgba(117, 223, 255, 1)); }
+  from { transform: scale(1) rotate(-8deg); filter: drop-shadow(0 0 4px rgba(37, 99, 235, 0.6)); }
+  to   { transform: scale(1.22) rotate(8deg); filter: drop-shadow(0 0 16px rgba(37, 99, 235, 0.9)); }
 }
 
 /* ═══════════════════ LESSON COMPLETE CELEBRATION ═══════════════════ */
@@ -9921,14 +9919,14 @@ button.live-drill-move:hover { border-color: rgba(117, 223, 255, 0.45); }
 .lcc-overlay {
   position: fixed;
   inset: 0;
-  z-index: 220;
+  z-index: var(--z-popup);
   display: grid;
   place-items: center;
   padding: 1rem;
   overflow: hidden;
-  background: radial-gradient(1200px 800px at 50% -10%, rgba(117, 223, 255, 0.16), transparent 60%),
-    radial-gradient(900px 700px at 90% 110%, rgba(25, 189, 242, 0.1), transparent 55%),
-    linear-gradient(160deg, #141b28, #081120 60%, #141b28);
+  background: radial-gradient(1200px 800px at 50% -10%, rgba(37, 99, 235, 0.1), transparent 60%),
+    radial-gradient(900px 700px at 90% 110%, rgba(147, 197, 253, 0.22), transparent 55%),
+    linear-gradient(160deg, #eff6ff, #ffffff 60%, #dbeafe);
   animation: lcc-fade 0.4s ease both;
 }
 @keyframes lcc-fade {
@@ -9953,11 +9951,11 @@ button.live-drill-move:hover { border-color: rgba(117, 223, 255, 0.45); }
 }
 .lcc-piece {
   line-height: 1;
-  text-shadow: 0 0 10px rgba(117, 223, 255, 0.5);
+  text-shadow: 0 0 10px rgba(37, 99, 235, 0.3);
 }
 .lcc-bar {
   border-radius: 2px;
-  box-shadow: 0 0 12px rgba(117, 223, 255, 0.4);
+  box-shadow: 0 0 12px rgba(37, 99, 235, 0.3);
 }
 @keyframes lcc-fall {
   0%   { transform: translateY(-4vh) rotate(0deg) scale(1); opacity: 1; }
@@ -9971,13 +9969,13 @@ button.live-drill-move:hover { border-color: rgba(117, 223, 255, 0.45); }
   border-radius: 26px;
   max-width: 480px;
   width: 94%;
-  background: linear-gradient(165deg, rgba(26, 34, 48, 0.95), rgba(15, 21, 31, 0.97));
-  border: 2px solid rgba(117, 223, 255, 0.65);
+  background: #ffffff;
+  border: 2px solid #bfdbfe;
   box-shadow:
-    0 0 90px rgba(117, 223, 255, 0.22),
-    0 0 36px rgba(117, 223, 255, 0.12),
-    0 34px 90px rgba(0, 0, 0, 0.65),
-    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+    0 0 90px rgba(37, 99, 235, 0.12),
+    0 0 36px rgba(37, 99, 235, 0.08),
+    0 34px 90px rgba(15, 23, 42, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
   animation: lcc-card-pop 0.6s cubic-bezier(0.18, 1.4, 0.36, 1) both;
   overflow: hidden;
 }
@@ -9988,7 +9986,7 @@ button.live-drill-move:hover { border-color: rgba(117, 223, 255, 0.45); }
   left: 0;
   right: 0;
   height: 5px;
-  background: linear-gradient(90deg, #bff1ff, #ecd089, #bff1ff, #ecd089, #bff1ff);
+  background: linear-gradient(90deg, #60a5fa, #2563eb, #60a5fa, #2563eb, #60a5fa);
   background-size: 200% 100%;
   animation: party-bar-move 2s linear infinite;
 }
@@ -10007,19 +10005,19 @@ button.live-drill-move:hover { border-color: rgba(117, 223, 255, 0.45); }
 .lcc-crown {
   font-size: 4.2rem;
   line-height: 1;
-  color: #ecd089;
-  filter: drop-shadow(0 0 28px rgba(117, 223, 255, 0.85));
+  color: #d97706;
+  filter: drop-shadow(0 0 22px rgba(37, 99, 235, 0.45));
   animation: cc-crown-float 2.2s ease-in-out infinite;
 }
 @keyframes cc-crown-float {
-  0%, 100% { transform: translateY(0) rotate(-4deg); filter: drop-shadow(0 0 22px rgba(117, 223, 255, 0.7)); }
-  50%      { transform: translateY(-12px) rotate(4deg); filter: drop-shadow(0 0 40px rgba(117, 223, 255, 1)); }
+  0%, 100% { transform: translateY(0) rotate(-4deg); filter: drop-shadow(0 0 22px rgba(37, 99, 235, 0.4)); }
+  50%      { transform: translateY(-12px) rotate(4deg); filter: drop-shadow(0 0 40px rgba(37, 99, 235, 0.7)); }
 }
 .lcc-bounce {
   font-size: 1.6rem;
   line-height: 1;
-  color: rgba(117, 223, 255, 0.85);
-  filter: drop-shadow(0 0 12px rgba(117, 223, 255, 0.5));
+  color: #2563eb;
+  filter: drop-shadow(0 0 12px rgba(37, 99, 235, 0.35));
   animation: cc-jump 1.1s cubic-bezier(0.22, 1, 0.36, 1) infinite;
 }
 
@@ -10027,7 +10025,7 @@ button.live-drill-move:hover { border-color: rgba(117, 223, 255, 0.45); }
   font-size: 0.68rem;
   text-transform: uppercase;
   letter-spacing: 0.22em;
-  color: #bff1ff;
+  color: #1d4ed8;
   font-weight: 700;
   margin-bottom: 0.3rem;
 }
@@ -10037,18 +10035,18 @@ button.live-drill-move:hover { border-color: rgba(117, 223, 255, 0.45); }
   font-weight: 800;
   letter-spacing: 0.01em;
   line-height: 1.1;
-  color: #f5f7fa;
+  color: #0f172a;
 }
 .lcc-title span {
-  background: linear-gradient(105deg, #f4e9c8, #ecd089 45%, #ffdf8a 60%, #bff1ff);
+  background: linear-gradient(105deg, #1d4ed8, #2563eb 45%, #60a5fa 60%, #1d4ed8);
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
-  filter: drop-shadow(0 0 14px rgba(117, 223, 255, 0.4));
+  filter: drop-shadow(0 0 14px rgba(37, 99, 235, 0.2));
 }
 .lcc-sub {
   margin-top: 0.55rem;
-  color: rgba(237, 241, 250, 0.6);
+  color: #64748b;
   font-size: 0.86rem;
 }
 
@@ -10066,24 +10064,24 @@ button.live-drill-move:hover { border-color: rgba(117, 223, 255, 0.45); }
   gap: 0.1rem;
   padding: 0.6rem 1.1rem;
   border-radius: 14px;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(117, 223, 255, 0.3);
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
 }
 .lcc-stat-icon {
   font-size: 1.2rem;
   line-height: 1;
-  color: #ecd089;
+  color: #d97706;
 }
 .lcc-stat-num {
   font-weight: 800;
   font-size: 1.05rem;
-  color: #bff1ff;
+  color: #0f172a;
 }
 .lcc-stat-label {
   font-size: 0.62rem;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  color: rgba(237, 241, 250, 0.45);
+  color: #64748b;
 }
 
 .lcc-badges {
@@ -10099,13 +10097,13 @@ button.live-drill-move:hover { border-color: rgba(117, 223, 255, 0.45); }
   gap: 0.4rem;
   font-size: 0.78rem;
   font-weight: 700;
-  color: #bff1ff;
+  color: #1d4ed8;
   padding: 0.35rem 0.8rem;
   border-radius: 999px;
-  background: rgba(117, 223, 255, 0.12);
-  border: 1px solid rgba(117, 223, 255, 0.45);
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
 }
-.lcc-badge b { color: #ecd089; }
+.lcc-badge b { color: #b45309; }
 .lcc-badge-icon { font-size: 1.05rem; line-height: 1; }
 
 .lcc-actions {
@@ -10116,16 +10114,16 @@ button.live-drill-move:hover { border-color: rgba(117, 223, 255, 0.45); }
   margin-top: 0.4rem;
 }
 .lcc-continue {
-  background-color: rgba(117, 223, 255, 0.9);
-  background-image: linear-gradient(135deg, #ecd089, #bff1ff);
-  color: #171717;
-  border-color: rgba(25, 189, 242, 0.7);
-  box-shadow: 0 8px 24px rgba(117, 223, 255, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.5);
+  background-color: #2563eb;
+  background-image: linear-gradient(135deg, #2563eb, #1d4ed8);
+  color: #ffffff;
+  border-color: #1d4ed8;
+  box-shadow: 0 8px 24px rgba(37, 99, 235, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.35);
   animation: lcc-continue-pulse 1.8s ease-in-out infinite;
 }
 @keyframes lcc-continue-pulse {
   0%, 100% { transform: translateY(0); }
-  50%      { transform: translateY(-3px); box-shadow: 0 12px 32px rgba(117, 223, 255, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.5); }
+  50%      { transform: translateY(-3px); box-shadow: 0 12px 32px rgba(37, 99, 235, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.35); }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -10842,22 +10840,22 @@ button.live-drill-move:hover { border-color: rgba(117, 223, 255, 0.45); }
   align-items: center;
   gap: 2px 4px;
   padding: 7px 12px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(255, 255, 255, 0.02);
+  border-bottom: 1px solid #e2e8f0;
+  background: #f8fafc;
 }
 .live-course-crumb {
   display: inline-flex;
   align-items: center;
   gap: 4px;
   font-size: 0.68rem;
-  color: rgba(224, 242, 254, 0.6);
+  color: #64748b;
   padding: 3px 7px;
   border-radius: 0.45rem;
   transition: background 0.15s ease, color 0.15s ease;
 }
-.live-course-crumb:hover { background: rgba(255, 255, 255, 0.06); color: #ecd089; }
-.live-course-crumb-on { font-weight: 700; color: #f5f7fa; }
-.live-course-crumb-sep { color: rgba(224, 242, 254, 0.35); }
+.live-course-crumb:hover { background: #eff6ff; color: #1d4ed8; }
+.live-course-crumb-on { font-weight: 700; color: #0f172a; }
+.live-course-crumb-sep { color: #cbd5e1; }
 
 .live-course-row {
   display: flex;
@@ -10867,18 +10865,18 @@ button.live-drill-move:hover { border-color: rgba(117, 223, 255, 0.45); }
   text-align: left;
   padding: 8px 10px;
   border-radius: 10px;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.07);
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
   transition: background 0.15s ease, border-color 0.15s ease;
 }
-.live-course-row:hover { background: rgba(255, 255, 255, 0.09); }
+.live-course-row:hover { background: #eff6ff; }
 .live-course-row-on {
-  border-color: rgba(117, 223, 255, 0.5);
-  background: rgba(25, 189, 242, 0.12);
+  border-color: #93c5fd;
+  background: #eff6ff;
 }
-.live-course-check { color: #ecd089; font-size: 0.5rem; }
+.live-course-check { color: #2563eb; font-size: 0.5rem; }
 
-.live-course-board { border-top: 1px solid rgba(255, 255, 255, 0.08); background: rgba(255, 255, 255, 0.02); }
+.live-course-board { border-top: 1px solid #e2e8f0; background: #f8fafc; }
 .live-course-board-head {
   display: flex;
   align-items: center;
@@ -10892,11 +10890,11 @@ button.live-drill-move:hover { border-color: rgba(117, 223, 255, 0.45); }
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: rgba(240, 249, 255, 0.85);
+  color: #1d4ed8;
   padding: 0.15rem 0.5rem;
   border-radius: 999px;
-  border: 1px solid rgba(117, 223, 255, 0.45);
-  background: rgba(117, 223, 255, 0.08);
+  border: 1px solid #bfdbfe;
+  background: #eff6ff;
 }
 .live-course-nav-btn {
   width: 2.2rem;
@@ -10904,17 +10902,17 @@ button.live-drill-move:hover { border-color: rgba(117, 223, 255, 0.45); }
   display: grid;
   place-items: center;
   border-radius: 0.6rem;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(0, 0, 0, 0.02);
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
   font-size: 0.95rem;
   transition: background 0.15s ease;
 }
-.live-course-nav-btn:hover:not(:disabled) { background: rgba(255, 255, 255, 0.09); }
+.live-course-nav-btn:hover:not(:disabled) { background: #eff6ff; border-color: #93c5fd; }
 .live-course-nav-btn:disabled { opacity: 0.3; cursor: default; }
 
 .live-course-scroll::-webkit-scrollbar { width: 8px; }
 .live-course-scroll::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.14);
+  background: rgba(100, 116, 139, 0.35);
   border-radius: 999px;
 }
 .live-course-scroll::-webkit-scrollbar-track { background: transparent; }
@@ -10995,16 +10993,16 @@ button.live-drill-move:hover { border-color: rgba(117, 223, 255, 0.45); }
    only appears while scrolling). Declaring them keeps the same look on both. */
 .live-course-files-scroll {
   scrollbar-width: thin;
-  scrollbar-color: rgba(117, 223, 255, 0.55) rgba(255, 255, 255, 0.06);
+  scrollbar-color: rgba(37, 99, 235, 0.45) #f1f5f9;
 }
 .live-course-files-scroll::-webkit-scrollbar { width: 10px; }
 .live-course-files-scroll::-webkit-scrollbar-thumb {
-  background: rgba(117, 223, 255, 0.55);
+  background: rgba(37, 99, 235, 0.45);
   border-radius: 999px;
-  border: 2px solid rgba(13, 27, 44, 0.6);
+  border: 2px solid #f1f5f9;
 }
-.live-course-files-scroll::-webkit-scrollbar-thumb:hover { background: rgba(117, 223, 255, 0.75); }
-.live-course-files-scroll::-webkit-scrollbar-track { background: rgba(255, 255, 255, 0.06); border-radius: 999px; }
+.live-course-files-scroll::-webkit-scrollbar-thumb:hover { background: rgba(37, 99, 235, 0.65); }
+.live-course-files-scroll::-webkit-scrollbar-track { background: #f1f5f9; border-radius: 999px; }
 /* Light shell while the course chunk loads: same footprint as the folder
    list, transform/opacity only, so the tab opens instantly and never shifts
    the board when the real panel swaps in. */
@@ -11013,7 +11011,7 @@ button.live-drill-move:hover { border-color: rgba(117, 223, 255, 0.45); }
   display: block;
   height: 2.6rem;
   border-radius: 0.6rem;
-  background: rgba(255, 255, 255, 0.07);
+  background: #e2e8f0;
   animation: live-course-skeleton-pulse 1.1s ease-in-out infinite;
 }
 @keyframes live-course-skeleton-pulse {
@@ -11032,12 +11030,12 @@ button.live-drill-move:hover { border-color: rgba(117, 223, 255, 0.45); }
   gap: 6px;
   padding: 0 8px;
   margin: 8px 0 6px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
+  border: 1px solid #cbd5e1;
   border-radius: 8px;
-  background: rgba(0, 0, 0, 0.06);
+  background: #ffffff;
 }
 .live-course-search:focus-within {
-  border-color: rgba(201, 168, 31, 0.55);
+  border-color: #2563eb;
 }
 .live-course-search-icon { font-size: 0.75rem; opacity: 0.7; flex: none; }
 .live-course-search-input {
@@ -11082,12 +11080,12 @@ button.live-drill-move:hover { border-color: rgba(117, 223, 255, 0.45); }
   max-width: 90%;
   padding: 6px 12px;
   border-radius: 10px;
-  border: 1px solid rgba(117, 223, 255, 0.45);
-  background: rgba(13, 27, 44, 0.96);
-  color: #ecd089;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  background: rgba(15, 23, 42, 0.96);
+  color: #ffffff;
   font-size: 0.72rem;
   font-weight: 600;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.3);
   animation: board-pop 0.25s both;
 }
 
@@ -11569,7 +11567,7 @@ button.live-drill-move:hover { border-color: rgba(117, 223, 255, 0.45); }
 
 /* nemesis fixed-position tooltip (escapes the overflow:hidden arena) */
 .lb-fixed-tip {
-  position: fixed; z-index: 80; pointer-events: none; max-width: 240px;
+  position: fixed; z-index: var(--z-tooltip); pointer-events: none; max-width: 240px;
   background: var(--ink-900); color: var(--ivory-300); border: 1px solid rgba(25, 189, 242, 0.35);
   border-radius: 10px; padding: 7px 11px; font-size: 12px;
   box-shadow: 0 10px 26px rgba(0, 0, 0, 0.6); line-height: 1.35;
@@ -11660,8 +11658,8 @@ button.live-drill-move:hover { border-color: rgba(117, 223, 255, 0.45); }
   gap: 10px;
   flex-wrap: wrap;
   padding: 8px 10px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(255, 255, 255, 0.03);
+  border-bottom: 1px solid #e2e8f0;
+  background: #f8fafc;
   border-radius: 12px 12px 0 0;
 }
 .live-drill-breadcrumb {
@@ -11672,10 +11670,10 @@ button.live-drill-move:hover { border-color: rgba(117, 223, 255, 0.45); }
   font-size: 0.8rem;
   font-weight: 600;
 }
-.live-drill-breadcrumb-all { color: rgba(240, 249, 255, 0.55); }
-.live-drill-breadcrumb-sep { color: rgba(240, 249, 255, 0.35); }
+.live-drill-breadcrumb-all { color: #64748b; }
+.live-drill-breadcrumb-sep { color: #cbd5e1; }
 .live-drill-breadcrumb-name {
-  color: #ecd089;
+  color: #1d4ed8;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -11686,10 +11684,10 @@ button.live-drill-move:hover { border-color: rgba(117, 223, 255, 0.45); }
   gap: 8px;
   margin-left: auto;
   font-size: 0.72rem;
-  color: rgba(240, 249, 255, 0.8);
+  color: #475569;
 }
 .live-drill-stat { font-variant-numeric: tabular-nums; white-space: nowrap; }
-.live-drill-stat-out { color: #f87171; font-weight: 700; }
+.live-drill-stat-out { color: #dc2626; font-weight: 700; }
 
 /* Four cards across.
  *
@@ -11732,8 +11730,9 @@ button.live-drill-move:hover { border-color: rgba(117, 223, 255, 0.45); }
   gap: 7px;
   padding: 12px 13px;
   border-radius: 11px;
-  background: rgba(255, 255, 255, 0.045);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
   min-width: 0;
   min-height: 480px;
 }
@@ -11746,7 +11745,7 @@ button.live-drill-move:hover { border-color: rgba(117, 223, 255, 0.45); }
 .live-drill-name {
   font-size: 0.78rem;
   font-weight: 700;
-  color: rgba(240, 249, 255, 0.95);
+  color: #0f172a;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -11759,15 +11758,15 @@ button.live-drill-move:hover { border-color: rgba(117, 223, 255, 0.45); }
   border-radius: 999px;
   white-space: nowrap;
 }
-.live-drill-st-solving { background: rgba(25, 189, 242, 0.18); color: #ecd089; border: 1px solid rgba(25, 189, 242, 0.4); }
-.live-drill-st-completed { background: rgba(34, 197, 94, 0.28); color: #bbf7d0; border: 1px solid rgba(34, 197, 94, 0.6); }
-.live-drill-st-failed { background: rgba(239, 68, 68, 0.16); color: #fca5a5; border: 1px solid rgba(239, 68, 68, 0.4); }
+.live-drill-st-solving { background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; }
+.live-drill-st-completed { background: #f0fdf4; color: #15803d; border: 1px solid #bbf7d0; }
+.live-drill-st-failed { background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; }
 
 .live-drill-meta {
   display: flex;
   gap: 10px;
   font-size: 0.7rem;
-  color: rgba(240, 249, 255, 0.75);
+  color: #475569;
 }
 .live-drill-rows {
   display: flex;
@@ -11783,7 +11782,7 @@ button.live-drill-move:hover { border-color: rgba(117, 223, 255, 0.45); }
   font-size: 0.68rem;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
-.live-drill-none { font-size: 0.7rem; color: rgba(125, 162, 196, 0.65); }
+.live-drill-none { font-size: 0.7rem; color: #64748b; }
 
 /* Single continuous line of glowing move buttons (wraps) instead of one row
    per move pair. Correct/solution plies glow green; wrong attempts glow red. */
@@ -11809,18 +11808,16 @@ button.live-drill-move:hover { border-color: rgba(117, 223, 255, 0.45); }
   background: rgba(0, 0, 0, 0.02);
 }
 .live-drill-chip-green {
-  color: #ecd089;
-  border-color: rgba(25, 189, 242, 0.45);
-  background: rgba(25, 189, 242, 0.14);
-  box-shadow: 0 0 10px rgba(25, 189, 242, 0.45), 0 0 3px rgba(25, 189, 242, 0.3) inset;
+  color: #15803d;
+  border-color: #bbf7d0;
+  background: #f0fdf4;
 }
 .live-drill-chip-red {
-  color: #fca5a5;
-  border-color: rgba(248, 113, 113, 0.5);
-  background: rgba(248, 113, 113, 0.14);
-  box-shadow: 0 0 10px rgba(248, 113, 113, 0.5), 0 0 3px rgba(248, 113, 113, 0.3) inset;
+  color: #b91c1c;
+  border-color: #fecaca;
+  background: #fef2f2;
 }
-.live-drill-chip-num { color: rgba(117, 223, 255, 0.75); }
+.live-drill-chip-num { color: #64748b; }
 
 .live-drill-card-board {
   display: flex;
@@ -11835,7 +11832,7 @@ button.live-drill-move:hover { border-color: rgba(117, 223, 255, 0.45); }
   z-index: var(--z-modal-backdrop);
   display: grid;
   place-items: center;
-  background: rgba(9, 20, 33, 0.7);
+  background: rgba(15, 23, 42, 0.45);
   backdrop-filter: blur(3px);
   padding: 16px;
 }
@@ -11845,11 +11842,11 @@ button.live-drill-move:hover { border-color: rgba(117, 223, 255, 0.45); }
   max-height: 88dvh;
   display: flex;
   flex-direction: column;
-  background: #0d150d;
-  border: 1px solid rgba(117, 223, 255, 0.3);
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
   border-radius: 16px;
   padding: 16px;
-  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.6);
+  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.22);
   gap: 10px;
 }
 .live-drill-modal-head {
@@ -11857,35 +11854,35 @@ button.live-drill-move:hover { border-color: rgba(117, 223, 255, 0.45); }
   align-items: center;
   justify-content: space-between;
 }
-.live-drill-modal-title { font-size: 0.95rem; font-weight: 800; color: #ecd089; }
+.live-drill-modal-title { font-size: 0.95rem; font-weight: 800; color: #1d4ed8; }
 .live-drill-modal-x {
   width: 28px; height: 28px;
   display: grid; place-items: center;
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  color: rgba(240, 249, 255, 0.7);
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  color: #334155;
   cursor: pointer;
 }
-.live-drill-modal-x:hover { background: rgba(255, 255, 255, 0.12); }
+.live-drill-modal-x:hover { background: #eff6ff; border-color: #93c5fd; }
 
-.live-drill-search-label { font-size: 0.7rem; font-weight: 600; color: rgba(240, 249, 255, 0.6); }
+.live-drill-search-label { font-size: 0.7rem; font-weight: 600; color: #64748b; }
 .live-drill-search,
 .live-drill-config input,
 .live-drill-config select {
   width: 100%;
   padding: 8px 10px;
   border-radius: 9px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  background: rgba(255, 255, 255, 0.05);
-  color: #f5f7fa;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #0f172a;
   font-size: 0.82rem;
   outline: none;
 }
 .live-drill-search:focus,
 .live-drill-config input:focus,
-.live-drill-config select:focus { border-color: rgba(117, 223, 255, 0.6); }
-.live-drill-config select option { background: #0d150d; color: #f5f7fa; }
+.live-drill-config select:focus { border-color: #2563eb; }
+.live-drill-config select option { background: #ffffff; color: #0f172a; }
 
 .live-drill-results {
   flex: 1;
@@ -11903,15 +11900,15 @@ button.live-drill-move:hover { border-color: rgba(117, 223, 255, 0.45); }
   gap: 2px;
   padding: 8px 10px;
   border-radius: 9px;
-  background: rgba(0, 0, 0, 0.02);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
   cursor: pointer;
   transition: all 0.12s ease;
 }
-.live-drill-result:hover { border-color: rgba(117, 223, 255, 0.4); }
-.live-drill-result-on { border-color: #ecd089; background: rgba(117, 223, 255, 0.1); }
-.live-drill-result-title { font-size: 0.78rem; font-weight: 600; color: rgba(240, 249, 255, 0.92); }
-.live-drill-result-sub { font-size: 0.66rem; color: rgba(125, 162, 196, 0.75); }
+.live-drill-result:hover { border-color: #93c5fd; background: #eff6ff; }
+.live-drill-result-on { border-color: #2563eb; background: #eff6ff; }
+.live-drill-result-title { font-size: 0.78rem; font-weight: 600; color: #0f172a; }
+.live-drill-result-sub { font-size: 0.66rem; color: #64748b; }
 
 .live-drill-config {
   display: grid;
@@ -11923,7 +11920,7 @@ button.live-drill-move:hover { border-color: rgba(117, 223, 255, 0.45); }
   flex-direction: column;
   gap: 4px;
   font-size: 0.66rem;
-  color: rgba(240, 249, 255, 0.6);
+  color: #64748b;
 }
 .live-drill-config-foot {
   display: flex;
@@ -11937,8 +11934,8 @@ button.live-drill-move:hover { border-color: rgba(117, 223, 255, 0.45); }
   gap: 8px;
   padding: 12px;
   border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
 }
 .live-drill-preview-meta {
   display: flex;
@@ -11948,49 +11945,49 @@ button.live-drill-move:hover { border-color: rgba(117, 223, 255, 0.45); }
   justify-content: center;
 }
 
-/* ── Ask quiz modal — light premium theme (matches the chat card) ── */
+/* ── Ask quiz modal — the app's blue/white card, same set as the chat panel ── */
 .live-room .live-drill-modal-backdrop {
-  background: rgba(120, 96, 12, 0.22);
+  background: rgba(15, 23, 42, 0.45);
   backdrop-filter: blur(4px);
 }
 .live-room .live-drill-modal {
-  background: linear-gradient(180deg, #fffdf7, #fbf5e9);
-  border: 1px solid rgba(201, 168, 31, 0.45);
+  background: linear-gradient(180deg, #ffffff, #f8fafc);
+  border: 1px solid #bfdbfe;
   border-radius: 18px;
   box-shadow:
-    0 12px 30px rgba(120, 96, 12, 0.18),
+    0 12px 30px rgba(15, 23, 42, 0.16),
     inset 0 1px 0 rgba(255, 255, 255, 0.9);
 }
-.live-room .live-drill-modal-title { color: #8a6a1c; }
+.live-room .live-drill-modal-title { color: #1d4ed8; }
 .live-room .live-drill-modal-x {
   background: rgba(255, 255, 255, 0.85);
-  border: 1px solid rgba(201, 168, 31, 0.35);
-  color: #8a6a1c;
+  border: 1px solid #cbd5e1;
+  color: #334155;
 }
-.live-room .live-drill-modal-x:hover { background: #fdf3da; }
+.live-room .live-drill-modal-x:hover { background: #eff6ff; }
 .live-room .live-drill-breadcrumb-all,
-.live-room .live-drill-breadcrumb-sep { color: rgba(138, 106, 28, 0.55); }
-.live-room .live-drill-breadcrumb-name { color: #8a6a1c; font-weight: 800; }
+.live-room .live-drill-breadcrumb-sep { color: #64748b; }
+.live-room .live-drill-breadcrumb-name { color: #1d4ed8; font-weight: 800; }
 .live-room .live-drill-preview {
-  border: 1px solid rgba(201, 168, 31, 0.35);
+  border: 1px solid #e2e8f0;
   background: #ffffff;
 }
 .live-room .live-drill-config input,
 .live-room .live-drill-config select,
 .live-room .live-drill-search {
-  background: rgba(255, 255, 255, 0.9);
-  border: 1px solid rgba(201, 168, 31, 0.35);
-  color: #22282b;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  color: #0f172a;
 }
 .live-room .live-drill-config input:focus,
 .live-room .live-drill-config select:focus,
 .live-room .live-drill-search:focus {
-  border-color: rgba(201, 168, 31, 0.85);
-  box-shadow: 0 0 0 2px rgba(201, 168, 31, 0.18);
+  border-color: #2563eb;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.18);
 }
-.live-room .live-drill-config select option { background: #fffdf7; color: #22282b; }
-.live-room .live-drill-field { color: #6b5a22; }
-.live-room .live-drill-search-label { color: #8a6a1c; }
+.live-room .live-drill-config select option { background: #ffffff; color: #0f172a; }
+.live-room .live-drill-field { color: #64748b; }
+.live-room .live-drill-search-label { color: #1d4ed8; }
 
 /* ── Spectate (watch live games) ─────────────────────────────────────── */
 .spec-overlay {
@@ -12000,7 +11997,7 @@ button.live-drill-move:hover { border-color: rgba(117, 223, 255, 0.45); }
   display: flex;
   overflow-y: auto;
   padding: 20px;
-  background: rgba(9, 20, 33, 0.72);
+  background: rgba(15, 23, 42, 0.45);
   backdrop-filter: blur(3px);
 }
 .spec-card {
@@ -12010,10 +12007,10 @@ button.live-drill-move:hover { border-color: rgba(117, 223, 255, 0.45); }
   max-height: min(92dvh, calc(100dvh - 40px));
   overflow: auto;
   border-radius: 18px;
-  border: 1px solid rgba(25, 189, 242, 0.25);
-  background: linear-gradient(168deg, #0a1828 0%, #0a1828 100%);
-  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(25, 189, 242, 0.08);
-  color: #f4e9c8;
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
+  box-shadow: 0 24px 80px rgba(15, 23, 42, 0.25), 0 0 0 1px rgba(37, 99, 235, 0.08);
+  color: #0f172a;
   padding: 16px 18px 18px;
 }
 .spec-head {
@@ -12026,8 +12023,8 @@ button.live-drill-move:hover { border-color: rgba(117, 223, 255, 0.45); }
   margin: -16px -18px 0;
   padding: 14px 18px 12px;
   border-radius: 18px 18px 0 0;
-  border-bottom: 1px solid rgba(25, 189, 242, 0.18);
-  background: linear-gradient(180deg, #16221b 0%, #0a1828 100%);
+  border-bottom: 1px solid #e2e8f0;
+  background: #ffffff;
 }
 .spec-title { font-family: var(--font-display, Georgia, serif); font-weight: 700; font-size: 1.05rem; letter-spacing: 0.02em; }
 .spec-chip {
@@ -12037,14 +12034,14 @@ button.live-drill-move:hover { border-color: rgba(117, 223, 255, 0.45); }
   text-transform: uppercase;
   padding: 3px 9px;
   border-radius: 999px;
-  border: 1px solid rgba(25, 189, 242, 0.45);
-  color: #bff1ff;
-  background: rgba(25, 189, 242, 0.1);
+  border: 1px solid #bfdbfe;
+  color: #1d4ed8;
+  background: #eff6ff;
 }
 .spec-chip.spec-chip-end {
-  border-color: rgba(255, 255, 255, 0.2);
-  color: #b5b5b5;
-  background: rgba(255, 255, 255, 0.05);
+  border-color: #e2e8f0;
+  color: #64748b;
+  background: #f8fafc;
 }
 .spec-close {
   margin-left: auto;
@@ -12053,16 +12050,16 @@ button.live-drill-move:hover { border-color: rgba(117, 223, 255, 0.45); }
   width: 30px;
   height: 30px;
   border-radius: 9px;
-  background: rgba(255, 255, 255, 0.06);
-  color: #f4e9c8;
+  background: #f1f5f9;
+  color: #0f172a;
   font-size: 0.9rem;
   transition: background 0.15s, transform 0.15s;
 }
-.spec-close:hover { background: rgba(255, 255, 255, 0.14); transform: scale(1.06); }
+.spec-close:hover { background: #e2e8f0; transform: scale(1.06); }
 .spec-back {
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: rgba(255, 255, 255, 0.05);
-  color: #d4d4d4;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #334155;
   font-size: 0.72rem;
   font-weight: 700;
   padding: 5px 12px;
@@ -12071,20 +12068,20 @@ button.live-drill-move:hover { border-color: rgba(117, 223, 255, 0.45); }
   transition: background 0.15s;
   white-space: nowrap;
 }
-.spec-back:hover { background: rgba(255, 255, 255, 0.12); }
+.spec-back:hover { background: #eff6ff; }
 .live-session-live {
   font-size: 0.6rem;
   font-weight: 800;
   letter-spacing: 0.08em;
-  color: #ff8a8a;
-  background: rgba(239, 68, 68, 0.12);
+  color: #b91c1c;
+  background: #fef2f2;
   border: 1px solid rgba(239, 68, 68, 0.4);
   border-radius: 999px;
   padding: 2px 8px;
   white-space: nowrap;
   flex-shrink: 0;
 }
-.spec-sub { font-size: 0.85rem; color: #a3a3a3; margin: 6px 0 12px; }
+.spec-sub { font-size: 0.85rem; color: #64748b; margin: 6px 0 12px; }
 .spec-body {
   display: flex;
   gap: 18px;
@@ -12099,26 +12096,26 @@ button.live-drill-move:hover { border-color: rgba(117, 223, 255, 0.45); }
   gap: 12px;
   padding: 8px 12px;
   border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
 }
-.spec-nl { border-color: rgba(25, 189, 242, 0.35); background: rgba(25, 189, 242, 0.07); }
+.spec-nl { border-color: #bfdbfe; background: #eff6ff; }
 .spec-pname { font-size: 0.85rem; font-weight: 600; }
 .spec-glyph { opacity: 0.85; }
-.spec-clock { font-variant-numeric: tabular-nums; font-weight: 700; font-size: 1.05rem; color: #d4d4d4; }
-.spec-clock-run { color: #ecd089; text-shadow: 0 0 14px rgba(117, 223, 255, 0.45); }
+.spec-clock { font-variant-numeric: tabular-nums; font-weight: 700; font-size: 1.05rem; color: #0f172a; }
+.spec-clock-run { color: #1d4ed8; text-shadow: none; }
 .spec-flip {
   align-self: center;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: rgba(255, 255, 255, 0.05);
-  color: #d4d4d4;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #334155;
   font-size: 0.75rem;
   padding: 5px 12px;
   border-radius: 999px;
   cursor: pointer;
   transition: background 0.15s;
 }
-.spec-flip:hover { background: rgba(255, 255, 255, 0.12); }
+.spec-flip:hover { background: #eff6ff; }
 .spec-moves-col {
   flex: 1;
   min-width: 230px;
@@ -12137,7 +12134,7 @@ button.live-drill-move:hover { border-color: rgba(117, 223, 255, 0.45); }
   font-weight: 700;
   letter-spacing: 0.05em;
   text-transform: uppercase;
-  color: #a3a3a3;
+  color: #64748b;
   margin-bottom: 8px;
 }
 .spec-moves-count { margin-left: 6px; opacity: 0.7; font-size: 0.7rem; }
@@ -12167,8 +12164,8 @@ button.live-drill-move:hover { border-color: rgba(117, 223, 255, 0.45); }
   align-items: center;
   margin: -10px -10px 4px;
   padding: 7px 14px 6px;
-  background: #0a1828;
-  border-bottom: 1px solid rgba(148, 183, 207, 0.22);
+  background: #ffffff;
+  border-bottom: 1px solid #e2e8f0;
   font-size: 0.64rem;
   font-weight: 800;
   letter-spacing: 0.05em;
@@ -12178,32 +12175,32 @@ button.live-drill-move:hover { border-color: rgba(117, 223, 255, 0.45); }
   font-size: 0.6rem;
   font-weight: 800;
   text-align: right;
-  color: #6d8698;
+  color: #64748b;
 }
 .spec-score-name {
   display: flex;
   align-items: center;
   gap: 4px;
   min-width: 0;
-  color: #b9d4e6;
+  color: #475569;
 }
-.spec-score-name.is-white { color: #e8f4fb; }
-.spec-score-name.is-black { color: #9fb8cc; }
+.spec-score-name.is-white { color: #475569; }
+.spec-score-name.is-black { color: #0f172a; }
 .spec-score-glyph { flex: none; font-size: 0.58rem; opacity: 0.85; }
 .spec-score-label {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-/* Gold = the side currently on move, matching .spec-player-row.spec-nl */
-.spec-score-name.is-live { color: #d4a92f; }
+/* Blue = the side currently on move, matching .spec-player-row.spec-nl */
+.spec-score-name.is-live { color: #1d4ed8; }
 .spec-score-name.is-live .spec-score-glyph { opacity: 1; }
 .spec-move-list {
   flex: 1;
   overflow: auto;
   border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(255, 255, 255, 0.025);
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
   padding: 10px;
 }
 .spec-move-row {
@@ -12214,23 +12211,23 @@ button.live-drill-move:hover { border-color: rgba(117, 223, 255, 0.45); }
   padding: 3px 4px;
   border-radius: 8px;
 }
-.spec-move-num { font-size: 0.72rem; color: #a3a3a3; text-align: right; }
+.spec-move-num { font-size: 0.72rem; color: #64748b; text-align: right; }
 .spec-move {
   font-size: 0.82rem;
   font-weight: 600;
   padding: 3px 8px;
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.05);
+  background: rgba(15, 23, 42, 0.04);
   text-align: center;
 }
 .spec-move-empty { min-height: 20px; }
-.spec-moves-empty { font-size: 0.82rem; color: #a3a3a3; padding: 6px; }
+.spec-moves-empty { font-size: 0.82rem; color: #64748b; padding: 6px; }
 .spec-finished {
   margin-top: 10px;
   font-weight: 700;
-  color: #ecd089;
-  background: rgba(25, 189, 242, 0.1);
-  border: 1px solid rgba(25, 189, 242, 0.3);
+  color: #1d4ed8;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
   border-radius: 12px;
   padding: 8px;
   text-align: center;
@@ -12247,7 +12244,7 @@ button.live-drill-move:hover { border-color: rgba(117, 223, 255, 0.45); }
 }
 .live-sessions-empty {
   font-size: 0.85rem;
-  color: #a3a3a3;
+  color: #64748b;
   text-align: center;
   padding: 24px 8px;
 }
@@ -12259,15 +12256,15 @@ button.live-drill-move:hover { border-color: rgba(117, 223, 255, 0.45); }
   text-align: left;
   padding: 11px 13px;
   border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(255, 255, 255, 0.03);
-  color: #f4e9c8;
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
+  color: #0f172a;
   cursor: pointer;
   transition: border-color 0.15s, background 0.15s, transform 0.15s;
 }
 .live-session-item:hover {
-  border-color: rgba(25, 189, 242, 0.4);
-  background: rgba(25, 189, 242, 0.08);
+  border-color: #93c5fd;
+  background: #eff6ff;
   transform: translateY(-1px);
 }
 .live-session-names {
@@ -12279,19 +12276,19 @@ button.live-drill-move:hover { border-color: rgba(117, 223, 255, 0.45); }
   min-width: 0;
   flex: 1;
 }
-.live-session-white { color: #f5f7fa; }
-.live-session-black { color: #d4d4d4; }
-.live-session-vs { font-size: 0.68rem; font-weight: 400; color: #a3a3a3; text-transform: uppercase; letter-spacing: 0.06em; }
+.live-session-white { color: #475569; }
+.live-session-black { color: #0f172a; }
+.live-session-vs { font-size: 0.68rem; font-weight: 400; color: #64748b; text-transform: uppercase; letter-spacing: 0.06em; }
 .live-session-meta {
   font-size: 0.72rem;
-  color: #a3a3a3;
+  color: #64748b;
   white-space: nowrap;
   flex-shrink: 0;
 }
 .live-session-watch {
   font-size: 0.75rem;
   font-weight: 800;
-  color: #ecd089;
+  color: #1d4ed8;
   white-space: nowrap;
   flex-shrink: 0;
 }
@@ -12299,8 +12296,8 @@ button.live-drill-move:hover { border-color: rgba(117, 223, 255, 0.45); }
 .live-session-wrap { display: flex; flex-direction: column; gap: 0; min-width: 0; }
 .live-session-wrap + .live-session-wrap { margin-top: 10px; }
 .live-session-item.is-open {
-  border-color: rgba(25, 189, 242, 0.5);
-  background: rgba(25, 189, 242, 0.08);
+  border-color: #93c5fd;
+  background: #eff6ff;
   border-radius: 12px 12px 0 0;
   border-bottom-color: transparent;
 }
@@ -12316,8 +12313,8 @@ button.live-drill-move:hover { border-color: rgba(117, 223, 255, 0.45); }
   margin-top: 14px;
   padding: 12px;
   border-radius: 14px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
 }
 .spec-area-head {
   display: flex;
@@ -12329,13 +12326,13 @@ button.live-drill-move:hover { border-color: rgba(117, 223, 255, 0.45); }
   font-family: var(--font-display, Georgia, serif);
   font-size: 0.95rem;
   font-weight: 700;
-  color: #f4e9c8;
+  color: #0f172a;
 }
-.spec-area-note { font-size: 0.72rem; color: #a3a3a3; }
+.spec-area-note { font-size: 0.72rem; color: #64748b; }
 .spec-area-refresh {
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: rgba(255, 255, 255, 0.05);
-  color: #d4d4d4;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #334155;
   font-size: 0.8rem;
   border-radius: 8px;
   width: 26px;
@@ -12343,10 +12340,10 @@ button.live-drill-move:hover { border-color: rgba(117, 223, 255, 0.45); }
   cursor: pointer;
   transition: background 0.15s, transform 0.15s;
 }
-.spec-area-refresh:hover { background: rgba(255, 255, 255, 0.12); transform: rotate(20deg); }
+.spec-area-refresh:hover { background: #eff6ff; transform: rotate(20deg); }
 .spec-area-empty {
   font-size: 0.8rem;
-  color: #a3a3a3;
+  color: #64748b;
   margin: 0;
   line-height: 1.5;
 }
@@ -12439,13 +12436,13 @@ button.live-drill-move:hover { border-color: rgba(117, 223, 255, 0.45); }
 .live-room .live-board-inner,
 .live-room .live-course-sidebar {
   background: rgba(255, 255, 255, 0.88) !important;
-  border-color: rgba(17, 21, 23, 0.10) !important;
+  border-color: rgba(15, 23, 42, 0.1) !important;
 }
 .live-room .live-chat-panel :is(p, span, div, h1, h2, h3, h4, h5, h6, li, td, th, dt, dd, small, button, a, label, caption, strong, b, em, code, blockquote, input, textarea) {
-  color: #111517 !important;
+  color: #0f172a !important;
 }
 .live-room [class*="text-white"], .live-room [class*="text-ivory-"], .live-room [class*="text-black"] {
-  color: #111517 !important;
+  color: #0f172a !important;
 }
 .ink-body [class*="text-"]        { color: #000000 !important; }
 /* ============================================================
@@ -12457,15 +12454,15 @@ button.live-drill-move:hover { border-color: rgba(117, 223, 255, 0.45); }
    ============================================================ */
 .live-room {
   background:
-    radial-gradient(1200px 600px at 50% -10%, rgba(201, 168, 31, 0.10), transparent 65%),
-    linear-gradient(180deg, #f6f1e4, #ece4d2 70%);
-  color: #111517;
+    radial-gradient(1200px 600px at 50% -10%, rgba(37, 99, 235, 0.07), transparent 65%),
+    linear-gradient(180deg, #ffffff, #f4f9fd 70%);
+  color: #0f172a;
 }
 .live-room-header {
-  background: rgba(255, 255, 255, 0.88);
-  border-bottom: 1px solid rgba(17, 21, 23, 0.08);
+  background: #ffffff;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.08);
 }
-.live-room-header :is(h1, .live-room-title, .live-room-subtitle, .live-meta-chip, .live-live-text) { color: #111517; }
+.live-room-header :is(h1, .live-room-title, .live-room-subtitle, .live-meta-chip, .live-live-text) { color: #0f172a; }
 /* ── header chips + the ⋯ overflow card, in the room's ivory/gold language ──
    Without this the chips inherit `color: rgba(240,249,255,.9)` from the base
    rules — light ink on the now-ivory header, i.e. unreadable — and the menu
@@ -12474,62 +12471,62 @@ button.live-drill-move:hover { border-color: rgba(117, 223, 255, 0.45); }
    so both floating cards look like they came from the same app. */
 .live-room .live-chip {
   background: #ffffff;
-  border: 1px solid rgba(17, 21, 23, 0.14);
-  color: #2a3b49;
-  box-shadow: 0 1px 3px rgba(17, 21, 23, 0.08);
+  border: 1px solid rgba(15, 23, 42, 0.14);
+  color: #334155;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
 }
 .live-room .live-chip:hover {
-  background: #f0f6fa;
-  border-color: rgba(25, 189, 242, 0.45);
-  color: #0b7ba6;
+  background: #eff6ff;
+  border-color: rgba(37, 99, 235, 0.27);
+  color: #1d4ed8;
 }
 .live-room .live-chip-on {
-  background: linear-gradient(135deg, #f6e6b4, #ecd089) !important;
-  border-color: #b98e2a !important;
-  color: #5c470e !important;
+  background: #2563eb !important;
+  border-color: #1d4ed8 !important;
+  color: #ffffff !important;
 }
 .live-room .live-meta-chip {
   background: #ffffff;
-  border-color: rgba(17, 21, 23, 0.12);
+  border-color: rgba(15, 23, 42, 0.12);
 }
-.live-room .live-dot-on { background: #19bdf2; box-shadow: 0 0 8px rgba(25, 189, 242, 0.9); }
+.live-room .live-dot-on { background: #2563eb; box-shadow: 0 0 8px rgba(37, 99, 235, 0.54); }
 .live-room .live-menu {
-  border: 1px solid rgba(201, 168, 31, 0.45);
-  background: linear-gradient(180deg, #fffdf7, #fbf5e9);
-  box-shadow: 0 14px 34px rgba(17, 21, 23, 0.18);
+  border: 1px solid rgba(37, 99, 235, 0.23);
+  background: linear-gradient(180deg, #ffffff, #f8fafc);
+  box-shadow: 0 14px 34px rgba(15, 23, 42, 0.18);
 }
-.live-room .live-menu-row { color: #2a3b49; }
-.live-room .live-menu-label { color: #5c470e; }
+.live-room .live-menu-row { color: #334155; }
+.live-room .live-menu-label { color: #1d4ed8; }
 .live-room .live-menu-link,
-.live-room .live-menu-act { color: #0b7ba6; font-weight: 700; }
+.live-room .live-menu-act { color: #1d4ed8; font-weight: 700; }
 .live-room .live-menu-link:hover,
 .live-room .live-menu-act:hover {
-  background: #f0f6fa;
-  color: #0b7ba6;
+  background: #eff6ff;
+  color: #1d4ed8;
 }
 /* The external-meeting bar sits between this header and the board; leaving it
    dark would keep a navy slab in the middle of an ivory room. */
 .live-room .live-external-bar {
-  border: 1px solid rgba(201, 168, 31, 0.4);
+  border: 1px solid rgba(37, 99, 235, 0.2);
   background: #ffffff;
 }
-.live-room .live-external-label { color: #8a6a1c; }
-.live-room .live-external-url { color: #6b5a22; }
+.live-room .live-external-label { color: #1d4ed8; }
+.live-room .live-external-url { color: #64748b; }
 /* live-room inner panels → match the whitened room + login pages */
 .live-room .live-chat-panel,
 .live-room .live-chat-panel :is(p, span, div, small, button, a, input, textarea, label, strong, b, em, code, blockquote) {
-  color: #111517 !important;
+  color: #0f172a !important;
 }
 .live-room .live-chat-panel {
-  background: #fbf8f0 !important;
-  border-color: rgba(17, 21, 23, 0.10) !important;
+  background: #f8fafc !important;
+  border-color: rgba(15, 23, 42, 0.10) !important;
 }
 .live-room .live-video-panel {
-  background: #fbf8f0 !important;
-  border-color: rgba(17, 21, 23, 0.10) !important;
+  background: #f8fafc !important;
+  border-color: rgba(15, 23, 42, 0.1) !important;
 }
 .live-room .live-video-panel :is(p, span, div, small, button, a, input, label, strong, b, em, code, blockquote) {
-  color: #111517 !important;
+  color: #0f172a !important;
 }
 /* The stage is transparent in both themes: the board, not a card, is the
    subject. Only the header line and the tool buttons pick up ivory ink. */
@@ -12538,17 +12535,17 @@ button.live-drill-move:hover { border-color: rgba(117, 223, 255, 0.45); }
   background: transparent !important;
 }
 .live-room .live-board-header {
-  color: #5c470e;
+  color: #1d4ed8;
 }
 .live-room .live-board-header-label {
-  color: #8a6a1c !important;
+  color: #1d4ed8 !important;
 }
 .live-room .live-board-turn {
-  color: #5c470e !important;
+  color: #1d4ed8 !important;
   font-weight: 600;
 }
 .live-room .live-board-caption {
-  color: #6b5a22 !important;
+  color: #64748b !important;
   font-weight: 600;
 }
 .live-room .live-room-side,
@@ -12577,17 +12574,17 @@ button.live-drill-move:hover { border-color: rgba(117, 223, 255, 0.45); }
   font-weight: 700;
   border-radius: 0.6rem;
   background: #ffffff;
-  border: 1px solid rgba(17, 21, 23, 0.14);
-  color: #2a3b49;
-  box-shadow: 0 1px 3px rgba(17, 21, 23, 0.08);
+  border: 1px solid rgba(15, 23, 42, 0.14);
+  color: #334155;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
   transition: all 0.15s ease;
 }
 .live-room .live-board-side > .live-chip:hover,
 .live-room .live-board-controls button:hover,
 .live-room .live-board-flip button:hover {
-  background: #f0f6fa;
-  border-color: rgba(25, 189, 242, 0.45);
-  color: #0b7ba6;
+  background: #eff6ff;
+  border-color: rgba(37, 99, 235, 0.27);
+  color: #1d4ed8;
 }
 /* Toolbar: ivory buttons like the popover, not the cyan move-nav defaults. */
 .live-room .live-board-toolbar .live-icobtn,
@@ -12598,60 +12595,60 @@ button.live-drill-move:hover { border-color: rgba(117, 223, 255, 0.45); }
   height: 48px;
   padding: 0;
   background: #ffffff;
-  border: 1px solid rgba(17, 21, 23, 0.14);
-  color: #2a3b49;
-  box-shadow: 0 1px 3px rgba(17, 21, 23, 0.08);
+  border: 1px solid rgba(15, 23, 42, 0.14);
+  color: #334155;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
 }
 .live-room .live-board-toolbar .live-icobtn:hover,
 .live-room .live-board-toolbar .live-chip:hover,
 .live-room .live-board-toolbar .live-movenav-btn:hover,
 .live-room .live-board-toolbar .live-movenav-btn-best:hover {
-  background: #f0f6fa;
-  border-color: rgba(25, 189, 242, 0.45);
-  color: #0b7ba6;
+  background: #eff6ff;
+  border-color: rgba(37, 99, 235, 0.27);
+  color: #1d4ed8;
 }
 .live-room .live-board-toolbar .live-chip-on,
 .live-room .live-board-toolbar .live-movenav-btn-best.live-chip-on {
-  background: linear-gradient(135deg, #f6e6b4, #ecd089) !important;
-  border-color: #b98e2a !important;
-  color: #5c470e !important;
-  box-shadow: 0 2px 6px rgba(201, 168, 31, 0.35);
+  background: #2563eb !important;
+  border-color: #1d4ed8 !important;
+  color: #ffffff !important;
+  box-shadow: 0 2px 6px rgba(37, 99, 235, 0.17);
 }
 /* ── drill card beside the board (student side) ──
    The base rules are dark-surface (gold on ink). The room renders light, so
    everything here is re-inked below with the room's own green/red/blue and an
    ivory card, matching the tools popover. Qualifiers are `.live-room …` because
    the dark defaults above would otherwise win on specificity. */
-.live-room .live-drill-info-card { border-color: rgba(17, 21, 23, 0.12); background: #ffffff; box-shadow: 0 1px 3px rgba(17, 21, 23, 0.08); }
-.live-room .live-drill-info-title { color: #8a6a1c; }
-.live-room .live-drill-info-rating { color: #2a3b49; }
-.live-room .live-drill-info-points { color: #5f6f7a; }
+.live-room .live-drill-info-card { border-color: rgba(15, 23, 42, 0.12); background: #ffffff; box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08); }
+.live-room .live-drill-info-title { color: #1d4ed8; }
+.live-room .live-drill-info-rating { color: #334155; }
+.live-room .live-drill-info-points { color: #64748b; }
 .live-room .live-drill-info-points.is-earned { color: #15803d; }
-.live-room .live-drill-info-clock { color: #5f6f7a; }
+.live-room .live-drill-info-clock { color: #64748b; }
 .live-room .live-drill-info-clock.is-out { color: #b91c1c; }
-.live-room .live-drill-info-prow { color: #5f6f7a; }
-.live-room .live-drill-info-plabel b { color: #8a6a1c; }
-.live-room .live-drill-info-plabel-dim { color: #7b8b95; }
-.live-room .live-drill-info-bar { background: rgba(17, 21, 23, 0.1); }
-.live-room .live-drill-info-fill { background: linear-gradient(90deg, rgba(25, 189, 242, 0.9), #b98e2a); }
+.live-room .live-drill-info-prow { color: #64748b; }
+.live-room .live-drill-info-plabel b { color: #1d4ed8; }
+.live-room .live-drill-info-plabel-dim { color: #64748b; }
+.live-room .live-drill-info-bar { background: rgba(15, 23, 42, 0.1); }
+.live-room .live-drill-info-fill { background: linear-gradient(90deg, #60a5fa, #2563eb); }
 .live-room .live-drill-info-fill.is-done { background: linear-gradient(90deg, #15803d, #22c55e); }
-.live-room .live-drill-info-mlabel { color: #7b8b95; }
-.live-room .live-drill-movenum { color: #7b8b95; }
+.live-room .live-drill-info-mlabel { color: #64748b; }
+.live-room .live-drill-movenum { color: #64748b; }
 .live-room .live-drill-move-good { color: #15803d; background: rgba(34, 197, 94, 0.12); }
-.live-room .live-drill-move-reply { color: #2a3b49; background: rgba(17, 21, 23, 0.06); }
+.live-room .live-drill-move-reply { color: #334155; background: rgba(15, 23, 42, 0.06); }
 .live-room .live-drill-move-bad { color: #b91c1c; background: rgba(239, 68, 68, 0.10); }
-.live-room .live-drill-move-empty { color: #9aa7ae; }
-.live-room .live-drill-move-live { color: #0b7ba6; border-color: rgba(25, 189, 242, 0.4); }
-.live-room button.live-drill-move:hover { border-color: rgba(25, 189, 242, 0.45); }
-.live-room .live-drill-move.is-current { outline-color: #0b7ba6; }
+.live-room .live-drill-move-empty { color: #64748b; }
+.live-room .live-drill-move-live { color: #1d4ed8; border-color: rgba(37, 99, 235, 0.24); }
+.live-room button.live-drill-move:hover { border-color: rgba(37, 99, 235, 0.27); }
+.live-room .live-drill-move.is-current { outline-color: #1d4ed8; }
 /* The card's whole border takes the outcome, so it reads at the edge of vision. */
 .live-room .live-drill-tone-done { border-color: rgba(21, 128, 61, 0.45); box-shadow: 0 0 0 1px rgba(34, 197, 94, 0.2), 0 0 18px rgba(34, 197, 94, 0.16); }
 .live-room .live-drill-tone-bad { border-color: rgba(185, 28, 28, 0.35); box-shadow: 0 0 0 1px rgba(239, 68, 68, 0.2), 0 0 18px rgba(239, 68, 68, 0.14); }
 .live-room .live-drill-info-card .live-drill-pill { font-size: 0.6rem; }
 .live-room .live-drill-info-card .live-drill-st-solving {
-  background: rgba(25, 189, 242, 0.14);
-  border-color: rgba(25, 189, 242, 0.4);
-  color: #0b7ba6;
+  background: rgba(37, 99, 235, 0.08);
+  border-color: rgba(37, 99, 235, 0.24);
+  color: #1d4ed8;
 }
 .live-room .live-drill-info-card .live-drill-st-completed {
   background: rgba(34, 197, 94, 0.12);
@@ -12672,23 +12669,23 @@ button.live-drill-move:hover { border-color: rgba(117, 223, 255, 0.45); }
   box-shadow: 0 0 0 1px rgba(34, 197, 94, 0.28), 0 0 24px rgba(34, 197, 94, 0.22);
 }
 .live-drill-tone-bad.live-drill-card { border-color: rgba(185, 28, 28, 0.35); }
-.live-drill-cardtitle { margin: 0; font-size: 0.62rem; color: rgba(125, 162, 196, 0.75); overflow-wrap: anywhere; }
+.live-drill-cardtitle { margin: 0; font-size: 0.62rem; color: rgba(100, 116, 139, 0.75); overflow-wrap: anywhere; }
 
 /* ── the old drill strip, kept for the instructor's grid ── */
 .live-room .live-drill-strip {
-  border: 1px solid rgba(201, 168, 31, 0.4);
+  border: 1px solid rgba(37, 99, 235, 0.2);
   background: #ffffff;
-  box-shadow: 0 1px 3px rgba(17, 21, 23, 0.08);
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
 }
-.live-room .live-drill-strip-name { color: #8a6a1c; }
-.live-room .live-drill-strip-stats { color: #2a3b49; }
-.live-room .live-drill-strip .live-drill-stat { color: #2a3b49; }
+.live-room .live-drill-strip-name { color: #1d4ed8; }
+.live-room .live-drill-strip-stats { color: #334155; }
+.live-room .live-drill-strip .live-drill-stat { color: #334155; }
 .live-room .live-drill-strip .live-drill-stat-out { color: #b91c1c; }
 .live-room .live-drill-strip .live-drill-pill { font-size: 0.58rem; }
 .live-room .live-drill-strip .live-drill-st-solving {
-  background: rgba(25, 189, 242, 0.14);
-  border-color: rgba(25, 189, 242, 0.4);
-  color: #0b7ba6;
+  background: rgba(37, 99, 235, 0.08);
+  border-color: rgba(37, 99, 235, 0.24);
+  color: #1d4ed8;
 }
 .live-room .live-drill-strip .live-drill-st-completed {
   background: rgba(34, 197, 94, 0.12);
@@ -12713,13 +12710,13 @@ button.live-drill-move:hover { border-color: rgba(117, 223, 255, 0.45); }
   box-shadow: none;
 }
 .live-room .live-drill-strip .live-drill-chip-num { color: #15803d; }
-.live-room .live-drill-strip .live-drill-none { color: #6b5a22; }
+.live-room .live-drill-strip .live-drill-none { color: #64748b; }
 .live-room .live-board-side > .live-chip-on,
 .live-room .live-board-controls .live-chip-on {
-  background: linear-gradient(135deg, #f6e6b4, #ecd089) !important;
-  border-color: #b98e2a !important;
-  color: #5c470e !important;
-  box-shadow: 0 2px 6px rgba(201, 168, 31, 0.35);
+  background: #2563eb !important;
+  border-color: #1d4ed8 !important;
+  color: #ffffff !important;
+  box-shadow: 0 2px 6px rgba(37, 99, 235, 0.17);
 }
 .live-room .live-board-controls {
   flex-direction: column;
@@ -12733,11 +12730,11 @@ button.live-drill-move:hover { border-color: rgba(117, 223, 255, 0.45); }
   padding-left: 0;
   margin-left: 0;
   border-left: none;
-  border-top: 1px solid rgba(17, 21, 23, 0.1);
+  border-top: 1px solid rgba(15, 23, 42, 0.1);
   padding-top: 8px;
 }
 .live-room .live-side-toggle-label {
-  color: #5f6f7a;
+  color: #64748b;
   text-align: left;
 }
 .live-room .live-side-toggle .live-chip {
@@ -12757,24 +12754,24 @@ button.live-drill-move:hover { border-color: rgba(117, 223, 255, 0.45); }
   justify-content: center;
   font-size: 1.1rem;
   border-radius: 0.55rem;
-  background: rgba(25, 189, 242, 0.15);
-  border: 1px solid rgba(25, 189, 242, 0.4);
-  color: #ecd089;
+  background: rgba(37, 99, 235, 0.09);
+  border: 1px solid rgba(37, 99, 235, 0.24);
+  color: #2563eb;
   box-shadow: none;
   flex-shrink: 0;
 }
 .live-room .live-board-side .live-icobtn:hover,
 .live-room .live-board-controls .live-icobtn:hover,
 .live-room .live-board-flip .live-icobtn:hover {
-  background: rgba(25, 189, 242, 0.28);
-  border-color: rgba(25, 189, 242, 0.4);
-  color: #ecd089;
+  background: rgba(37, 99, 235, 0.17);
+  border-color: rgba(37, 99, 235, 0.24);
+  color: #2563eb;
 }
 .live-room .live-board-side .live-icobtn.live-chip-on {
-  background: rgba(236, 208, 137, 0.22);
-  border-color: #ecd089;
-  color: #ecd089;
-  box-shadow: 0 0 8px rgba(236, 208, 137, 0.35);
+  background: #2563eb;
+  border-color: #1d4ed8;
+  color: #ffffff;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.35);
 }
 .live-room .live-board-maincol {
   gap: 4px;
@@ -12783,20 +12780,20 @@ button.live-drill-move:hover { border-color: rgba(117, 223, 255, 0.45); }
   align-self: stretch;
 }
 .live-room .live-captured-card {
-  background: linear-gradient(180deg, #fffdf7, #fbf5e9);
-  border: 1px solid rgba(201, 168, 31, 0.45);
+  background: linear-gradient(180deg, #ffffff, #f8fafc);
+  border: 1px solid rgba(37, 99, 235, 0.23);
   border-radius: 14px;
   box-shadow:
-    0 10px 24px rgba(120, 96, 12, 0.18),
+    0 10px 24px rgba(15, 23, 42, 0.14),
     inset 0 1px 0 rgba(255, 255, 255, 0.9);
 }
 .live-room .live-captured-label {
-  color: #8a6a1c;
+  color: #1d4ed8;
 }
 .live-room .live-captured-piece {
   background: rgba(255, 255, 255, 0.85);
-  border: 1px solid rgba(201, 168, 31, 0.35);
-  box-shadow: 0 1px 3px rgba(17, 21, 23, 0.1);
+  border: 1px solid rgba(37, 99, 235, 0.17);
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.1);
 }
 .live-room .live-captured .cp-white {
   color: #171717;
@@ -12821,31 +12818,31 @@ button.live-drill-move:hover { border-color: rgba(117, 223, 255, 0.45); }
   font-size: 1.1rem;
   font-weight: 700;
   line-height: 1;
-  background: rgba(25, 189, 242, 0.15);
-  border: 1px solid rgba(25, 189, 242, 0.4);
-  color: #ecd089;
+  background: rgba(37, 99, 235, 0.09);
+  border: 1px solid rgba(37, 99, 235, 0.24);
+  color: #2563eb;
   box-shadow: none;
   flex-shrink: 0;
   transition: all 0.15s ease;
 }
 .live-room .live-movenav-btn:hover:not(:disabled) {
-  background: rgba(25, 189, 242, 0.28);
-  border-color: rgba(25, 189, 242, 0.4);
-  color: #ecd089;
+  background: rgba(37, 99, 235, 0.17);
+  border-color: rgba(37, 99, 235, 0.24);
+  color: #2563eb;
 }
 .live-room .live-movenav-btn:disabled {
   opacity: 0.35;
   cursor: not-allowed;
 }
 .live-room .live-movenav-btn-best {
-  background: rgba(117, 223, 255, 0.18);
-  border-color: rgba(117, 223, 255, 0.5);
-  color: #fff7e0;
+  background: #dbeafe;
+  border-color: #93c5fd;
+  color: #1d4ed8;
 }
 .live-room .live-movenav-btn-best:hover:not(:disabled) {
-  background: rgba(117, 223, 255, 0.3);
-  border-color: rgba(117, 223, 255, 0.5);
-  color: #fff7e0;
+  background: #bfdbfe;
+  border-color: #93c5fd;
+  color: #1d4ed8;
 }
 /* 👥 Add-students invite button under the board rail (white theme) */
 
@@ -12856,149 +12853,149 @@ button.live-drill-move:hover { border-color: rgba(117, 223, 255, 0.45); }
    white message bubbles with gold accent, a gold-rimmed input and tidy
    participant rows — all matching the app's ivory/gold "chess-card" look. */
 .live-room .live-chat-panel {
-  background: linear-gradient(180deg, #fffdf7, #fbf5e9) !important;
-  border: 1px solid rgba(201, 168, 31, 0.45) !important;
+  background: linear-gradient(180deg, #ffffff, #f8fafc) !important;
+  border: 1px solid rgba(37, 99, 235, 0.23) !important;
   border-radius: 16px !important;
   box-shadow:
-    0 12px 30px rgba(120, 96, 12, 0.18),
+    0 12px 30px rgba(15, 23, 42, 0.14),
     inset 0 1px 0 rgba(255, 255, 255, 0.9);
 }
 .live-room .live-chat-head {
-  background: linear-gradient(135deg, #faf3dd, #f4e9c9) !important;
-  border-bottom: 1px solid rgba(201, 168, 31, 0.35);
+  background: linear-gradient(135deg, #f8fafc, #eff6ff) !important;
+  border-bottom: 1px solid rgba(37, 99, 235, 0.17);
 }
 /* The mode bar sits directly under the gold heading, so it takes the page
    background and a lighter rule - a second gold band would read as a second
    heading. */
 .live-room .live-chat-modebar {
-  background: linear-gradient(180deg, #fdf8ec, #faf3dd) !important;
-  border-bottom: 1px solid rgba(201, 168, 31, 0.28);
+  background: linear-gradient(180deg, #ffffff, #f8fafc) !important;
+  border-bottom: 1px solid rgba(37, 99, 235, 0.14);
 }
 .live-room .live-chat-title {
-  color: #8a6a1c !important;
+  color: #1d4ed8 !important;
   letter-spacing: 0.02em;
   text-shadow: 0 1px 0 rgba(255, 255, 255, 0.7);
 }
 .live-room .live-chat-panel .live-chip {
   background: rgba(255, 255, 255, 0.7) !important;
-  border: 1px solid rgba(201, 168, 31, 0.4) !important;
-  color: #6b520f !important;
-  box-shadow: 0 1px 2px rgba(120, 96, 12, 0.08);
+  border: 1px solid rgba(37, 99, 235, 0.2) !important;
+  color: #334155 !important;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
 }
 .live-room .live-chat-panel .live-chip:hover { background: rgba(255, 255, 255, 0.95) !important; }
 .live-room .live-chat-panel .live-chip-on {
-  background: linear-gradient(135deg, #f6e6b4, #ecd089) !important;
-  border-color: #b98e2a !important;
-  color: #5c470e !important;
-  box-shadow: 0 2px 6px rgba(201, 168, 31, 0.35);
+  background: #2563eb !important;
+  border-color: #1d4ed8 !important;
+  color: #ffffff !important;
+  box-shadow: 0 2px 6px rgba(37, 99, 235, 0.17);
 }
 .live-room .live-chat-panel .live-msg {
   background: #ffffff !important;
-  border: 1px solid rgba(17, 21, 23, 0.1);
-  border-left: 3px solid rgba(201, 168, 31, 0.5);
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  border-left: 3px solid rgba(37, 99, 235, 0.25);
   border-radius: 12px;
-  box-shadow: 0 2px 6px rgba(17, 21, 23, 0.06);
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.06);
 }
 .live-room .live-chat-panel .live-msg-instructor {
-  background: linear-gradient(90deg, #fff7dd, #ffffff) !important;
-  border-left-color: #b8860b !important;
+  background: linear-gradient(90deg, #eff6ff, #ffffff) !important;
+  border-left-color: #1d4ed8 !important;
 }
-.live-room .live-chat-panel .live-msg-name { color: #8a6a1c !important; }
-.live-room .live-chat-panel .live-msg-time { color: #a2966e !important; }
-.live-room .live-chat-panel .live-msg-body { color: #22282b !important; }
+.live-room .live-chat-panel .live-msg-name { color: #1d4ed8 !important; }
+.live-room .live-chat-panel .live-msg-time { color: #64748b !important; }
+.live-room .live-chat-panel .live-msg-body { color: #0f172a !important; }
 .live-room .live-chat-panel .live-msg-host {
-  color: #8a6a1c;
-  border-color: rgba(201, 168, 31, 0.5);
+  color: #1d4ed8;
+  border-color: rgba(37, 99, 235, 0.25);
 }
-.live-room .live-chat-panel .live-chat-empty { color: #a58a3f !important; font-style: italic; }
+.live-room .live-chat-panel .live-chat-empty { color: #64748b !important; font-style: italic; }
 .live-room .live-chat-panel .live-chat-form {
-  border-top: 2px solid rgba(201, 168, 31, 0.5);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.65), rgba(250, 244, 224, 0.8));
+  border-top: 2px solid rgba(37, 99, 235, 0.25);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.65), rgba(241, 245, 249, 0.8));
   padding: 12px;
   gap: 9px;
 }
 .live-room .live-chat-panel .live-chat-input {
   background: #ffffff !important;
-  border: 2px solid rgba(201, 168, 31, 0.6) !important;
+  border: 2px solid rgba(37, 99, 235, 0.3) !important;
   border-radius: 0.8rem;
-  color: #22282b !important;
+  color: #0f172a !important;
   padding: 11px 13px;
   font-size: 0.88rem;
-  box-shadow: 0 2px 8px rgba(201, 168, 31, 0.18), inset 0 1px 2px rgba(0, 0, 0, 0.04);
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.09), inset 0 1px 2px rgba(0, 0, 0, 0.04);
 }
-.live-room .live-chat-panel .live-chat-input::placeholder { color: rgba(139, 115, 46, 0.65); font-weight: 600; }
-.live-room .live-chat-panel .live-chat-input:hover { border-color: rgba(201, 168, 31, 0.85) !important; }
+.live-room .live-chat-panel .live-chat-input::placeholder { color: rgba(100, 116, 139, 0.65); font-weight: 600; }
+.live-room .live-chat-panel .live-chat-input:hover { border-color: rgba(37, 99, 235, 0.42) !important; }
 .live-room .live-chat-panel .live-chat-input:focus {
-  border-color: #b98e2a !important;
-  box-shadow: 0 0 0 4px rgba(201, 168, 31, 0.22), 0 4px 14px rgba(201, 168, 31, 0.3);
+  border-color: #1d4ed8 !important;
+  box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.11), 0 4px 14px rgba(37, 99, 235, 0.15);
 }
 .live-room .live-chat-panel .live-chat-send {
-  background: linear-gradient(135deg, #d4a937, #e9a92e) !important;
+  background: linear-gradient(135deg, #2563eb, #2563eb) !important;
   border-radius: 0.8rem;
-  box-shadow: 0 4px 10px rgba(201, 168, 31, 0.4);
+  box-shadow: 0 4px 10px rgba(37, 99, 235, 0.2);
   color: #fff !important;
   font-size: 1.05rem;
   padding: 0 18px;
 }
 .live-room .live-chat-panel .live-chat-send:not(:disabled):hover { filter: brightness(1.08); transform: translateY(-1px); }
 .live-room .live-chat-panel .live-participants {
-  border-top: 1px solid rgba(201, 168, 31, 0.35);
+  border-top: 1px solid rgba(37, 99, 235, 0.17);
   background: transparent;
   margin: 0 10px 10px;
   padding: 10px 12px;
-  border: 1px solid rgba(201, 168, 31, 0.45);
+  border: 1px solid rgba(37, 99, 235, 0.23);
   border-radius: 14px;
-  background: linear-gradient(180deg, #fffdf7, #fbf5e9);
+  background: linear-gradient(180deg, #ffffff, #f8fafc);
   box-shadow:
-    0 10px 24px rgba(120, 96, 12, 0.16),
+    0 10px 24px rgba(15, 23, 42, 0.13),
     inset 0 1px 0 rgba(255, 255, 255, 0.9);
 }
 .live-room .live-chat-panel .live-participants-title {
-  color: #8a6a1c !important;
+  color: #1d4ed8 !important;
   display: flex;
   align-items: center;
   gap: 6px;
   padding-bottom: 6px;
-  border-bottom: 1px dashed rgba(201, 168, 31, 0.4);
+  border-bottom: 1px dashed rgba(37, 99, 235, 0.2);
 }
 .live-room .live-chat-panel .live-participants-hint {
-  color: rgba(138, 106, 28, 0.7) !important;
+  color: rgba(100, 116, 139, 0.7) !important;
   font-weight: 600;
 }
 .live-room .live-chat-panel .live-participant {
   background: #ffffff;
-  border: 1px solid rgba(201, 168, 31, 0.35);
+  border: 1px solid rgba(37, 99, 235, 0.17);
   border-radius: 10px;
   padding: 5px 9px;
-  box-shadow: 0 1px 3px rgba(17, 21, 23, 0.06);
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
 }
 .live-room .live-chat-panel .live-participant-name {
-  color: #22282b !important;
+  color: #0f172a !important;
   font-weight: 700;
 }
 .live-room .live-chat-panel .live-participant-host {
-  color: #b8860b;
+  color: #1d4ed8;
   font-weight: 800;
-  background: linear-gradient(135deg, #ecd089, #d4a937);
+  background: linear-gradient(135deg, #2563eb, #2563eb);
   color: #fff !important;
   font-size: 0.52rem;
   padding: 1px 6px;
   border-radius: 999px;
 }
 .live-room .live-chat-panel .live-participants-empty {
-  color: rgba(138, 106, 28, 0.7) !important;
+  color: rgba(100, 116, 139, 0.7) !important;
   font-style: italic;
   text-align: center;
   padding: 10px 0;
 }
 .live-room .live-chat-panel .live-participant-actions button {
   background: rgba(255, 255, 255, 0.85);
-  border: 1px solid rgba(201, 168, 31, 0.35);
+  border: 1px solid rgba(37, 99, 235, 0.17);
 }
 .live-room .live-chat-panel .live-participant-actions button:hover { filter: brightness(0.96); }
 .live-room .live-chat-panel .live-participant-avatar {
-  background: linear-gradient(135deg, #d9f0ff, #9fd7f2);
-  color: #0d3a4d;
+  background: linear-gradient(135deg, #dbeafe, #bfdbfe);
+  color: #1d4ed8;
 }
 .live-room .live-chat-panel .live-participant-avatar.is-online::after { border-color: #fff; }
 .live-room .live-chat-panel .live-participant-colour { border-color: rgba(0, 0, 0, 0.25); }
@@ -13008,10 +13005,10 @@ button.live-drill-move:hover { border-color: rgba(117, 223, 255, 0.45); }
 }
 .live-room .live-chat-panel .live-grant-dot::after { border-color: rgba(0, 0, 0, 0.2); }
 .live-room .live-chat-panel .live-participant-grant {
-  color: #8a6a1c;
+  color: #1d4ed8;
   font-weight: 800;
-  background: rgba(236, 208, 137, 0.4);
-  border-color: rgba(201, 168, 31, 0.5);
+  background: rgba(219, 234, 254, 0.4);
+  border-color: rgba(37, 99, 235, 0.25);
 }
 .live-room .live-chat-panel .live-participant-revoke { color: #b91c1c; }
 .live-room .live-chat-panel .live-participant-remove { color: #dc2626; }
@@ -13032,24 +13029,24 @@ button.live-drill-move:hover { border-color: rgba(117, 223, 255, 0.45); }
   font-size: 0.72rem; font-weight: 800;
   padding: 5px 13px;
   border-radius: 999px;
-  border: 1px solid rgba(25, 189, 242, 0.45);
+  border: 1px solid rgba(37, 99, 235, 0.27);
   background: #ffffff;
-  color: #0b7ba6;
+  color: #1d4ed8;
   cursor: pointer;
   transition: filter 0.15s, transform 0.15s, box-shadow 0.15s;
-  box-shadow: 0 1px 3px rgba(15, 40, 60, 0.12);
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.12);
 }
-.pvp-launch:hover { filter: brightness(1.03); transform: translateY(-1px); box-shadow: 0 3px 8px rgba(25, 189, 242, 0.25); }
+.pvp-launch:hover { filter: brightness(1.03); transform: translateY(-1px); box-shadow: 0 3px 8px rgba(37, 99, 235, 0.15); }
 /* The header's "Open Video" anchor reuses .pvp-launch for its size/shape, but
    gets its own mixed, highlighted gradient (gold → sky → mint) so it stands out
    from the plain white Pair button. Same footprint, just a livelier fill. */
 .live-open-video {
   text-decoration: none;
   white-space: nowrap;
-  border-color: rgba(201, 168, 31, 0.75);
-  background: linear-gradient(135deg, #f6e6b4 0%, #ecd089 38%, #7fd6ff 78%, #86efac 100%);
-  color: #3a2c05;
-  box-shadow: 0 2px 8px rgba(120, 96, 12, 0.28), 0 0 0 1px rgba(255, 255, 255, 0.35) inset;
+  border-color: rgba(37, 99, 235, 0.38);
+  background: linear-gradient(135deg, #2563eb, #1d4ed8);
+  color: #ffffff;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.22), 0 0 0 1px rgba(255, 255, 255, 0.35) inset;
 }
 .live-open-video:hover { filter: brightness(1.06) saturate(1.1); }
 
@@ -13062,20 +13059,20 @@ button.live-drill-move:hover { border-color: rgba(117, 223, 255, 0.45); }
   gap: 14px;
   overflow: hidden;
   background: #ffffff;
-  border: 1px solid rgba(25, 189, 242, 0.35);
+  border: 1px solid rgba(37, 99, 235, 0.21);
   border-radius: 16px;
   padding: 18px;
-  box-shadow: 0 24px 60px rgba(15, 40, 60, 0.35);
-  color: #2a3b49;
+  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.35);
+  color: #334155;
 }
-.pvp-modal-sub { font-size: 0.78rem; color: #6b7a86; margin-top: 3px; }
-.pvp-modal .live-drill-modal-title { color: #b9892e; }
-.pvp-modal .live-drill-modal-x { border-color: rgba(20, 60, 80, 0.18); background: #f2f6f9; color: #3a4b56; }
-.pvp-modal .live-drill-modal-x:hover { background: #e3f4fc; }
+.pvp-modal-sub { font-size: 0.78rem; color: #64748b; margin-top: 3px; }
+.pvp-modal .live-drill-modal-title { color: #1d4ed8; }
+.pvp-modal .live-drill-modal-x { border-color: rgba(15, 23, 42, 0.18); background: #f1f5f9; color: #475569; }
+.pvp-modal .live-drill-modal-x:hover { background: #dbeafe; }
 
 .pvp-section { display: flex; flex-direction: column; gap: 10px; }
 .pvp-section-grow { flex: 1; min-height: 0; overflow-y: auto; padding-right: 4px; }
-.pvp-section-title { font-size: 0.72rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: #5f6f7a; }
+.pvp-section-title { font-size: 0.72rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: #64748b; }
 
 /* time control */
 .pvp-tc-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
@@ -13083,35 +13080,35 @@ button.live-drill-move:hover { border-color: rgba(117, 223, 255, 0.45); }
   display: flex; flex-direction: column; align-items: center; gap: 3px;
   padding: 10px 6px;
   border-radius: 12px;
-  border: 1px solid rgba(20, 60, 80, 0.16);
-  background: #f4f8fb;
-  color: #2a3b49;
+  border: 1px solid rgba(15, 23, 42, 0.16);
+  background: #f1f5f9;
+  color: #334155;
   cursor: pointer;
   transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
 }
-.pvp-tc-card:hover { border-color: rgba(25, 189, 242, 0.6); }
+.pvp-tc-card:hover { border-color: rgba(37, 99, 235, 0.36); }
 .pvp-tc-card.pvp-tc-on {
-  border-color: #d9a441;
-  background: linear-gradient(135deg, #fff7e0, #e9f7ff);
-  box-shadow: 0 0 0 1px rgba(217, 164, 65, 0.5) inset;
+  border-color: #2563eb;
+  background: #eff6ff;
+  box-shadow: 0 0 0 1px rgba(37, 99, 235, 0.35) inset;
 }
 .pvp-tc-label { font-size: 0.85rem; font-weight: 800; }
-.pvp-tc-type { font-size: 0.62rem; letter-spacing: 0.06em; text-transform: uppercase; color: #8a97a0; }
+.pvp-tc-type { font-size: 0.62rem; letter-spacing: 0.06em; text-transform: uppercase; color: #64748b; }
 
 .pvp-custom { display: flex; align-items: flex-end; gap: 10px; }
 .pvp-custom-field { display: flex; flex-direction: column; gap: 4px; }
-.pvp-custom-field span { font-size: 0.66rem; color: #6b7a86; }
+.pvp-custom-field span { font-size: 0.66rem; color: #64748b; }
 .pvp-custom-field input {
   width: 110px;
   padding: 8px 10px;
   border-radius: 10px;
-  border: 1px solid rgba(20, 60, 80, 0.22);
+  border: 1px solid rgba(15, 23, 42, 0.22);
   background: #ffffff;
-  color: #2a3b49;
+  color: #334155;
   font-size: 0.85rem;
 }
-.pvp-custom-field input:focus { border-color: rgba(25, 189, 242, 0.6); outline: none; }
-.pvp-custom-plus { color: #6b7a86; font-size: 1.1rem; padding-bottom: 8px; }
+.pvp-custom-field input:focus { border-color: rgba(37, 99, 235, 0.36); outline: none; }
+.pvp-custom-plus { color: #64748b; font-size: 1.1rem; padding-bottom: 8px; }
 
 /* pairings */
 .pvp-pairings-head { display: flex; align-items: center; justify-content: space-between; }
@@ -13125,7 +13122,7 @@ button.live-drill-move:hover { border-color: rgba(117, 223, 255, 0.45); }
   gap: 8px;
   padding: 0 2px;
 }
-.pvp-col { font-size: 0.62rem; font-weight: 800; letter-spacing: 0.08em; color: #7b8a94; }
+.pvp-col { font-size: 0.62rem; font-weight: 800; letter-spacing: 0.08em; color: #64748b; }
 .pvp-rows { display: flex; flex-direction: column; gap: 8px; }
 .pvp-row {
   display: grid;
@@ -13137,36 +13134,36 @@ button.live-drill-move:hover { border-color: rgba(117, 223, 255, 0.45); }
   width: 100%;
   padding: 8px 10px;
   border-radius: 10px;
-  border: 1px solid rgba(20, 60, 80, 0.22);
+  border: 1px solid rgba(15, 23, 42, 0.22);
   background: #ffffff;
-  color: #2a3b49;
+  color: #334155;
   font-size: 0.82rem;
   outline: none;
 }
-.pvp-row select:focus { border-color: rgba(25, 189, 242, 0.6); box-shadow: 0 0 0 3px rgba(25, 189, 242, 0.15); }
-.pvp-row select option:disabled { color: #b4bec6; }
+.pvp-row select:focus { border-color: rgba(37, 99, 235, 0.36); box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.09); }
+.pvp-row select option:disabled { color: #94a3b8; }
 .pvp-swap, .pvp-del {
   width: 34px; height: 34px;
   display: grid; place-items: center;
   border-radius: 10px;
-  border: 1px solid rgba(20, 60, 80, 0.16);
-  background: #f2f6f9;
-  color: #3a4b56;
+  border: 1px solid rgba(15, 23, 42, 0.16);
+  background: #f1f5f9;
+  color: #475569;
   font-size: 0.95rem;
   cursor: pointer;
   transition: background 0.15s, box-shadow 0.15s;
 }
-.pvp-swap:hover { background: #e3f4fc; box-shadow: 0 2px 6px rgba(25, 189, 242, 0.2); }
+.pvp-swap:hover { background: #dbeafe; box-shadow: 0 2px 6px rgba(37, 99, 235, 0.12); }
 .pvp-del:hover { background: #fde9e9; box-shadow: 0 2px 6px rgba(214, 69, 69, 0.18); }
 .pvp-del:disabled { opacity: 0.35; cursor: not-allowed; box-shadow: none; }
 
 
 
 
-.pvp-helper { font-size: 0.72rem; color: #6b7a86; margin-top: 2px; }
+.pvp-helper { font-size: 0.72rem; color: #64748b; margin-top: 2px; }
 
 /* footer */
-.pvp-footer { display: flex; align-items: center; justify-content: flex-end; gap: 10px; border-top: 1px solid rgba(20, 60, 80, 0.12); padding-top: 12px; }
+.pvp-footer { display: flex; align-items: center; justify-content: flex-end; gap: 10px; border-top: 1px solid rgba(15, 23, 42, 0.12); padding-top: 12px; }
 .pvp-error { flex: 1; font-size: 0.75rem; color: #d64545; }
 .pvp-btn {
   font-size: 0.8rem; font-weight: 800;
@@ -13176,24 +13173,24 @@ button.live-drill-move:hover { border-color: rgba(117, 223, 255, 0.45); }
   transition: filter 0.15s, box-shadow 0.15s;
 }
 .pvp-btn:disabled { opacity: 0.55; cursor: not-allowed; }
-.pvp-btn-ghost { border: 1px solid rgba(20, 60, 80, 0.22); background: #ffffff; color: #2a3b49; }
-.pvp-btn-ghost:hover { background: #f4f8fb; }
-.pvp-btn-start { border: none; background: linear-gradient(135deg, #ecd089, #bff1ff); color: #171717; box-shadow: 0 2px 8px rgba(217, 164, 65, 0.3); }
-.pvp-btn-start:hover { filter: brightness(1.04); box-shadow: 0 4px 12px rgba(217, 164, 65, 0.4); }
+.pvp-btn-ghost { border: 1px solid rgba(15, 23, 42, 0.22); background: #ffffff; color: #334155; }
+.pvp-btn-ghost:hover { background: #f1f5f9; }
+.pvp-btn-start { border: none; background: linear-gradient(135deg, #2563eb, #1d4ed8); color: #ffffff; box-shadow: 0 2px 8px rgba(37, 99, 235, 0.3); }
+.pvp-btn-start:hover { filter: brightness(1.04); box-shadow: 0 4px 12px rgba(37, 99, 235, 0.2); }
 
 /* ── live grid of boards (unpaired students + instructor) ── */
 .pvp-area {
   margin-top: 16px;
   padding: 14px;
   border-radius: 16px;
-  border: 1px solid rgba(25, 189, 242, 0.35);
+  border: 1px solid rgba(37, 99, 235, 0.21);
   background: #ffffff;
-  box-shadow: 0 2px 10px rgba(15, 40, 60, 0.08);
+  box-shadow: 0 2px 10px rgba(15, 23, 42, 0.08);
 }
 .pvp-area-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
-.pvp-area-title { font-size: 0.8rem; font-weight: 800; color: #b9892e; letter-spacing: 0.04em; }
-.pvp-area-note { font-size: 0.68rem; color: #6b7a86; }
-.pvp-area-empty { font-size: 0.78rem; color: #8a97a0; padding: 10px 2px; }
+.pvp-area-title { font-size: 0.8rem; font-weight: 800; color: #1d4ed8; letter-spacing: 0.04em; }
+.pvp-area-note { font-size: 0.68rem; color: #64748b; }
+.pvp-area-empty { font-size: 0.78rem; color: #64748b; padding: 10px 2px; }
 .pvp-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(430px, 1fr));
@@ -13207,14 +13204,14 @@ button.live-drill-move:hover { border-color: rgba(117, 223, 255, 0.45); }
   padding: 4px 11px;
   border-radius: 999px;
   text-decoration: none;
-  border: 1px solid rgba(25, 189, 242, 0.5);
-  background: linear-gradient(135deg, #fff7e0, #e9f7ff);
-  color: #0b7ba6;
-  box-shadow: 0 1px 3px rgba(15, 40, 60, 0.1);
+  border: 1px solid rgba(37, 99, 235, 0.3);
+  background: #dbeafe;
+  color: #1d4ed8;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
 }
-.pvp-cell-play:hover { filter: brightness(1.03); box-shadow: 0 2px 6px rgba(25, 189, 242, 0.2); }
+.pvp-cell-play:hover { filter: brightness(1.03); box-shadow: 0 2px 6px rgba(37, 99, 235, 0.12); }
 .pvp-area-foot { margin-top: 12px; }
-.pvp-area-tip { font-size: 0.68rem; color: #8a97a0; }
+.pvp-area-tip { font-size: 0.68rem; color: #64748b; }
 
 /* ── inline playable board (paired students, light theme) ──
    In the new layout the paired game takes the entire main stage, so it
@@ -13289,24 +13286,24 @@ button.live-drill-move:hover { border-color: rgba(117, 223, 255, 0.45); }
 .pvp-play-pill {
   font-size: 0.72rem; font-weight: 800; letter-spacing: 0.04em;
   padding: 4px 12px; border-radius: 999px;
-  border: 1px solid rgba(25, 189, 242, 0.45);
-  background: #e9f7ff; color: #0b7ba6;
+  border: 1px solid rgba(37, 99, 235, 0.27);
+  background: #eff6ff; color: #1d4ed8;
 }
 .pvp-play-pill-gold {
   font-size: 0.72rem; font-weight: 800; letter-spacing: 0.04em;
   padding: 4px 12px; border-radius: 999px;
-  border: 1px solid rgba(217, 164, 65, 0.55);
-  background: #fff7e0; color: #b9892e;
+  border: 1px solid rgba(37, 99, 235, 0.28);
+  background: #eff6ff; color: #1d4ed8;
 }
 .pvp-play-pill-cyan {
   font-size: 0.72rem; font-weight: 800; letter-spacing: 0.04em;
   padding: 4px 12px; border-radius: 999px;
-  border: 1px solid rgba(20, 60, 80, 0.2);
-  background: #f2f6f9; color: #5f6f7a;
+  border: 1px solid rgba(15, 23, 42, 0.2);
+  background: #f1f5f9; color: #64748b;
 }
 .pvp-play-pill-live {
-  border-color: rgba(25, 189, 242, 0.55);
-  background: #e9f7ff; color: #0b7ba6;
+  border-color: rgba(37, 99, 235, 0.33);
+  background: #eff6ff; color: #1d4ed8;
   animation: live-pulse 2s infinite;
 }
 .pvp-play-controls { display: flex; flex-wrap: wrap; gap: 8px; }
@@ -13314,12 +13311,12 @@ button.live-drill-move:hover { border-color: rgba(117, 223, 255, 0.45); }
   font-size: 0.72rem; font-weight: 800;
   padding: 6px 13px;
   border-radius: 999px;
-  border: 1px solid rgba(20, 60, 80, 0.22);
-  background: #ffffff; color: #2a3b49;
+  border: 1px solid rgba(15, 23, 42, 0.22);
+  background: #ffffff; color: #334155;
   cursor: pointer;
   transition: background 0.15s, box-shadow 0.15s;
 }
-.pvp-play-btn:hover:not(:disabled) { background: #f4f8fb; box-shadow: 0 2px 6px rgba(15, 40, 60, 0.12); }
+.pvp-play-btn:hover:not(:disabled) { background: #f1f5f9; box-shadow: 0 2px 6px rgba(15, 23, 42, 0.12); }
 
 
 .pvp-play-btn:disabled { opacity: 0.45; cursor: not-allowed; }
@@ -13345,7 +13342,7 @@ button.live-drill-move:hover { border-color: rgba(117, 223, 255, 0.45); }
   place-items: center;
   box-sizing: border-box;
   background: #e2e8f0;
-  border: 2px solid rgba(25, 189, 242, 0.35);
+  border: 2px solid rgba(37, 99, 235, 0.21);
 }
 .pvp-play-avatar .pvp-play-photo {
   width: 100%; height: 100%;
@@ -13367,7 +13364,7 @@ button.live-drill-move:hover { border-color: rgba(117, 223, 255, 0.45); }
   align-items: flex-start;
   gap: 4px;
 }
-.pvp-play-player-on { border-color: rgba(25, 189, 242, 0.45); background: #e0f2fe; }
+.pvp-play-player-on { border-color: rgba(37, 99, 235, 0.27); background: #dbeafe; }
 .pvp-play-color { flex: none; font-size: 0.72rem; font-weight: 700; color: #475569; }
 .pvp-play-name {
   width: 100%;
@@ -13376,7 +13373,7 @@ button.live-drill-move:hover { border-color: rgba(117, 223, 255, 0.45); }
   line-height: 1.25;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.pvp-play-name em { font-style: normal; font-size: 0.68rem; font-weight: 600; color: #0b7ba6; margin-left: 4px; }
+.pvp-play-name em { font-style: normal; font-size: 0.68rem; font-weight: 600; color: #1d4ed8; margin-left: 4px; }
 .pvp-play-sub {
   display: flex;
   align-items: center;
@@ -13389,7 +13386,7 @@ button.live-drill-move:hover { border-color: rgba(117, 223, 255, 0.45); }
   color: #64748b;
   white-space: nowrap;
 }
-.pvp-play-turn { flex: none; color: #0b7ba6; font-weight: 700; }
+.pvp-play-turn { flex: none; color: #1d4ed8; font-weight: 700; }
 /* Clock glyph only — the countdown is not rendered on these rows. */
 .pvp-play-clock {
   flex: none;
@@ -13399,14 +13396,14 @@ button.live-drill-move:hover { border-color: rgba(117, 223, 255, 0.45); }
   font-variant-numeric: tabular-nums;
   color: #0f172a;
 }
-.pvp-play-clock-run { color: #b9892e; text-shadow: 0 0 10px rgba(217, 164, 65, 0.35); }
+.pvp-play-clock-run { color: #1d4ed8; text-shadow: 0 0 10px rgba(37, 99, 235, 0.17); }
 /* Captured material taken by a side, shown inside its player row. Derived from
    the live position; the glyph is drawn in the colour of the pieces taken. */
 .pvp-play-captured { display: inline-flex; align-items: center; gap: 1px; flex: 0 1 auto; min-width: 0; max-width: 42%; overflow: hidden; }
 .pvp-play-captured .cp { font-size: 1rem; line-height: 1; }
 .pvp-play-captured .cp-white { color: #171717; }
 .pvp-play-captured .cp-black { color: #1e3a8a; filter: drop-shadow(0 0 2px rgba(255, 255, 255, 0.45)); }
-.pvp-play-captured .cp-diff { font-size: 0.68rem; font-weight: 700; color: #0b7ba6; margin-left: 2px; }
+.pvp-play-captured .cp-diff { font-size: 0.68rem; font-weight: 700; color: #1d4ed8; margin-left: 2px; }
 .pvp-play-tc { font-size: 0.68rem; color: #64748b; text-align: center; max-width: 100%; overflow-wrap: anywhere; }
 /* Draw-offer bar: the pending offer, or the opponent's offer with its answer.
    Sits between the head and the board so it is visible without scrolling, in
@@ -13417,14 +13414,14 @@ button.live-drill-move:hover { border-color: rgba(117, 223, 255, 0.45); }
   gap: 6px 10px;
   margin: 6px 0 0;
   padding: 7px 12px;
-  font-size: 0.75rem; font-weight: 700; color: #2a3b49;
-  background: rgba(25, 189, 242, 0.10);
-  border: 1px solid rgba(25, 189, 242, 0.35);
+  font-size: 0.75rem; font-weight: 700; color: #334155;
+  background: rgba(37, 99, 235, 0.06);
+  border: 1px solid rgba(37, 99, 235, 0.21);
   border-radius: 10px;
 }
 .pvp-play-drawbar-theirs {
-  background: rgba(217, 164, 65, 0.12);
-  border-color: rgba(217, 164, 65, 0.45);
+  background: rgba(37, 99, 235, 0.06);
+  border-color: rgba(37, 99, 235, 0.23);
 }
 .pvp-play-drawbar-actions { display: inline-flex; gap: 6px; }
 /* ── paired-game focus overlay (expanded board) ──
@@ -13522,7 +13519,7 @@ button.live-drill-move:hover { border-color: rgba(117, 223, 255, 0.45); }
 }
 .pvp-focus-x:hover { background: rgba(15, 23, 42, 0.12); }
 .pvp-expand-btn:focus-visible, .pvp-focus-x:focus-visible {
-  outline: 2px solid #7dd3fc;
+  outline: 2px solid #60a5fa;
   outline-offset: 2px;
 }
 @keyframes pvp-focus-in {
@@ -13572,14 +13569,14 @@ button.live-drill-move:hover { border-color: rgba(117, 223, 255, 0.45); }
   overflow-y: auto;
   overscroll-behavior: contain;
   scrollbar-width: thin;
-  scrollbar-color: rgba(25, 189, 242, 0.45) transparent;
+  scrollbar-color: rgba(37, 99, 235, 0.27) transparent;
   border: 1px solid #e2e8f0;
   background: #f1f5f9;
   border-radius: 10px;
   padding: 8px 10px;
 }
 .pvp-play-moves-list::-webkit-scrollbar { width: 6px; }
-.pvp-play-moves-list::-webkit-scrollbar-thumb { background: rgba(25, 189, 242, 0.45); border-radius: 999px; }
+.pvp-play-moves-list::-webkit-scrollbar-thumb { background: rgba(37, 99, 235, 0.27); border-radius: 999px; }
 .pvp-play-moverow {
   display: grid;
   grid-template-columns: 26px 1fr 1fr;
@@ -13594,33 +13591,33 @@ button.live-drill-move:hover { border-color: rgba(117, 223, 255, 0.45); }
   padding: 2px 8px;
   border-radius: 7px;
   background: #fff;
-  border: 1px solid rgba(17, 21, 23, 0.08);
-  color: #111517;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  color: #0f172a;
   text-align: center;
   min-height: 1.2em;
   cursor: pointer;
 }
 .pvp-play-moverow-current {
-  background: rgba(25, 189, 242, 0.08);
+  background: rgba(37, 99, 235, 0.05);
   border-radius: 8px;
-  box-shadow: inset 0 0 0 1px rgba(25, 189, 242, 0.25);
+  box-shadow: inset 0 0 0 1px rgba(37, 99, 235, 0.15);
 }
 .pvp-play-move-current {
-  background: #0b7ba6;
-  border-color: #0b7ba6;
+  background: #1d4ed8;
+  border-color: #1d4ed8;
   color: #fff;
-  box-shadow: 0 2px 6px rgba(11, 123, 166, 0.35);
+  box-shadow: 0 2px 6px rgba(29, 78, 216, 0.35);
 }
-.pvp-play-move-current:hover { background: #0b7ba6; color: #fff; }
-.pvp-play-move:hover { background: rgba(25, 189, 242, 0.12); }
+.pvp-play-move-current:hover { background: #1d4ed8; color: #fff; }
+.pvp-play-move:hover { background: rgba(37, 99, 235, 0.07); }
 
 .pvp-cell-mine {
   align-self: flex-start;
   font-size: 0.68rem; font-weight: 800;
   padding: 3px 10px;
   border-radius: 999px;
-  border: 1px solid rgba(25, 189, 242, 0.5);
-  background: #e9f7ff; color: #0b7ba6;
+  border: 1px solid rgba(37, 99, 235, 0.3);
+  background: #eff6ff; color: #1d4ed8;
 }
 
 /* ── embedded SpectatorBoard (grid cell variant, light theme) ── */
@@ -13635,28 +13632,28 @@ button.live-drill-move:hover { border-color: rgba(117, 223, 255, 0.45); }
   overflow: visible;
   box-sizing: border-box;
   background: #ffffff;
-  border: 1px solid rgba(25, 189, 242, 0.3);
-  box-shadow: 0 2px 10px rgba(15, 40, 60, 0.08);
-  color: #2a3b49;
+  border: 1px solid rgba(37, 99, 235, 0.18);
+  box-shadow: 0 2px 10px rgba(15, 23, 42, 0.08);
+  color: #334155;
 }
 .spec-embed .spec-head {
   margin: -10px -12px 0;
   padding: 9px 12px 8px;
   background: #f3f8fb;
-  border-bottom: 1px solid rgba(25, 189, 242, 0.14);
+  border-bottom: 1px solid rgba(37, 99, 235, 0.08);
 }
-.spec-embed .spec-title { font-size: 0.72rem; color: #2a3b49; }
-.spec-embed .spec-close { background: rgba(20, 60, 80, 0.08); color: #2a3b49; width: 26px; height: 26px; font-size: 0.8rem; border-radius: 8px; }
-.spec-embed .spec-close:hover { background: rgba(20, 60, 80, 0.16); }
+.spec-embed .spec-title { font-size: 0.72rem; color: #334155; }
+.spec-embed .spec-close { background: rgba(15, 23, 42, 0.08); color: #334155; width: 26px; height: 26px; font-size: 0.8rem; border-radius: 8px; }
+.spec-embed .spec-close:hover { background: rgba(15, 23, 42, 0.16); }
 .spec-embed .spec-back, .spec-overlay .spec-back {
-  border-color: rgba(17, 21, 23, 0.18);
+  border-color: rgba(15, 23, 42, 0.18);
   background: #fff;
-  color: #2a3b49;
+  color: #334155;
 }
-.spec-embed .spec-back:hover, .spec-overlay .spec-back:hover { background: rgba(25, 189, 242, 0.1); }
-.spec-embed .spec-chip { color: #0b7ba6; border-color: rgba(25, 189, 242, 0.45); background: rgba(25, 189, 242, 0.08); }
-.spec-embed .spec-chip.spec-chip-end { color: #7b8792; border-color: rgba(20, 60, 80, 0.2); background: rgba(20, 60, 80, 0.06); }
-.spec-embed .spec-sub { font-size: 0.75rem; margin: 4px 0 8px; line-height: 1.3; color: #5f6f7a; }
+.spec-embed .spec-back:hover, .spec-overlay .spec-back:hover { background: rgba(37, 99, 235, 0.06); }
+.spec-embed .spec-chip { color: #1d4ed8; border-color: rgba(37, 99, 235, 0.27); background: rgba(37, 99, 235, 0.05); }
+.spec-embed .spec-chip.spec-chip-end { color: #64748b; border-color: rgba(15, 23, 42, 0.2); background: rgba(15, 23, 42, 0.06); }
+.spec-embed .spec-sub { font-size: 0.75rem; margin: 4px 0 8px; line-height: 1.3; color: #64748b; }
 .spec-embed .spec-body { gap: 0; flex-direction: column; align-items: center; min-width: 0; max-width: 100%; }
 .spec-embed .spec-board-col { gap: 4px; width: 100%; max-width: 100%; min-width: 0; align-items: center; justify-content: center; overflow: visible; box-sizing: border-box; }
 /* board wrapper centers the framed board so left/right frame is never cut */
@@ -13666,12 +13663,12 @@ button.live-drill-move:hover { border-color: rgba(117, 223, 255, 0.45); }
 .spec-embed .spec-player-row { width: 100%; max-width: 100%; min-width: 0; box-sizing: border-box; }
 .spec-embed .spec-moves-col { display: none; }
 .spec-embed .spec-flip { display: none; }
-.spec-embed .spec-player-row { padding: 2px 2px; border-color: rgba(20, 60, 80, 0.12); background: #f7fafc; }
-.spec-embed .spec-player-row.spec-nl { border-color: rgba(25, 189, 242, 0.4); background: rgba(25, 189, 242, 0.08); }
-.spec-embed .spec-pname { font-size: 0.68rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #2a3b49; }
+.spec-embed .spec-player-row { padding: 2px 2px; border-color: rgba(15, 23, 42, 0.12); background: #f7fafc; }
+.spec-embed .spec-player-row.spec-nl { border-color: rgba(37, 99, 235, 0.24); background: rgba(37, 99, 235, 0.05); }
+.spec-embed .spec-pname { font-size: 0.68rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #334155; }
 .spec-embed .spec-glyph { opacity: 0.9; }
-.spec-embed .spec-clock { font-size: 0.72rem; color: #37485a; }
-.spec-embed .spec-clock-run { color: #b9892e; text-shadow: none; }
+.spec-embed .spec-clock { font-size: 0.72rem; color: #334155; }
+.spec-embed .spec-clock-run { color: #1d4ed8; text-shadow: none; }
 .spec-embed::after { content: ''; display: block; }
 
 /* ── spectate modal: big browse card (80–90% of the screen) ── */
@@ -13689,11 +13686,11 @@ button.live-drill-move:hover { border-color: rgba(117, 223, 255, 0.45); }
   gap: 10px;
   margin: 10px 0 4px;
 }
-.spec-browse-sub { font-size: 0.8rem; color: #5f6f7a; }
+.spec-browse-sub { font-size: 0.8rem; color: #64748b; }
 .spec-browse-refresh {
-  border: 1px solid rgba(17, 21, 23, 0.18);
+  border: 1px solid rgba(15, 23, 42, 0.18);
   background: #fff;
-  color: #2a3b49;
+  color: #334155;
   font-size: 0.75rem;
   font-weight: 700;
   padding: 5px 12px;
@@ -13701,7 +13698,7 @@ button.live-drill-move:hover { border-color: rgba(117, 223, 255, 0.45); }
   cursor: pointer;
   white-space: nowrap;
 }
-.spec-browse-refresh:hover { background: rgba(25, 189, 242, 0.1); }
+.spec-browse-refresh:hover { background: rgba(37, 99, 235, 0.06); }
 .spec-browse-list {
   display: flex;
   flex-direction: column;
@@ -13711,18 +13708,18 @@ button.live-drill-move:hover { border-color: rgba(117, 223, 255, 0.45); }
   padding-bottom: 4px;
 }
 .spec-browse-list .live-session-item {
-  border-color: rgba(17, 21, 23, 0.12);
+  border-color: rgba(15, 23, 42, 0.12);
   background: #fff;
-  color: #111517;
+  color: #0f172a;
 }
 .spec-browse-list .live-session-item:hover {
-  border-color: rgba(25, 189, 242, 0.55);
-  background: rgba(25, 189, 242, 0.06);
+  border-color: rgba(37, 99, 235, 0.33);
+  background: rgba(37, 99, 235, 0.04);
 }
-.spec-browse-list .live-session-white { color: #111517; }
-.spec-browse-list .live-session-black { color: #37485a; }
-.spec-browse-list .live-session-vs, .spec-browse-list .live-session-meta { color: #7b8792; }
-.spec-browse-list .live-session-watch { color: #0b7ba6; }
+.spec-browse-list .live-session-white { color: #0f172a; }
+.spec-browse-list .live-session-black { color: #334155; }
+.spec-browse-list .live-session-vs, .spec-browse-list .live-session-meta { color: #64748b; }
+.spec-browse-list .live-session-watch { color: #1d4ed8; }
 .spec-browse-empty { margin: 18px 2px; text-align: center; }
 /* single-game view: flush inner card (its own head/sub hidden — the modal
    carries Back + names + LIVE), big measured board, moves beside/below. */
@@ -13770,9 +13767,9 @@ button.live-drill-move:hover { border-color: rgba(117, 223, 255, 0.45); }
   flex-wrap: wrap;
 }
 .spec-browse-back {
-  border: 1px solid rgba(17, 21, 23, 0.18);
+  border: 1px solid rgba(15, 23, 42, 0.18);
   background: #fff;
-  color: #2a3b49;
+  color: #334155;
   font-size: 0.75rem;
   font-weight: 700;
   padding: 5px 12px;
@@ -13780,8 +13777,8 @@ button.live-drill-move:hover { border-color: rgba(117, 223, 255, 0.45); }
   cursor: pointer;
   white-space: nowrap;
 }
-.spec-browse-back:hover { background: rgba(25, 189, 242, 0.1); }
-.spec-browse-gamename { font-size: 0.85rem; font-weight: 800; color: #111517; min-width: 0; }
+.spec-browse-back:hover { background: rgba(37, 99, 235, 0.06); }
+.spec-browse-gamename { font-size: 0.85rem; font-weight: 800; color: #0f172a; min-width: 0; }
 /* header button lives next to ⚔ Pair; count badge mirrors the bell pattern */
 .spec-open-btn { position: relative; }
 .spec-open-count {
@@ -13823,7 +13820,7 @@ button.live-drill-move:hover { border-color: rgba(117, 223, 255, 0.45); }
 }
 .spec-browse-cell:hover, .spec-browse-cell:focus-visible {
   transform: translateY(-2px);
-  box-shadow: 0 10px 28px rgba(15, 40, 60, 0.18);
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.18);
   outline: none;
 }
 /* compact row board: names + clocks + board, nothing else */
@@ -13847,7 +13844,7 @@ button.live-drill-move:hover { border-color: rgba(117, 223, 255, 0.45); }
   .spec-embed .spec-card {
     padding: 16px 20px 20px;
     border-radius: 16px;
-    box-shadow: 0 8px 28px rgba(15, 40, 60, 0.12);
+    box-shadow: 0 8px 28px rgba(15, 23, 42, 0.12);
   }
   .spec-embed .spec-title { font-size: 0.85rem; }
   .spec-embed .spec-sub { font-size: 0.82rem; margin: 6px 0 12px; }
@@ -13864,21 +13861,21 @@ button.live-drill-move:hover { border-color: rgba(117, 223, 255, 0.45); }
   }
   .spec-embed .spec-flip { display: inline-block; }
   /* Light-theme score sheet (base moves styles are dark-overlay themed). */
-  .spec-embed .spec-moves-title { color: #5f6f7a; }
-  .spec-embed .spec-score-head { background: #ffffff; border-bottom-color: rgba(17, 21, 23, 0.12); }
-  .spec-embed .spec-score-num { color: #9aa7b0; }
-  .spec-embed .spec-score-name { color: #5f6f7a; }
-  .spec-embed .spec-score-name.is-white { color: #111517; }
-  .spec-embed .spec-score-name.is-black { color: #37485a; }
-  .spec-embed .spec-score-name.is-live { color: #b9892e; }
-  .spec-embed .spec-move-list { border-color: rgba(17, 21, 23, 0.1); background: #f7fafc; }
-  .spec-embed .spec-move-num { color: #7b8792; }
-  .spec-embed .spec-move { background: #ffffff; color: #111517; border: 1px solid rgba(17, 21, 23, 0.08); }
-  .spec-embed .spec-moves-empty { color: #7b8792; }
+  .spec-embed .spec-moves-title { color: #64748b; }
+  .spec-embed .spec-score-head { background: #ffffff; border-bottom-color: rgba(15, 23, 42, 0.12); }
+  .spec-embed .spec-score-num { color: #64748b; }
+  .spec-embed .spec-score-name { color: #64748b; }
+  .spec-embed .spec-score-name.is-white { color: #0f172a; }
+  .spec-embed .spec-score-name.is-black { color: #334155; }
+  .spec-embed .spec-score-name.is-live { color: #1d4ed8; }
+  .spec-embed .spec-move-list { border-color: rgba(15, 23, 42, 0.1); background: #f7fafc; }
+  .spec-embed .spec-move-num { color: #64748b; }
+  .spec-embed .spec-move { background: #ffffff; color: #0f172a; border: 1px solid rgba(15, 23, 42, 0.08); }
+  .spec-embed .spec-moves-empty { color: #64748b; }
   .spec-embed .spec-finished {
-    color: #8a6d1f;
-    background: rgba(212, 169, 47, 0.12);
-    border-color: rgba(212, 169, 47, 0.4);
+    color: #1d4ed8;
+    background: rgba(37, 99, 235, 0.06);
+    border-color: rgba(37, 99, 235, 0.2);
   }
 }
 
@@ -13888,46 +13885,46 @@ button.live-drill-move:hover { border-color: rgba(117, 223, 255, 0.45); }
   backdrop-filter: blur(4px);
 }
 .spec-overlay .spec-card {
-  border: 1px solid rgba(17, 21, 23, 0.12);
-  background: linear-gradient(168deg, #fbf8f0 0%, #ffffff 100%);
-  box-shadow: 0 24px 80px rgba(15, 40, 60, 0.28), 0 0 0 1px rgba(17, 21, 23, 0.06);
-  color: #111517;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  background: linear-gradient(168deg, #f8fafc 0%, #ffffff 100%);
+  box-shadow: 0 24px 80px rgba(15, 23, 42, 0.28), 0 0 0 1px rgba(15, 23, 42, 0.06);
+  color: #0f172a;
 }
 .spec-overlay .spec-head {
-  border-bottom: 1px solid rgba(17, 21, 23, 0.1);
-  background: linear-gradient(180deg, #f3f0e6 0%, #fbf8f0 100%);
+  border-bottom: 1px solid rgba(15, 23, 42, 0.1);
+  background: linear-gradient(180deg, #f8fafc 0%, #f8fafc 100%);
 }
-.spec-overlay .spec-title { color: #111517; }
-.spec-overlay .spec-chip { color: #0b7ba6; border-color: rgba(25, 189, 242, 0.5); background: rgba(25, 189, 242, 0.1); }
-.spec-overlay .spec-chip.spec-chip-end { color: #7b8792; border-color: rgba(20, 60, 80, 0.2); background: rgba(20, 60, 80, 0.06); }
-.spec-overlay .spec-close { background: rgba(17, 21, 23, 0.06); color: #111517; }
-.spec-overlay .spec-close:hover { background: rgba(17, 21, 23, 0.12); }
-.spec-overlay .spec-sub { color: #5f6f7a; }
-.spec-overlay .spec-player-row { border-color: rgba(17, 21, 23, 0.12); background: #ffffff; }
-.spec-overlay .spec-player-row.spec-nl { border-color: rgba(212, 169, 47, 0.5); background: rgba(212, 169, 47, 0.12); }
-.spec-overlay .spec-pname { color: #111517; }
+.spec-overlay .spec-title { color: #0f172a; }
+.spec-overlay .spec-chip { color: #1d4ed8; border-color: rgba(37, 99, 235, 0.3); background: rgba(37, 99, 235, 0.06); }
+.spec-overlay .spec-chip.spec-chip-end { color: #64748b; border-color: rgba(15, 23, 42, 0.2); background: rgba(15, 23, 42, 0.06); }
+.spec-overlay .spec-close { background: rgba(15, 23, 42, 0.06); color: #0f172a; }
+.spec-overlay .spec-close:hover { background: rgba(15, 23, 42, 0.12); }
+.spec-overlay .spec-sub { color: #64748b; }
+.spec-overlay .spec-player-row { border-color: rgba(15, 23, 42, 0.12); background: #ffffff; }
+.spec-overlay .spec-player-row.spec-nl { border-color: rgba(37, 99, 235, 0.25); background: rgba(37, 99, 235, 0.06); }
+.spec-overlay .spec-pname { color: #0f172a; }
 .spec-overlay .spec-glyph { opacity: 0.9; }
-.spec-overlay .spec-clock { color: #37485a; }
-.spec-overlay .spec-clock-run { color: #b9892e; text-shadow: 0 0 10px rgba(212, 169, 47, 0.35); }
-.spec-overlay .spec-flip { border-color: rgba(17, 21, 23, 0.18); background: #ffffff; color: #2a3b49; }
-.spec-overlay .spec-flip:hover { background: rgba(25, 189, 242, 0.1); color: #0b7ba6; }
-.spec-overlay .spec-moves-title { color: #37485a; }
+.spec-overlay .spec-clock { color: #334155; }
+.spec-overlay .spec-clock-run { color: #1d4ed8; text-shadow: 0 0 10px rgba(37, 99, 235, 0.17); }
+.spec-overlay .spec-flip { border-color: rgba(15, 23, 42, 0.18); background: #ffffff; color: #334155; }
+.spec-overlay .spec-flip:hover { background: rgba(37, 99, 235, 0.06); color: #1d4ed8; }
+.spec-overlay .spec-moves-title { color: #334155; }
 /* Opaque white, not `inherit`: the list behind is rgba(255,255,255,0.8), which
    would let the scrolling moves bleed through the sticky header. */
-.spec-overlay .spec-score-head { background: #ffffff; border-bottom-color: rgba(17, 21, 23, 0.12); }
-.spec-overlay .spec-score-num { color: #9aa7b0; }
-.spec-overlay .spec-score-name { color: #5f6f7a; }
-.spec-overlay .spec-score-name.is-white { color: #111517; }
-.spec-overlay .spec-score-name.is-black { color: #37485a; }
-.spec-overlay .spec-score-name.is-live { color: #b9892e; }
-.spec-overlay .spec-move-list { border-color: rgba(17, 21, 23, 0.1); background: rgba(255, 255, 255, 0.8); }
-.spec-overlay .spec-move-num { color: #7b8792; }
-.spec-overlay .spec-move { background: rgba(25, 189, 242, 0.08); color: #111517; }
-.spec-overlay .spec-moves-empty { color: #7b8792; }
+.spec-overlay .spec-score-head { background: #ffffff; border-bottom-color: rgba(15, 23, 42, 0.12); }
+.spec-overlay .spec-score-num { color: #64748b; }
+.spec-overlay .spec-score-name { color: #64748b; }
+.spec-overlay .spec-score-name.is-white { color: #0f172a; }
+.spec-overlay .spec-score-name.is-black { color: #334155; }
+.spec-overlay .spec-score-name.is-live { color: #1d4ed8; }
+.spec-overlay .spec-move-list { border-color: rgba(15, 23, 42, 0.1); background: rgba(255, 255, 255, 0.8); }
+.spec-overlay .spec-move-num { color: #64748b; }
+.spec-overlay .spec-move { background: rgba(37, 99, 235, 0.05); color: #0f172a; }
+.spec-overlay .spec-moves-empty { color: #64748b; }
 .spec-overlay .spec-finished {
-  color: #8a6d1f;
-  background: rgba(212, 169, 47, 0.12);
-  border-color: rgba(212, 169, 47, 0.4);
+  color: #1d4ed8;
+  background: rgba(37, 99, 235, 0.06);
+  border-color: rgba(37, 99, 235, 0.2);
 }
 
 @media (max-width: 900px) {
@@ -15094,7 +15091,7 @@ button.live-drill-move:hover { border-color: rgba(117, 223, 255, 0.45); }
 
 /* Keep the GM popup below the sticky app navigation and show its key-moment card. */
 .gm-admin-game-modal-overlay {
-  z-index: 1000;
+  z-index: var(--z-popup);
   padding: 78px 1.25rem 1.25rem;
   place-items: center;
 }
@@ -15307,7 +15304,7 @@ button.live-drill-move:hover { border-color: rgba(117, 223, 255, 0.45); }
 }
 
 .gm-import-overlay {
-  position: fixed; inset: 0; z-index: 1000;
+  position: fixed; inset: 0; z-index: var(--z-popup);
   display: grid; place-items: center; padding: 78px 1rem 1rem;
   background: rgba(9, 20, 33, .6); -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px);
 }
@@ -21148,7 +21145,7 @@ html, body {
 .live-room .live-chat-panel .live-course-crumb { color: #475569 !important; }
 .live-room .live-chat-panel .live-course-crumb:hover { background: #e2e8f0; color: #0f172a !important; }
 .live-room .live-chat-panel .live-course-crumb-on { color: #0f172a !important; }
-.live-room .live-chat-panel .live-course-crumb-sep { color: #94a3b8 !important; }
+.live-room .live-chat-panel .live-course-crumb-sep { color: #64748b !important; }
 
 /* ── Folder / result rows ── */
 .live-room .live-chat-panel .live-course-row {
@@ -21156,8 +21153,8 @@ html, body {
   border-color: #e2e8f0;
 }
 .live-room .live-chat-panel .live-course-row:hover { background: #f1f5f9; border-color: #cbd5e1; }
-.live-room .live-chat-panel .live-course-row-on { background: #f6e6b4; border-color: #b98e2a; }
-.live-room .live-chat-panel .live-course-check { color: #b98e2a !important; }
+.live-room .live-chat-panel .live-course-row-on { background: #dbeafe; border-color: #93c5fd; }
+.live-room .live-chat-panel .live-course-check { color: #1d4ed8 !important; }
 .live-room .live-chat-panel .live-course-results-count { color: #64748b !important; }
 
 /* ── Selected-puzzle viewer ── */
@@ -21166,24 +21163,24 @@ html, body {
   border-top-color: #e2e8f0;
 }
 .live-room .live-chat-panel .live-course-chip {
-  color: #8a6a1c !important;
-  border-color: rgba(201, 168, 31, 0.5);
-  background: rgba(201, 168, 31, 0.12);
+  color: #1d4ed8 !important;
+  border-color: #bfdbfe;
+  background: #eff6ff;
 }
 .live-room .live-chat-panel .live-course-nav-btn {
-  border-color: rgba(201, 168, 31, 0.4);
+  border-color: #cbd5e1;
   background: #ffffff;
-  color: #5c470e !important;
+  color: #334155 !important;
 }
-.live-room .live-chat-panel .live-course-nav-btn:hover:not(:disabled) { background: #fdf8ec; }
+.live-room .live-chat-panel .live-course-nav-btn:hover:not(:disabled) { background: #eff6ff; }
 
 /* ── Loading skeleton + toast ── */
-.live-room .live-chat-panel .live-course-skeleton-row { background: rgba(201, 168, 31, 0.14); }
+.live-room .live-chat-panel .live-course-skeleton-row { background: #e2e8f0; }
 .live-room .live-chat-panel .live-course-toast {
-  background: #fffdf7;
-  color: #5c470e !important;
-  border: 1px solid rgba(201, 168, 31, 0.5);
-  box-shadow: 0 10px 24px rgba(120, 96, 12, 0.22);
+  background: rgba(15, 23, 42, 0.96);
+  color: #ffffff !important;
+  border: 1px solid rgba(15, 23, 42, 0.2);
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.28);
 }
 
 /* ── Paired-game card ("⚔ My paired game"): close button + phone board fit.
@@ -21208,7 +21205,7 @@ html, body {
   transition: background 0.15s, border-color 0.15s;
 }
 .pvp-play .pvp-play-close:hover { background: #eef2f6; border-color: #cbd5e1; }
-.pvp-play .pvp-play-close:focus-visible { outline: 2px solid #19bdf2; outline-offset: 2px; }
+.pvp-play .pvp-play-close:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; }
 
 /* The card and the board column/stage/wrap are exactly the card's width — no
    fixed px or min-width may push the board out and cause horizontal scroll. */
@@ -21349,11 +21346,11 @@ html, body {
 .live-msg-mine {
   align-self: flex-end;
   max-width: 88%;
-  border-color: rgba(25, 189, 242, 0.35);
-  background: rgba(25, 189, 242, 0.08);
+  border-color: #bfdbfe;
+  background: #eff6ff;
 }
-.live-msg-mine .live-msg-name { color: #0b7ba6; }
-.live-dm-status { display: inline-block; margin-top: 3px; font-size: 0.6rem; color: rgba(125, 162, 196, 0.9); }
+.live-msg-mine .live-msg-name { color: #1d4ed8; }
+.live-dm-status { display: inline-block; margin-top: 3px; font-size: 0.6rem; color: rgba(100, 116, 139, 0.9); }
 .live-dm-status-failed { color: #f87171; }
 /* Unread badge — gold, matching the app's accent theme. */
 .live-unread-badge {
@@ -21367,17 +21364,17 @@ html, body {
   font-size: 0.6rem;
   font-weight: 800;
   line-height: 1;
-  color: #241a06;
-  background: linear-gradient(135deg, #f0d488, #d4a92f);
+  color: #ffffff;
+  background: linear-gradient(135deg, #2563eb, #1d4ed8);
   border-radius: 999px;
   vertical-align: middle;
 }
 /* Subtle highlight on tabs that have unread messages. */
 .live-chip-unread {
-  border-color: rgba(240, 212, 136, 0.55);
-  color: #f0d488;
+  border-color: #93c5fd;
+  color: #1d4ed8;
 }
-.live-chip-unread .live-unread-badge { box-shadow: 0 0 0 1px rgba(240, 212, 136, 0.4); }
+.live-chip-unread .live-unread-badge { box-shadow: 0 0 0 1px rgba(37, 99, 235, 0.4); }
 /* "New messages ↓" pill — positioned over the open thread's bottom edge. */
 .live-dm-newpill {
   display: block;
@@ -21385,17 +21382,17 @@ html, body {
   padding: 4px 10px;
   font-size: 0.65rem;
   font-weight: 700;
-  color: #0d1a2e;
-  background: linear-gradient(135deg, #ecd089, #d4a92f);
-  border: 1px solid rgba(240, 212, 136, 0.6);
+  color: #ffffff;
+  background: linear-gradient(135deg, #2563eb, #1d4ed8);
+  border: 1px solid rgba(37, 99, 235, 0.5);
   border-radius: 999px;
   cursor: pointer;
   position: relative;
   z-index: 2;
 }
-.live-dm-newpill:hover { background: linear-gradient(135deg, #f5e0a0, #e0b83a); }
+.live-dm-newpill:hover { background: linear-gradient(135deg, #1d4ed8, #1e40af); }
 /* Hint shown when no thread is selected but tabs exist. */
-.live-dm-hint { padding: 8px; font-size: 0.68rem; color: rgba(125, 162, 196, 0.8); text-align: center; }
+.live-dm-hint { padding: 8px; font-size: 0.68rem; color: rgba(100, 116, 139, 0.8); text-align: center; }
 
 /* ── Outcome reveal ────────────────────────────────────────────────────────
    Result banners are held back until the checkmate animation ends; when they
@@ -21548,6 +21545,8 @@ html, body {
 
 /* ─── Sidebar below navbar (left) ─────────────────────────────────────────── */
 .admin-sidebar {
+  position: relative;
+  z-index: var(--z-sidebar);
   width: 240px;
   flex-shrink: 0;
   height: 100%;
@@ -21606,7 +21605,7 @@ html, body {
   background: rgba(0, 0, 0, 0.5);
   backdrop-filter: blur(4px);
   -webkit-backdrop-filter: blur(4px);
-  z-index: 35;
+  z-index: var(--z-sidebar);
 }
 
 /* ─── Main Content Area ─────────────────────────────────────────────────────── */
@@ -21620,9 +21619,10 @@ html, body {
 
 /* Full-width top navbar (shell flex column keeps it pinned on top) */
 .admin-top-navbar {
+  position: relative;
   flex-shrink: 0;
   width: 100%;
-  z-index: 30;
+  z-index: var(--z-navbar);
 }
 
 /* Mobile hamburger toggle */
@@ -21631,7 +21631,7 @@ html, body {
   position: fixed;
   top: calc(var(--app-nav-h, 64px) + 0.75rem);
   left: 0.75rem;
-  z-index: 50;
+  z-index: var(--z-navbar);
   width: 44px;
   height: 44px;
   border-radius: 12px;
@@ -21861,13 +21861,17 @@ html, body {
 :root {
   --navbar-height: var(--app-nav-h, 64px);
   --sidebar-width: 0px;
-  --z-sidebar: 100;
-  --z-navbar: 200;
   --z-dropdown: 1000;
-  --z-modal-backdrop: 2000;
-  --z-modal: 2100;
-  --z-popover-tooltip: 2200;
-  --z-toast: 3000;
+  --z-sticky: 1100;
+  --z-sidebar: 1200;
+  --z-navbar: 1300;
+  --z-modal-backdrop: 9000;
+  --z-modal: 9100;
+  --z-popup: 9200;
+  --z-toast: 9500;
+  --z-notification: 9600;
+  --z-tooltip: 9700;
+  --z-popover-tooltip: var(--z-tooltip);
 }
 
 @keyframes impact-shake {
@@ -22071,7 +22075,7 @@ html, body {
 .mz-modal-layer {
   position: fixed;
   inset: 0;
-  z-index: var(--z-modal, 2100);
+  z-index: var(--z-modal-backdrop);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -22851,27 +22855,27 @@ html, body {
    gradient instead of the flat blue. White label on the gradient, and the
    hover is a brightness lift plus a tiny scale so it still reads as a button. */
 .live-room .live-open-video.app-btn {
-  background: linear-gradient(135deg, #7c3aed, #ec4899, #f59e0b);
-  border: 1px solid rgba(255, 255, 255, 0.28);
+  background: linear-gradient(135deg, #2563eb, #1d4ed8);
+  border: 1px solid rgba(29, 78, 216, 0.5);
   /* The room's readability pass paints every link/button ink-dark with
      !important; a filled action has to opt back out or the label vanishes. */
   color: #ffffff !important;
   border-radius: 0.6rem;
-  box-shadow: 0 6px 16px rgba(124, 58, 237, 0.32);
-  text-shadow: 0 1px 2px rgba(60, 20, 80, 0.35);
+  box-shadow: 0 6px 16px rgba(37, 99, 235, 0.32);
+  text-shadow: 0 1px 2px rgba(15, 23, 42, 0.3);
   transition: filter 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
 }
 .live-room .live-open-video.app-btn:hover {
   filter: brightness(1.1);
   transform: translateY(-1px) scale(1.02);
-  box-shadow: 0 8px 22px rgba(236, 72, 153, 0.38);
+  box-shadow: 0 8px 22px rgba(37, 99, 235, 0.4);
 }
 .live-room .live-open-video.app-btn:active {
   transform: translateY(0) scale(0.99);
   filter: brightness(0.98);
 }
 .live-room .live-open-video.app-btn:focus-visible {
-  outline: 2px solid #f59e0b;
+  outline: 2px solid #1d4ed8;
   outline-offset: 2px;
 }
 @media (max-width: 640px) {
@@ -24248,4 +24252,137 @@ html, body {
 .photo-crop-zoom { accent-color: #1d4ed8; height: 4px; }
 @media (max-width: 640px) {
   .photo-crop-stage { height: min(42vh, 300px); }
+}
+
+/* ── Brand lockup ────────────────────────────────────────────────────────────
+   Emblem artwork + the name as text. --brand-h is the emblem height in px and
+   the name scales off it, so one proportion holds in every header. The two
+   colours are sampled from the logo artwork itself; the dark half would vanish
+   on the navy bars, so those get white ink instead. */
+.brand-lockup {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+.brand-emblem {
+  flex: 0 0 auto;
+  height: var(--brand-h, 44px);
+  width: auto;
+  object-fit: contain;
+}
+.brand-name {
+  font-family: Orbitron, Nunito, sans-serif;
+  font-weight: 800;
+  font-size: calc(var(--brand-h, 44px) * 0.55);
+  line-height: 1;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: #01214d;
+}
+.brand-name b {
+  font-weight: inherit;
+  color: #0085e9;
+}
+@media (max-width: 640px) {
+  .brand-lockup { gap: 8px; }
+  .brand-emblem { height: calc(var(--brand-h, 44px) * 0.73); }
+  .brand-name { font-size: clamp(15px, calc(var(--brand-h, 44px) * 0.42), 18px); }
+}
+
+/* ── Admin homework: per-student attempt drawer ────────────────────────────
+   The mini-card grid is 3 across on a desktop sheet, 2 on a tablet and 1 on a
+   phone. The breakpoints are viewport-based, which suits this drawer: it fills
+   the width below 1024px and is capped at 1024px above, so a 3-column grid only
+   ever applies when there really is 3 columns of room. */
+.sad-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
+  gap: 12px;
+  list-style: none;
+}
+
+/* Opened card: board on the left, the correct line and every try beside it.
+   Stacks into one column when there is no room for two. */
+.sad-replay {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 360px), 1fr));
+  gap: 16px;
+  align-items: start;
+}
+.attempt-modal-backdrop { background: rgba(5, 10, 18, .62); backdrop-filter: blur(3px); }
+.attempt-modal-card { height: min(88dvh, 900px); min-height: min(520px, calc(100dvh - 24px)); animation: attempt-modal-in .2s ease-out both; }
+@keyframes attempt-modal-in { from { opacity: 0; transform: translateY(8px) scale(.985); } to { opacity: 1; transform: translateY(0) scale(1); } }
+@media (max-width: 640px) {
+  .attempt-modal-backdrop { padding: 8px; }
+  .attempt-modal-card { height: 94dvh; min-height: 0; border-radius: 16px; }
+}
+
+/* The skeleton holds the same footprint as the real cards, so the sheet does
+   not reflow when the attempts arrive. */
+.sad-skeleton { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); gap: 12px; }
+.sad-skeleton-card {
+  border: 1px solid var(--surface-border, #e2e8f0);
+  border-radius: 16px;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.sad-skeleton-board { aspect-ratio: 1 / 1; border-radius: 12px; }
+.sad-skeleton-line { height: 12px; border-radius: 6px; }
+.sad-skeleton-board,
+.sad-skeleton-line {
+  background: rgba(15, 19, 13, 0.08);
+  animation: tr-skeleton-pulse 1.15s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .sad-skeleton-board,
+  .sad-skeleton-line { animation: none; }
+}
+
+/* Global overlay ladder: all full-screen layers are portal-mounted so these
+   levels are compared against the page, shell, and chessboard in one context. */
+
+/* ═══════════════════ Live room: labels on the filled-blue controls ═══════════════════
+   `.cp-ink-all` (the readability pass on the classroom page roots) declares
+   `color: #000000 !important` on every text descendant, and an !important beats any
+   ordinary rule — so every solid-blue control in the room rendered black ink on
+   blue. These carve-outs restore the white label, scoped to the ink root so the
+   room's light surfaces keep their dark text. The `.live-chat-panel` forms repeat
+   the panel class because that panel's own ink pass is three classes deep. */
+.cp-ink-all .live-tab-on,
+.cp-ink-all .live-move-chip-current,
+.cp-ink-all .live-move-chip-current:hover,
+.cp-ink-all .live-move-chip-readonly.live-move-chip-current:hover,
+.cp-ink-all .live-move-chip-view,
+.cp-ink-all .live-move-chip-view:hover,
+.cp-ink-all .live-move-chip-readonly.live-move-chip-view:hover,
+.cp-ink-all .pvp-play-move-current,
+.cp-ink-all .pvp-play-move-current:hover,
+.cp-ink-all .pfx-badge,
+.cp-ink-all .live-board-toast,
+.cp-ink-all .live-course-toast,
+.cp-ink-all .live-chat-send,
+.cp-ink-all .live-dm-newpill,
+.cp-ink-all .live-unread-badge,
+.cp-ink-all .join-toast-avatar,
+.cp-ink-all .lcc-continue,
+.cp-ink-all .live-open-video,
+.cp-ink-all .live-chat-panel .live-chat-send,
+.cp-ink-all .live-chat-panel .live-dm-newpill,
+.cp-ink-all .live-chat-panel .live-unread-badge,
+.cp-ink-all .cv2-tabs button.active,
+.cp-ink-all .cv2-inline-actions button,
+.cp-ink-all .cv2-homework-list button,
+.cp-ink-all .live-v2-main-tabs button.active {
+  color: #ffffff !important;
+}
+/* A wrapped label (icon + text) inherits instead of being re-darkened. */
+.cp-ink-all :is(.live-tab-on, .live-move-chip-current, .live-move-chip-view,
+  .pvp-play-move-current, .pfx-badge, .live-board-toast, .live-course-toast,
+  .live-chat-send, .live-dm-newpill, .live-unread-badge, .join-toast-avatar,
+  .lcc-continue, .live-open-video) * {
+  color: inherit !important;
 }

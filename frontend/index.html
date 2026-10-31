@@ -18,10 +18,16 @@
       name="description"
       content="MATE ZONE CHESS ACADEMY is an online chess academy: structured opening courses, live coaching, puzzles, game analysis, tournaments and play against bots."
     />
-    <!-- The academy logo in the tab: same asset the headers use, so Vite hashes
-         and serves it in both dev and the build. -->
-    <link rel="icon" type="image/jpeg" href="/src/assets/logo.jpeg" />
-    <link rel="apple-touch-icon" href="/src/assets/logo.jpeg" />
+    <!-- Tab / installed-app icon. These live in public/ rather than src/assets so
+         they keep a stable root URL in dev and in the build, which is what a
+         manifest must reference; a hashed /assets/ name would break the icon the
+         moment the bundle changed. The 48px sheet is what Chrome picks for the
+         tab, the 512s for an installed app. -->
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16.png" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
+    <link rel="icon" type="image/png" sizes="48x48" href="/favicon-48.png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/manifest.webmanifest" />
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="MATE ZONE CHESS ACADEMY" />
     <meta property="og:title" content="MATE ZONE CHESS ACADEMY" />
@@ -38,7 +44,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Quicksand:wght@500;600;700&family=Noto+Serif:wght@600;700&family=Playfair+Display:wght@600;700;800;900&family=Lora:ital,wght@0,400;0,600;0,700;1,600;1,700&family=Lato:wght@400;700;900&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Quicksand:wght@500;600;700&family=Noto+Serif:wght@600;700&family=Playfair+Display:wght@600;700;800;900&family=Lora:ital,wght@0,400;0,600;0,700;1,600;1,700&family=Lato:wght@400;700;900&family=Orbitron:wght@700;800&display=swap"
       rel="stylesheet"
     />
     <script>

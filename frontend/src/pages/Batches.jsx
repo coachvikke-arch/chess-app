@@ -1,3 +1,4 @@
+import Portal from '../components/Portal';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../services/api';
@@ -187,7 +188,7 @@ export function BatchesPanel() {
       </div>
 
       {showCreate && (
-        <div className="fixed inset-0 z-[var(--z-modal-backdrop)] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm" onClick={closeCreate}>
+        <Portal><div className="fixed inset-0 z-[var(--z-modal-backdrop)] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm" onClick={closeCreate}>
           <div className="chess-card w-full max-w-md max-h-[85vh] overflow-y-auto p-6" onClick={(e) => e.stopPropagation()} style={{ animation: 'board-pop .3s both' }}>
             <div className="flex items-start justify-between mb-1">
               <h3 className="text-base font-bold text-ivory-300">New batch</h3>
@@ -234,7 +235,7 @@ export function BatchesPanel() {
               </div>
             </form>
           </div>
-        </div>
+        </div></Portal>
       )}
     </>
   );

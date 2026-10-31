@@ -1,3 +1,4 @@
+import Portal from '../components/Portal';
 import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
 import {
   DndContext,
@@ -289,10 +290,10 @@ export default function SidebarOrder() {
 
           <DragOverlay dropAnimation={null}>
             {draggingLink && (
-              <div className="navorder-overlay">
+              <Portal><div className="navorder-overlay">
                 <span className="navorder-icon" aria-hidden="true">{draggingLink.icon}</span>
                 <span className="flex-1">{draggingLink.label}</span>
-              </div>
+              </div></Portal>
             )}
           </DragOverlay>
         </DndContext>

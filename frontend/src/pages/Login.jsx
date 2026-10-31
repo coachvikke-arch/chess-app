@@ -1,12 +1,12 @@
+import Portal from '../components/Portal';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../components/Toast';
 import { AUTH_MESSAGE_KEY } from '../services/api';
 import { Piece, Reveal } from '../components/ui';
-import Logo from '../components/Logo';
+import loginBrand from '../assets/login-brand.png';
 import PasswordInput from '../components/PasswordInput';
-import AnimatedBoard from '../components/AnimatedBoard';
 import { homeForRole } from '../utils/roles';
 import Button from '../components/Button';
 import usePageTitle from '../hooks/usePageTitle';
@@ -82,27 +82,33 @@ export default function Login() {
   return (
     <div className="min-h-[calc(100vh-2rem)] flex items-center justify-center px-4 py-10">
       <div className="w-full max-w-4xl grid md:grid-cols-2 gap-0 items-stretch">
-        {/* Decorative panel */}
+        {/* Decorative panel — the full brand lockup, scaled to whatever width
+            the panel has. The mark ships as a transparent PNG so it sits on the
+            panel's tint without a white rectangle behind it. */}
         <Reveal className="hidden md:block">
-          <div className="h-full rounded-l-3xl border border-ivory-700/50 bg-gradient-to-br from-gold-500/[0.07] via-transparent to-transparent p-8 flex flex-col justify-center overflow-hidden relative bg-ink-800">
-            <Logo
+          <div className="h-full rounded-l-3xl border border-ivory-700/50 bg-gradient-to-br from-gold-500/[0.07] via-transparent to-transparent p-6 flex flex-col items-center justify-center overflow-hidden relative bg-ink-800">
+            <img
+              src={loginBrand}
               alt="Mate Zone Chess Academy"
-              height={64}
-              className="shrink-0"
+              className="w-full h-auto max-h-full object-contain"
             />
-            <p className="text-ivory-300 text-sm mt-3 leading-relaxed">
+            <p className="text-ivory-300 text-sm mt-4 leading-relaxed text-center">
               Your classes, puzzles and progress are waiting. It's your move, coach.
             </p>
-            <div className="mt-8 flex justify-center">
-              <AnimatedBoard size={330} fixed />
-            </div>
           </div>
         </Reveal>
 
         {/* Form */}
         <Reveal delay={0.1}>
-          <div className="chess-card chess-card-hover rounded-none md:rounded-r-3xl md:rounded-l-none px-8 pb-8 pt-12 h-full">
-            <div className="flex flex-col items-center text-center mb-3 mt-10">
+          <div className="chess-card chess-card-hover rounded-none md:rounded-r-3xl md:rounded-l-none px-8 pb-8 pt-6 md:pt-12 h-full">
+            {/* Below md the decorative panel is hidden, so the same lockup moves
+                inside the card and sits above the fields. */}
+            <img
+              src={loginBrand}
+              alt="Mate Zone Chess Academy"
+              className="md:hidden w-full h-auto max-w-sm mx-auto object-contain"
+            />
+            <div className="flex flex-col items-center text-center mb-3 mt-4 md:mt-10">
               <h1 className="font-display text-3xl font-bold text-ivory-100">Login</h1>
               <p className="text-ivory-300 text-sm mt-1">Enter the arena to continue.</p>
               <br />
@@ -159,7 +165,7 @@ export default function Login() {
       </div>
       {/* ── Forgot-password popup: no self-service reset, contact the coach ── */}
       {forgotOpen && (
-        <div
+        <Portal><div
           className="fixed inset-0 z-[var(--z-modal-backdrop)] grid place-items-center bg-black/60 p-4"
           onClick={() => setForgotOpen(false)}
           role="dialog"
@@ -199,7 +205,7 @@ export default function Login() {
               I have a recovery code — reset my password
             </button>
           </div>
-        </div>
+        </div></Portal>
       )}
     </div>
   );

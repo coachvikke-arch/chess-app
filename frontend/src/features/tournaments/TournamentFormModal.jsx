@@ -1,3 +1,4 @@
+import Portal from '../../components/Portal';
 import { useEffect, useMemo, useState } from 'react';
 import { FORMAT_META } from './tournamentUtils';
 import { getStudentPool, createTournament, updateTournament, errorMessage } from '../../services/tournamentsApi';
@@ -172,8 +173,8 @@ export default function TournamentFormModal({ tournament, onClose, onSaved, inli
   );
 
   return inline ? form : (
-    <div className="tn-backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+    <Portal><div className="tn-backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       {form}
-    </div>
+    </div></Portal>
   );
 }

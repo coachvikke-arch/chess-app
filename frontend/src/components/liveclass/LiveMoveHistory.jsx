@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Chess } from 'chess.js';
 import { useLiveClass } from '../../context/LiveClassContext';
 import { on } from '../../services/socket';
+import { copyText } from '../../utils/clipboard';
 
 export default function LiveMoveHistory({ asMobilePanel = false, hideHeader = false }) {
   const { chessState, viewIndex, setViewIndex, remoteReview, isInstructor } = useLiveClass();
@@ -86,7 +87,7 @@ export default function LiveMoveHistory({ asMobilePanel = false, hideHeader = fa
         ♘ Moves <span className="live-move-count-num">{moves.length}</span>
       </div>
       <div className="live-chat-list live-move-list" ref={listRef} onScroll={onScroll} onClick={onListClick}>
-        {moves.length === 0 && <p className="live-chat-empty">No moves yet — instructor will take the first move.</p>}
+        {moves.length === 0 && <p className="live-chat-empty">No moves yet - Moves played on the board appear here.</p>}
         {moves.length > 0 && (
           <div className="live-move-rows">
             {Array.from({ length: Math.ceil(moves.length / 2) }).map((_, i) => {
@@ -123,6 +124,11 @@ export default function LiveMoveHistory({ asMobilePanel = false, hideHeader = fa
           </div>
         )}
       </div>
+      {isInstructor && <div className="live-v2-move-actions"><button type="button" onClick={() => copyText(chessState?.pgn || '')}>Copy</button><button type="button" onClick={() => {
+        const blob = new Blob([chessState?.pgn || ''], { type: 'application/x-chess-pgn' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a'); link.href = url; link.download = 'classroom-game.pgn'; link.click(); URL.revokeObjectURL(url);
+      }}>PGN</button></div>}
     </div>
   );
 }

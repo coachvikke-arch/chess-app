@@ -1,3 +1,4 @@
+import Portal from './Portal';
 import { useOverlayHistory } from '../hooks/useOverlayHistory';
 import { useEffect, useState } from 'react';
 import api from '../services/api';
@@ -79,7 +80,7 @@ export default function ClassDetailModal({ classId, initial, onClose, manageHist
   const durationSuffix = actualDur != null ? 'actual' : scheduledDur != null ? 'scheduled' : null;
 
   return (
-    <div className="cdm-overlay" onClick={onClose}>
+    <Portal><div className="cdm-overlay" onClick={onClose}>
       <div className="cdm-sheet" onClick={(e) => e.stopPropagation()}>
         {/* One header row: title and date/time on the left, status and close on
             the right. */}
@@ -236,7 +237,7 @@ export default function ClassDetailModal({ classId, initial, onClose, manageHist
           </div>
         )}
       </div>
-    </div>
+    </div></Portal>
   );
 }
 

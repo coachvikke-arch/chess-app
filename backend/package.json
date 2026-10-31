@@ -67,6 +67,8 @@
     "import:lichess": "node scripts/importLichessPuzzles.js",
     "test:puzzle-detectors": "node --test scripts/test-puzzle-detectors.js",
     "db:offline-attendance": "node run_migration.js migrations/add_offline_attendance_markers.sql",
+    "db:move-grants": "node run_migration.js migrations/add_move_grants.sql",
+    "db:classroom-v2": "node run_migration.js migrations/classroom_v2_state.sql",
     "test:offline-attendance": "node --test scripts/test-offline-attendance-markers.mjs scripts/test-offline-attendance-admin.mjs",
     "test:class-list-exclude-status": "node --test scripts/test-class-list-exclude-status.mjs"
   },

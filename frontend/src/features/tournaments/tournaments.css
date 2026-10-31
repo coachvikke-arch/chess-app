@@ -116,7 +116,7 @@
 .tn-empty .big { font-size: 2.4rem; display: block; margin-bottom: 8px; }
 
 /* forms + modal - light theme */
-.tn-backdrop { position: fixed; inset: 0; background: rgba(15,23,42,.45); backdrop-filter: blur(4px); z-index: 90; display: grid; place-items: center; padding: 14px; }
+.tn-backdrop { position: fixed; inset: 0; background: rgba(15,23,42,.45); backdrop-filter: blur(4px); z-index: var(--z-modal-backdrop); display: grid; place-items: center; padding: 14px; }
 .tn-modal { width: min(760px, 100%); max-height: 92vh; overflow: auto; background: #fff; border: 1px solid var(--tn-line); border-radius: 16px; padding: 24px; color: var(--tn-text);
   box-shadow: 0 25px 60px rgba(15,23,42,.15); }
 .tn-modal h2 { margin: 0 0 18px; font-size: 1.35rem; color: var(--tn-text); }

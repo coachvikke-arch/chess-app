@@ -28,7 +28,7 @@ function folderPath(folders, id) {
 function countFolderFiles(folders, folder) {
   const direct = (folder?.items || []).length;
   const nested = folders
-    .filter((f) => f.parentId === folder.id)
+    .filter((f) => String(f.parentId) === String(folder.id))
     .reduce((n, f) => n + countFolderFiles(folders, f), 0);
   return direct + nested;
 }
@@ -256,7 +256,7 @@ export default function CourseFilesPanel({ asMobilePanel = false, onBackToChat, 
     });
   }, [classMeta.id, flash]);
 
-  const openFolder = folders.find((f) => f.id === openFolderId) || null;
+  const openFolder = folders.find((f) => String(f.id) === String(openFolderId)) || null;
   const path = folderPath(folders, openFolderId);
   const visibleFolders = folders.filter((f) => String(f.parentId) === String(openFolderId));
   const items = openFolder?.items || [];

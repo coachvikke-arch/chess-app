@@ -5,7 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import { useToast } from '../components/Toast';
 import { isAdminRole, homeForRole } from '../utils/roles';
 import { LiveClassProvider, useLiveClass } from '../context/LiveClassContext';
-import { getJoinToken, endClass, normalizeMeetingUrl, setClassSpectateEnabled } from '../services/liveClassApi';
+import { getJoinToken, endClass, normalizeMeetingUrl, setClassSpectateEnabled, setClassroomUiMode } from '../services/liveClassApi';
 import { leaveLiveClass, on } from '../services/socket';
 import PuzzleDrillArea from '../components/liveclass/PuzzleDrill';
 import SpectateModal, { SpectateButton } from '../components/liveclass/SpectateModal';
@@ -368,6 +368,23 @@ function ClassroomInner({ socketError }) {
           ) : null}
         </div>
         <div className="live-room-header-right">
+          <button
+            type="button"
+            className="live-chip"
+            onClick={() => {
+              /* The class id lives on `classMeta` here: ClassroomInner is not the
+                 route wrapper, so useParams()' id is out of scope, and naming it
+                 in this handler threw before navigate() could run. */
+              const switchClassId = classMeta?.id ?? null;
+              if (!switchClassId) return;
+              try { localStorage.setItem(`classroomMode:${user?.id || 'user'}`, 'v2'); } catch {}
+              setClassroomUiMode(switchClassId, 'v2').catch(() => {});
+              navigate(isInstructor ? `/coach/dashboard/${switchClassId}/classroom-v2` : `/student/classroom-v2/${switchClassId}`);
+            }}
+            title="Switch to Classroom V2"
+          >
+            Classic | V2
+          </button>
           <span className="live-meta-chip live-conn-chip" title={`Realtime: ${connLabel}`}>
             <span className={`live-dot ${connection === 'connected' ? 'live-dot-on' : 'live-dot-warn'}`} />
             <span className="live-conn-text">{connLabel}</span>
@@ -490,6 +507,7 @@ function ClassroomInner({ socketError }) {
 
 export default function LiveClassroom() {
   usePageTitle('Live Classroom');
+  const navigate = useNavigate();
   const { requestFullHeight } = useFullHeight();
   /* Reset on unmount: the shell is now persistent across routes, so the
      full-height flag must not leak into the next page. */
@@ -505,6 +523,16 @@ export default function LiveClassroom() {
   const [error, setError] = useState('');
   const [socketError, setSocketError] = useState('');
   const [reloadKey, setReloadKey] = useState(0);
+
+  useEffect(() => {
+    if (!boot || status !== 'ready' || !id || Number(boot.classMeta?.id) !== Number(id) || !user?.id) return;
+    try {
+      const localMode = localStorage.getItem(`classroomMode:${user.id}`);
+      if ((localMode || boot.classMeta?.classroomUiMode) === 'v2') {
+        navigate(isAdminRole(user.role) || user.role === 'coach' ? `/coach/dashboard/${id}/classroom-v2` : `/student/classroom-v2/${id}`, { replace: true });
+      }
+    } catch { /* Private browsing may disable local preferences. */ }
+  }, [boot, status, id, user, navigate]);
 
   /* One effect owns the whole join: the `alive` flag stops a late join-token
      response (or a socket ack, or an error) from touching state after the

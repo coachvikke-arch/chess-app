@@ -1,58 +1,11 @@
+import Portal from './Portal';
 import { useOverlayHistory } from '../hooks/useOverlayHistory';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Chess } from 'chess.js';
 import api from '../services/api';
 import { Spinner, Chip } from './ui';
-import { MiniBoard } from './PuzzleCard';
+import { LazyMiniBoard } from './PuzzleCard';
 import Button from './Button';
-
-/**
- * The library's real MiniBoard, mounted only once the card scrolls into view.
- *
- * MiniBoard is a full react-chessboard instance and honours the viewer's saved
- * piece theme and board theme — which is exactly what we want here. The problem
- * is volume: an assignment can hold 70 puzzles, and mounting 70 boards at once
- * is slow enough that the grid renders blank. So each card observes itself and
- * only mounts its board when it is near the viewport, keeping a plain
- * placeholder until then.
- */
-function LazyMiniBoard({ fen, width }) {
-  const ref = useRef(null);
-  const [visible, setVisible] = useState(false);
-
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    if (typeof IntersectionObserver === 'undefined') { setVisible(true); return; }
-    const io = new IntersectionObserver(
-      (entries) => {
-        if (entries.some((e) => e.isIntersecting)) {
-          setVisible(true);
-          io.disconnect();
-        }
-      },
-      { rootMargin: '400px 0px' }
-    );
-    io.observe(el);
-    return () => io.disconnect();
-  }, []);
-
-  return (
-    <div ref={ref} className="w-full flex justify-center pointer-events-none">
-      {visible ? (
-        <div className="w-full max-w-[200px] flex flex-col items-center">
-          <MiniBoard fen={fen} width={width} />
-        </div>
-      ) : (
-        <div
-          className="rounded bg-black/20"
-          style={{ width, height: width }}
-          aria-hidden="true"
-        />
-      )}
-    </div>
-  );
-}
 
 
 /**
@@ -272,20 +225,20 @@ export default function PuzzleReviewModal({ submissionId, onClose }) {
 
   if (loading) {
     return (
-      <div className="fixed inset-0 z-[var(--z-modal-backdrop)] grid place-items-center bg-black/60 p-4">
+      <Portal><div className="fixed inset-0 z-[var(--z-modal-backdrop)] grid place-items-center bg-black/60 p-4">
         <div className="chess-card p-6"><Spinner text="Loading the submission…" /></div>
-      </div>
+      </div></Portal>
     );
   }
 
   if (error || !data) {
     return (
-      <div className="fixed inset-0 z-[var(--z-modal-backdrop)] grid place-items-center bg-black/60 p-4" onClick={onClose}>
+      <Portal><div className="fixed inset-0 z-[var(--z-modal-backdrop)] grid place-items-center bg-black/60 p-4" onClick={onClose}>
         <div className="chess-card p-6 max-w-md text-center" onClick={(e) => e.stopPropagation()}>
           <p className="text-sm text-red-600 mb-4">{error || 'Submission not found'}</p>
           <Button type="button" onClick={onClose} variant="primary" size="md">Close</Button>
         </div>
-      </div>
+      </div></Portal>
     );
   }
 
@@ -293,7 +246,7 @@ export default function PuzzleReviewModal({ submissionId, onClose }) {
   const { submission, summary } = data;
 
   return (
-    <div className="fixed inset-0 z-[var(--z-modal-backdrop)] overflow-y-auto bg-black/60 grid place-items-center p-3 sm:p-4" onClick={onClose}>
+    <Portal><div className="fixed inset-0 z-[var(--z-modal-backdrop)] overflow-y-auto bg-black/60 grid place-items-center p-3 sm:p-4" onClick={onClose}>
       <div
         className="chess-card w-full max-w-6xl flex flex-col max-h-[95vh] overflow-hidden"
         onClick={(e) => e.stopPropagation()}
@@ -406,6 +359,6 @@ export default function PuzzleReviewModal({ submissionId, onClose }) {
           </Button>
         </div>
       </div>
-    </div>
+    </div></Portal>
   );
 }

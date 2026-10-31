@@ -1,3 +1,4 @@
+import Portal from './Portal';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import api from '../services/api';
 import Button from './Button';
@@ -476,7 +477,7 @@ export default function FolderTree({
 
       {/* Delete confirm dialog (safe default: block when non-empty; force opt-in) */}
       {confirmDelete && (
-        <div className="fixed inset-0 z-[var(--z-modal-backdrop)] grid place-items-center bg-black/60 p-4" onClick={() => setConfirmDelete(null)}>
+        <Portal><div className="fixed inset-0 z-[var(--z-modal-backdrop)] grid place-items-center bg-black/60 p-4" onClick={() => setConfirmDelete(null)}>
           <div className="w-[min(92vw,30rem)] rounded-2xl border border-ivory-700/50 bg-ink-800 p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
             <h3 className="text-base font-semibold text-ivory-300">Delete folder “{confirmDelete.name}”?</h3>
             {confirmDelete.blockReason && (
@@ -510,7 +511,7 @@ export default function FolderTree({
               </Button>
             </div>
           </div>
-        </div>
+        </div></Portal>
       )}
     </div>
   );

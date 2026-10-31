@@ -1,3 +1,4 @@
+import Portal from './Portal';
 import { useEffect, useState } from 'react';
 import api from '../services/api';
 import { Chip } from './ui';
@@ -100,7 +101,7 @@ export default function SuperAdminPasswords() {
         <p className="text-[11px] text-ivory-500 mt-2">{filtered.length} of {accounts.length} accounts</p>
       </div>
       {selected && (
-        <div className="fixed inset-0 z-[var(--z-modal-backdrop)] grid place-items-center bg-black/60 p-4" onClick={close} role="dialog" aria-modal="true">
+        <Portal><div className="fixed inset-0 z-[var(--z-modal-backdrop)] grid place-items-center bg-black/60 p-4" onClick={close} role="dialog" aria-modal="true">
           <div className="chess-card max-w-md w-full p-6 max-h-[92vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0"><h3 className="font-display text-lg font-bold text-ivory-100 truncate">{selected.name}</h3>
@@ -121,7 +122,7 @@ export default function SuperAdminPasswords() {
                 : (<Button disabled={issuing} type="button" onClick={issueCode} variant="secondary" size="md" fullWidth className="mt-2 !py-2 text-sm">{issuing ? 'Issuing…' : 'Issue recovery code'}</Button>)}
             </div>
           </div>
-        </div>)}
+        </div></Portal>)}
     </div>
   );
 }

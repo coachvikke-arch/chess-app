@@ -22,7 +22,9 @@ router.get('/:id/attendance', roleMiddleware('admin'), ctrl.getAttendanceForClas
 router.post('/:id/start', roleMiddleware('admin'), liveCtrl.startClass);
 router.post('/:id/end', roleMiddleware('admin'), liveCtrl.endClass);
 router.post('/:id/cancel', roleMiddleware('admin'), liveCtrl.cancelClass);
+router.post('/:id/extend', roleMiddleware('admin'), liveCtrl.extendClass);
 router.get('/:id/join-token', liveCtrl.getClassJoinToken);
+router.put('/:id/ui-mode', liveCtrl.setClassroomUiMode);
 router.post('/:id/join-external', liveCtrl.joinExternalClass);
 router.get('/:id/chat', liveCtrl.listChat);
 router.post('/:id/chat/clear', roleMiddleware('admin'), liveCtrl.clearChat);

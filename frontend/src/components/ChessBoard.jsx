@@ -148,6 +148,7 @@ export default function ChessBoard({
   mode = 'game',
   onMove,
   onPositionChange,
+  onIllegalMove = null,
   orientation = 'white',
   boardWidth = 420,
   interactive = true,
@@ -694,6 +695,7 @@ export default function ChessBoard({
       return true;
     } catch {
       if (soundEnabled) playSound('illegal');
+      if (onIllegalMove) onIllegalMove();
       return false;
     }
   }

@@ -1,3 +1,4 @@
+import Portal from './Portal';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import api from '../services/api';
 import { nameWithNumbering } from '../pages/Library';
@@ -189,7 +190,7 @@ export default function CsvImportSetWizard({ onClose, onImported }) {
   const pct = summary.totalRows ? Math.round(((summary.processed || 0) / summary.totalRows) * 100) : 0;
 
   return (
-    <div className="fixed inset-0 z-[var(--z-modal-backdrop)] grid place-items-center bg-black/60 backdrop-blur-sm p-4" onClick={onClose}>
+    <Portal><div className="fixed inset-0 z-[var(--z-modal-backdrop)] grid place-items-center bg-black/60 backdrop-blur-sm p-4" onClick={onClose}>
       <div className="w-[min(94vw,52rem)] max-h-[90vh] overflow-y-auto rounded-2xl border border-ivory-700/50 bg-ink-800 p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-4">
           <h2 className="font-display text-xl font-bold flex items-center gap-2">
@@ -429,6 +430,6 @@ export default function CsvImportSetWizard({ onClose, onImported }) {
         )}
 
       </div>
-    </div>
+    </div></Portal>
   );
 }

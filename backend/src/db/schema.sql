@@ -14,12 +14,14 @@ CREATE TABLE IF NOT EXISTS users (
   board_theme VARCHAR(30) DEFAULT 'classic-green',
   piece_set VARCHAR(30) DEFAULT 'cburnett',
   created_at TIMESTAMP DEFAULT NOW(),
-  updated_at TIMESTAMP DEFAULT NOW()
+  updated_at TIMESTAMP DEFAULT NOW(),
+  classroom_ui_mode VARCHAR(12) NOT NULL DEFAULT 'classic'
 );
 
 -- Idempotent upgrades for already-initialized databases.
 ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_config JSONB;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS country_code VARCHAR(8);
+ALTER TABLE users ADD COLUMN IF NOT EXISTS classroom_ui_mode VARCHAR(12) NOT NULL DEFAULT 'classic';
 
 -- Concurrent-device session cap. One row per sign-in; the JWT carries its id as
 -- `session_id`. A user may hold at most 2 active rows — a third sign-in revokes
@@ -181,7 +183,8 @@ CREATE TABLE IF NOT EXISTS classes (
 CREATE TABLE IF NOT EXISTS live_class_move_grants (
   live_class_id INTEGER REFERENCES classes(id) ON DELETE CASCADE,
   user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-  move_side VARCHAR(6) NOT NULL DEFAULT 'both', -- white | black | both
+  move_side VARCHAR(6) NOT NULL DEFAULT 'both', -- white | black | both | none
+  can_draw BOOLEAN NOT NULL DEFAULT FALSE,
   updated_at TIMESTAMP DEFAULT NOW(),
   PRIMARY KEY (live_class_id, user_id)
 );

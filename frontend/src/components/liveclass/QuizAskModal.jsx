@@ -1,3 +1,4 @@
+import Portal from '../Portal';
 import { useState } from 'react';
 import Button from '../Button';
 import ChessBoard from '../ChessBoard';
@@ -57,7 +58,7 @@ export default function QuizPuzzleModal({ puzzle, classId, onClose, onStarted })
   const resetFields = () => setFields(settingsToFields(DEFAULT_QUIZ_SETTINGS));
 
   return (
-    <div className="live-drill-modal-backdrop" onClick={onClose}>
+    <Portal><div className="live-drill-modal-backdrop" onClick={onClose}>
       <div className="live-drill-modal" onClick={(e) => e.stopPropagation()}>
         <div className="live-drill-modal-head">
           <span className="live-drill-modal-title">🎯 Ask quiz</span>
@@ -118,6 +119,6 @@ export default function QuizPuzzleModal({ puzzle, classId, onClose, onStarted })
           {busy ? 'Starting…' : canStart ? `Start “${title}”` : 'Select a puzzle with moves to start'}
         </Button>
       </div>
-    </div>
+    </div></Portal>
   );
 }

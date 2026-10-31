@@ -1,3 +1,4 @@
+import Portal from '../Portal';
 import { useMemo, useState } from 'react';
 import Button from '../Button';
 import { createClassroomGames } from '../../utils/online';
@@ -113,7 +114,7 @@ export default function PairPlayersModal({ classId, students, onClose, onStarted
   const canStart = valid.length > 0 && !busy;
 
   return (
-    <div className="live-drill-modal-backdrop" onClick={onClose}>
+    <Portal><div className="live-drill-modal-backdrop" onClick={onClose}>
       <div className="live-drill-modal pvp-modal" onClick={(e) => e.stopPropagation()}>
         <div className="live-drill-modal-head">
           <span className="live-drill-modal-title">⚔ Pair players</span>
@@ -211,6 +212,6 @@ export default function PairPlayersModal({ classId, students, onClose, onStarted
           {busy ? 'Starting…' : canStart ? `Start ${valid.length} pairing${valid.length === 1 ? '' : 's'} · ${tc.label}` : 'Choose White and Black to start'}
         </Button>
       </div>
-    </div>
+    </div></Portal>
   );
 }

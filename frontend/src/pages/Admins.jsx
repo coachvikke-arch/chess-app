@@ -1,3 +1,4 @@
+import Portal from '../components/Portal';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../services/api';
@@ -211,7 +212,7 @@ export function AdminsPanel() {
       </div>
 
       {detail && (
-        <div className="fixed inset-0 z-[var(--z-modal-backdrop)] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm" onClick={() => setDetail(null)}>
+        <Portal><div className="fixed inset-0 z-[var(--z-modal-backdrop)] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm" onClick={() => setDetail(null)}>
           <div className="chess-card w-full max-w-lg max-h-[85vh] overflow-y-auto p-5" onClick={(e) => e.stopPropagation()} style={{ animation: 'board-pop .3s both' }}>
             <div className="flex items-start justify-between gap-3 mb-3">
               <h3 className="text-base font-bold text-ivory-300">Admin details</h3>
@@ -247,7 +248,7 @@ export function AdminsPanel() {
               </Button>
             </div>
           </div>
-        </div>
+        </div></Portal>
       )}
     </>
   );

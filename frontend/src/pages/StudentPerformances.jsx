@@ -1,3 +1,4 @@
+import Portal from '../components/Portal';
 import { useEffect, useState } from 'react';
 import api from '../services/api';
 import { Page, Spinner } from '../components/ui';
@@ -95,7 +96,7 @@ export default function StudentPerformances() {
 
       {/* Full-size popup: uploaded photo large, title bold, details readable. */}
       {openItem && (
-        <div
+        <Portal><div
           className="fixed inset-0 z-[var(--z-modal-backdrop)] grid place-items-center p-3 sm:p-6"
           style={{ background: 'rgba(28, 33, 23, 0.7)' }}
           onMouseDown={(e) => { if (e.target === e.currentTarget) setOpenItem(null); }}
@@ -140,7 +141,7 @@ export default function StudentPerformances() {
               </p>
             </div>
           </div>
-        </div>
+        </div></Portal>
       )}
     </Page>
   );

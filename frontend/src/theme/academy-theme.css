@@ -150,35 +150,52 @@ body {
 
 /* ── navigation (landing header, public bar, app top bar) ────────────────── */
 
-/* The top bar is navy blue and is the app's only dark surface. It carries no
-   border and no accent line — the colour alone separates it from the white
-   page. Its children were written for a dark chrome (white / slate-200 /
-   blue-300 labels, translucent-white hovers), so those utilities are left to
-   Tailwind; only the brand gradient words are re-pointed below. Dropdowns that
-   open from the bar (notifications, account) are white panels and keep their
-   own ink colours, so nothing here is allowed to bleed into them. */
+/* Light bar: white washing into pale blue from left to right, with the brand
+   blues carried by the logo chip and the action button. It is no longer the
+   app's dark surface, so a hairline plus a soft shadow does the separating the
+   navy used to do on its own. Dropdowns out of the bar are white panels and
+   keep their own ink colours. */
 .nav-glass {
-  background: #0b2545;
-  border-bottom: 0;
-  box-shadow: none;
+  background: linear-gradient(96deg, #ffffff 0%, #f3f9fd 48%, #e3effb 100%);
+  border-bottom: 1px solid #d8e4ef;
+  box-shadow: 0 6px 18px -14px rgba(15, 23, 42, 0.45);
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
-  color: #f8fafc;
+  color: #0f172a;
 }
 
 /* The phone-width variant matched the desktop bar; keep it identical. */
 @media (max-width: 767px) {
   .nav-glass-phone-white {
-    background: #0b2545 !important;
-    border-bottom: 0;
-    box-shadow: none;
+    background: linear-gradient(96deg, #ffffff 0%, #f3f9fd 48%, #e3effb 100%) !important;
+    border-bottom: 1px solid #d8e4ef;
+    box-shadow: 0 6px 18px -14px rgba(15, 23, 42, 0.45);
   }
 }
 
-/* The avatar circle and the unread badge are saturated tiles on navy; a pale
-   ring keeps the circle's edge from dissolving into the bar. */
+/* Everything in the bar was written for a dark chrome — pale slate labels,
+   white hovers, translucent-white fills. Re-point the same utilities at the
+   light set so no call site has to change. */
+.nav-glass .text-slate-200,
+.nav-glass .text-slate-300 {
+  color: #475569;
+}
+.nav-glass .hover\:text-white:hover {
+  color: #0b2545;
+}
+.nav-glass .hover\:bg-white\/10:hover {
+  background-color: rgba(37, 99, 235, 0.08);
+}
+/* Only the account chip's name paragraph: the unread badge is also text-white
+   and has to stay white on its red tile. */
+.nav-glass p.text-white {
+  color: #0f172a;
+}
+
+/* The avatar circle and the unread badge were ringed in pale blue so they did
+   not dissolve into navy; on white they need the accent instead. */
 .nav-glass .ring-gold-500\/50 {
-  --tw-ring-color: rgba(147, 197, 253, 0.55);
+  --tw-ring-color: rgba(37, 99, 235, 0.35);
 }
 
 /* ── page surface ────────────────────────────────────────────────────────── */
@@ -225,14 +242,8 @@ body {
   background: none !important;
   -webkit-background-clip: border-box !important;
   background-clip: border-box !important;
-  color: #19bdf2 !important;
-  -webkit-text-fill-color: #19bdf2;
-}
-
-/* The flat blue action button is barely lighter than the navy bar; a hairline
-   halo separates it without changing its size. */
-.nav-glass .app-btn--primary {
-  box-shadow: 0 0 0 1px rgba(191, 219, 254, 0.45);
+  color: #0b6fbe !important;
+  -webkit-text-fill-color: #0b6fbe;
 }
 
 .chess-link,

@@ -8,6 +8,7 @@ import HomeworkFilterPanel, {
   HOMEWORK_FILTER_DEFAULTS,
   countHomeworkFilters,
 } from '../components/HomeworkFilterPanel';
+import StudentAttemptDrawer from '../components/StudentAttemptDrawer';
 
 const PAGE_SIZE = 10;
 
@@ -74,6 +75,11 @@ export default function AdminHomework() {
   const [detail, setDetail] = useState(null); // { students: [...] }
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState('');
+
+  /* The student whose attempts are open in the drawer, with the pill the row was
+     showing: the drawer must repeat the status the coach just read, and that is
+     the derived one (overdue, "solved everything"), not the stored column. */
+  const [review, setReview] = useState(null); // { student, badge } | null
 
   useEffect(() => () => clearTimeout(toastTimerRef.current), []);
 
@@ -373,15 +379,31 @@ export default function AdminHomework() {
                         <p className="chess-error text-sm">{detailError}</p>
                       ) : detail?.students?.length ? (
                         <div className="space-y-2">
+                          <p className="text-[0.65rem] text-ivory-500">
+                            Select a student to see every puzzle and every move they tried.
+                          </p>
                           {detail.students.map((s) => {
                             const sBadge = STUDENT_STATUS[s.status] || STUDENT_STATUS.pending;
                             return (
                               <div
                                 key={s.studentId}
-                                className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-ivory-700/50 bg-black/[0.03] px-3 py-2"
+                                role="button"
+                                tabIndex={0}
+                                aria-label={`Open ${s.name}'s puzzle attempts`}
+                                onClick={() => setReview({ student: s, badge: sBadge })}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter' || e.key === ' ') {
+                                    e.preventDefault();
+                                    setReview({ student: s, badge: sBadge });
+                                  }
+                                }}
+                                className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-ivory-700/50 bg-black/[0.03] px-3 py-2 cursor-pointer transition hover:border-blue-500/60 hover:bg-blue-500/[0.06] focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400/70"
                               >
                                 <div className="min-w-0">
-                                  <p className="text-sm font-medium text-ivory-200 truncate">{s.name}</p>
+                                  <p className="text-sm font-medium text-ivory-200 truncate">
+                                    {s.name}
+                                    <span className="ml-1.5 text-ivory-500" aria-hidden="true">▸</span>
+                                  </p>
                                   <p className="text-[0.65rem] text-ivory-500 truncate">{s.email || ''}</p>
                                 </div>
                                 <div className="flex flex-wrap items-center gap-2 text-[0.65rem] text-ivory-500">
@@ -420,9 +442,18 @@ export default function AdminHomework() {
       </>
       )}
 
+      {review && (
+        <StudentAttemptDrawer
+          submissionId={review.student.submissionId}
+          student={review.student}
+          badge={review.badge}
+          onClose={() => setReview(null)}
+        />
+      )}
+
       {toast && (
         <div
-          className="fixed bottom-5 left-1/2 -translate-x-1/2 z-[var(--z-modal-backdrop)] px-4 py-2.5 rounded-xl border border-gold-500/40 bg-ink-800 text-sm text-ivory-300 shadow-[0_10px_30px_rgba(0,0,0,0.5)]"
+          className="fixed bottom-5 left-1/2 -translate-x-1/2 z-[var(--z-toast)] px-4 py-2.5 rounded-xl border border-gold-500/40 bg-ink-800 text-sm text-ivory-300 shadow-[0_10px_30px_rgba(0,0,0,0.5)]"
           style={{ animation: 'board-pop .3s both' }}
         >
           {toast}

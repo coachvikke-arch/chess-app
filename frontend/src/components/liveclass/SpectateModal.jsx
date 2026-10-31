@@ -1,3 +1,4 @@
+import Portal from '../Portal';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Button from '../../components/Button';
 import { listLiveSessions } from '../../utils/online';
@@ -214,7 +215,7 @@ export default function SpectateModal({ onClose }) {
   };
 
   return (
-    <div className="spec-overlay spec-browse-overlay" onClick={onClose}>
+    <Portal><div className="spec-overlay spec-browse-overlay" onClick={onClose}>
       <div
         className="spec-card spec-browse-card"
         role="dialog"
@@ -286,6 +287,6 @@ export default function SpectateModal({ onClose }) {
           )}
         </div>
       </div>
-    </div>
+    </div></Portal>
   );
 }

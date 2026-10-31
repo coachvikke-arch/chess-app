@@ -116,7 +116,7 @@ async function queryOwnAttendance(sql, { userId, page, limit, listFilter, summar
               marked_by_name                                AS "markedByName",
               marked_by_role                                AS "markedByRole",
               to_char(marked_at, 'DD Mon YYYY, HH24:MI')    AS "markedAt",
-              COUNT(*)::int OVER ()                         AS "total"
+              COUNT(*) OVER ()::int                         AS "total"
          FROM all_records
          ${listFilter.where}
         ORDER BY attendance_date DESC NULLS LAST,

@@ -31,18 +31,8 @@ export default memo(function TopNavbar({
             ☰
           </button>
           {/* Academy name - always visible */}
-          <Link
-              to={homePath}
-              replace
-              aria-label={APP_NAME}
-              className="flex items-center gap-1.5 shrink-0"
-            >
-              <span className="text-blue-300" aria-hidden="true">♛</span>
-              <Logo
-                alt="Mate Zone Chess Academy"
-                height={36}
-                className="shrink-0"
-              />
+          <Link to={homePath} replace aria-label={APP_NAME} className="shrink-0">
+            <Logo height={44} />
           </Link>
         </div>
 

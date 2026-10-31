@@ -1,3 +1,4 @@
+import Portal from './Portal';
 
 import Button from './Button';
 import usePageTitle from '../hooks/usePageTitle';
@@ -118,7 +119,7 @@ export function RouteFallback() {
 export function ConfirmDialog({ open, title, message, onConfirm, onCancel, confirmText = 'Confirm', cancelText = 'Cancel', variant = 'danger' }) {
   if (!open) return null;
   return (
-    <div className="fixed inset-0 z-[var(--z-modal-backdrop)] overflow-y-auto bg-black/60 grid place-items-center p-4" onClick={onCancel}>
+    <Portal><div className="fixed inset-0 z-[var(--z-modal-backdrop)] overflow-y-auto bg-black/60 grid place-items-center p-4" onClick={onCancel}>
       <div
         className="chess-card max-w-md w-full flex flex-col max-h-[94vh] overflow-y-auto p-5"
         onClick={(e) => e.stopPropagation()}
@@ -142,7 +143,7 @@ export function ConfirmDialog({ open, title, message, onConfirm, onCancel, confi
           </Button>
         </div>
       </div>
-    </div>
+    </div></Portal>
   );
 }
 

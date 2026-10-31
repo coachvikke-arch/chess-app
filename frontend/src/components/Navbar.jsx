@@ -1,9 +1,8 @@
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Piece } from './ui';
 import NotificationBell from './NotificationBell';
 import { homeForRole, isAdminRole } from '../utils/roles';
-import { APP_NAME, APP_NAME_SHORT } from '../config/brand';
+import { APP_NAME } from '../config/brand';
 import Button from './Button';
 import Logo from './Logo';
 
@@ -31,11 +30,7 @@ export default function Navbar({ hideLinks = false }) {
     <header className="nav-glass sticky top-0">
       <div className="max-w-7xl mx-auto flex items-center justify-between gap-2 px-3 sm:px-4 py-3">
         <Link to={logoLink} aria-label={APP_NAME} className="flex items-center gap-2 sm:gap-2.5 group min-w-0">
-          <Logo
-            alt="Mate Zone Chess Academy"
-            height={44}
-            className="shrink-0"
-          />
+          <Logo height={44} />
         </Link>
 
         {/* No section links here on purpose — the Courses / Openings / About /
@@ -62,14 +57,8 @@ export default function Navbar({ hideLinks = false }) {
             </>
           ) : (
             <>
-              <Link
-                to="/login"
-                className="hidden sm:inline text-sm text-slate-200 hover:text-white font-medium transition"
-              >
-                Login
-              </Link>
               <Button to="/login" variant="primary" size="md" className="!px-4 !py-2 text-sm">
-                <Piece p="♘" spin /> Login
+                Login
               </Button>
             </>
           )}

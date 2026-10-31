@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useRef, useState } from 'react';
 import { checkToastDedupe, DEDUPE_WINDOW_MS } from '../utils/toastDedupe';
+import Portal from './Portal';
 import Button from './Button';
 
 /* TEMPORARY duplicate-toast diagnosis. Every show/suppress decision logs id,
@@ -177,16 +178,18 @@ export function ToastProvider({ children }) {
   return (
     <ToastContext.Provider value={{ showToast, updateToast, hasToast, dismissToast: dismiss }}>
       {children}
+      <Portal>
+      <>
       {/* Notification popups: on phones they dock just under the header so they
           never cover the bottom nav or a game's controls; from `sm` up they
           join the bottom-right stack below. */}
-      <div className="fixed inset-x-0 top-[4.25rem] z-[var(--z-modal-backdrop)] flex flex-col gap-2 items-center px-3 pointer-events-none sm:hidden">
+      <div className="fixed inset-x-0 top-[4.25rem] z-[var(--z-notification)] flex flex-col gap-2 items-center px-3 pointer-events-none sm:hidden">
         {toasts.filter((t) => t.placement === 'notification').map((t) => (
           <ToastCard key={t.id} toast={t} onDismiss={dismiss} />
         ))}
       </div>
       {/* Toast stack — fixed bottom-right, above everything */}
-      <div className="fixed bottom-4 right-4 z-[var(--z-modal-backdrop)] flex flex-col gap-2 items-end pointer-events-none">
+      <div className="fixed bottom-4 right-4 z-[var(--z-toast)] flex flex-col gap-2 items-end pointer-events-none">
         {toasts.filter((t) => t.placement !== 'notification').map((t) => (
           <ToastCard key={t.id} toast={t} onDismiss={dismiss} />
         ))}
@@ -196,6 +199,8 @@ export function ToastProvider({ children }) {
           ))}
         </div>
       </div>
+      </>
+      </Portal>
     </ToastContext.Provider>
   );
 }

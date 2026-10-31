@@ -1,3 +1,4 @@
+import Portal from '../Portal';
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Button from '../Button';
 import { Chess } from 'chess.js';
@@ -655,7 +656,7 @@ export default function PuzzleDrillArea() {
       )}
       {quizAsk && isInstructor && (
         <Suspense fallback={(
-          <div className="live-drill-modal-backdrop" aria-busy="true" aria-label="Loading quiz setup" onClick={closeQuizAsk}>
+          <Portal><div className="live-drill-modal-backdrop" aria-busy="true" aria-label="Loading quiz setup" onClick={closeQuizAsk}>
             <div className="live-drill-modal" onClick={(e) => e.stopPropagation()}>
               <div className="live-drill-modal-head">
                 <span className="live-drill-modal-title">🎯 Ask quiz</span>
@@ -666,7 +667,7 @@ export default function PuzzleDrillArea() {
                 <span className="live-course-skeleton-row" />
               </div>
             </div>
-          </div>
+          </div></Portal>
         )}
         >
           <QuizPuzzleModal

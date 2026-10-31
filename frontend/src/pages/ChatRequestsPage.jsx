@@ -1,3 +1,4 @@
+import Portal from '../components/Portal';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useChat } from '../context/ChatContext';
@@ -86,7 +87,7 @@ function CancelChatDialog({ request, busy, error, onClose, onConfirm }) {
   const wasApproved = request.status === 'approved';
 
   return (
-    <div
+    <Portal><div
       className="fixed inset-0 z-[var(--z-modal-backdrop)] grid place-items-center bg-black/70 p-4"
       onClick={(e) => { if (e.target === e.currentTarget && !busy) onClose(); }}
     >
@@ -148,7 +149,7 @@ function CancelChatDialog({ request, busy, error, onClose, onConfirm }) {
           </Button>
         </div>
       </div>
-    </div>
+    </div></Portal>
   );
 }
 
@@ -357,7 +358,7 @@ function ConfirmDialog({ action, request, busy, onCancel, onConfirm }) {
 
   const approving = action === 'approve';
   return (
-    <div
+    <Portal><div
       className="fixed inset-0 z-[var(--z-modal-backdrop)] grid place-items-center bg-black/70 p-4"
       onClick={(e) => { if (e.target === e.currentTarget && !busy) onCancel(); }}
     >
@@ -407,7 +408,7 @@ function ConfirmDialog({ action, request, busy, onCancel, onConfirm }) {
           </Button>
         </div>
       </div>
-    </div>
+    </div></Portal>
   );
 }
 
@@ -442,7 +443,7 @@ function DetailPanel({ requestId, onClose, onCancelled }) {
   }, [load, onCancelled]);
 
   return (
-    <div
+    <Portal><div
       className="fixed inset-0 z-[var(--z-modal-backdrop)] flex justify-end bg-black/70"
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
@@ -513,7 +514,7 @@ function DetailPanel({ requestId, onClose, onCancelled }) {
           </>
         )}
       </div>
-    </div>
+    </div></Portal>
   );
 }
 

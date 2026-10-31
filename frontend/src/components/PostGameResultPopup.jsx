@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import Button from './Button';
+import Portal from './Portal';
 import PlayerAvatar from './PlayerAvatar';
 import { useOverlayHistory } from '../hooks/useOverlayHistory';
 
@@ -199,6 +200,7 @@ export default function PostGameResultPopup({
   };
 
   return (
+    <Portal>
     <div
       className="pgr-overlay"
       role="dialog"
@@ -252,5 +254,6 @@ export default function PostGameResultPopup({
         </div>
       </div>
     </div>
+    </Portal>
   );
 }

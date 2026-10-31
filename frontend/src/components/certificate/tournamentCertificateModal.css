@@ -3,7 +3,7 @@
 .tcm-overlay {
   position: fixed;
   inset: 0;
-  z-index: 300;
+  z-index: var(--z-modal-backdrop);
   display: grid;
   place-items: center;
   padding: 12px;

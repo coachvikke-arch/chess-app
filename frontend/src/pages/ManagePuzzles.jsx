@@ -1,3 +1,4 @@
+import Portal from '../components/Portal';
 import { useEffect, useState, useCallback } from 'react';
 import api from '../services/api';
 import PuzzlePlayer from '../components/PuzzlePlayer';
@@ -107,7 +108,7 @@ export default function ManagePuzzles() {
     <div className="max-w-[90rem] mx-auto flex gap-4 px-4 py-6">
       {/* ── Theme sidebar ── */}
       <aside className="w-64 shrink-0 hidden lg:block">
-        <div className="sticky top-20 rounded-2xl border border-ivory-700/50 bg-black/[0.03] backdrop-blur-xl px-3 py-4 max-h-[calc(100vh-90px)] overflow-y-auto scrollbar-thin">
+        <Portal><div className="sticky top-20 rounded-2xl border border-ivory-700/50 bg-black/[0.03] backdrop-blur-xl px-3 py-4 max-h-[calc(100vh-90px)] overflow-y-auto scrollbar-thin">
           <p className="text-[0.65rem] uppercase tracking-[0.18em] text-ivory-500 font-semibold px-3 mb-3">
             ♞ Puzzle Themes
           </p>
@@ -151,7 +152,7 @@ export default function ManagePuzzles() {
               </details>
             );
           })}
-        </div>
+        </div></Portal>
       </aside>
 
       {/* ── Main content ── */}
@@ -302,7 +303,7 @@ export default function ManagePuzzles() {
 
       {/* ── On-site puzzle player modal ── */}
       {playing && (
-        <div className="fixed inset-0 z-[var(--z-modal-backdrop)] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm" onClick={() => setPlaying(null)}>
+        <Portal><div className="fixed inset-0 z-[var(--z-modal-backdrop)] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm" onClick={() => setPlaying(null)}>
           <div
             className="chess-card max-w-2xl w-full p-6 relative"
             onClick={(e) => e.stopPropagation()}
@@ -331,7 +332,7 @@ export default function ManagePuzzles() {
               Play your move — the opponent reply is shown automatically.
             </p>
           </div>
-        </div>
+        </div></Portal>
       )}
 
       {showCsvSetWizard && (

@@ -3,6 +3,7 @@ import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { formatTime12 } from '../utils/time';
 import Button from './Button';
+import Portal from './Portal';
 
 /**
  * Meeting review popup — a right-hand slide-in card shown to a student right
@@ -63,6 +64,7 @@ export default function MeetingReviewPopup() {
   if (!isStudent || !open || meetings.length === 0) return null;
 
   return (
+    <Portal>
     <div className="meetreview-wrap" role="dialog" aria-label="Available live meetings">
       <div className="meetreview-head">
         <span className="meetreview-title">
@@ -111,5 +113,6 @@ export default function MeetingReviewPopup() {
         ))}
       </div>
     </div>
+    </Portal>
   );
 }

@@ -165,7 +165,7 @@ export function ToastProvider({ children }) {
     <ToastContext.Provider value={{ showToast, updateToast, hasToast, dismissToast: dismiss }}>
       {children}
       {/* Toast stack — fixed bottom-right, above everything */}
-      <div className="fixed bottom-4 right-4 z-[var(--z-modal-backdrop)] flex flex-col gap-2 items-end pointer-events-none">
+      <div className="fixed bottom-4 right-4 z-[var(--z-toast)] flex flex-col gap-2 items-end pointer-events-none">
         {toasts.map((t) => (
           <ToastCard key={t.id} toast={t} onDismiss={dismiss} />
         ))}

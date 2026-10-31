@@ -364,7 +364,7 @@ export default function PuzzleAssignPicker({ onClose, onAssigned, inline = false
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[100] flex items-stretch justify-center bg-black/60 p-0 sm:items-center sm:p-4"
+      className="fixed inset-0 z-[var(--z-modal-backdrop)] flex items-stretch justify-center bg-black/60 p-0 sm:items-center sm:p-4"
       onMouseDown={(e) => { if (e.target === e.currentTarget) requestBackdropClose(); }}
     >
       {card}

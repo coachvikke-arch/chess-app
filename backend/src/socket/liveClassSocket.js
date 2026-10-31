@@ -415,11 +415,14 @@ module.exports = function (io) {
             ? buildReviewBroadcast(chess, initEntry.reviewTo)
             : null;
           const annotationsRes = await db.query(
-            'SELECT annotations FROM chess_game_states WHERE live_class_id = $1',
+            'SELECT annotations, board_locked, board_hidden, eval_visible FROM chess_game_states WHERE live_class_id = $1',
             [classId]
           );
           if (annotationsRes.rows.length > 0) {
             chessStateSnapshot.annotations = annotationsRes.rows[0].annotations;
+            chessStateSnapshot.boardLocked = annotationsRes.rows[0].board_locked === true;
+            chessStateSnapshot.boardHidden = annotationsRes.rows[0].board_hidden === true;
+            chessStateSnapshot.evalVisible = annotationsRes.rows[0].eval_visible !== false;
           } else {
             chessStateSnapshot.annotations = { arrows: [], highlights: [] };
           }
@@ -449,10 +452,10 @@ module.exports = function (io) {
         let moveGrantsSnapshot = [];
         try {
           const grantsRes = await db.query(
-            'SELECT user_id, move_side FROM live_class_move_grants WHERE live_class_id = $1',
+            'SELECT user_id, move_side, can_draw FROM live_class_move_grants WHERE live_class_id = $1',
             [classId]
           );
-          moveGrantsSnapshot = grantsRes.rows.map((r) => ({ userId: r.user_id, moveSide: r.move_side }));
+          moveGrantsSnapshot = grantsRes.rows.map((r) => ({ userId: r.user_id, moveSide: r.move_side, canDraw: !!r.can_draw }));
         } catch (e) {}
 
         socket.emit('class:init', {
@@ -464,6 +467,9 @@ module.exports = function (io) {
           studentInteractionEnabled: !!classRow.student_interaction_enabled,
           studentMoveSide: classRow.student_move_side || 'both',
           moveGrants: moveGrantsSnapshot,
+          boardLocked: chessStateSnapshot.boardLocked === true,
+          boardHidden: chessStateSnapshot.boardHidden === true,
+          evalVisible: chessStateSnapshot.evalVisible !== false,
           classStatus: classRow.status,
         });
 
@@ -563,28 +569,28 @@ module.exports = function (io) {
             return;
           }
           const turnSide = chess.turn() === 'w' ? 'white' : 'black';
-          /* The class-wide switch is a hard stop: "Students move: Off" (the
-             Stop all students button) must block every student, grants
-             included, and it is enforced HERE rather than only by the client so
-             a stale tab or a hand-written emit cannot move pieces. */
-          if (!classRow.student_interaction_enabled) {
-            const reason = 'Student moves are turned off by the coach';
-            socket.emit('action_rejected', { action: 'chess_move', reason });
-            if (ack) ack({ ok: false, error: reason });
-            return;
-          }
-          /* With the switch on, a per-student grant still restricts that
-             student to one colour; otherwise the class-wide side applies, and
-             students share the board with the coach. The server validates every
-             move and broadcasts the resulting state, so it stays the one source
-             of truth. */
-          let moveSide = classRow.student_move_side || 'both';
           const grantRes = await db.query(
             'SELECT move_side FROM live_class_move_grants WHERE live_class_id = $1 AND user_id = $2',
             [classId, userId]
           );
-          if (grantRes.rows.length > 0 && grantRes.rows[0].move_side) {
+          let moveSide;
+          if (grantRes.rows.length > 0) {
             moveSide = grantRes.rows[0].move_side;
+          } else if (classRow.student_interaction_enabled) {
+            moveSide = classRow.student_move_side || 'both';
+          } else {
+            moveSide = 'none';
+          }
+          const stateRes = await db.query('SELECT board_locked FROM chess_game_states WHERE live_class_id = $1', [classId]);
+          if (stateRes.rows[0]?.board_locked) {
+            const reason = 'The coach locked the board';
+            if (ack) ack({ ok: false, error: reason });
+            return;
+          }
+          if (moveSide === 'none') {
+            const reason = 'The coach has not allowed you to move';
+            if (ack) ack({ ok: false, error: reason });
+            return;
           }
           if (moveSide !== 'both' && moveSide !== turnSide) {
             const reason = `You can move ${moveSide} pieces only`;
@@ -817,6 +823,45 @@ module.exports = function (io) {
             return;
           }
 
+          /* Coach-side "swap sides" (Classroom V2 header swap icon): mirrors the
+             current position rank-for-rank and flips the piece colours, then
+             toggles the side to move — i.e. the class game restarts from the
+             colour-swapped version of wherever it was. Broadcast like every other
+             board mutation so students' boards follow without a refresh. */
+          case 'swap': {
+            const fenNow = chess.fen();
+            const parts = String(fenNow).split(' ');
+            const rows = (parts[0] || '').split('/');
+            /* Colour swap = mirror every rank (index r → 7−r) and flip the case
+               of each piece letter, so White's pieces land on Black's side and
+               vice versa; the side to move flips too. Castling rights cannot be
+               recomputed safely from a mirrored placement, so they reset. */
+            const newPlacementRows = [];
+            for (let i = 0; i < rows.length; i++) {
+              const src = rows[rows.length - 1 - i];
+              const chars = src.split('');
+              newPlacementRows.push(chars.map((ch) => {
+                if (ch >= '1' && ch <= '8') return ch;
+                return ch === ch.toLowerCase() ? ch.toUpperCase() : ch.toLowerCase();
+              }).join(''));
+            }
+            const newPlacement = newPlacementRows.join('/');
+            const swappedFen = `${newPlacement} ${parts[1] === 'w' ? 'b' : 'w'} - - ${parts[3] || '0'} ${parts[4] || '1'}`;
+            try {
+              chess.load(swappedFen);
+            } catch (e) {
+              if (ack) ack({ ok: false, error: 'Invalid swapped FEN' });
+              return;
+            }
+            entry.redoStack.length = 0;
+            await persistChessState(classId, chess, null);
+            nextBoardRevision(entry);
+            const broadcast = buildChessStateBroadcast(chess, null, undefined, entry);
+            io.to(`live-class:${classId}`).emit('chess_state_updated', broadcast);
+            if (ack) ack({ ok: true, broadcast });
+            return;
+          }
+
           default:
             if (ack) ack({ ok: false, error: `Unknown action: ${action}` });
         }
@@ -840,7 +885,12 @@ module.exports = function (io) {
         }
 
         const access = await userIsMemberOfClass({ userId, userRole }, classRow);
-        if (!access.authorized || !access.isInstructor) {
+        let drawGranted = false;
+        if (access.authorized && !access.isInstructor) {
+          const grant = await db.query('SELECT can_draw FROM live_class_move_grants WHERE live_class_id = $1 AND user_id = $2', [classId, userId]);
+          drawGranted = grant.rows[0]?.can_draw === true;
+        }
+        if (!access.authorized || (!access.isInstructor && !drawGranted)) {
           socket.emit('action_rejected', { action: 'board_annotation', reason: 'Instructor only' });
           if (ack) ack({ ok: false, error: 'Instructor only' });
           return;
@@ -952,11 +1002,13 @@ module.exports = function (io) {
 
         if (side === 'none') {
           await db.query(
-            'DELETE FROM live_class_move_grants WHERE live_class_id = $1 AND user_id = $2',
+            `INSERT INTO live_class_move_grants (live_class_id, user_id, move_side, updated_at)
+             VALUES ($1, $2, 'none', NOW())
+             ON CONFLICT (live_class_id, user_id) DO UPDATE SET move_side = 'none', updated_at = NOW()`,
             [classId, targetUserId]
           );
-          io.to(`live-class:${classId}`).emit('move_grant_changed', { userId: targetUserId, side: null });
-          if (ack) ack({ ok: true, side: null });
+          io.to(`live-class:${classId}`).emit('move_grant_changed', { userId: targetUserId, side: 'none' });
+          if (ack) ack({ ok: true, side: 'none' });
           return;
         }
 
@@ -972,6 +1024,68 @@ module.exports = function (io) {
         if (ack) ack({ ok: true, side });
       } catch (err) {
         console.error('[student_move_grant] error', err);
+        if (ack) ack({ ok: false, error: err.message });
+      }
+    });
+
+    socket.on('student_draw_grant', async ({ classId, userId: targetUserId, canDraw }, ack) => {
+      try {
+        const classRow = await getClassRowCached(classId);
+        if (!classRow) { if (ack) ack({ ok: false, error: 'Class not found' }); return; }
+        const access = await userIsMemberOfClass({ userId, userRole }, classRow);
+        if (!access.authorized || !access.isInstructor) { if (ack) ack({ ok: false, error: 'Instructor only' }); return; }
+        await db.query(
+          `INSERT INTO live_class_move_grants (live_class_id, user_id, move_side, can_draw, updated_at)
+           VALUES ($1, $2, 'none', $3, NOW())
+           ON CONFLICT (live_class_id, user_id) DO UPDATE SET can_draw = EXCLUDED.can_draw, updated_at = NOW()`,
+          [classId, targetUserId, Boolean(canDraw)]
+        );
+        io.to(`live-class:${classId}`).emit('draw_grant_changed', { classId: Number(classId), userId: targetUserId, canDraw: Boolean(canDraw) });
+        if (ack) ack({ ok: true, canDraw: Boolean(canDraw) });
+      } catch (err) {
+        console.error('[student_draw_grant] error', err);
+        if (ack) ack({ ok: false, error: err.message });
+      }
+    });
+
+    socket.on('classroom_setting', async ({ classId, setting, value }, ack) => {
+      try {
+        const classRow = await getClassRowCached(classId);
+        if (!classRow) { if (ack) ack({ ok: false, error: 'Class not found' }); return; }
+        const access = await userIsMemberOfClass({ userId, userRole }, classRow);
+        if (!access.authorized || !access.isInstructor) { if (ack) ack({ ok: false, error: 'Instructor only' }); return; }
+        const column = { locked: 'board_locked', hidden: 'board_hidden', evalVisible: 'eval_visible' }[setting];
+        if (column) {
+          const enabled = Boolean(value);
+          await db.query(
+            `INSERT INTO chess_game_states (live_class_id, fen, pgn, current_turn, ${column})
+             VALUES ($1, $2, '', 'w', $3)
+             ON CONFLICT (live_class_id) DO UPDATE SET ${column} = EXCLUDED.${column}, updated_at = NOW()`,
+            [classId, START_FEN, enabled]
+          );
+          const state = { [setting]: enabled };
+          io.to(`live-class:${classId}`).emit('classroom_state_changed', { classId: Number(classId), ...state });
+          if (ack) ack({ ok: true, ...state });
+          return;
+        }
+        if (setting === 'recording') {
+          if (value) {
+            const saved = await db.query(
+              `INSERT INTO class_recordings (class_id, started_by) VALUES ($1, $2) RETURNING id`,
+              [classId, userId]
+            );
+            io.to(`live-class:${classId}`).emit('classroom_state_changed', { classId: Number(classId), recording: true, recordingId: saved.rows[0].id });
+            if (ack) ack({ ok: true, recording: true, recordingId: saved.rows[0].id });
+          } else {
+            await db.query('UPDATE class_recordings SET ended_at = NOW() WHERE class_id = $1 AND ended_at IS NULL', [classId]);
+            io.to(`live-class:${classId}`).emit('classroom_state_changed', { classId: Number(classId), recording: false });
+            if (ack) ack({ ok: true, recording: false });
+          }
+          return;
+        }
+        if (ack) ack({ ok: false, error: 'Unknown classroom setting' });
+      } catch (err) {
+        console.error('[classroom_setting] error', err);
         if (ack) ack({ ok: false, error: err.message });
       }
     });
@@ -1259,9 +1373,14 @@ const body = String(text).trim();
           if (ack) ack({ ok: false, error: 'Invalid recipient' });
           return;
         }
-        const targetRes = await db.query('SELECT id FROM users WHERE id = $1', [target]);
+        const targetRes = await db.query('SELECT id, role FROM users WHERE id = $1', [target]);
         if (targetRes.rows.length === 0) {
           if (ack) ack({ ok: false, error: 'Student not found' });
+          return;
+        }
+        const targetAccess = await userIsMemberOfClass({ userId: target, userRole: targetRes.rows[0].role }, classRow);
+        if (!targetAccess.authorized || targetAccess.isInstructor) {
+          if (ack) ack({ ok: false, error: 'Recipient is not a student in this class' });
           return;
         }
 
@@ -1550,6 +1669,39 @@ const body = String(text).trim();
         if (ack) ack({ ok: true, mode });
       } catch (err) {
         console.error('[admin:set_chat_mode] error', err);
+        if (ack) ack({ ok: false, error: err.message });
+      }
+    });
+
+    /* Classroom V2: class-wide emoji reaction. The coach taps an emoji and the
+       room broadcasts it; every viewer renders it as a floating reaction pulse
+       on the board. Purely social — no DB write, no permission surface. */
+    socket.on('class_reaction', async (payload, ack) => {
+      try {
+        const classId = Number(payload?.classId);
+        const emoji = String(payload?.emoji || '').trim();
+        if (!classId || !emoji) {
+          if (ack) ack({ ok: false, error: 'classId and emoji required' });
+          return;
+        }
+        const classRow = await getClassRowCached(classId);
+        const access = classRow ? await userIsMemberOfClass({ userId, userRole }, classRow) : { authorized: false, isInstructor: false };
+        if (!access.authorized) { if (ack) ack({ ok: false, error: 'Not authorized' }); return; }
+        const targetUserId = payload?.targetUserId == null ? null : Number(payload.targetUserId);
+        if (targetUserId != null) {
+          if (!access.isInstructor) { if (ack) ack({ ok: false, error: 'Instructor only' }); return; }
+          const targetRes = await db.query(
+            `SELECT 1 FROM live_class_participants WHERE live_class_id = $1 AND user_id = $2 AND role_in_class = 'student'`,
+            [classId, targetUserId]
+          );
+          if (!targetRes.rows.length) { if (ack) ack({ ok: false, error: 'Student is not in this class' }); return; }
+          io.to(`user:${targetUserId}`).emit('class_reaction', { classId, emoji, userId, targetUserId });
+        } else {
+          io.to(`live-class:${classId}`).emit('class_reaction', { classId, emoji, userId });
+        }
+        if (ack) ack({ ok: true, emoji });
+      } catch (err) {
+        console.error('[class_reaction] error', err);
         if (ack) ack({ ok: false, error: err.message });
       }
     });

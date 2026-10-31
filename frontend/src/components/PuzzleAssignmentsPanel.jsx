@@ -1,3 +1,4 @@
+import Portal from './Portal';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import api from '../services/api';
 import { Spinner, Bar } from './ui';
@@ -563,7 +564,7 @@ function CreateModal({ sets, onClose, onCreated }) {
   }
 
   return (
-    <div className="fixed inset-0 z-[var(--z-modal-backdrop)] overflow-y-auto bg-black/60 grid place-items-center p-4" onClick={onClose}>
+    <Portal><div className="fixed inset-0 z-[var(--z-modal-backdrop)] overflow-y-auto bg-black/60 grid place-items-center p-4" onClick={onClose}>
       <div
         className="chess-card max-w-lg w-full flex flex-col max-h-[94vh] overflow-y-auto p-5"
         onClick={(e) => e.stopPropagation()}
@@ -647,7 +648,7 @@ function CreateModal({ sets, onClose, onCreated }) {
           </Button>
         </div>
       </div>
-    </div>
+    </div></Portal>
   );
 }
 

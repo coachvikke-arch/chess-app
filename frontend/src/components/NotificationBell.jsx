@@ -8,6 +8,7 @@ import api from '../services/api';
 import { onNotification, on } from '../services/socket';
 import StudentAvatar from './StudentAvatar';
 import Button from './Button';
+import Portal from './Portal';
 
 /* ── Notification feed helpers (style: "Notification Feed Animations with Dark Mode") ── */
 
@@ -421,7 +422,8 @@ export default function NotificationBell() {
       </button>
 
       {open && (
-        <div className="notif-panel fixed inset-x-0 top-[72px] mx-auto w-[min(88vw,360px)] md:absolute md:left-auto md:right-0 md:top-full md:mt-2 md:mx-0 md:w-96 md:max-w-[85vw] z-[var(--z-modal)] rounded-2xl border border-ivory-700/50 bg-ink-800 shadow-[0_24px_60px_-12px_rgba(0,0,0,0.55)] overflow-hidden">
+        <Portal>
+        <div className="notif-panel fixed inset-x-0 top-[72px] mx-auto w-[min(88vw,360px)] md:left-auto md:right-4 md:top-[72px] md:mx-0 md:w-96 md:max-w-[85vw] z-[var(--z-notification)] rounded-2xl border border-ivory-700/50 bg-ink-800 shadow-[0_24px_60px_-12px_rgba(0,0,0,0.55)] overflow-hidden">
           {/* Panel header — title + actions */}
           <div className="flex items-center justify-between gap-2 px-4 py-3 border-b border-ivory-700/50">
             <div className="min-w-0">
@@ -588,6 +590,7 @@ export default function NotificationBell() {
             )}
           </div>
         </div>
+        </Portal>
       )}
     </div>
   );

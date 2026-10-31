@@ -119,6 +119,7 @@ exports.endClass = async (req, res) => {
       "UPDATE classes SET status = 'completed', ended_at = NOW() WHERE id = $1 RETURNING *",
       [classId]
     );
+    await db.query('UPDATE class_recordings SET ended_at = NOW() WHERE class_id = $1 AND ended_at IS NULL', [classId]);
 
     const io = req.app.get('io');
     if (io) {
@@ -168,6 +169,57 @@ exports.cancelClass = async (req, res) => {
   } catch (err) {
     console.error('[cancelClass] error', err);
     res.status(500).json({ message: 'Failed to cancel class', error: err.message });
+  }
+};
+
+/* Instructor extends the class end-time (Classroom V2 "extend it so the lesson
+   isn't cut off" popup). The new end time is the CURRENT end shifted forward by
+   the requested minutes, saved on the class row, and broadcast to the room over
+   the same `live-class:${id}` socket room so every client (and the V2 timer pill)
+   moves instantly. The board/chat state is untouched - only the countdown moves. */
+exports.extendClass = async (req, res) => {
+  try {
+    const classId = req.params.id;
+    const classRes = await db.query('SELECT * FROM classes WHERE id = $1', [classId]);
+    if (classRes.rows.length === 0) return res.status(404).json({ message: 'Class not found' });
+    const classRow = classRes.rows[0];
+
+    const access = await userIsMemberOfClass({ userId: req.user.id, userRole: req.user.role }, classRow);
+    if (!access.authorized || !access.isInstructor) {
+      return res.status(403).json({ message: 'Forbidden' });
+    }
+
+    const minutes = Number(req.body?.minutes);
+    if (!Number.isFinite(minutes) || minutes <= 0) {
+      return res.status(400).json({ message: 'minutes must be a positive number' });
+    }
+
+    const endMs = (() => {
+      if (classRow.end_time) {
+        const d = new Date(`${String(classRow.class_date || '').slice(0, 10)}T${String(classRow.end_time).slice(0, 8)}`);
+        const ms = d.getTime();
+        if (!Number.isNaN(ms)) return ms;
+      }
+      return Date.now();
+    })();
+
+    const updated = await db.query(
+      'UPDATE classes SET end_time = $1 WHERE id = $2 RETURNING *',
+      [new Date(endMs + minutes * 60000).toTimeString().slice(0, 8), classId]
+    );
+
+    const io = req.app.get('io');
+    if (io) {
+      io.to(`live-class:${classId}`).emit('class_extended', { classId: Number(classId), endTime: updated.rows[0]?.end_time });
+      for (const uid of await fetchMemberUserIds(classRow)) {
+        io.to(`user:${uid}`).emit('class_extended', { classId: Number(classId), endTime: updated.rows[0]?.end_time });
+      }
+    }
+
+    res.json({ ok: true, classId, endTime: updated.rows[0]?.end_time, minutes });
+  } catch (err) {
+    console.error('[extendClass] error', err);
+    res.status(500).json({ message: 'Failed to extend the class', error: err.message });
   }
 };
 
@@ -323,14 +375,17 @@ exports.getClassJoinToken = async (req, res) => {
     const chatMode = classRow.chat_mode || 'open';
     const studentInteractionEnabled = !!classRow.student_interaction_enabled;
     const isInstructor = access.isInstructor;
+    const uiModeRes = await db.query('SELECT classroom_ui_mode FROM users WHERE id = $1', [req.user.id]);
+    const classroomUiMode = uiModeRes.rows[0]?.classroom_ui_mode === 'v2' ? 'v2' : 'classic';
+    const recordingRes = await db.query('SELECT id FROM class_recordings WHERE class_id = $1 AND ended_at IS NULL ORDER BY started_at DESC LIMIT 1', [classId]);
 
     let moveGrants = [];
     try {
       const grantsRes = await db.query(
-        'SELECT user_id, move_side FROM live_class_move_grants WHERE live_class_id = $1',
+        'SELECT user_id, move_side, can_draw FROM live_class_move_grants WHERE live_class_id = $1',
         [classId]
       );
-      moveGrants = grantsRes.rows.map((r) => ({ userId: r.user_id, moveSide: r.move_side }));
+      moveGrants = grantsRes.rows.map((r) => ({ userId: r.user_id, moveSide: r.move_side, canDraw: !!r.can_draw }));
     } catch (e) {}
 
     /* What THIS student's own game in the class is doing, so a page refresh
@@ -374,11 +429,16 @@ exports.getClassJoinToken = async (req, res) => {
         /* Whether students may watch classmates once their own game finished.
            Instructors ignore this (they can always spectate). */
         spectateEnabled: classRow.spectate_enabled !== false,
+        boardLocked: chessStateRow.board_locked === true,
+        boardHidden: chessStateRow.board_hidden === true,
+        evalVisible: chessStateRow.eval_visible !== false,
+        classroomUiMode,
+        recording: recordingRes.rows.length > 0,
       },
       isInstructor,
       permissions: {
         canControlBoard: isInstructor || studentInteractionEnabled,
-        canDrawAnnotations: isInstructor,
+        canDrawAnnotations: isInstructor || moveGrants.some((g) => Number(g.userId) === Number(req.user.id) && g.canDraw),
         canSendChat: chatMode !== 'instructor-only' || isInstructor,
         canShareScreen: isInstructor,
         canModerate: isInstructor,
@@ -390,6 +450,9 @@ exports.getClassJoinToken = async (req, res) => {
         lastMove: chessStateRow.last_move || null,
         annotations: chessStateRow.annotations || { arrows: [], highlights: [] },
         moves,
+        boardLocked: chessStateRow.board_locked === true,
+        boardHidden: chessStateRow.board_hidden === true,
+        evalVisible: chessStateRow.eval_visible !== false,
       },
       participants: participantsRes.map((p) => ({
         userId: p.user_id,
@@ -421,6 +484,21 @@ exports.getClassJoinToken = async (req, res) => {
   } catch (err) {
     console.error('[getClassJoinToken] error', err);
     res.status(500).json({ message: 'Failed to get join token', error: err.message });
+  }
+};
+
+exports.setClassroomUiMode = async (req, res) => {
+  const mode = req.body?.mode;
+  if (mode !== 'classic' && mode !== 'v2') return res.status(400).json({ message: 'mode must be classic or v2' });
+  try {
+    const classRes = await db.query('SELECT * FROM classes WHERE id = $1', [req.params.id]);
+    if (!classRes.rows[0]) return res.status(404).json({ message: 'Class not found' });
+    const access = await userIsMemberOfClass({ userId: req.user.id, userRole: req.user.role }, classRes.rows[0]);
+    if (!access.authorized) return res.status(403).json({ message: 'Not authorized to join this class' });
+    await db.query('UPDATE users SET classroom_ui_mode = $1 WHERE id = $2', [mode, req.user.id]);
+    return res.json({ ok: true, mode });
+  } catch (err) {
+    return res.status(500).json({ message: 'Could not save classroom view preference', error: err.message });
   }
 };
 

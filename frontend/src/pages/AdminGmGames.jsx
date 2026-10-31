@@ -1,3 +1,4 @@
+import Portal from '../components/Portal';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import GameReplay from '../components/GameReplay';
 import { Page } from '../components/ui';
@@ -410,7 +411,7 @@ export default function AdminGmGames({ readOnly = false }) {
       {view !== 'players' && games.length > PAGE_SIZE && pageControls(false)}
 
       {selected && (
-        <div className="gm-admin-game-modal-overlay" role="dialog" aria-modal="true" aria-label="GM game replay" onClick={() => setSelected(null)}>
+        <Portal><div className="gm-admin-game-modal-overlay" role="dialog" aria-modal="true" aria-label="GM game replay" onClick={() => setSelected(null)}>
           <div className="gm-admin-game-modal gm-glass-card" onClick={(event) => event.stopPropagation()}>
             <button type="button" className="gm-admin-game-close" aria-label="Close game" onClick={() => setSelected(null)}>✕</button>
             <header className="gm-admin-viewer-head">
@@ -432,11 +433,11 @@ export default function AdminGmGames({ readOnly = false }) {
             </header>
             <GameReplay gameId={selected} compact />
           </div>
-        </div>
+        </div></Portal>
       )}
 
       {showPlayers && (
-        <div className="gm-import-overlay" role="dialog" aria-modal="true" aria-label="Import by player" onClick={() => { if (!playerBusy) setShowPlayers(false); }}>
+        <Portal><div className="gm-import-overlay" role="dialog" aria-modal="true" aria-label="Import by player" onClick={() => { if (!playerBusy) setShowPlayers(false); }}>
           <div className="gm-import-modal gm-pgn-modal gm-glass-card" onClick={(event) => event.stopPropagation()}>
             <div className="gm-import-head">
               <div>
@@ -515,11 +516,11 @@ export default function AdminGmGames({ readOnly = false }) {
               </div>
             )}
           </div>
-        </div>
+        </div></Portal>
       )}
 
       {showImport && (
-        <div className="gm-import-overlay" role="dialog" aria-modal="true" aria-label="Import GM games" onClick={() => { if (!busy) setShowImport(false); }}>
+        <Portal><div className="gm-import-overlay" role="dialog" aria-modal="true" aria-label="Import GM games" onClick={() => { if (!busy) setShowImport(false); }}>
           <div className="gm-import-modal gm-glass-card" onClick={(event) => event.stopPropagation()}>
             <div className="gm-import-head">
               <div>
@@ -605,7 +606,7 @@ export default function AdminGmGames({ readOnly = false }) {
               </div>
             )}
           </div>
-        </div>
+        </div></Portal>
       )}
     </Page>
     </div>

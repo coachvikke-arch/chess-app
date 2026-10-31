@@ -1,3 +1,4 @@
+import Portal from './Portal';
 import { useMemo } from 'react';
 import Button from './Button';
 
@@ -43,6 +44,7 @@ export default function LessonCompleteCelebration({
   );
 
   return (
+    <Portal>
     <div className="lcc-overlay" role="dialog" aria-modal="true" aria-label="Lesson complete">
       {/* falling golden confetti + chess pieces */}
       <div className="lcc-confetti" aria-hidden="true">
@@ -131,5 +133,6 @@ export default function LessonCompleteCelebration({
         </div>
       </div>
     </div>
+    </Portal>
   );
 }

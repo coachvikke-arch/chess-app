@@ -442,7 +442,7 @@ exports.getPuzzleAssignmentReview = async (req, res) => {
 
     // Every puzzle in the assignment, in the coach's order.
     const puzzles = await db.query(
-      `SELECT p.id, p.fen, p.solution, p.theme, p.themes, p.difficulty, p.explanation,
+      `SELECT p.id, p.title, p.fen, p.solution, p.theme, p.themes, p.difficulty, p.explanation,
               p.points_value, ap.order_index
        FROM assignment_puzzles ap
        JOIN puzzles p ON p.id = ap.puzzle_id
@@ -498,6 +498,7 @@ exports.getPuzzleAssignmentReview = async (req, res) => {
       );
       return {
         puzzleId: p.id,
+        title: p.title || null,
         fen: p.fen,
         theme: p.theme,
         themes: p.themes || [],

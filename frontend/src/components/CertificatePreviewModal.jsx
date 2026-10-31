@@ -1,3 +1,4 @@
+import Portal from './Portal';
 import { useOverlayHistory } from '../hooks/useOverlayHistory';
 import { useEffect, useRef, useState } from 'react';
 import CertificatePreview from './CertificatePreview';
@@ -63,7 +64,7 @@ export default function CertificatePreviewModal({ certificate, onClose }) {
     : 0;
 
   return (
-    <div
+    <Portal><div
       className="fixed inset-0 z-[var(--z-modal-backdrop)] flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm"
       onClick={onClose}
       role="dialog"
@@ -132,6 +133,6 @@ export default function CertificatePreviewModal({ certificate, onClose }) {
           </>
         )}
       </div>
-    </div>
+    </div></Portal>
   );
 }

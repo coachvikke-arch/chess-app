@@ -1,3 +1,4 @@
+import Portal from '../components/Portal';
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Chess } from 'chess.js';
@@ -1924,7 +1925,7 @@ export default function GameReview() {
       {/* admin-only Customize Position modal */}
       {/* Save to Folder — pick a Library folder (or create one) to store the position */}
       {saveOpen && (
-        <div
+        <Portal><div
           className="fixed inset-0 z-[var(--z-modal-backdrop)] grid place-items-center p-3 sm:p-4"
           style={{ background: 'rgba(28, 33, 23, 0.55)' }}
           onMouseDown={(e) => { if (e.target === e.currentTarget) setSaveOpen(false); }}
@@ -2034,7 +2035,7 @@ export default function GameReview() {
               )}
             </div>
           </div>
-        </div>
+        </div></Portal>
       )}
       </>
 )}

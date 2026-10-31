@@ -35,7 +35,7 @@ export function UnreadBadge({ count }) {
   return <span className="live-unread-badge">{count > 99 ? '99+' : count}</span>;
 }
 
-export default function ChatPanel({ asMobilePanel = false, panelVisible = true, onUnreadChange = null }) {
+export default function ChatPanel({ asMobilePanel = false, panelVisible = true, onUnreadChange = null, tabOverride = null, onTabChange = null, hideHeader = false }) {
   const { classMeta, setClassMeta, isInstructor, permissions, chat, appendChat, setChat, privateChat, appendPrivateChat, setPrivateChat, participants, upsertParticipant, removeParticipant, replaceParticipants, activityByStudent, setStudentActivity, bulkSetActivity, clearStudentActivity } = useLiveClass();
   const { user } = useAuth();
   const me = user ? Number(user.id) : null;
@@ -59,6 +59,15 @@ export default function ChatPanel({ asMobilePanel = false, panelVisible = true, 
       return t === 'files' || t === 'moves' || t === 'leaderboard' || t === 'participants' || t === 'assignments' ? t : 'chat';
     } catch { return 'chat'; }
   }); // 'chat' | 'files' | 'moves' | 'leaderboard' | 'participants' | 'assignments' (persisted across refresh; 'files'/'assignments' are coach-only)
+  /* Classroom V2 hosts this panel inside its own "Classroom Activity" tab bar,
+     so the room can pin the tab it wants (and get told when it changes) instead
+     of the panel owning the selection. `null` keeps the classic behaviour. */
+  const activeTab = tabOverride || tab;
+  function openTab(t) {
+    setTab(t);
+    try { localStorage.setItem('liveChatTab', t); } catch (_) {}
+    if (onTabChange) onTabChange(t);
+  }
   const listRef = useRef(null);
   /* Private thread state. `selectedPeer` changes ONLY on an instructor click (or
      a click restored from the last visit) — NEVER as a side effect of a new
@@ -111,6 +120,7 @@ export default function ChatPanel({ asMobilePanel = false, panelVisible = true, 
   function openTab(t) {
     setTab(t);
     try { localStorage.setItem('liveChatTab', t); } catch (_) {}
+    if (onTabChange) onTabChange(t);
   }
 
   useEffect(() => {
@@ -344,26 +354,26 @@ export default function ChatPanel({ asMobilePanel = false, panelVisible = true, 
      while the panel was hidden — and keep it pinned to the bottom. */
   useEffect(() => {
     if (!isInstructor) return;
-    if (!panelVisible || tab !== 'chat') return;
+    if (!panelVisible || activeTab !== 'chat') return;
     if (selectedPeer == null) return;
     markPeerRead(selectedPeer);
     const el = dmListRef.current;
     if (el) el.scrollTop = el.scrollHeight;
     setDmHasNew(false);
     setDmPinned(true);
-  }, [isInstructor, panelVisible, tab, selectedPeer, markPeerRead]);
+  }, [isInstructor, panelVisible, activeTab, selectedPeer, markPeerRead]);
 
   /* Publish the total so the room header can badge the collapsed rail. */
   useEffect(() => {
     if (typeof onUnreadChange === 'function') onUnreadChange(totalUnread);
   }, [totalUnread, onUnreadChange]);
 
-  /* Everything the socket listener needs at event time. */
+  /* Publish everything the socket listener needs at event time. */
   liveRef.current = {
     isInstructor,
     me,
     selectedPeer,
-    tab,
+    tab: activeTab,
     panelVisible,
     dmPinned,
     markPeerRead,
@@ -686,6 +696,7 @@ export default function ChatPanel({ asMobilePanel = false, panelVisible = true, 
 
   return (
     <div className={`live-chat-panel ${asMobilePanel ? 'live-chat-mobile-panel' : ''}`}>
+      {!hideHeader && (
       <div className="live-chat-head">
         <div className="live-chat-modes">
           {/* The way back to the messages. Every other panel is a tab now, so
@@ -694,7 +705,7 @@ export default function ChatPanel({ asMobilePanel = false, panelVisible = true, 
               bar because it is the default view. */}
           <button
             type="button"
-            className={`live-chip ${tab === 'chat' ? 'live-chip-on' : ''}`}
+            className={`live-chip ${activeTab === 'chat' ? 'live-chip-on' : ''}`}
             onClick={() => openTab('chat')}
             title="Back to the class chat"
           >
@@ -703,7 +714,7 @@ export default function ChatPanel({ asMobilePanel = false, panelVisible = true, 
           </button>
           <button
             type="button"
-            className={`live-chip ${tab === 'moves' ? 'live-chip-on' : ''}`}
+            className={`live-chip ${activeTab === 'moves' ? 'live-chip-on' : ''}`}
             onClick={() => openTab('moves')}
             title="Show the move history in this panel"
           >
@@ -714,7 +725,7 @@ export default function ChatPanel({ asMobilePanel = false, panelVisible = true, 
               something to them. */}
           <button
             type="button"
-            className={`live-chip ${tab === 'leaderboard' ? 'live-chip-on' : ''}`}
+            className={`live-chip ${activeTab === 'leaderboard' ? 'live-chip-on' : ''}`}
             onClick={() => openTab('leaderboard')}
             title="Class leaderboard - points earned in this class"
           >
@@ -727,7 +738,7 @@ export default function ChatPanel({ asMobilePanel = false, panelVisible = true, 
               tab too: they are per-student, and this is the per-student tab. */}
           <button
             type="button"
-            className={`live-chip ${tab === 'participants' ? 'live-chip-on' : ''}`}
+            className={`live-chip ${activeTab === 'participants' ? 'live-chip-on' : ''}`}
             onClick={() => openTab('participants')}
             title="Who is in the room"
           >
@@ -739,7 +750,7 @@ export default function ChatPanel({ asMobilePanel = false, panelVisible = true, 
                 every student's status, and the student list must never see that. */}
             <button
               type="button"
-              className={`live-chip ${tab === 'assignments' ? 'live-chip-on' : ''}`}
+              className={`live-chip ${activeTab === 'assignments' ? 'live-chip-on' : ''}`}
               onClick={() => openTab('assignments')}
               title="Who has done the assigned work"
             >
@@ -747,7 +758,7 @@ export default function ChatPanel({ asMobilePanel = false, panelVisible = true, 
             </button>
             <button
               type="button"
-              className={`live-chip ${tab === 'files' ? 'live-chip-on' : ''}`}
+              className={`live-chip ${activeTab === 'files' ? 'live-chip-on' : ''}`}
               onClick={() => openTab('files')}
               onMouseEnter={prefetchCourseFiles}
               onFocus={prefetchCourseFiles}
@@ -759,13 +770,14 @@ export default function ChatPanel({ asMobilePanel = false, panelVisible = true, 
           )}
         </div>
       </div>
+      )}
 
       {/* The chat's own controls, under the panel heading rather than mixed into
           the tab bar above it. They act on the messages - set who may post, wipe
           the transcript - so they belong to the chat and not to the panel, and
           the bar is for choosing a panel. Only rendered on the chat tab, since
           that is the only one they do anything to. */}
-      {isInstructor && tab === 'chat' && (
+      {isInstructor && activeTab === 'chat' && (
         <div className="live-chat-modebar">
           <button
             type="button"
@@ -794,7 +806,7 @@ export default function ChatPanel({ asMobilePanel = false, panelVisible = true, 
       {/* All tab panels stay mounted; inactive ones are hidden with display:none
           so their internal state (scroll position, search text, navigation, etc.)
           survives tab switches. */}
-      <div className="live-chat-tabbody" style={{ display: (tab === 'files' && isInstructor) ? 'block' : 'none' }}>
+      <div className="live-chat-tabbody" style={{ display: (activeTab === 'files' && isInstructor) ? 'block' : 'none' }}>
         <Suspense fallback={(
           <div className="live-chat-panel" aria-busy="true" aria-label="Loading course files">
             <div className="live-course-files-scroll">
@@ -810,23 +822,23 @@ export default function ChatPanel({ asMobilePanel = false, panelVisible = true, 
           <CourseFilesPanel asMobilePanel={asMobilePanel} hideHeader />
         </Suspense>
       </div>
-      <div className="live-chat-tabbody" style={{ display: tab === 'moves' ? 'block' : 'none' }}>
+      <div className="live-chat-tabbody" style={{ display: activeTab === 'moves' ? 'block' : 'none' }}>
         <LiveMoveHistory asMobilePanel={asMobilePanel} hideHeader />
       </div>
-      <div className="live-chat-tabbody" style={{ display: tab === 'leaderboard' ? 'block' : 'none' }}>
+      <div className="live-chat-tabbody" style={{ display: activeTab === 'leaderboard' ? 'block' : 'none' }}>
         <ClassroomLeaderboard asMobilePanel={asMobilePanel} />
       </div>
-      <div className="live-chat-tabbody" style={{ display: tab === 'participants' ? 'block' : 'none' }}>
+      <div className="live-chat-tabbody" style={{ display: activeTab === 'participants' ? 'block' : 'none' }}>
         {participantsBody}
       </div>
       {/* Stays mounted like the other tabs; `active` is what tells it to refetch,
           so reopening always shows the latest status. */}
-      <div className="live-chat-tabbody" style={{ display: (tab === 'assignments' && isInstructor) ? 'block' : 'none' }}>
+      <div className="live-chat-tabbody" style={{ display: (activeTab === 'assignments' && isInstructor) ? 'block' : 'none' }}>
         <ClassAssignmentsPanel active={tab === 'assignments' && isInstructor} asMobilePanel={asMobilePanel} />
       </div>
       <div
         className="live-chat-tabbody"
-        style={{ display: tab === 'chat' || !isInstructor ? 'block' : 'none' }}
+        style={{ display: activeTab === 'chat' || !isInstructor ? 'block' : 'none' }}
       >
         {!isInstructor && chatMode === 'instructor-only' ? (
           /* Student: the private thread with the coach, rendered IN PLACE of the

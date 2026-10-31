@@ -12,6 +12,7 @@ import { SoundProvider } from './context/SoundContext.jsx';
    destructuring it throws on first use. */
 import { ToastProvider } from './components/Toast.jsx';
 import './index.css';
+import './styles/classroom-v2.css';
 /* Certificates module styles. After index.css so it can rely on the same custom
    properties and shared .chess-* classes. */
 import './certificates.css';

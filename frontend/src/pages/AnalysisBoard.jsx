@@ -3836,7 +3836,7 @@ export default function AnalysisBoard() {
 
       {/* ── online game request — bottom-of-page notice bar ── */}
       {inviteBar && (
-        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-[var(--z-modal-backdrop)] w-[min(94vw,560px)]">
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-[var(--z-toast)] w-[min(94vw,560px)]">
           <div className="pointer-events-auto chess-toast rounded-xl border border-gold-500/40 shadow-[0_10px_30px_-8px_rgba(96,165,250,0.35)] bg-ink-800 px-4 py-3 flex items-center gap-3 shadow-2xl">
             <span className="grid place-items-center w-7 h-7 shrink-0 rounded-lg border text-xs font-bold text-gold-400 bg-gold-500/15 border-gold-400/30">♟</span>
             <p className="flex-1 text-xs text-ivory-300 leading-snug">{inviteBar.msg}</p>

@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { useLiveClass } from '../../context/LiveClassContext';
 import { getSocket, joinLiveClass, on } from '../../services/socket';
 import { normalizeRoster } from '../../utils/liveRoster';
+import { useAuth } from '../../context/AuthContext';
 
 /**
  * Owns the live-class socket join, and the roster that the server sends back
@@ -23,7 +24,8 @@ import { normalizeRoster } from '../../utils/liveRoster';
  * Renders nothing.
  */
 export default function LiveClassSocketBridge({ classId, onSocketError }) {
-  const { replaceParticipants, setConnection, setRemoteReview, setViewIndex, isInstructor, setSpectateEnabled, setSelfGameStatus, setChessState, setClassMeta } = useLiveClass();
+  const { replaceParticipants, setConnection, setRemoteReview, setViewIndex, isInstructor, setSpectateEnabled, setSelfGameStatus, setChessState, setClassMeta, patchPermissions, setEvalVisible } = useLiveClass();
+  const { user } = useAuth();
 
   useEffect(() => {
     if (!classId) return undefined;
@@ -40,6 +42,13 @@ export default function LiveClassSocketBridge({ classId, onSocketError }) {
       /* Class status can change while this tab is open (scheduled → live). */
       if (payload?.classStatus) {
         setClassMeta((prev) => (prev ? { ...prev, status: payload.classStatus } : prev));
+      }
+      if (payload?.moveGrants || payload?.studentInteractionEnabled !== undefined) {
+        setClassMeta((prev) => prev ? ({ ...prev, moveGrants: payload.moveGrants ?? prev.moveGrants, studentInteractionEnabled: payload.studentInteractionEnabled ?? prev.studentInteractionEnabled, studentMoveSide: payload.studentMoveSide ?? prev.studentMoveSide }) : prev);
+      }
+      if (payload?.boardLocked !== undefined || payload?.boardHidden !== undefined || payload?.evalVisible !== undefined) {
+        setClassMeta((prev) => prev ? ({ ...prev, boardLocked: payload.boardLocked ?? prev.boardLocked, boardHidden: payload.boardHidden ?? prev.boardHidden, evalVisible: payload.evalVisible ?? prev.evalVisible }) : prev);
+        if (payload?.evalVisible !== undefined) setEvalVisible(payload.evalVisible !== false);
       }
       /* Rejoining mid-review: put the room-wide review (and, for the instructor
          who leads it, their own step-back) back on screen. */
@@ -60,6 +69,15 @@ export default function LiveClassSocketBridge({ classId, onSocketError }) {
     };
     const handleDisconnect = () => setConnection('reconnecting');
     const handleReconnectAttempt = () => setConnection('reconnecting');
+    /* The coach extended the class (Classroom V2 "extend it so the lesson
+       isn't cut off"): move everyone's countdown instantly. */
+    const handleExtended = (payload) => {
+      if (Number(payload?.classId) !== Number(classId)) return;
+      if (payload?.endTime != null) {
+        setClassMeta((prev) => (prev ? { ...prev, endTime: payload.endTime } : prev));
+      }
+    };
+    const offExtended = on('class_extended', handleExtended);
 
     /* Order matters: the reply to the join below is delivered only to this
        socket, so every listener it depends on is attached first. */
@@ -80,13 +98,47 @@ export default function LiveClassSocketBridge({ classId, onSocketError }) {
 
     return () => {
       offInit();
+      offExtended();
       s.off('connect', handleConnect);
       s.off('disconnect', handleDisconnect);
       s.io.off('reconnect_attempt', handleReconnectAttempt);
     };
     /* onSocketError is a state setter from the parent and stable in practice;
        classId/replaceParticipants/setConnection are stable from context. */
-  }, [classId, replaceParticipants, setConnection, setRemoteReview, setViewIndex, isInstructor, onSocketError, setChessState, setClassMeta]);
+  }, [classId, replaceParticipants, setConnection, setRemoteReview, setViewIndex, isInstructor, onSocketError, setChessState, setClassMeta, setEvalVisible]);
+
+  useEffect(() => {
+    if (!classId) return undefined;
+    const off = on('move_grant_changed', (payload) => {
+      setClassMeta((prev) => {
+        if (!prev) return prev;
+        const rest = (prev.moveGrants || []).filter((g) => Number(g.userId) !== Number(payload?.userId));
+        return { ...prev, moveGrants: [...rest, { userId: payload?.userId, moveSide: payload?.side || 'none', canDraw: rest.find((g) => Number(g.userId) === Number(payload?.userId))?.canDraw || false }] };
+      });
+    });
+    return off;
+  }, [classId, setClassMeta]);
+
+  useEffect(() => {
+    if (!classId) return undefined;
+    const off = on('classroom_state_changed', (payload) => {
+      if (Number(payload?.classId) !== Number(classId)) return;
+      setClassMeta((prev) => prev ? ({ ...prev, boardLocked: payload.locked ?? prev.boardLocked, boardHidden: payload.hidden ?? prev.boardHidden, evalVisible: payload.evalVisible ?? prev.evalVisible, recording: payload.recording ?? prev.recording }) : prev);
+      if (payload?.evalVisible !== undefined) setEvalVisible(payload.evalVisible !== false);
+    });
+    return off;
+  }, [classId, setClassMeta, setEvalVisible]);
+
+  useEffect(() => {
+    if (!classId || !user?.id) return undefined;
+    const off = on('draw_grant_changed', (payload) => {
+      if (Number(payload?.classId) !== Number(classId) && payload?.classId != null) return;
+      if (Number(payload?.userId) !== Number(user.id)) return;
+      patchPermissions({ canDrawAnnotations: payload?.canDraw === true || isInstructor });
+      setClassMeta((prev) => prev ? ({ ...prev, moveGrants: [...(prev.moveGrants || []).filter((g) => Number(g.userId) !== Number(user.id)), { userId: user.id, moveSide: (prev.moveGrants || []).find((g) => Number(g.userId) === Number(user.id))?.moveSide || 'none', canDraw: payload?.canDraw === true }] }) : prev);
+    });
+    return off;
+  }, [classId, user?.id, isInstructor, patchPermissions, setClassMeta]);
 
   /* "Watch classmates" state, fed straight from the classroom's own game
      lifecycle events. Kept in a separate effect so the join/roster effect above

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import Portal from './Portal';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import Button from './Button';
@@ -68,6 +69,7 @@ export default function LevelUpCelebration() {
   if (!celebrate) return null;
 
   return (
+    <Portal>
     <div className="levelup-overlay" role="dialog" aria-modal="true">
       <div className="levelup-card">
         <span className="levelup-rings" aria-hidden="true" />
@@ -87,6 +89,7 @@ export default function LevelUpCelebration() {
         <Button variant="primary" size="md" onClick={() => setCelebrate(null)}>Keep going ♟</Button>
       </div>
     </div>
+    </Portal>
   );
 }
 

@@ -9,12 +9,22 @@ import { useAuth } from '../context/AuthContext';
 
 /* Static, non-interactive board preview using the user's board prefs.
    Exported so other puzzle surfaces (e.g. the assignment review navigator)
-   render the exact same mini board as the library cards. */
-export function MiniBoard({ fen, width }) {
+   render the exact same mini board as the library cards.
+
+   `squareStyles` is an optional per-square style map (e.g. { e4: {…} }) merged
+   OVER the theme's own square styling, which is how the admin review drawer
+   paints the square a replayed move landed on. */
+export function MiniBoard({ fen, width, squareStyles }) {
   const { boardTheme: boardThemeId, pieceSet } = useAuth();
   const boardTheme = getBoardTheme(boardThemeId);
   const customPieces = useMemo(() => buildCustomPieces(getPieceTheme(pieceSet || 'cburnett')), [pieceSet]);
   const themeStyles = getBoardThemeStyles(boardTheme);
+  const ornate = ornateSquareStyles(boardTheme);
+
+  const merged = useMemo(() => {
+    if (!ornate && !squareStyles) return undefined;
+    return { ...(ornate || {}), ...(squareStyles || {}) };
+  }, [ornate, squareStyles]);
 
   return (
     <AnimatedBoard
@@ -30,13 +40,59 @@ export function MiniBoard({ fen, width }) {
       customLightSquareStyle={themeStyles.lightSquareStyle || { backgroundColor: boardTheme.lightSq }}
       /* Ornate themes are a marble texture, not two flat colours — without this
          the card would show a plainer board than the puzzle it opens. */
-      customSquareStyles={ornateSquareStyles(boardTheme) || undefined}
+      customSquareStyles={merged}
       customBoardStyle={themeStyles.boardStyle || { borderRadius: '10px', overflow: 'hidden' }}
     />
   );
 }
 
-function MoveNav({ moveCount, index, onChange }) {
+/**
+ * MiniBoard mounted only once its card scrolls near the viewport.
+ *
+ * A board is a full React subtree with 64 squares, and one assignment can carry
+ * seventy puzzles — mounting them all at once is slow enough that the grid
+ * paints blank. Each card observes itself and keeps a same-size placeholder
+ * until it is close to view, so nothing shifts when the board arrives.
+ */
+export function LazyMiniBoard({ fen, width, squareStyles, maxWidth = 200 }) {
+  const ref = useRef(null);
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    if (typeof IntersectionObserver === 'undefined') { setVisible(true); return; }
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) {
+          setVisible(true);
+          io.disconnect();
+        }
+      },
+      { rootMargin: '400px 0px' }
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
+
+  return (
+    <div ref={ref} className="w-full flex justify-center pointer-events-none">
+      {visible ? (
+        <div className="w-full flex flex-col items-center" style={{ maxWidth }}>
+          <MiniBoard fen={fen} width={width} squareStyles={squareStyles} />
+        </div>
+      ) : (
+        <div
+          className="rounded bg-black/20"
+          style={{ width, height: width }}
+          aria-hidden="true"
+        />
+      )}
+    </div>
+  );
+}
+
+export function MoveNav({ moveCount, index, onChange }) {
   const btn =
     'h-8 w-8 grid place-items-center rounded-lg border border-ivory-700/50 bg-black/[0.04] text-sm ' +
     'hover:bg-black/5 hover:border-gold-500/40 disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-black/[0.04] disabled:hover:border-ivory-700/50 transition';

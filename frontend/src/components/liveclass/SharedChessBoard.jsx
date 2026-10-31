@@ -1,3 +1,4 @@
+import Portal from '../Portal';
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import Button from '../Button';
 import { useNavigate } from 'react-router-dom';
@@ -64,7 +65,7 @@ const framedWidth = (bw) => bw + 2 * Math.min(46, Math.max(20, Math.round(bw * 0
  *    board is one position broadcast to the whole room — every other viewer's
  *    pieces must not move because one student tried a wrong move.
  */
-export default function SharedChessBoard({ drill = null, drillStatus = null, onDrillViewPly = null }) {
+export default function SharedChessBoard({ drill = null, drillStatus = null, onDrillViewPly = null, hosted = null }) {
   const [manualSize, setManualSize] = useState(() => {
     try {
       const n = Number(localStorage.getItem('liveBoardManualSize') || '0');
@@ -217,6 +218,9 @@ export default function SharedChessBoard({ drill = null, drillStatus = null, onD
   const [playOffer, setPlayOffer] = useState(false);
   const [fen, setFen] = useState(chessState?.fen || START_FEN);
   const [orientation, setOrientation] = useState('white');
+  const [showCoordinates, setShowCoordinates] = useState(() => { try { return localStorage.getItem('liveV2Coordinates') !== '0'; } catch { return true; } });
+  const [classroomSound, setClassroomSound] = useState(() => { try { return localStorage.getItem('liveV2Sound') !== '0'; } catch { return true; } });
+  const [illegalMovesOn, setIllegalMovesOn] = useState(() => { try { return localStorage.getItem('liveV2IllegalMoves') === '1'; } catch { return false; } });
   const [annotations, setAnnotations] = useState(chessState?.annotations || { arrows: [], highlights: [] });
   /* Local-only engine suggestion arrow — rendered only on THIS board (instructor),
      never broadcast to students like real annotations. */
@@ -349,14 +353,13 @@ export default function SharedChessBoard({ drill = null, drillStatus = null, onD
        every move,
      - else locked (class not live). */
   const myMoveSide = useMemo(() => {
+    if (classMeta?.boardLocked) return null;
     /* "Students move: Off" (the instructor's Stop all students button) is a
        hard stop for every student, grants included — the server rejects the
        move too, this only keeps the board from offering it. */
-    if (classMeta?.studentInteractionEnabled === false) return null;
-    const mine = (moveGrants || []).find((g) => g.userId === user?.id);
-    if (mine?.moveSide) return mine.moveSide;
+    const mine = (moveGrants || []).find((g) => Number(g.userId) === Number(user?.id));
+    if (mine) return mine.moveSide === 'none' ? null : mine.moveSide;
     if (classMeta?.studentInteractionEnabled) return classMeta?.studentMoveSide || 'both';
-    if (classMeta?.status === 'live') return 'both';
     return null;
   }, [moveGrants, user, classMeta]);
   const canInteract = isInstructor || myMoveSide !== null;
@@ -555,6 +558,11 @@ export default function SharedChessBoard({ drill = null, drillStatus = null, onD
            to show. */
         if (Number(gUserId) === Number(user?.id) && (side === 'white' || side === 'black')) {
           setOrientation(side);
+        }
+      }),
+      on('draw_grant_changed', ({ userId: gUserId, canDraw }) => {
+        if (Number(gUserId) === Number(user?.id)) {
+          patchPermissions({ canDrawAnnotations: Boolean(canDraw) });
         }
       }),
       on('action_rejected', (payload) => {
@@ -1208,6 +1216,21 @@ const DRAWN_ARROW_COLOR = 'rgba(0, 255, 0, 0.7)';
     });
   }, [classMeta.id, flash]);
 
+  /* Classroom V2: host-supplied control overrides. When the room passes `hosted`
+     these replace the board's own handlers (flip / undo / redo / new game / best
+     move / annotations / interaction switches); otherwise every fallback is the
+     board's own behaviour, exactly as before. All live AFTER the handlers they
+     may wrap, so no temporal-dead-zone reads. */
+  const doFlip = hosted?.flip || flip;
+  const doUndo = hosted?.undo || handleUndo;
+  const doRedo = hosted?.redo || handleRedo;
+  const doNewGame = hosted?.newGame || (() => { setRedoCount(0); setViewIndex(null); sendControl('new_game'); });
+  const doToggleInteraction = hosted?.toggleInteraction || ((action, payload) => sendControl(action, payload));
+  const doSetMoveSide = hosted?.setMoveSide || ((action, payload) => sendControl(action, payload));
+  const doClearAnnotations = hosted?.clearAnnotations || handleClearAnnotations;
+  const doBestMove = hosted?.bestMove || handleBestMove;
+  const doSwap = hosted?.swap || (() => sendControl('swap', {}));
+
   /* ── 👥 Add students — invite class members mid-session ────────────────
      The instructor picks which students (not yet in the room) to invite via
      socket, and each invited student gets a live "join now" toast that drops
@@ -1278,6 +1301,40 @@ const DRAWN_ARROW_COLOR = 'rgba(0, 255, 0, 0.7)';
     setPosGameIndex(0);
     setPosOpen(true);
   }, []);
+
+  useEffect(() => {
+    const handlers = {
+      setup: () => setSetupOpen(true),
+      position: openPositionPanel,
+      playbot: () => setBotPanelOpen(true),
+      bestmove: () => doBestMove(),
+      flip: () => doFlip(),
+      undo: () => doUndo(),
+      redo: () => doRedo(),
+      first: () => setViewIndex(-1),
+      last: () => setViewIndex(null),
+      start: () => doNewGame(),
+      prev: () => viewPrev(),
+      next: () => viewNext(),
+      swap: () => doSwap(),
+      coordinates: () => setShowCoordinates((v) => { const n = !v; try { localStorage.setItem('liveV2Coordinates', n ? '1' : '0'); } catch {} return n; }),
+      sound: () => setClassroomSound((v) => { const n = !v; try { localStorage.setItem('liveV2Sound', n ? '1' : '0'); } catch {} return n; }),
+      illegal: () => setIllegalMovesOn((v) => { const n = !v; try { localStorage.setItem('liveV2IllegalMoves', n ? '1' : '0'); } catch {} return n; }),
+      layout: (event) => {
+        const size = Number(event.detail);
+        if (!Number.isFinite(size)) return;
+        const next = Math.max(MIN_BOARD, Math.min(maxFitRef.current, size));
+        setManualSize(next); setBoardSize(next);
+        try { localStorage.setItem('liveBoardManualSize', String(next)); } catch {}
+      },
+    };
+    const listeners = Object.entries(handlers).map(([key, handler]) => {
+      const event = `classroom-v2:${key}`;
+      window.addEventListener(event, handler);
+      return () => window.removeEventListener(event, handler);
+    });
+    return () => listeners.forEach((off) => off());
+  }, [openPositionPanel, doBestMove, doFlip, doUndo, doRedo, doSwap, doNewGame, viewPrev, viewNext, setViewIndex]);
 
   const handleLoadPosition = useCallback(() => {
     const text = posText.trim();
@@ -1384,7 +1441,7 @@ const DRAWN_ARROW_COLOR = 'rgba(0, 255, 0, 0.7)';
           </div>
         </div>
 
-        <div className="live-board-body" ref={stageRef}>
+        {!(!isInstructor && classMeta?.boardHidden) ? <div className="live-board-body" ref={stageRef}>
           {/* The student's drill card, on the board's LEFT inside the stage so
               the fit above measures it (see infoCardWidth). CSS drops it under
               the board on a narrow screen, where it must not take width. */}
@@ -1413,10 +1470,12 @@ const DRAWN_ARROW_COLOR = 'rgba(0, 255, 0, 0.7)';
                           && (isInstructor || myMoveSide === 'both'
                             || (gameRef.current?.turn() === 'w' ? 'white' : 'black') === myMoveSide)}
                     onMove={reviewing ? undefined : handleBoardMove}
+                    onIllegalMove={illegalMovesOn ? () => flash('Illegal move') : undefined}
                     orientation={orientation}
                     boardWidth={boardSize}
                     animationDuration={MOVE_ANIM_SECONDS}
-                    soundOn={reviewing ? false : undefined}
+                    soundOn={reviewing ? false : classroomSound}
+                    showNotation={showCoordinates}
                     showLegalMoves={reviewing ? false : (drillActive ? (drillReady && !drillReplying && !drillFinishing) : canInteract)}
                     customArrows={reviewing
                       ? (bestArrow ? [bestArrow] : [])
@@ -1425,7 +1484,7 @@ const DRAWN_ARROW_COLOR = 'rgba(0, 255, 0, 0.7)';
                     arrowPreviewColor={reviewing ? undefined : DRAWN_ARROW_COLOR}
                     onArrowDrawn={reviewing ? undefined : (permissions.canDrawAnnotations ? handleArrowDrawn : undefined)}
                     onSquareRightClick={reviewing ? undefined : (permissions.canDrawAnnotations ? handleSquareRightClick : undefined)}
-                    onClearArrows={reviewing ? undefined : (permissions.canDrawAnnotations ? handleClearAnnotations : undefined)}
+                    onClearArrows={reviewing ? undefined : (permissions.canDrawAnnotations ? doClearAnnotations : undefined)}
                     lastMove={reviewing ? reviewLastMove : lastMove}
                     extraSquareStyles={reviewing ? undefined : extraStyles}
                   />
@@ -1447,7 +1506,7 @@ const DRAWN_ARROW_COLOR = 'rgba(0, 255, 0, 0.7)';
               </div>
             </div>
           </div>
-        </div>
+        </div> : <div className="cv2-board-hidden">The coach has hidden the board for now.</div>}
 
         {/* Student Board tools card: a fixed panel docked RIGHT of the board —
             always visible, never a toggle or overlay — with the same titled
@@ -1475,7 +1534,7 @@ const DRAWN_ARROW_COLOR = 'rgba(0, 255, 0, 0.7)';
                 <span aria-hidden="true">⤢</span>
                 <span className="live-tool-label">Expand</span>
               </button>
-              <button type="button" className="live-icobtn has-label" onClick={flip} title="Flip board" aria-label="Flip board"><span aria-hidden="true">⇅</span><span className="live-tool-label">Flip board</span></button>
+              <button type="button" className="live-icobtn has-label" onClick={doFlip} title="Flip board" aria-label="Flip board"><span aria-hidden="true">⇅</span><span className="live-tool-label">Flip board</span></button>
             </div>
             {!isInstructor && playOffer && (
               <div className="live-play-offer">
@@ -1548,7 +1607,7 @@ const DRAWN_ARROW_COLOR = 'rgba(0, 255, 0, 0.7)';
                 whole room, so they too step aside while a drill owns the board. */}
             {permissions.canControlBoard && !drillActive && (
               <>
-                <button type="button" className="live-icobtn has-label" onClick={() => { setRedoCount(0); setViewIndex(null); sendControl('new_game'); }} title="New Game" aria-label="New Game"><span aria-hidden="true">♟</span><span className="live-tool-label">New game</span></button>
+                <button type="button" className="live-icobtn has-label" onClick={doNewGame} title="New Game" aria-label="New Game"><span aria-hidden="true">♟</span><span className="live-tool-label">New game</span></button>
                 <button type="button" className="live-icobtn has-label" onClick={openPositionPanel} title="Load a FEN or PGN" aria-label="Load a FEN or PGN"><span aria-hidden="true">⎘</span><span className="live-tool-label">Position</span></button>
                 <button type="button" className="live-icobtn has-label" onClick={() => setSetupOpen(true)} title="Setup Board" aria-label="Setup Board"><span aria-hidden="true">⚙</span><span className="live-tool-label">Settings</span></button>
               </>
@@ -1565,17 +1624,19 @@ const DRAWN_ARROW_COLOR = 'rgba(0, 255, 0, 0.7)';
                 <span className="live-tool-label">Engine</span>
               </button>
             )}
-            <button type="button" className="live-icobtn has-label" onClick={flip} title="Flip board" aria-label="Flip board"><span aria-hidden="true">⇅</span><span className="live-tool-label">Flip board</span></button>
+            <button type="button" className="live-icobtn has-label" onClick={doFlip} title="Flip board" aria-label="Flip board"><span aria-hidden="true">⇅</span><span className="live-tool-label">Flip board</span></button>
             {permissions.canControlBoard && !drillActive && (
               /* Prev / Next / Brain are one control cluster: stepping through
                  the game, not three unrelated tools. */
               <div className="live-tool-group">
+                <button type="button" className="live-movenav-btn has-label" onClick={doUndo} disabled={moves.length === 0} title="Undo last move"><span aria-hidden="true">↩</span><span className="live-tool-label">Undo</span></button>
+                <button type="button" className="live-movenav-btn has-label" onClick={doRedo} disabled={redoCount === 0} title="Redo last move"><span aria-hidden="true">↪</span><span className="live-tool-label">Redo</span></button>
                 <button type="button" className="live-movenav-btn has-label" onClick={viewPrev} disabled={!canViewPrev} title="Previous move"><span aria-hidden="true">◀</span><span className="live-tool-label">Prev</span></button>
                 <button type="button" className="live-movenav-btn has-label" onClick={viewNext} disabled={!canViewNext} title="Next move"><span aria-hidden="true">▶</span><span className="live-tool-label">Next</span></button>
                 <button
                   type="button"
                   className="live-movenav-btn live-movenav-btn-best has-label"
-                  onClick={handleBestMove}
+                  onClick={doBestMove}
                   disabled={noLegalMoves || bestThinking}
                   title="Show Stockfish's suggested move as an arrow (nothing is played)"
                 >
@@ -1603,7 +1664,7 @@ const DRAWN_ARROW_COLOR = 'rgba(0, 255, 0, 0.7)';
                 <button
                   type="button"
                   className={`live-chip ${classMeta?.studentInteractionEnabled ? 'live-chip-on' : ''}`}
-                  onClick={() => sendControl('toggle_interaction', { enabled: !classMeta?.studentInteractionEnabled })}
+                  onClick={() => doToggleInteraction('toggle_interaction', { enabled: !classMeta?.studentInteractionEnabled })}
                   title={classMeta?.studentInteractionEnabled
                     ? 'Stop students moving the pieces'
                     : 'Let students move the pieces on this board'}
@@ -1619,7 +1680,7 @@ const DRAWN_ARROW_COLOR = 'rgba(0, 255, 0, 0.7)';
                       type="button"
                       key={side}
                       className={`live-chip ${studentMoveSide === side ? 'live-chip-on' : ''}`}
-                      onClick={() => sendControl('set_move_side', { side })}
+                      onClick={() => doSetMoveSide('set_move_side', { side })}
                       title={`Students move ${side === 'both' ? 'either side' : side}`}
                     >
                       {side === 'both' ? 'Both' : side}
@@ -1637,7 +1698,7 @@ const DRAWN_ARROW_COLOR = 'rgba(0, 255, 0, 0.7)';
           which side the bot takes from the CURRENT board position, strength, and
           then watch every chip in a puzzle-drill SAN strip (green = bot moves). */}
       {botPanelOpen && (
-        <div className="live-bot-card-overlay" onClick={() => setBotPanelOpen(false)}>
+        <Portal><div className="live-bot-card-overlay" onClick={() => setBotPanelOpen(false)}>
           <div
             className="live-bot-card"
             role="dialog"
@@ -1757,13 +1818,13 @@ const DRAWN_ARROW_COLOR = 'rgba(0, 255, 0, 0.7)';
               </Button>
             </div>
           </div>
-        </div>
+        </div></Portal>
       )}
 
       {/* 👥 Add students — instructor invites class members who aren't in the
           room yet; each gets a live "Join now" toast that opens /live-class/:id. */}
       {inviteOpen && (
-        <div className="live-bot-card-overlay" onClick={() => setInviteOpen(false)}>
+        <Portal><div className="live-bot-card-overlay" onClick={() => setInviteOpen(false)}>
           <div
             className="live-bot-card"
             role="dialog"
@@ -1816,11 +1877,11 @@ const DRAWN_ARROW_COLOR = 'rgba(0, 255, 0, 0.7)';
               </Button>
             </div>
           </div>
-        </div>
+        </div></Portal>
       )}
 
     {posOpen && (
-      <div className="live-bot-card-overlay" onClick={() => setPosOpen(false)}>
+      <Portal><div className="live-bot-card-overlay" onClick={() => setPosOpen(false)}>
         <div
           className="live-bot-card live-pos-card"
           role="dialog"
@@ -1880,7 +1941,7 @@ const DRAWN_ARROW_COLOR = 'rgba(0, 255, 0, 0.7)';
             </Button>
           </div>
         </div>
-      </div>
+      </div></Portal>
     )}
 
     {setupOpen && (

@@ -1,3 +1,4 @@
+import Portal from '../components/Portal';
 import { useEffect, useState } from 'react';
 import api from '../services/api';
 import { PageHeader, Chip } from '../components/ui';
@@ -300,7 +301,7 @@ export default function Students() {
       </div>
 
       {detail && (
-        <div className="fixed inset-0 z-[var(--z-modal-backdrop)] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm" onClick={() => window.history.back()}>
+        <Portal><div className="fixed inset-0 z-[var(--z-modal-backdrop)] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm" onClick={() => window.history.back()}>
           <div className="chess-card w-full max-w-lg max-h-[85vh] overflow-y-auto p-5" onClick={(e) => e.stopPropagation()} style={{ animation: 'board-pop .3s both' }}>
             <div className="flex items-start justify-between gap-3 mb-3">
               <h3 className="text-base font-bold text-ivory-300">Student details</h3>
@@ -346,7 +347,7 @@ export default function Students() {
               </Button>
             </div>
           </div>
-        </div>
+        </div></Portal>
       )}
         </>
       )}

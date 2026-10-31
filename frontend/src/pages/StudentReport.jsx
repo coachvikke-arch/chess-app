@@ -1,3 +1,4 @@
+import Portal from '../components/Portal';
 import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import api from '../services/api';
@@ -1480,7 +1481,7 @@ export default function StudentReport({ studentId: propId, studentMode = false }
 
       {/* Edit student modal — admin only, outside the PDF capture */}
       {!studentMode && editOpen && editForm && (
-        <div className="fixed inset-0 z-[var(--z-modal-backdrop)] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm" onClick={() => setEditOpen(false)}>
+        <Portal><div className="fixed inset-0 z-[var(--z-modal-backdrop)] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm" onClick={() => setEditOpen(false)}>
           <div className="chess-card w-full max-w-lg max-h-[90vh] overflow-y-auto p-6" onClick={(e) => e.stopPropagation()} style={{ animation: 'board-pop .3s both' }}>
             <div className="flex items-start justify-between mb-1">
               <h3 className="text-base font-bold text-ivory-300">Edit student</h3>
@@ -1560,7 +1561,7 @@ export default function StudentReport({ studentId: propId, studentMode = false }
               </div>
             </form>
           </div>
-        </div>
+        </div></Portal>
       )}
 
       {/* Hidden print layout for the PDF export — mounted only while exporting,

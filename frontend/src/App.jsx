@@ -1,6 +1,6 @@
-import { useRef, useEffect, useLayoutEffect, useState } from 'react';
-import { Routes, Route, Navigate, Link, useLocation, useNavigate } from 'react-router-dom';
-import Navbar, { navLinks } from './components/Navbar';
+import { useEffect, useState } from 'react';
+import { Routes, Route, Navigate, Link, useLocation } from 'react-router-dom';
+import Navbar from './components/Navbar';
 import Logo from './components/Logo';
 /* These four are default exports; importing them by name made Rollup fail the
    whole bundle with "is not exported by ...". */
@@ -11,13 +11,10 @@ import LevelUpCelebration from './components/LevelUpCelebration';
 import MeetingReviewPopup from './components/MeetingReviewPopup';
 import { useAuth } from './context/AuthContext';
 import { homeForRole, isAdminRole } from './utils/roles';
-import { APP_NAME, APP_NAME_SHORT, APP_TAGLINE } from './config/brand';
 import ProtectedRoute from './components/ProtectedRoute';
 import { FeatureRoute } from './components/FeatureGate';
-import { useChat } from './context/ChatContext';
 import GameAnalysis from './pages/GameAnalysis';
 import BackButton from './components/BackButton';
-import useEffectOnce from './hooks/useEffectOnce';
 import About from './pages/About';
 import ChatReactionListener from './components/ChatReactionListener.jsx';
 import Contact from './pages/Contact';
@@ -58,7 +55,6 @@ import Assignments from './pages/Assignments';
 import Profile from './pages/Profile';
 import AdminProfile from './pages/AdminProfile';
 import Leaderboard from './pages/Leaderboard';
-import Tournaments from './pages/Tournaments';
 import TournamentDetail from './pages/TournamentDetail';
 import TournamentGame from './pages/TournamentGame';
 import TournamentReadyListener from './components/TournamentReadyListener';
@@ -70,6 +66,7 @@ import Announcements from './pages/Announcements';
 import Attendance from './pages/Attendance';
 import Settings from './pages/Settings';
 import LiveClassroom from './pages/LiveClassroom';
+import ClassroomV2 from './pages/ClassroomV2';
 import MessagesPage from './pages/MessagesPage';
 import ChatRequestsPage from './pages/ChatRequestsPage';
 import Notifications from './pages/Notifications';
@@ -79,7 +76,6 @@ import Notifications from './pages/Notifications';
    keeps going, and the first render of App throws "Home is not defined". */
 import AdminAppShell from './components/AdminAppShell';
 import StudentAppShell from './components/StudentAppShell';
-import Button from './components/Button';
 import { Spinner } from './components/ui';
 import Home from './pages/Home';
 import Login from './pages/Login';
@@ -98,6 +94,12 @@ import BoardVision from './pages/BoardVision';
 import AccessDenied from './pages/AccessDenied';
 import TacticsPage from './features/tactics/pages/TacticsList';
 import TacticPage from './features/tactics/pages/TacticDetail';
+import ChangePassword from './pages/ChangePassword';
+import AcademyHome from './pages/academy/AcademyHome';
+import AcademyLevel from './pages/academy/AcademyLevel';
+import AcademyLesson from './pages/academy/AcademyLesson';
+import AcademyOpening from './pages/academy/AcademyOpening';
+import AdminGmGames from './pages/AdminGmGames';
 
 /* The two portal shells, plus the two shared sections that have to render INSIDE
    the caller's shell: the Openings Library and a single bot match are reachable
@@ -133,7 +135,6 @@ function PlayLayout({ children }) {
 
 function LandingHeader() {
   const { user } = useAuth();
-  const navigate = useNavigate();
   const [mobileOpen, setMobileOpen] = useState(false);
 
   useEffect(() => {
@@ -148,77 +149,42 @@ function LandingHeader() {
   return (
     <header
       id="landing-header"
-      className="nav-glass sticky top-0 z-40 shrink-0 border-b border-ivory-700/50 bg-ink-800/80 backdrop-blur-sm"
+      className="nav-glass sticky top-0 z-[var(--z-navbar)] shrink-0 border-b border-ivory-700/50 bg-ink-800/80 backdrop-blur-sm"
     >
       <div className="max-w-7xl mx-auto flex items-center justify-between gap-2 px-2 sm:px-3 py-3 shrink-0">
         <div className="flex items-center gap-2 min-w-0 shrink-0">
-          <span className="inline-flex shrink-0">
-            <Logo
-              alt="Mate Zone Chess Academy"
-              height={44}
-              className="shrink-0"
-            />
-          </span>
-          <nav className="md:hidden">
-            <button
-              className="md:hidden text-slate-200 hover:text-white text-[26px] leading-none w-[44px] h-[44px] shrink-0 grid place-items-center rounded-lg hover:bg-white/10 transition"
-              onClick={() => setMobileOpen((o) => !o)}
-              aria-label={mobileOpen ? 'Close menu' : 'Open menu'}
-              aria-expanded={mobileOpen}
-              aria-controls="landing-nav"
-            >
-              {mobileOpen ? '✕' : '☰'}
-            </button>
-          </nav>
-          <Link
-            to={user ? dashLink : '/'}
-            onClick={() => setMobileOpen(false)}
-            className="flex items-center gap-2 sm:gap-2.5 min-w-0"
-          >
-            <span className="text-2xl piece-glyph-spin text-blue-300" aria-hidden="true">♞</span>
-            <span className="font-bold text-sm sm:text-base md:text-lg font-display text-white truncate">
-              <span className="sm:hidden">{APP_NAME_SHORT}</span>
-              <span className="hidden sm:inline">
-                <span className="chess-gradient-text">Chess Academy</span>
-              </span>
-            </span>
-          </Link>
+          {/* Same order as every in-app header: menu button first, then the brand. */}
+          {user && (
+            <nav className="md:hidden">
+              <button
+                className="text-slate-200 hover:text-white text-[26px] leading-none w-[44px] h-[44px] shrink-0 grid place-items-center rounded-lg hover:bg-white/10 transition"
+                onClick={() => setMobileOpen((o) => !o)}
+                aria-label={mobileOpen ? 'Close menu' : 'Open menu'}
+                aria-expanded={mobileOpen}
+                aria-controls="landing-nav"
+              >
+                {mobileOpen ? '✕' : '☰'}
+              </button>
+            </nav>
+          )}
+          <Logo height={44} className="shrink-0" />
         </div>
 
         <div className="flex items-center gap-3">
-          {user ? (
-            <>
-              <nav className="hidden md:flex items-center gap-1">
-                {['/contact'].map((l) => (
-                  <Link
-                    key={l}
-                    to={l}
-                    className="px-3 py-2 rounded-lg text-sm font-medium text-slate-200 hover:text-white hover:bg-white/10 transition"
-                  >
-                    {l}
-                  </Link>
-                ))}
-              </nav>
-              <span className="hidden lg:block text-sm text-slate-300">
-                {user.role === 'superadmin'
-                  ? 'Academy owner'
-                  : user.role === 'admin'
-                  ? 'Coach'
-                  : 'Student'}
-              </span>
-            </>
-          ) : (
-            <>
-              <Link
-                to="/login"
-                className="hidden sm:inline text-sm text-slate-200 hover:text-white font-medium transition"
-              >
-                Login
-              </Link>
-              <Button to="/login" variant="primary" size="md" className="!px-4 !py-2 text-sm">
-                Login
-              </Button>
-            </>
+          <Link
+            to="/contact"
+            className="px-3 py-2 rounded-lg text-sm font-medium text-slate-200 hover:text-white hover:bg-white/10 transition"
+          >
+            Contact
+          </Link>
+          {user && (
+            <span className="hidden lg:block text-sm text-slate-300">
+              {user.role === 'superadmin'
+                ? 'Academy owner'
+                : user.role === 'admin'
+                ? 'Coach'
+                : 'Student'}
+            </span>
           )}
         </div>
       </div>
@@ -229,25 +195,12 @@ function LandingHeader() {
         className={`absolute left-0 right-0 top-full md:hidden overflow-hidden transition-all duration-300 ease-in-out ${mobileOpen ? 'max-h-[70vh] opacity-100 visible' : 'max-h-0 opacity-0 invisible'}`}
       >
         <nav className="bg-white/95 backdrop-blur-xl border-t border-ink-700/10 px-4 py-3 flex flex-col gap-1 shadow-[0_20px_44px_-10px_rgba(0,0,0,0.35)] max-h-[70vh] overflow-y-auto">
-          {['/contact'].map((l) => (
-            <Link
-              key={l}
-              to={l}
-              className="px-3 py-3 rounded-lg text-[0.95rem] font-medium text-slate-700 hover:text-gold-600 hover:bg-gold-500/10 transition"
-              onClick={() => setMobileOpen(false)}
-            >
-              {l}
-            </Link>
-          ))}
           <Link
-            to={user ? dashLink : '/login'}
-            onClick={() => {
-              setMobileOpen(false);
-              if (user) navigate(dashLink);
-            }}
-            className="px-3 py-3 mt-1 pt-3 border-t border-ink-700/10 rounded-lg text-[0.95rem] font-semibold text-gold-600 hover:bg-gold-500/10 transition"
+            to={dashLink}
+            onClick={() => setMobileOpen(false)}
+            className="px-3 py-3 rounded-lg text-[0.95rem] font-semibold text-gold-600 hover:bg-gold-500/10 transition"
           >
-            {user ? dashLabel : 'Login'}
+            {dashLabel}
           </Link>
         </nav>
       </div>
@@ -255,42 +208,35 @@ function LandingHeader() {
   );
 }
 
+/* Sign-in side road: these pages carry their own brand, so the standalone
+   navbar stands down for them. */
+const AUTH_ONLY_PAGES = new Set(['/login', '/register', '/reset-password']);
 
 export default function App() {
   const location = useLocation();
-  const navigate = useNavigate();
-  const lastKeyRef = useRef(null);
   const { user } = useAuth();
 
-  /* Which chrome belongs to the current route. Decided by PATH, not by identity:
-     a signed-in student reading /about still needs the public navbar, while
-     /admin, /student and the Openings module carry their own shell.
-     These four were referenced below but never declared, so App threw before it
-     could render a single route. */
+  /* Choose the page chrome from the current path, not just the signed-in
+     user's role. Public pages keep the public navbar; portal routes use their
+     own shell. */
   const pathname = location.pathname;
-  const isAdmin = pathname.startsWith('/admin') || pathname.startsWith('/super');
+  const isAdmin = pathname.startsWith('/admin') || pathname.startsWith('/super') || pathname.startsWith('/coach');
   const isStudent = pathname.startsWith('/student');
+  const isLiveClass = pathname.startsWith('/live-class') || pathname.includes('/classroom-v2');
   const isOpeningsModule = pathname === '/openings' || pathname.startsWith('/openings/');
   /* A single bot match is a full-screen surface that renders inside the caller's
      shell, so the standalone navbar stands down for it too — otherwise the
      in-flow sticky header pushes the 100vh board past the viewport. */
   const isFullScreenGame = pathname.startsWith('/play/bot/');
-  const hideStandaloneNavbar = isAdmin || isStudent || isOpeningsModule || isFullScreenGame;
-  /* The shells render their own Back row inside their own container. The
-     Openings module is a shell only for a signed-in user. */
-  const usesShell = isAdmin || pathname.startsWith('/student/') || (isOpeningsModule && Boolean(user));
-
-  // Count our own PUSH navigations so the global Back button knows whether it
-  // can go back within the app. StrictMode-safe: only counts a key UPDATE.
-  useEffect(() => {
-    const prev = lastKeyRef.current;
-    lastKeyRef.current = location.key;
-    if (prev == null || prev === location.key) return;
-    // Simple navigation tracking
-    if (location.key !== prev) {
-      const trackedNavKey = location.key;
-    }
-  }, [location.key]);
+  const hideStandaloneNavbar = isAdmin || isStudent || isOpeningsModule || isFullScreenGame || isLiveClass;
+  /* Portal shells provide their own navigation row. Public Openings pages
+     and unauthenticated bot matches keep the standalone navigation. */
+  const usesShell =
+    !isLiveClass &&
+    (isAdmin ||
+      pathname.startsWith('/student/') ||
+      (isOpeningsModule && Boolean(user)) ||
+      (isFullScreenGame && Boolean(user)));
 
   // Scroll to the top of the page whenever the route changes.
   useEffect(() => {
@@ -309,7 +255,7 @@ export default function App() {
         <MeetingReviewPopup />
         {location.pathname === '/' ? (
           <LandingHeader />
-        ) : location.pathname === '/login' || location.pathname === '/register' ? null : (
+        ) : AUTH_ONLY_PAGES.has(location.pathname) ? null : (
           hideStandaloneNavbar ? null : (
             <Navbar />
           )
@@ -319,6 +265,14 @@ export default function App() {
         )}
         <div className="flex-1" key={location.pathname} style={{ animation: 'fade-in .5s ease both' }}>
           <Routes location={location}>
+            {/* Live classroom — full-screen, no portal shell */}
+            <Route path="/live-class/:id" element={<ProtectedRoute><LiveClassroom /></ProtectedRoute>} />
+            <Route path="/coach/dashboard/:classId/classroom-v2" element={<ProtectedRoute><ClassroomV2 /></ProtectedRoute>} />
+            <Route path="/student/classroom-v2/:classId" element={<ProtectedRoute><ClassroomV2 /></ProtectedRoute>} />
+            <Route path="/classroom/board-vision" element={<ProtectedRoute><BoardVision /></ProtectedRoute>} />
+            {/* Standalone student report — opened in a new tab from the admin roster */}
+            <Route path="/students/:studentId/report" element={<ProtectedRoute role="admin"><StudentReport /></ProtectedRoute>} />
+            <Route path="/change-password" element={<ProtectedRoute><ChangePassword /></ProtectedRoute>} />
             <Route path="/" element={<Home />} />
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Navigate to="/login" replace />} />
@@ -327,7 +281,6 @@ export default function App() {
             <Route path="/contact" element={<Contact />} />
             <Route path="/courses" element={<Courses />} />
             <Route path="/courses/:id" element={<CourseDetails />} />
-            <Route path="/about" element={<About />} /> 
             <Route path="/leaderboard" element={<Leaderboard />} />
             <Route path="/announcements" element={<Announcements />} />
             <Route path="/daily" element={<DailyGame />} />
@@ -354,10 +307,23 @@ export default function App() {
             <Route path="/student/leaderboard" element={<ProtectedRoute role="student"><FeatureRoute feature="leaderboard"><StudentLayout><Leaderboard /></StudentLayout></FeatureRoute></ProtectedRoute>} />
             <Route path="/student/tournaments" element={<ProtectedRoute role="student"><StudentLayout><StudentTournaments /></StudentLayout></ProtectedRoute>} />
             <Route path="/student/tournaments/game/:gameId" element={<ProtectedRoute role="student"><StudentLayout><TournamentGame /></StudentLayout></ProtectedRoute>} />
+            <Route path="/student/tournaments/:id" element={<ProtectedRoute role="student"><StudentLayout><TournamentDetail /></StudentLayout></ProtectedRoute>} />
             <Route path="/student/ratings" element={<ProtectedRoute role="student"><FeatureRoute feature="leaderboard"><StudentLayout><Ratings /></StudentLayout></FeatureRoute></ProtectedRoute>} />
             <Route path="/student/profile" element={<ProtectedRoute role="student"><StudentLayout><Profile /></StudentLayout></ProtectedRoute>} />
             <Route path="/student/chess-profile" element={<ProtectedRoute role="student"><StudentLayout><ChessProfile /></StudentLayout></ProtectedRoute>} />
-            <Route path="/student/game-analysis" element={<ProtectedRoute role="student"><FeatureRoute feature="game_analysis"><StudentLayout><GameReview /></StudentLayout></FeatureRoute></ProtectedRoute>} />
+            <Route path="/student/report" element={<ProtectedRoute role="student"><StudentLayout><StudentReport studentMode studentId="me" /></StudentLayout></ProtectedRoute>} />
+            <Route path="/student/performances" element={<ProtectedRoute role="student"><StudentLayout><StudentPerformances /></StudentLayout></ProtectedRoute>} />
+            <Route path="/student/certificates" element={<ProtectedRoute role="student"><StudentLayout><MyCertificates /></StudentLayout></ProtectedRoute>} />
+            <Route path="/student/game-analysis" element={<ProtectedRoute role="student"><StudentLayout><GameAnalysis /></StudentLayout></ProtectedRoute>} />
+            <Route path="/student/review" element={<ProtectedRoute role="student"><FeatureRoute feature="game_analysis"><StudentLayout><GameReview /></StudentLayout></FeatureRoute></ProtectedRoute>} />
+            <Route path="/student/game-history" element={<ProtectedRoute role="student"><Navigate to="/student/review?tab=history" replace /></ProtectedRoute>} />
+            <Route path="/student/gm-games" element={<ProtectedRoute role="student"><FeatureRoute feature="gm_games"><StudentLayout><AdminGmGames readOnly /></StudentLayout></FeatureRoute></ProtectedRoute>} />
+            <Route path="/student/settings" element={<ProtectedRoute role="student"><FeatureRoute feature="profile_settings"><StudentLayout><Settings /></StudentLayout></FeatureRoute></ProtectedRoute>} />
+            <Route path="/student/openings" element={<ProtectedRoute role="student"><FeatureRoute feature="piece_lessons"><StudentLayout><AcademyHome /></StudentLayout></FeatureRoute></ProtectedRoute>} />
+            <Route path="/student/openings/level/:levelSlug" element={<ProtectedRoute role="student"><StudentLayout><AcademyLevel /></StudentLayout></ProtectedRoute>} />
+            <Route path="/student/openings/lessons/:levelSlug/:lessonSlug" element={<ProtectedRoute role="student"><StudentLayout><AcademyLesson /></StudentLayout></ProtectedRoute>} />
+            <Route path="/student/openings/course/:openingSlug" element={<ProtectedRoute role="student"><StudentLayout><AcademyOpening /></StudentLayout></ProtectedRoute>} />
+            <Route path="/quizzes/:id" element={<ProtectedRoute role="student"><StudentLayout><TakeQuiz /></StudentLayout></ProtectedRoute>} />
             {/* Admin / Coach */}
             <Route path="/admin/dashboard" element={<ProtectedRoute role="admin"><AdminLayout><AdminDashboard /></AdminLayout></ProtectedRoute>} />
             <Route path="/admin/command-center" element={<ProtectedRoute role="admin"><AdminLayout><CommandCenter /></AdminLayout></ProtectedRoute>} />
@@ -377,13 +343,26 @@ export default function App() {
             <Route path="/admin/leaderboard" element={<ProtectedRoute role="admin"><AdminLayout><Leaderboard /></AdminLayout></ProtectedRoute>} />
             <Route path="/admin/tournaments" element={<ProtectedRoute role="admin"><AdminLayout><ManageTournaments /></AdminLayout></ProtectedRoute>} />
             <Route path="/admin/tournaments/game/:gameId" element={<ProtectedRoute role="admin"><AdminLayout><TournamentGame /></AdminLayout></ProtectedRoute>} />
+            <Route path="/admin/tournaments/:id" element={<ProtectedRoute role="admin"><AdminLayout><TournamentDetail /></AdminLayout></ProtectedRoute>} />
             <Route path="/admin/puzzle-listing" element={<ProtectedRoute role="admin"><FeatureRoute feature="puzzle_authoring"><AdminLayout><PuzzleListing /></AdminLayout></FeatureRoute></ProtectedRoute>} />
             <Route path="/admin/homework" element={<ProtectedRoute role="admin"><AdminLayout><AdminHomework /></AdminLayout></ProtectedRoute>} />
+            <Route path="/admin/messages" element={<ProtectedRoute role="admin"><AdminLayout><MessagesPage /></AdminLayout></ProtectedRoute>} />
             <Route path="/admin/notifications" element={<ProtectedRoute role="admin"><AdminLayout><Notifications /></AdminLayout></ProtectedRoute>} />
+            <Route path="/admin/announcements" element={<ProtectedRoute role="admin"><AdminLayout><Announcements /></AdminLayout></ProtectedRoute>} />
             <Route path="/admin/puzzle-assignments" element={<ProtectedRoute role="admin"><AdminLayout><PuzzleSolvingReport /></AdminLayout></ProtectedRoute>} />
             <Route path="/admin/quizzes" element={<ProtectedRoute role="admin"><AdminLayout><ManageQuizzes /></AdminLayout></ProtectedRoute>} />
             <Route path="/admin/game-analysis" element={<ProtectedRoute role="admin"><AdminLayout><GameAnalysis /></AdminLayout></ProtectedRoute>} />
+            <Route path="/admin/review" element={<ProtectedRoute role="admin"><FeatureRoute feature="live_review"><AdminLayout><GameReview /></AdminLayout></FeatureRoute></ProtectedRoute>} />
             <Route path="/admin/analysis" element={<ProtectedRoute role="admin"><AdminLayout><AnalysisBoard /></AdminLayout></ProtectedRoute>} />
+            <Route path="/admin/openings" element={<ProtectedRoute role="admin"><AdminLayout><AcademyHome /></AdminLayout></ProtectedRoute>} />
+            <Route path="/admin/openings/level/:levelSlug" element={<ProtectedRoute role="admin"><AdminLayout><AcademyLevel /></AdminLayout></ProtectedRoute>} />
+            <Route path="/admin/openings/lessons/:levelSlug/:lessonSlug" element={<ProtectedRoute role="admin"><AdminLayout><AcademyLesson /></AdminLayout></ProtectedRoute>} />
+            <Route path="/admin/openings/course/:openingSlug" element={<ProtectedRoute role="admin"><AdminLayout><AcademyOpening /></AdminLayout></ProtectedRoute>} />
+            <Route path="/admin/gm-games" element={<ProtectedRoute role="admin"><AdminLayout><AdminGmGames /></AdminLayout></ProtectedRoute>} />
+            <Route path="/admin/chess-profile" element={<ProtectedRoute role="admin"><AdminLayout><ChessProfile /></AdminLayout></ProtectedRoute>} />
+            <Route path="/admin/chat-requests" element={<ProtectedRoute role="admin"><AdminLayout><ChatRequestsPage /></AdminLayout></ProtectedRoute>} />
+            <Route path="/admin/admins/:id/performance" element={<ProtectedRoute role="superadmin"><AdminLayout><CoachReport /></AdminLayout></ProtectedRoute>} />
+            <Route path="/admin/settings" element={<ProtectedRoute role="admin"><AdminLayout><Settings /></AdminLayout></ProtectedRoute>} />
             <Route path="/admin/profile" element={<ProtectedRoute role="admin"><AdminLayout><AdminProfile /></AdminLayout></ProtectedRoute>} />
             {/* Super Admin */}
             <Route path="/super" element={<ProtectedRoute role="superadmin"><AdminLayout><SuperAdmin /></AdminLayout></ProtectedRoute>} />
@@ -399,7 +378,7 @@ export default function App() {
             <Route path="/student/tactics/:slug" element={<ProtectedRoute role="student"><FeatureRoute feature="chess_tactics"><StudentLayout><TacticPage /></StudentLayout></FeatureRoute></ProtectedRoute>} />
             {/* Board Vision */}
             <Route path="/student/board-vision" element={<ProtectedRoute role="student"><StudentLayout><BoardVision /></StudentLayout></ProtectedRoute>} />
-            <Route path="/admin/tactics" element={<ProtectedRoute role="admin"><FeatureRoute feature="chess_tactics"><AdminLayout><TacticPage /></AdminLayout></FeatureRoute></ProtectedRoute>} />
+            <Route path="/admin/tactics" element={<ProtectedRoute role="admin"><FeatureRoute feature="chess_tactics"><AdminLayout><TacticsPage /></AdminLayout></FeatureRoute></ProtectedRoute>} />
             <Route path="/admin/tactics/:slug" element={<ProtectedRoute role="admin"><FeatureRoute feature="chess_tactics"><AdminLayout><TacticPage /></AdminLayout></FeatureRoute></ProtectedRoute>} />
             {/* 403 page */}
             <Route path="/access-denied" element={<AccessDenied />} />

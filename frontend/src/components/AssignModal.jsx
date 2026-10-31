@@ -1,3 +1,4 @@
+import Portal from './Portal';
 import { useEffect, useMemo, useState } from 'react';
 import { useOverlayHistory } from '../hooks/useOverlayHistory';
 import api from '../services/api';
@@ -214,8 +215,8 @@ export default function AssignModal({ puzzleIds, applyToAll: applyToAllProp, onA
   });
 
   return (
-    <div
-      className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
+    <Portal><div
+      className="fixed inset-0 z-[var(--z-modal-backdrop)] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
       onClick={() => !working && onClose()}
     >
       <div
@@ -371,7 +372,7 @@ export default function AssignModal({ puzzleIds, applyToAll: applyToAllProp, onA
           </Button>
         </div>
       </div>
-    </div>
+    </div></Portal>
   );
 }
 
