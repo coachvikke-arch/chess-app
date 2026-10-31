@@ -21592,20 +21592,24 @@ html, body {
 }
 
 /* ─── Mobile Overlay ────────────────────────────────────────────────────────── */
+/* A SIBLING of the drawer, never its parent — and it must stay stacked below
+   it. It used to take --z-sidebar (1200) while the drawer sat at 40, so this
+   blur landed on top of the menu and made every row unreadable.
+   Covering the whole viewport is safe now: the top bar is --z-navbar (1300),
+   so the hamburger, bell and profile chip stay clickable above the scrim. */
 .admin-mobile-overlay {
   display: none;
   position: fixed;
-  /* Start below the top bar, not at 0: while the drawer is open the bar's
-     account menu and notification bell must still be clickable. Covering the
-     bar with this overlay made the profile button silently dead on mobile. */
-  top: var(--app-nav-h, 64px);
-  right: 0;
-  bottom: 0;
-  left: 0;
-  background: rgba(0, 0, 0, 0.5);
-  backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
-  z-index: var(--z-sidebar);
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+  z-index: var(--z-drawer-scrim);
+  animation: admin-overlay-in 0.25s ease both;
+}
+@keyframes admin-overlay-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
 }
 
 /* ─── Main Content Area ─────────────────────────────────────────────────────── */
@@ -21709,26 +21713,42 @@ html, body {
   /* Sidebar collapses into an off-canvas drawer */
   .admin-sidebar {
     position: fixed;
-    /* Sit under the top bar so the bar's profile menu / bell stay usable while
-       the drawer is open (they were unreachable when the drawer covered them). */
-    top: var(--app-nav-h, 64px);
-    bottom: 0;
+    /* Full height, sliding out from under the top bar. The bar is stacked
+       above this panel (--z-navbar over --z-drawer) so its hamburger, bell and
+       profile chip stay usable while the menu is open, which means the panel
+       has to clear the bar's height itself rather than start below it. */
+    top: 0;
     left: 0;
-    height: calc(100dvh - var(--app-nav-h, 64px));
+    bottom: auto;
+    height: 100dvh;
+    padding-top: var(--app-nav-h, 64px);
     transform: translateX(-100%);
     visibility: hidden;
     width: 280px;
     max-width: 85vw;
-    box-shadow: 0 0 40px rgba(0, 0, 0, 0.4);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    /* The panel's own background is opaque (see .admin-sidebar above). No
+       filter of any kind here: a backdrop-filter or filter on this element
+       would blur the menu text it carries. */
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    filter: none;
     border-right: none;
     border-left: none;
-    z-index: 40;
-    transition: transform 0.3s ease, visibility 0.3s ease;
+    z-index: var(--z-drawer);
+    transition: transform 0.25s ease, visibility 0.25s ease;
   }
 
   .admin-sidebar[aria-hidden="false"] {
     transform: translateX(0);
     visibility: visible;
+  }
+
+  /* The rows are `py-2.5 text-sm`, which measures about 40px — under the 44px
+     minimum touch target on a phone. */
+  .admin-sidebar-menu a {
+    min-height: 44px;
   }
 
   .admin-mobile-overlay {
@@ -21865,6 +21885,13 @@ html, body {
   --z-sticky: 1100;
   --z-sidebar: 1200;
   --z-navbar: 1300;
+  /* The phone drawer and its scrim are ordered against each other explicitly:
+     the scrim blurs whatever is painted beneath it, so it has to sit BELOW the
+     panel or it blurs the menu itself. The top bar is --z-navbar (1300), i.e.
+     above both, which is what keeps the bell and profile chip usable with the
+     scrim covering the whole viewport. */
+  --z-drawer-scrim: 998;
+  --z-drawer: 999;
   --z-modal-backdrop: 9000;
   --z-modal: 9100;
   --z-popup: 9200;

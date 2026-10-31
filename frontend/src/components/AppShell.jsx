@@ -74,6 +74,13 @@ export default function AppShell({ portal = 'admin', children }) {
     return () => window.removeEventListener('resize', onResize);
   }, []);
 
+  /* And on any route change. Menu items already close it themselves, but a
+     navigation from elsewhere — the Back row, the logo, a redirect — used to
+     leave the drawer open over the section it had just replaced. */
+  useEffect(() => {
+    setMobileOpen(false);
+  }, [location.pathname]);
+
   /* Lock body scroll when mobile drawer is open. */
   useEffect(() => {
     if (mobileOpen) {

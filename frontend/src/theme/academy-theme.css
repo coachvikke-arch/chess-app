@@ -138,9 +138,9 @@ body {
 .admin-sidebar {
   box-shadow: 1px 0 0 rgba(15, 23, 42, 0.02);
 }
-.admin-mobile-overlay {
-  background: rgba(15, 23, 42, 0.4);
-}
+/* The phone scrim keeps the ink tint index.css gives it (rgba(15,23,42,.45)) —
+   it is already part of this palette, so re-declaring it here only invited the
+   two files to drift apart. */
 .admin-mobile-toggle {
   background: #ffffff;
   border-color: #cbd5e1;
