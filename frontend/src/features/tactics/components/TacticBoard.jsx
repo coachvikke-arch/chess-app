@@ -85,14 +85,14 @@ export default function TacticBoard({
   highlights = null,
   className = '',
 }) {
-  const { boardTheme: boardThemeId, pieceSet } = useAuth();
+  const { boardTheme: boardThemeId, pieceSet, hasCustomBoardColors } = useAuth();
   const boardTheme = getBoardTheme(boardThemeId);
   const themeStyles = getBoardThemeStyles(boardTheme);
   const customPieces = useMemo(
     () => buildCustomPieces(getPieceTheme(pieceSet || 'cburnett')),
     [pieceSet],
   );
-  const ornateSquares = useMemo(() => ornateSquareStyles(boardTheme), [boardTheme]);
+  const ornateSquares = useMemo(() => ornateSquareStyles(boardTheme), [boardTheme, hasCustomBoardColors]);
 
   const squareStyles = useMemo(() => {
     /* Ornate themes paint their marble through per-square styles, so the card's

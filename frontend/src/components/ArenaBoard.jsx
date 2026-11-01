@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import ChessBoard from './ChessBoard';
 
 /*
@@ -14,9 +15,9 @@ import ChessBoard from './ChessBoard';
  *
  *   boardWidth   how big the square is (the page fits its column, Play Mode
  *                fits the full-screen area)
- *   effectHostId which board a move effect belongs to — the two boards are
- *                mounted at the same time and share one Chess instance, so an
- *                effect has to be addressed to the one the user is looking at
+ *   effectHostId which board a move effect belongs to — both surfaces share one
+ *                Chess instance, and only one of them is mounted at a time, so
+ *                an effect has to be addressed to the board the user is looking at
  *
  * Everything else — the game, the orientation, the clocks' side, the opponent,
  * the engine, the badges, the sound — is the same in both places and is passed
@@ -29,7 +30,7 @@ import ChessBoard from './ChessBoard';
  * sound". Engine analysis state has no business deciding whether a human move
  * is audible.
  */
-export default function ArenaBoard({
+function ArenaBoard({
   game,
   orientation = 'white',
   boardWidth = 420,
@@ -77,3 +78,28 @@ export default function ArenaBoard({
     />
   );
 }
+
+/*
+ * Memoised, with one deliberate exception to the usual identity compare.
+ *
+ * `game` is a SHARED MUTABLE chess.js instance — the page hands the same object
+ * to both surfaces, so `prev.game === next.game` is true even after the position
+ * has changed. A plain React.memo would therefore freeze the board on the first
+ * position. So the position is compared by FEN, which is what actually has to
+ * repaint, and every other prop keeps normal identity compare.
+ *
+ * The point of doing this at all: the arena re-renders for reasons that have
+ * nothing to do with the position (a panel opening, a clock state change, a
+ * reaction toast). Before, each of those repainted the whole board — 64 squares,
+ * the pieces, the overlays — which on a phone is what made the page feel like it
+ * was hanging mid-game.
+ */
+export default memo(ArenaBoard, (prev, next) => {
+  if (prev.game !== next.game) return false;          // a different game: always repaint
+  if (prev.game && prev.game.fen() !== next.game.fen()) return false; // in-place move
+  for (const key of Object.keys(next)) {
+    if (key === 'game') continue;
+    if (prev[key] !== next[key]) return false;
+  }
+  return true;
+});

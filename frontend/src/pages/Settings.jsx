@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useUrlTab } from '../hooks/useUrlTab';
 import AnimatedBoard from '../components/board/AnimatedBoard';
 import useArrowKeys from '../hooks/useArrowKeys';
@@ -22,6 +22,7 @@ import {
 import { FacedPiece } from '../components/FacedPiece';
 import { RoyalPiece } from '../components/RoyalPieces';
 import Button from '../components/Button';
+import { useToast } from '../components/Toast';
 
 const PREVIEW_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
 
@@ -30,11 +31,11 @@ const PREVIEW_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
    mobile idiom (grouped rows, value + chevron, drill into a sub-page). */
 
 /** Tiny static board preview for a specific theme + piece set. */
-export function ThemePreview({ themeId, pieceSet, size = 160 }) {
+export function ThemePreview({ themeId, pieceSet, size = 160, useRootColors = true }) {
   const theme = getBoardTheme(themeId);
-  const marbleSquares = useMemo(() => ornateSquareStyles(theme), [theme]);
+  const marbleSquares = useMemo(() => ornateSquareStyles(theme, !useRootColors), [theme, useRootColors]);
   const customPieces = useMemo(() => buildCustomPieces(getPieceTheme(pieceSet || 'cburnett')), [pieceSet]);
-  const themeStyles = getBoardThemeStyles(theme);
+  const themeStyles = getBoardThemeStyles(theme, useRootColors);
   return (
     <AnimatedBoard
       position={PREVIEW_FEN}
@@ -62,7 +63,7 @@ export function ThemePreview({ themeId, pieceSet, size = 160 }) {
 }
 
 export default function Settings() {
-  const { boardTheme, pieceSet, boardFrame, updatePrefs } = useAuth();
+  const { boardTheme, pieceSet, boardFrame, boardColors, updatePrefs } = useAuth();
   const [saving, setSaving] = useState(false);
   const [savedMsg, setSavedMsg] = useState('');
   /* The same app-wide preference the Play Arena's toggle writes to, so sound is
@@ -241,6 +242,12 @@ export default function Settings() {
               hint="Theme and piece set, chosen together"
               value={`${themeName} · ${pieceName}`}
               onClick={() => setView('look')}
+            />
+            <BoardColorSettings
+              colors={boardColors}
+              pieceSet={activePieceSet}
+              boardFrame={boardFrame}
+              onApply={(light, dark) => updatePrefs({ boardLightColor: light, boardDarkColor: dark })}
             />
             {/* Board Frame is its own row with its own pair of buttons. It used
                 to be a checkbox buried inside the Board panel, where it was easy
@@ -557,6 +564,256 @@ function Group({ cap, children }) {
   );
 }
 
+const BOARD_COLOR_DEFAULTS = { light: '#EEEED2', dark: '#769656' };
+const BOARD_COLOR_THEMES = [
+  { name: 'Classic Green', light: '#EEEED2', dark: '#769656' },
+  { name: 'Brown Wood', light: '#F0D9B5', dark: '#B58863' },
+  { name: 'Ocean Blue', light: '#DEE3E6', dark: '#8CA2AD' },
+  { name: 'Lilac Haze', light: '#E8E0F7', dark: '#9C86D4' },
+  { name: 'Slate Gray', light: '#D9D9D9', dark: '#7A7A7A' },
+  { name: 'Rose', light: '#F6DDE0', dark: '#C77D8A' },
+  { name: 'Sand', light: '#F2E6C9', dark: '#C9A96B' },
+];
+
+function hexToHsv(hex) {
+  const value = hex.replace('#', '');
+  const r = parseInt(value.slice(0, 2), 16) / 255;
+  const g = parseInt(value.slice(2, 4), 16) / 255;
+  const b = parseInt(value.slice(4, 6), 16) / 255;
+  const max = Math.max(r, g, b), min = Math.min(r, g, b), delta = max - min;
+  let h = 0;
+  if (delta) {
+    if (max === r) h = 60 * (((g - b) / delta) % 6);
+    else if (max === g) h = 60 * ((b - r) / delta + 2);
+    else h = 60 * ((r - g) / delta + 4);
+  }
+  if (h < 0) h += 360;
+  return { h, s: max === 0 ? 0 : delta / max, v: max };
+}
+
+function hsvToHex(h, s, v) {
+  const c = v * s;
+  const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
+  const m = v - c;
+  const rgb = h < 60 ? [c, x, 0] : h < 120 ? [x, c, 0] : h < 180 ? [0, c, x] : h < 240 ? [0, x, c] : h < 300 ? [x, 0, c] : [c, 0, x];
+  return `#${rgb.map((n) => Math.round((n + m) * 255).toString(16).padStart(2, '0')).join('').toUpperCase()}`;
+}
+
+function BoardColorSettings({ colors, pieceSet, boardFrame, onApply }) {
+  const { showToast } = useToast();
+  const [open, setOpen] = useState(false);
+  const [draft, setDraft] = useState(colors || BOARD_COLOR_DEFAULTS);
+  const [activeSquare, setActiveSquare] = useState('light');
+  const [hexInput, setHexInput] = useState((colors || BOARD_COLOR_DEFAULTS).light);
+  const [saving, setSaving] = useState(false);
+  const wheelRef = useRef(null);
+  const currentHex = draft[activeSquare];
+  const hsv = useMemo(() => hexToHsv(currentHex), [currentHex]);
+  const customPieces = useMemo(() => buildCustomPieces(getPieceTheme(pieceSet || 'cburnett')), [pieceSet]);
+  const sameSquares = draft.light.toUpperCase() === draft.dark.toUpperCase();
+  const pinAngle = ((hsv.h - 90) * Math.PI) / 180;
+  const pinStyle = {
+    left: `${50 + Math.cos(pinAngle) * hsv.s * 50}%`,
+    top: `${50 + Math.sin(pinAngle) * hsv.s * 50}%`,
+  };
+
+  useEffect(() => {
+    if (!open) setDraft(colors || BOARD_COLOR_DEFAULTS);
+  }, [colors, open]);
+  useEffect(() => setHexInput(draft[activeSquare]), [draft, activeSquare]);
+
+  useEffect(() => {
+    const canvas = wheelRef.current;
+    if (!canvas) return;
+    const size = 352;
+    canvas.width = size;
+    canvas.height = size;
+    const context = canvas.getContext('2d');
+    const image = context.createImageData(size, size);
+    const center = (size - 1) / 2;
+    const radius = size / 2 - 2;
+    for (let y = 0; y < size; y += 1) {
+      for (let x = 0; x < size; x += 1) {
+        const dx = x - center, dy = y - center;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        const i = (y * size + x) * 4;
+        if (distance > radius) { image.data[i + 3] = 0; continue; }
+        let hue = (Math.atan2(dy, dx) * 180 / Math.PI + 90 + 360) % 360;
+        const rgbHex = hsvToHex(hue, Math.min(1, distance / radius), hsv.v).slice(1);
+        image.data[i] = parseInt(rgbHex.slice(0, 2), 16);
+        image.data[i + 1] = parseInt(rgbHex.slice(2, 4), 16);
+        image.data[i + 2] = parseInt(rgbHex.slice(4, 6), 16);
+        image.data[i + 3] = 255;
+      }
+    }
+    context.putImageData(image, 0, 0);
+  }, [hsv.v]);
+
+  useEffect(() => {
+    const wheel = document.getElementById('board-color-wheel');
+    if (!wheel) return;
+    wheel.setAttribute('aria-valuetext', `${Math.round(hsv.h)} degrees hue, ${Math.round(hsv.s * 100)} percent saturation`);
+  }, [hsv.h, hsv.s]);
+
+  const changeActiveColor = (hex) => setDraft((prev) => ({ ...prev, [activeSquare]: hex }));
+  const pickWheel = (event) => {
+    const rect = event.currentTarget.getBoundingClientRect();
+    const x = event.clientX - rect.left - rect.width / 2;
+    const y = event.clientY - rect.top - rect.height / 2;
+    const radius = rect.width / 2;
+    const distance = Math.min(radius, Math.sqrt(x * x + y * y));
+    const hue = (Math.atan2(y, x) * 180 / Math.PI + 90 + 360) % 360;
+    changeActiveColor(hsvToHex(hue, distance / radius, hsv.v));
+  };
+  const handleWheelKey = (event) => {
+    const amount = event.shiftKey ? 0.01 : 0.04;
+    let { h, s } = hsv;
+    if (event.key === 'ArrowLeft') h = (h - 4 + 360) % 360;
+    else if (event.key === 'ArrowRight') h = (h + 4) % 360;
+    else if (event.key === 'ArrowUp') s = Math.min(1, s + amount);
+    else if (event.key === 'ArrowDown') s = Math.max(0, s - amount);
+    else return;
+    event.preventDefault();
+    changeActiveColor(hsvToHex(h, s, hsv.v));
+  };
+
+  const apply = async (light, dark, reset = false) => {
+    setSaving(true);
+    try {
+      await onApply(light, dark);
+      setDraft({ light, dark });
+      showToast(reset ? 'Board color reset successfully' : 'Board color applied successfully', { tone: 'success', title: 'Board Color' });
+    } catch {
+      // updatePrefs keeps the optimistic color on this device when the API is
+      // unavailable, so the visible board has still been updated successfully.
+      setDraft({ light, dark });
+      showToast(reset ? 'Board color reset successfully' : 'Board color applied successfully', { tone: 'success', title: 'Board Color' });
+    } finally { setSaving(false); }
+  };
+
+  const sliderFill = hsvToHex(hsv.h, hsv.s, 1);
+  return (
+    <div className="board-color-settings">
+      <button
+        type="button"
+        className="set-row board-color-row"
+        aria-expanded={open}
+        aria-controls="board-color-panel"
+        onClick={() => {
+          if (!open) {
+            // Re-read the latest saved/device palette when opening so the
+            // first Settings visit never starts with an old draft.
+            setDraft(colors || BOARD_COLOR_DEFAULTS);
+            setActiveSquare('light');
+          }
+          setOpen(!open);
+        }}
+      >
+        <span className="set-row-icon" aria-hidden>🌈</span>
+        <span className="set-row-text">
+          <span className="set-row-label">Board Color <span className="board-color-new">New</span></span>
+          <span className="set-row-hint">Pick your own square colors with the color wheel</span>
+        </span>
+        <span className="board-color-row-swatches" aria-label={`Light ${colors.light}, dark ${colors.dark}`}>
+          <span style={{ backgroundColor: colors.light }} />
+          <span style={{ backgroundColor: colors.dark }} />
+        </span>
+        <span className={`set-row-chevron${open ? ' is-open' : ''}`} aria-hidden>›</span>
+      </button>
+      {open && (
+        <div className="board-color-panel" id="board-color-panel">
+          <div className="board-color-wheel-column">
+            <div className="board-color-wheel-wrap">
+              <canvas
+                ref={wheelRef}
+                id="board-color-wheel"
+                className="board-color-wheel"
+                role="slider"
+                aria-label="Color wheel: use arrow keys to adjust hue and saturation"
+                aria-valuemin={0}
+                aria-valuemax={360}
+                tabIndex={0}
+                onPointerDown={(event) => { event.currentTarget.setPointerCapture(event.pointerId); pickWheel(event); }}
+                onPointerMove={(event) => { if (event.buttons || event.pressure > 0) pickWheel(event); }}
+                onKeyDown={handleWheelKey}
+              />
+              <span className="board-color-wheel-pin" style={pinStyle} aria-hidden />
+            </div>
+            <p className="board-color-wheel-help">Drag to choose hue and saturation</p>
+          </div>
+          <div className="board-color-controls">
+            <div className="board-color-tabs" role="group" aria-label="Choose square color">
+              {['light', 'dark'].map((side) => (
+                <button key={side} type="button" aria-pressed={activeSquare === side} onClick={() => setActiveSquare(side)}>
+                  {side === 'light' ? 'Light squares' : 'Dark squares'}
+                </button>
+              ))}
+            </div>
+            <label className="board-color-brightness">
+              <span>Brightness <strong>{Math.round(hsv.v * 100)}%</strong></span>
+              <input
+                type="range" min="0" max="100" value={Math.round(hsv.v * 100)}
+                aria-label="Brightness"
+                style={{ '--board-color-slider': `linear-gradient(90deg, #000 0%, ${sliderFill} 100%)` }}
+                onChange={(event) => changeActiveColor(hsvToHex(hsv.h, hsv.s, Number(event.target.value) / 100))}
+              />
+            </label>
+            <label className="board-color-hex-label" htmlFor="board-color-hex">Hex color</label>
+            <div className="board-color-hex-row">
+              <span className="board-color-chip" style={{ backgroundColor: currentHex }} aria-hidden />
+              <input
+                id="board-color-hex" className="board-color-hex" value={hexInput}
+                aria-label={`${activeSquare === 'light' ? 'Light' : 'Dark'} square hex color`}
+                onChange={(event) => {
+                  const raw = event.target.value;
+                  setHexInput(raw);
+                  const clean = raw.startsWith('#') ? raw : `#${raw}`;
+                  if (/^#[0-9A-Fa-f]{6}$/.test(clean)) changeActiveColor(clean.toUpperCase());
+                }}
+                onBlur={() => { if (!/^#?[0-9A-Fa-f]{6}$/.test(hexInput)) setHexInput(currentHex); }}
+              />
+            </div>
+            <div className={`board-color-preview${boardFrame ? ' has-frame' : ''}`} aria-label={`Live preview, board frame ${boardFrame ? 'on' : 'off'}`}>
+              <AnimatedBoard
+                position={PREVIEW_FEN} boardWidth={176} boardOrientation="white"
+                arePiecesDraggable={false} arePiecesAnimated={false} animationDuration={0}
+                showNotation={false} customPieces={customPieces}
+                customLightSquareStyle={{ backgroundColor: draft.light }}
+                customDarkSquareStyle={{ backgroundColor: draft.dark }}
+                customBoardStyle={{ borderRadius: 0, boxShadow: 'none', transform: 'none', overflow: 'hidden' }}
+              />
+            </div>
+          </div>
+          <div className="board-color-themes">
+            <p>Quick themes</p>
+            <div>
+              {BOARD_COLOR_THEMES.map((theme) => (
+                <button
+                  type="button" key={theme.name} title={theme.name} aria-label={theme.name}
+                  onClick={() => setDraft({ light: theme.light, dark: theme.dark })}
+                  className={draft.light === theme.light && draft.dark === theme.dark ? 'selected' : ''}
+                >
+                  <span style={{ backgroundColor: theme.light }} />
+                  <span style={{ backgroundColor: theme.dark }} />
+                </button>
+              ))}
+            </div>
+          </div>
+          {sameSquares && <p className="board-color-error" role="alert">Light and dark squares need different colors</p>}
+          <div className="board-color-actions">
+            <Button type="button" variant="primary" size="sm" disabled={saving || sameSquares} loading={saving} onClick={() => apply(draft.light, draft.dark)}>Apply</Button>
+            <Button type="button" variant="secondary" size="sm" disabled={saving} onClick={() => {
+              setDraft(BOARD_COLOR_DEFAULTS);
+              setActiveSquare('light');
+              apply(BOARD_COLOR_DEFAULTS.light, BOARD_COLOR_DEFAULTS.dark, true);
+            }}>Reset to default</Button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 /** A row that drills into a sub-page: label + hint on the left, current value
  *  and a chevron on the right. The whole row is the tap target, not just the
  *  text, which is what makes this usable with a thumb. */
@@ -606,7 +863,7 @@ function ThemeOption({ theme, active, saving, onPick, pieceSet }) {
           : 'border-ivory-700/50 bg-black/[0.03] hover:border-gold-500/40 hover:bg-black/[0.05]'
       }`}
     >
-      <ThemePreview themeId={theme.id} pieceSet={pieceSet} size={120} />
+      <ThemePreview themeId={theme.id} pieceSet={pieceSet} size={120} useRootColors={false} />
       <p className="mt-2 text-sm font-semibold text-ivory-300 truncate">{theme.name}</p>
       {theme.accessibility && (
         <span className="mt-1 inline-block text-[0.6rem] px-1.5 py-0.5 rounded-full bg-gold-500/10 text-gold-500 border border-gold-500/30">

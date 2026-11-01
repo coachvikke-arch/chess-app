@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { Routes, Route, Navigate, Link, useLocation } from 'react-router-dom';
 import Navbar from './components/Navbar';
 import Logo from './components/Logo';
@@ -6,6 +6,7 @@ import Logo from './components/Logo';
    whole bundle with "is not exported by ...". */
 import ChessBackground from './components/ChessBackground';
 import MatchDeclineListener from './components/MatchDeclineListener';
+import MatchAcceptNavigator from './components/MatchAcceptNavigator';
 import ChatMessageToastListener from './components/ChatMessageToastListener';
 import LevelUpCelebration from './components/LevelUpCelebration';
 import MeetingReviewPopup from './components/MeetingReviewPopup';
@@ -17,7 +18,6 @@ import GameAnalysis from './pages/GameAnalysis';
 import BackButton from './components/BackButton';
 import About from './pages/About';
 import ChatReactionListener from './components/ChatReactionListener.jsx';
-import Contact from './pages/Contact';
 import Courses from './pages/Courses';
 import CourseDetails from './pages/CourseDetails';
 import NotFound from './pages/NotFound';
@@ -47,10 +47,8 @@ import MyCertificates from './pages/MyCertificates';
 import ManagePerformances from './pages/ManagePerformances';
 import LiveMeetings from './pages/LiveMeetings';
 import ChessProfile from './pages/ChessProfile';
-import Puzzles from './pages/Puzzles';
 import StudentHomework from './pages/StudentHomework';
 import AdminHomework from './pages/AdminHomework';
-import AnalysisBoard from './pages/AnalysisBoard';
 import Assignments from './pages/Assignments';
 import Profile from './pages/Profile';
 import AdminProfile from './pages/AdminProfile';
@@ -60,14 +58,10 @@ import TournamentGame from './pages/TournamentGame';
 import TournamentReadyListener from './components/TournamentReadyListener';
 import Ratings from './pages/Ratings';
 import TakeQuiz from './pages/TakeQuiz';
-import GameReview from './pages/GameReview';
 import MoveEffectDebug from './pages/MoveEffectDebug';
 import Announcements from './pages/Announcements';
 import Attendance from './pages/Attendance';
 import Settings from './pages/Settings';
-import LiveClassroom from './pages/LiveClassroom';
-import ClassroomV2 from './pages/ClassroomV2';
-import MessagesPage from './pages/MessagesPage';
 import ChatRequestsPage from './pages/ChatRequestsPage';
 import Notifications from './pages/Notifications';
 
@@ -76,18 +70,13 @@ import Notifications from './pages/Notifications';
    keeps going, and the first render of App throws "Home is not defined". */
 import AdminAppShell from './components/AdminAppShell';
 import StudentAppShell from './components/StudentAppShell';
-import { Spinner } from './components/ui';
+import { Spinner, RouteFallback } from './components/ui';
 import Home from './pages/Home';
 import Login from './pages/Login';
 import ResetPassword from './pages/ResetPassword';
 import DailyGame from './pages/DailyGame';
 import GmPlayers from './pages/GmPlayers';
 import GmPlayerProfile from './pages/GmPlayerProfile';
-import BotsPage from './pages/BotsPage';
-import BotGamePage from './pages/BotGamePage';
-import OpeningsLibrary from './pages/OpeningsLibrary';
-import OpeningDetail from './pages/OpeningDetail';
-import OpeningPractice from './pages/OpeningPractice';
 import StudentTournaments from './pages/StudentTournaments';
 import ManageTournaments from './pages/ManageTournaments';
 import BoardVision from './pages/BoardVision';
@@ -99,7 +88,25 @@ import AcademyHome from './pages/academy/AcademyHome';
 import AcademyLevel from './pages/academy/AcademyLevel';
 import AcademyLesson from './pages/academy/AcademyLesson';
 import AcademyOpening from './pages/academy/AcademyOpening';
-import AdminGmGames from './pages/AdminGmGames';
+/* The twelve heavy sections — the review/analysis boards, the classroom, the
+   bot and openings pages, puzzles, messages — come from the same module that
+   the sidebar hover-preloader uses, so a click loads the exact chunk that was
+   already warmed. Static imports here would pull all of them into the landing
+   page bundle and make the first paint wait for them. */
+import {
+  GameReview,
+  AnalysisBoard,
+  OpeningsLibrary,
+  OpeningDetail,
+  OpeningPractice,
+  AdminGmGames,
+  BotsPage,
+  BotGamePage,
+  LiveClassroom,
+  ClassroomV2,
+  Puzzles,
+  MessagesPage,
+} from './utils/lazyPages';
 
 /* The two portal shells, plus the two shared sections that have to render INSIDE
    the caller's shell: the Openings Library and a single bot match are reachable
@@ -171,12 +178,20 @@ function LandingHeader() {
         </div>
 
         <div className="flex items-center gap-3">
-          <Link
-            to="/contact"
+          {/* The standalone /contact page is gone — the form now lives in the
+              `#contact` section at the foot of this same landing page, so this
+              is a same-page scroll, not a route. `preventDefault` because the
+              router would otherwise leave the hash in the URL without moving. */}
+          <a
+            href="#contact"
+            onClick={(e) => {
+              e.preventDefault();
+              document.getElementById('contact')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }}
             className="px-3 py-2 rounded-lg text-sm font-medium text-slate-200 hover:text-white hover:bg-white/10 transition"
           >
             Contact
-          </Link>
+          </a>
           {user && (
             <span className="hidden lg:block text-sm text-slate-300">
               {user.role === 'superadmin'
@@ -248,6 +263,7 @@ export default function App() {
       <div className="min-h-screen flex flex-col">
         <ChessBackground />
         <MatchDeclineListener />
+        <MatchAcceptNavigator />
         <ChatReactionListener />
         <ChatMessageToastListener />
         <TournamentReadyListener />
@@ -264,6 +280,7 @@ export default function App() {
           <BackButton className="max-w-[90rem] mx-auto px-3 sm:px-4" />
         )}
         <div className="flex-1" key={location.pathname} style={{ animation: 'fade-in .5s ease both' }}>
+          <Suspense fallback={<RouteFallback />}>
           <Routes location={location}>
             {/* Live classroom — full-screen, no portal shell */}
             <Route path="/live-class/:id" element={<ProtectedRoute><LiveClassroom /></ProtectedRoute>} />
@@ -278,7 +295,9 @@ export default function App() {
             <Route path="/register" element={<Navigate to="/login" replace />} />
             <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/about" element={<About />} />
-            <Route path="/contact" element={<Contact />} />
+            {/* The /contact page is removed; the form is the `#contact` section
+                on the landing page. Old links and bookmarks still land home. */}
+            <Route path="/contact" element={<Navigate to="/#contact" replace />} />
             <Route path="/courses" element={<Courses />} />
             <Route path="/courses/:id" element={<CourseDetails />} />
             <Route path="/leaderboard" element={<Leaderboard />} />
@@ -385,6 +404,7 @@ export default function App() {
             {/* Catch-all 404 — must be LAST */}
             <Route path="*" element={<NotFound />} />
           </Routes>
+          </Suspense>
         </div>
       </div>
     </div>

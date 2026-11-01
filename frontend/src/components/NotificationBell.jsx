@@ -122,6 +122,7 @@ export default function NotificationBell() {
   const [items, setItems] = useState([]);
   const [unread, setUnread] = useState(0);
   const ref = useRef(null);
+  const panelRef = useRef(null);
   const lastFetched = useRef(0);
   const { user } = useAuth();
   const { showToast } = useToast();
@@ -137,6 +138,17 @@ export default function NotificationBell() {
   useEffect(() => {
     window.dispatchEvent(new CustomEvent('chess-notif-panel', { detail: { open } }));
   }, [open]);
+
+  /* Close the panel when the app navigates somewhere under it.
+     A route change dismisses the drawer on its own (AppShell watches the path),
+     but this bell is mounted in the shell rather than the page, so its panel
+     would otherwise stay open over the new page. MatchAcceptNavigator broadcasts
+     this before it opens a match board. */
+  useEffect(() => {
+    const close = () => setOpen(false);
+    window.addEventListener('chess-close-panels', close);
+    return () => window.removeEventListener('chess-close-panels', close);
+  }, []);
 
   // Track notification IDs we've already shown as toasts this session so a
   // notification is toasted exactly once. Keyed by user + survives re-mounts
@@ -230,7 +242,14 @@ export default function NotificationBell() {
   useEffect(() => {
     if (!open) return;
     syncFeed();
-    const onClick = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    /* The panel is portalled to <body>, so it is NOT inside `ref` — without its
+       own ref every mousedown inside it counts as an outside click and closes
+       the panel before the button's click can fire. Same guard as ProfileMenu. */
+    const onClick = (e) => {
+      if (panelRef.current?.contains(e.target)) return;
+      if (ref.current?.contains(e.target)) return;
+      setOpen(false);
+    };
     document.addEventListener('mousedown', onClick);
     return () => document.removeEventListener('mousedown', onClick);
   }, [open, syncFeed]);
@@ -423,7 +442,7 @@ export default function NotificationBell() {
 
       {open && (
         <Portal>
-        <div className="notif-panel fixed inset-x-0 top-[72px] mx-auto w-[min(88vw,360px)] md:left-auto md:right-4 md:top-[72px] md:mx-0 md:w-96 md:max-w-[85vw] z-[var(--z-notification)] rounded-2xl border border-ivory-700/50 bg-ink-800 shadow-[0_24px_60px_-12px_rgba(0,0,0,0.55)] overflow-hidden">
+        <div ref={panelRef} className="notif-panel fixed inset-x-0 top-[72px] mx-auto w-[min(88vw,360px)] md:left-auto md:right-4 md:top-[72px] md:mx-0 md:w-96 md:max-w-[85vw] z-[var(--z-notification)] rounded-2xl border border-ivory-700/50 bg-ink-800 shadow-[0_24px_60px_-12px_rgba(0,0,0,0.55)] overflow-hidden">
           {/* Panel header — title + actions */}
           <div className="flex items-center justify-between gap-2 px-4 py-3 border-b border-ivory-700/50">
             <div className="min-w-0">

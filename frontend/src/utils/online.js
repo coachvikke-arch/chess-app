@@ -62,10 +62,6 @@ export async function timeoutGame(id) {
   return (await api.post(`/online/games/${id}/timeout`)).data;
 }
 
-export async function sendReaction(id, emoji) {
-  return (await api.post(`/online/games/${id}/react`, { emoji })).data;
-}
-
 /* Offer a draw. This does NOT end the game — it records a pending offer the
    opponent has to accept. Play continues in the meantime, exactly as on a real
    board, and the offer stands until it is accepted or declined. */

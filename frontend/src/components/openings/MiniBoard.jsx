@@ -11,14 +11,14 @@ import { ornateSquareStyles } from '../../config/ornateTheme';
    the user's chosen board and piece themes. It now renders the same themed
    board as every other preview, just smaller and non-interactive. */
 export default function MiniBoard({ fen, orientation = 'white', size = 220 }) {
-  const { boardTheme: boardThemeId, pieceSet } = useAuth();
+  const { boardTheme: boardThemeId, pieceSet, hasCustomBoardColors } = useAuth();
   const boardTheme = getBoardTheme(boardThemeId);
   const themeStyles = getBoardThemeStyles(boardTheme);
   const customPieces = useMemo(
     () => buildCustomPieces(getPieceTheme(pieceSet || 'cburnett')),
     [pieceSet],
   );
-  const ornateSquares = useMemo(() => ornateSquareStyles(boardTheme), [boardTheme]);
+  const ornateSquares = useMemo(() => ornateSquareStyles(boardTheme), [boardTheme, hasCustomBoardColors]);
 
   return (
     <div

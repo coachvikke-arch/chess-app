@@ -96,10 +96,13 @@ test('names, You and the colour labels survive the swap', () => {
   assert.match(board, /\{opponentName\}/, 'opponent name still printed');
   const bottom = board.slice(board.indexOf('{/* bottom player card'), board.indexOf('className="ab-note"'));
   assert.match(bottom, /You, \{orientation === 'black' \? 'Black' : 'White'\}/, 'You + colour label kept');
-  assert.match(bottom, /<ClockBox[\s\S]*?color=\{orientation\}/, 'clock still bound to my colour');
+  /* The seat rows still bind each clock to the colour that seat plays. The
+     component behind it is GameClock now — the ticking lives inside that one
+     small component instead of a page-wide interval. */
+  assert.match(bottom, /<GameClock[\s\S]*?color=\{orientation\}/, 'clock still bound to my colour');
   const top = board.slice(board.indexOf('{/* top player card'), board.indexOf('{/* bottom player card'));
   assert.match(top, /topColor === 'black' \? 'Black' : 'White'/, 'colour label kept on the opponent row');
-  assert.match(top, /<ClockBox[\s\S]*?color=\{topColor\}/, 'opponent clock unchanged');
+  assert.match(top, /<GameClock[\s\S]*?color=\{topColor\}/, 'opponent clock unchanged');
 });
 
 test('the photo circle is circular, ringed by colour, and cannot overflow the row', () => {

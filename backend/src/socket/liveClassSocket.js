@@ -1706,6 +1706,29 @@ const body = String(text).trim();
       }
     });
 
+    socket.on('game-reaction', async (payload, ack) => {
+      const reactionKeys = new Set(['thumbs_up', 'laugh', 'wow', 'sad', 'angry', 'fire', 'clap', 'handshake', 'gg']);
+      const gameId = Number(payload?.gameId);
+      const senderId = Number(socket.user?.id);
+      const emoji = String(payload?.emoji || '');
+      if (!Number.isInteger(gameId) || !Number.isInteger(senderId) || !reactionKeys.has(emoji)) return;
+      if (payload?.senderId != null && Number(payload.senderId) !== senderId) return;
+      try {
+        const result = await db.query(
+          'SELECT id, admin_id, student_id, status FROM online_games WHERE id = $1',
+          [gameId]
+        );
+        const game = result.rows[0];
+        if (!game || game.status !== 'active') return;
+        if (Number(game.admin_id) !== senderId && Number(game.student_id) !== senderId) return;
+        socket.to(`game:${gameId}`).emit('game-reaction', { gameId, senderId, emoji });
+        if (typeof ack === 'function') ack({ ok: true });
+      } catch {
+        // Reactions are transient feedback; a disconnect or database lookup
+        // failure should not affect the game or surface an error to either side.
+      }
+    });
+
     socket.on('join-game', async (gameId) => {
       if (gameId == null) return;
       const uid = socket.user?.id;

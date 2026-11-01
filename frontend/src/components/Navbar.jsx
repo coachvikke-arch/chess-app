@@ -6,15 +6,6 @@ import { APP_NAME } from '../config/brand';
 import Button from './Button';
 import Logo from './Logo';
 
-/* Site links. These are rendered by the landing-page header only (see
-   App.jsx `landingNavLinks`); the in-app Navbar deliberately shows no
-   section links, so they appear on the homepage and nowhere else.
-
-   Only Contact remains on the landing navbar per requirements. */
-export const navLinks = [
-  { to: '/contact', label: 'Contact' },
-];
-
 export default function Navbar({ hideLinks = false }) {
   const { user } = useAuth();
 

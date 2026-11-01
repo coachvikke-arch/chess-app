@@ -22,6 +22,8 @@
 }
 
 :root {
+  --board-light: #EEEED2;
+  --board-dark: #769656;
   color-scheme: light;
 
   /* premium light theme — soft blue-gray page, dark charcoal/blue-gray cards, cyan accents
@@ -1544,6 +1546,95 @@ button.set-row:active {
   font-size: 0.9rem;
 }
 
+/* Board Color is an expanded settings row, with all controls kept inside the
+   settings card so it stays centered and usable at laptop and phone widths. */
+.board-color-settings { border-bottom: 1px solid var(--hairline); }
+.board-color-row { border: 0; }
+.board-color-new {
+  display: inline-flex;
+  align-items: center;
+  margin-left: .35rem;
+  padding: .1rem .4rem;
+  border-radius: 999px;
+  background: rgba(25, 189, 242, .14);
+  color: #087da3;
+  font-size: .65rem;
+  line-height: 1.4;
+  vertical-align: middle;
+}
+.board-color-row-swatches { display: inline-flex; gap: .25rem; flex-shrink: 0; }
+.board-color-row-swatches span,
+.board-color-themes button span {
+  display: block;
+  width: 1.1rem;
+  height: 1.1rem;
+  border: 1px solid rgba(15, 23, 42, .18);
+  border-radius: .22rem;
+}
+.board-color-row .set-row-chevron { transition: transform .16s ease; }
+.board-color-row .set-row-chevron.is-open { transform: rotate(90deg); }
+.board-color-panel {
+  display: grid;
+  grid-template-columns: minmax(170px, 220px) minmax(220px, 1fr);
+  gap: 1rem 1.25rem;
+  align-items: start;
+  padding: 1rem 1.25rem 1.25rem;
+  border-top: 1px solid var(--hairline);
+  background: var(--surface-soft);
+}
+.board-color-wheel-column { display: flex; flex-direction: column; align-items: center; }
+.board-color-wheel-wrap { position: relative; width: min(100%, 190px); aspect-ratio: 1; }
+.board-color-wheel { display: block; width: 100%; height: 100%; border-radius: 50%; touch-action: none; cursor: crosshair; }
+.board-color-wheel:focus-visible { outline: 3px solid #19bdf2; outline-offset: 4px; }
+.board-color-wheel-pin {
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px rgba(15, 23, 42, .8), 0 1px 4px rgba(0, 0, 0, .4);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+.board-color-wheel-help { margin: .55rem 0 0; color: var(--ivory-500); font-size: .72rem; text-align: center; }
+.board-color-controls { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: .75rem 1rem; align-items: center; }
+.board-color-tabs { display: flex; gap: .35rem; grid-column: 1 / -1; }
+.board-color-tabs button {
+  flex: 1;
+  min-height: 2.35rem;
+  padding: .4rem .55rem;
+  border: 1px solid var(--surface-border);
+  border-radius: .55rem;
+  background: var(--ink-800);
+  color: var(--ivory-300);
+  font-size: .78rem;
+}
+.board-color-tabs button[aria-pressed="true"] { border-color: #19bdf2; color: var(--ivory-100); box-shadow: 0 0 0 1px #19bdf2 inset; }
+.board-color-brightness { display: grid; gap: .4rem; grid-column: 1 / -1; color: var(--ivory-300); font-size: .78rem; }
+.board-color-brightness span { display: flex; justify-content: space-between; }
+.board-color-brightness input { width: 100%; accent-color: #19bdf2; }
+.board-color-hex-label { color: var(--ivory-300); font-size: .78rem; }
+.board-color-hex-row { display: flex; align-items: center; justify-self: end; gap: .45rem; }
+.board-color-chip { width: 1.4rem; height: 1.4rem; border: 1px solid var(--surface-border); border-radius: .3rem; }
+.board-color-hex { width: 7.7rem; padding: .45rem .55rem; border: 1px solid var(--surface-border); border-radius: .45rem; background: var(--ink-800); color: var(--ivory-100); font: inherit; font-size: .8rem; text-transform: uppercase; }
+.board-color-hex:focus-visible { outline: 2px solid #19bdf2; outline-offset: 2px; }
+.board-color-preview { grid-column: 1 / -1; justify-self: center; width: 176px; height: 176px; overflow: hidden; background: #fff; }
+.board-color-preview.has-frame { border: 5px solid #896b43; box-shadow: 0 2px 5px rgba(15, 23, 42, .18); }
+.board-color-themes { grid-column: 1 / -1; }
+.board-color-themes p { margin: 0 0 .5rem; color: var(--ivory-300); font-size: .78rem; font-weight: 600; }
+.board-color-themes > div { display: flex; flex-wrap: wrap; gap: .55rem; }
+.board-color-themes button { display: inline-flex; gap: 2px; padding: .25rem; border: 1px solid var(--surface-border); border-radius: .4rem; background: var(--ink-800); cursor: pointer; }
+.board-color-themes button.selected { border-color: #19bdf2; box-shadow: 0 0 0 1px #19bdf2; }
+.board-color-themes button:focus-visible, .board-color-actions button:focus-visible { outline: 2px solid #19bdf2; outline-offset: 2px; }
+.board-color-error { grid-column: 1 / -1; margin: -.4rem 0 0; color: #b42318; font-size: .78rem; }
+.board-color-actions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: .55rem; grid-column: 1 / -1; }
+@media (max-width: 640px) {
+  .board-color-panel { grid-template-columns: minmax(0, 1fr); gap: 1rem; padding: .9rem; }
+  .board-color-wheel-wrap { width: min(70vw, 210px); }
+  .board-color-row { gap: .5rem; padding-inline: .75rem; }
+  .board-color-row .set-row-hint { max-width: 35ch; }
+}
+
 /* The paired buttons used for a two-state preference (Board Frame). Rendered
    inline on the right of its own row so the choice is obvious and one tap,
    instead of a checkbox that has to be discovered and flipped. */
@@ -2134,50 +2225,6 @@ button.set-row:active {
 .vp-mistake    { color: #e58f4a; border-color: rgba(229,143,74,0.45);  background: rgba(229,143,74,0.08); }
 .vp-blunder    { color: #f87171; border-color: rgba(248,113,113,0.45); background: rgba(248,113,113,0.08); }
 .vp-acc        { color: #525252; border-color: rgba(212,169,47,0.25); background: rgba(212,169,47,0.06); }
-
-.react-bar {
-  display: flex;
-  gap: 0.3rem;
-  justify-content: center;
-  flex-wrap: wrap;
-  margin-top: 0.55rem;
-}
-.react-btn {
-  font-size: 1.05rem;
-  padding: 0.2rem 0.42rem;
-  border-radius: 0.55rem;
-  background: rgba(255, 255, 255, 0.7);
-  border: 1px solid rgba(25, 189, 242, 0.22);
-  transition: transform 0.18s ease, border-color 0.18s ease, background 0.18s ease;
-  cursor: pointer;
-}
-.react-btn:hover {
-  transform: scale(1.22);
-  border-color: rgba(25, 189, 242, 0.6);
-  background: rgba(25, 189, 242, 0.14);
-}
-.emote-pop {
-  position: absolute;
-  z-index: 130;
-  font-size: 2.1rem;
-  line-height: 1;
-  animation: emote-rise 1.8s ease forwards;
-  pointer-events: none;
-  text-shadow: 0 3px 12px rgba(0, 0, 0, 0.55);
-}
-.emote-pop small {
-  display: block;
-  font-size: 0.58rem;
-  color: #ecd089;
-  text-align: center;
-  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8);
-}
-@keyframes emote-rise {
-  0% { transform: translateY(10px) scale(0.4); opacity: 0; }
-  14% { transform: translateY(0) scale(1.18); opacity: 1; }
-  70% { opacity: 1; }
-  100% { transform: translateY(-52px) scale(0.95); opacity: 0; }
-}
 
 /* ----------------------------- reduced motion ------------------------------- */
 
@@ -3342,48 +3389,148 @@ details[open] .ab-section-head::after { transform: rotate(180deg); }
   background: rgba(255,255,255,0.6);
 }
 
-/* reaction picker popover */
+/* Static in-card reaction controls and player-anchored emoji animation. */
+.ab-player-row-reactions { position: relative; }
+.ab-reaction-anchor-point { display: none; }
+.ab-react-anchor { position: relative; display: flex; flex: 0 0 auto; min-width: 0; }
+.ab-reaction-trigger-button {
+  position: relative;
+  display: grid;
+  place-items: center;
+  flex: 0 0 34px;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid #E3E8F0;
+  border-radius: 9px;
+  background: #fff;
+  color: #0F172A;
+  font: inherit;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  box-shadow: 0 1px 2px rgba(15,23,42,.06);
+  transition: transform .16s ease, background .16s ease, opacity .15s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+.ab-reaction-trigger-button:hover, .ab-reaction-trigger-button[aria-expanded="true"] { background: #EAF1FF; border-color: #2563EB; }
+.ab-reaction-trigger-button:active { transform: scale(.9); }
+.ab-reaction-trigger-button.is-cooling { opacity: .48; }
+.ab-reaction-trigger-button:focus-visible, .ab-react-emoji:focus-visible { outline: 2px solid #2563EB; outline-offset: 2px; }
+.ab-reaction-trigger-button.is-pressed::after, .ab-react-emoji.is-pressed::after {
+  content: "";
+  position: absolute;
+  inset: 2px;
+  border: 1px solid rgba(37, 99, 235, .34);
+  border-radius: 50%;
+  animation: ab-reaction-ripple .32s ease-out both;
+}
 .ab-react-picker {
   position: absolute;
+  right: 0;
   bottom: calc(100% + 6px);
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 200;
+  z-index: calc(var(--z-modal-backdrop, 9000) - 2);
   display: grid;
-  grid-template-columns: repeat(6, 1fr);
-  gap: 0.2rem;
-  padding: 0.45rem;
-  background: rgba(255, 255, 255, 0.97);
-  border: 1px solid rgba(212,169,47,0.4);
-  border-radius: 0.75rem;
-  box-shadow: 0 10px 30px rgba(15,23,42,0.25), 0 0 20px rgba(212,169,47,0.15);
-  animation: fade-up 0.18s ease both;
-  min-width: 160px;
+  grid-template-columns: repeat(3, 36px);
+  gap: 3px;
+  padding: 6px;
+  border: 1px solid #E3E8F0;
+  border-radius: 10px;
+  background: rgba(255,255,255,.98);
+  box-shadow: 0 8px 22px rgba(15,23,42,.2);
+  animation: fade-up .16s ease both;
 }
 .ab-react-emoji {
-  font-size: 1.1rem;
-  padding: 0.25rem;
-  border-radius: 0.4rem;
-  background: transparent;
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  overflow: hidden;
   border: 1px solid transparent;
-  cursor: pointer;
-  text-align: center;
-  transition: background 0.15s, transform 0.15s;
+  border-radius: 7px;
+  background: transparent;
+  font-size: 21px;
   line-height: 1;
+  cursor: pointer;
+  transition: transform .14s ease, background .14s ease;
 }
-.ab-react-emoji:hover {
-  background: rgba(236,205,118,0.15);
-  border-color: rgba(236,205,118,0.35);
-  transform: scale(1.22);
-}
-
-/* react burst floor */
-.react-floor {
-  position: absolute;
-  inset: 0;
+.ab-react-emoji:hover:not(:disabled) { background: #EAF1FF; transform: scale(1.08); }
+.ab-react-emoji:disabled { opacity: .5; cursor: default; }
+.ab-reaction-bubble {
+  position: fixed;
+  z-index: calc(var(--z-modal-backdrop, 9000) - 1);
+  width: 96px;
+  height: 96px;
+  display: grid;
+  place-items: center;
   pointer-events: none;
-  z-index: 130;
+  will-change: transform, opacity;
 }
+.ab-reaction-main { position: relative; display: block; width: 96px; height: 96px; line-height: 1; }
+.ab-reaction-character { display: block; animation: ab-reaction-life 2.8s cubic-bezier(.2,.72,.25,1) both; transform-origin: center; will-change: transform, opacity; }
+.ab-reaction-video-source { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.ab-reaction-video { display: block; width: 96px; height: 96px; max-width: none; object-fit: contain; background: transparent; }
+.ab-reaction-particles { position: absolute; inset: 0; }
+.ab-reaction-particles i {
+  position: absolute;
+  left: 50%; top: 50%;
+  font-size: 13px;
+  font-style: normal;
+  line-height: 1;
+  animation: ab-reaction-particle .85s cubic-bezier(.15,.7,.2,1) both;
+  will-change: transform, opacity;
+}
+.ab-reaction-laugh .ab-reaction-motion { animation: ab-reaction-shake .38s ease-in-out .4s 5; }
+.ab-reaction-thumbs_up .ab-reaction-motion,
+.ab-reaction-clap .ab-reaction-motion { animation: ab-reaction-bounce .62s ease-in-out .4s 4; }
+.ab-reaction-fire .ab-reaction-motion { animation: ab-reaction-fire-pulse .72s ease-in-out .35s 3; }
+.ab-reaction-wow .ab-reaction-motion { animation: ab-reaction-wow-pulse .9s ease-in-out .4s 2; }
+.ab-reaction-angry .ab-reaction-main { filter: drop-shadow(0 0 7px rgba(239, 68, 68, .72)); }
+.ab-reaction-angry .ab-reaction-motion { animation: ab-reaction-tremble .12s linear .4s 12; }
+.ab-reaction-handshake .ab-reaction-motion { animation: ab-reaction-slide-left .42s cubic-bezier(.16,1.3,.3,1) both; }
+.ab-reaction-gg .ab-reaction-motion { animation: ab-reaction-slide-right .42s cubic-bezier(.16,1.3,.3,1) both; }
+.ab-reaction-gg .ab-reaction-main { font-size: 23px; font-weight: 900; color: #2563EB; text-shadow: 0 1px 0 #fff, 0 2px 7px rgba(15, 23, 42, .2); }
+.ab-reaction-motion { display: block; }
+.ab-reaction-tears { position: absolute; left: 50%; top: 72%; display: flex; gap: 12px; }
+.ab-reaction-tears i { width: 5px; height: 8px; border-radius: 70% 20% 65% 60%; background: #60A5FA; opacity: 0; animation: ab-reaction-tear .65s ease-in .35s 3; }
+.ab-reaction-tears i:nth-child(2) { animation-delay: .55s; }
+@keyframes ab-reaction-life {
+  0% { transform: translateY(0) scale(0); opacity: 0; }
+  12% { transform: translateY(0) scale(1.4); opacity: 1; }
+  18% { transform: translateY(0) scale(.98); opacity: 1; }
+  28% { transform: translateY(-4px) scale(1); opacity: 1; }
+  46% { transform: translateY(-15px) rotate(-3deg) scale(1.02); opacity: 1; }
+  63% { transform: translateY(-24px) rotate(3deg) scale(1); opacity: 1; }
+  78% { transform: translateY(-22px) rotate(-2deg) scale(1); opacity: 1; }
+  86% { transform: translateY(-24px) scale(1); opacity: 1; }
+  100% { transform: translateY(-28px) scale(.76); opacity: 0; }
+}
+@keyframes ab-reaction-particle {
+  0% { transform: translate(-50%, -50%) scale(.2) rotate(0); opacity: 0; }
+  14% { opacity: .9; }
+  100% { transform: translate(calc(-50% + var(--rx)), calc(-50% + var(--ry))) scale(.08) rotate(var(--rr)); opacity: 0; }
+}
+@keyframes ab-reaction-shake { 0%,100% { transform: rotate(0); } 25% { transform: rotate(-10deg); } 75% { transform: rotate(10deg); } }
+@keyframes ab-reaction-bounce { 0%,100% { transform: translateY(0); } 45% { transform: translateY(-8px) scale(1.08); } }
+@keyframes ab-reaction-fire-pulse { 0%,100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.1); opacity: .78; } }
+@keyframes ab-reaction-wow-pulse { 0%,100% { transform: scale(1); } 45% { transform: scale(1.28); } }
+@keyframes ab-reaction-tremble { 0%,100% { transform: translateX(0); } 25% { transform: translateX(-2px) rotate(-3deg); } 75% { transform: translateX(2px) rotate(3deg); } }
+@keyframes ab-reaction-slide-left { from { transform: translateX(-22px) scale(.72); opacity: .35; } to { transform: translateX(0) scale(1); opacity: 1; } }
+@keyframes ab-reaction-slide-right { from { transform: translateX(22px) scale(.72); opacity: .35; } to { transform: translateX(0) scale(1); opacity: 1; } }
+@keyframes ab-reaction-tear { 0% { transform: translateY(0) scale(.7); opacity: 0; } 20% { opacity: 1; } 100% { transform: translateY(14px) scale(1); opacity: 0; } }
+@keyframes ab-reaction-ripple { from { transform: scale(.25); opacity: .8; } to { transform: scale(1.8); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .ab-reaction-bubble { animation: ab-reaction-reduced-fade 2.8s ease-out both; }
+  .ab-reaction-character { animation: none !important; }
+  .ab-reaction-motion { animation: none !important; }
+  .ab-reaction-particles, .ab-reaction-tears { display: none !important; }
+  .ab-reaction-trigger-button { transition: none; }
+  .ab-reaction-trigger-button.is-pressed::after { animation: none; opacity: .25; }
+}
+@keyframes ab-reaction-reduced-fade { 0% { opacity: 0; } 10%, 82% { opacity: 1; } 100% { opacity: 0; } }
 
 /* ═══════════════════ GAME-OVER OVERLAY — ACTION BUTTONS ═══════════════════ */
 
@@ -10647,6 +10794,18 @@ button.live-drill-move:hover { border-color: #93c5fd; }
 .cp-user-loss { color: #ff7b7b; background: rgba(255,123,123,0.1); border-color: rgba(255,123,123,0.4); }
 .cp-user-draw { color: #d4d4d4; background: rgba(212,212,212,0.1); border-color: rgba(212,212,212,0.35); }
 .cp-user-unknown { color: #c3cfe2; background: rgba(255,255,255,0.04); border-color: rgba(255,255,255,0.12); }
+/* "✔ Reviewed" — same glassy pill as the seat badges, green like a completed
+   task. On a phone the side strip runs out of room before the fourth badge
+   does, so the result text (already encoded by colour) gives way instead of
+   the row wrapping. */
+.cp-reviewed-badge {
+  font-size: 0.68rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.04em;
+  padding: 0.15rem 0.5rem; border-radius: 999px; white-space: nowrap;
+  color: #4ade80; background: rgba(74,222,128,0.12); border: 1px solid rgba(74,222,128,0.4);
+}
+@media (max-width: 560px) {
+  .cp-game-row .cp-game-result { display: none; }
+}
 .cp-name-me { font-weight: 800; text-decoration: underline; text-underline-offset: 2px; }
 .cp-colour-group-label { font-size: 0.76rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em; color: #c9d4e8; margin: 0.6rem 0 0.1rem; }
 .cp-colour-group-label:first-child { margin-top: 0; }
@@ -24413,3 +24572,71 @@ html, body {
   .lcc-continue, .live-open-video) * {
   color: inherit !important;
 }
+
+/* ── Contact form (landing page + login card) ──────────────────────────────
+   The standalone /contact page is gone; this is the one form, mounted inline in
+   both places. It uses the app's flat blue/white set rather than `.chess-input`,
+   whose base rule paints a dark ink field — correct on the old dark page, wrong
+   on a white landing section. */
+.cz-contact { display: flex; flex-direction: column; gap: 14px; }
+.cz-field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.cz-field label { font-size: 0.8rem; font-weight: 700; color: #334155; }
+.cz-contact input,
+.cz-contact textarea {
+  width: 100%; box-sizing: border-box; min-width: 0;
+  padding: 11px 13px; border-radius: 10px; border: 1px solid #D7E0EE;
+  background: #ffffff; color: #0F172A;
+  font: inherit; font-size: 0.9rem; line-height: 1.4;
+  transition: border-color .15s ease, box-shadow .15s ease;
+}
+.cz-contact input::placeholder,
+.cz-contact textarea::placeholder { color: #94A3B8; }
+.cz-contact input:focus,
+.cz-contact textarea:focus {
+  outline: none; border-color: #2563EB;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, .15);
+}
+.cz-contact textarea { resize: vertical; min-height: 110px; }
+.cz-contact-compact { gap: 10px; }
+.cz-contact-compact textarea { min-height: 76px; }
+
+.cz-contact-done {
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  text-align: center; padding: 22px 16px;
+  background: #F5F9FF; border: 1px solid #D7E0EE; border-radius: 14px;
+}
+.cz-contact-done-icon { font-size: 2rem; color: #16A34A; line-height: 1; }
+.cz-contact-done-title { margin: 4px 0 0; font-family: var(--font-display, inherit); font-size: 1.1rem; font-weight: 800; color: #0F172A; }
+.cz-contact-done-text { margin: 0; font-size: 0.85rem; color: #64748B; }
+.cz-contact-again {
+  margin-top: 10px; padding: 8px 14px; min-height: 40px;
+  font: inherit; font-size: 0.8rem; font-weight: 700; color: #2563EB;
+  background: #ffffff; border: 1px solid #D7E0EE; border-radius: 9px; cursor: pointer;
+}
+.cz-contact-again:hover { background: #EEF2F7; }
+
+/* The landing section the form sits in: white, like everything under the hero. */
+.cz-contact-section { max-width: 42rem; margin: 0 auto; padding: 4rem 1rem; }
+.cz-contact-section h2 { margin: 0 0 6px; font-size: 1.9rem; font-weight: 800; color: #0F172A; }
+.cz-contact-section > p { margin: 0 0 1.5rem; font-size: 0.95rem; color: #64748B; }
+.cz-contact-card {
+  padding: 1.5rem; background: #ffffff;
+  border: 1px solid #E3E8F0; border-radius: 16px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, .06);
+}
+@media (max-width: 640px) {
+  .cz-contact-section { padding: 2.5rem 1rem; }
+}
+
+/* Collapsible "Contact us" row on the login card — the form stays out of the way
+   until someone asks for it, so a phone does not have to scroll past it to reach
+   the password field. */
+.cz-disclose { margin-top: 1rem; border-top: 1px solid #E3E8F0; padding-top: 0.9rem; }
+.cz-disclose-toggle {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  width: 100%; min-height: 44px; padding: 0 4px;
+  font: inherit; font-size: 0.85rem; font-weight: 700; color: #2563EB;
+  background: none; border: 0; cursor: pointer; text-align: left;
+}
+.cz-disclose-toggle:hover { color: #1D4ED8; }
+.cz-disclose-body { padding-top: 0.75rem; }

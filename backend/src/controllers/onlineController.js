@@ -1530,29 +1530,6 @@ exports.respondDraw = async (req, res) => {
   }
 };
 
-// Send an emoji reaction to your opponent (kept as the latest reaction).
-exports.reactGame = async (req, res) => {
-  try {
-    const row = await getGameRow(req.params.id);
-    if (!row) return res.status(404).json({ message: 'Match not found' });
-    if (row.admin_id !== req.user.id && row.student_id !== req.user.id) {
-      return res.status(403).json({ message: 'Not part of this match' });
-    }
-    if (row.status !== 'active') return res.status(400).json({ message: 'Match is not in progress' });
-    const emoji = String(req.body?.emoji || '').trim().slice(0, 40);
-    if (!emoji) return res.status(400).json({ message: 'Pick an emoji' });
-    await db.query(
-      `UPDATE online_games SET last_react_emoji = $2, last_react_by = $3, last_react_at = NOW() WHERE id = $1`,
-      [row.id, emoji, req.user.id]
-    );
-    const updated = await getGameRow(row.id);
-    emitGameUpdate(req, row.id);
-    res.json(payload(updated, req.user.role, req.user.id));
-  } catch (err) {
-    res.status(500).json({ message: 'Failed to send reaction', error: err.message });
-  }
-};
-
 // Apply a move. Server validates turn + legality with chess.js, runs the clock.
 exports.moveGame = async (req, res) => {
   try {

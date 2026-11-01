@@ -12,6 +12,8 @@ CREATE TABLE IF NOT EXISTS users (
   profile_image TEXT,
   avatar_config JSONB,
   board_theme VARCHAR(30) DEFAULT 'classic-green',
+  board_light_color VARCHAR(7),
+  board_dark_color VARCHAR(7),
   piece_set VARCHAR(30) DEFAULT 'cburnett',
   created_at TIMESTAMP DEFAULT NOW(),
   updated_at TIMESTAMP DEFAULT NOW(),
@@ -22,6 +24,8 @@ CREATE TABLE IF NOT EXISTS users (
 ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_config JSONB;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS country_code VARCHAR(8);
 ALTER TABLE users ADD COLUMN IF NOT EXISTS classroom_ui_mode VARCHAR(12) NOT NULL DEFAULT 'classic';
+ALTER TABLE users ADD COLUMN IF NOT EXISTS board_light_color VARCHAR(7);
+ALTER TABLE users ADD COLUMN IF NOT EXISTS board_dark_color VARCHAR(7);
 
 -- Concurrent-device session cap. One row per sign-in; the JWT carries its id as
 -- `session_id`. A user may hold at most 2 active rows — a third sign-in revokes

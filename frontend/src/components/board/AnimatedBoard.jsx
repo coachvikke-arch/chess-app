@@ -407,8 +407,8 @@ export default function AnimatedBoard({
     );
   }, [boardWidth, customPieces]);
 
-  const dark = customDarkSquareStyle || { backgroundColor: '#b58863' };
-  const light = customLightSquareStyle || { backgroundColor: '#f0d9b5' };
+  const dark = customDarkSquareStyle || { backgroundColor: 'var(--board-dark, #769656)' };
+  const light = customLightSquareStyle || { backgroundColor: 'var(--board-light, #EEEED2)' };
   const notation = showBoardNotation ?? showNotation;
 
   /* Inside-square coordinates for frameless mode. Rank numbers go in the

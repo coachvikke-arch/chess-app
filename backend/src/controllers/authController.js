@@ -583,7 +583,7 @@ exports.resetPassword = async (req, res) => {
 exports.me = async (req, res) => {
   try {
     const result = await db.query(
-      `SELECT u.id, u.name, u.email, u.username, u.phone, u.country_code, u.role, u.profile_image, u.avatar_config, u.board_theme, u.piece_set, u.board_frame, u.created_at,
+      `SELECT u.id, u.name, u.email, u.username, u.phone, u.country_code, u.role, u.profile_image, u.avatar_config, u.board_theme, u.board_light_color, u.board_dark_color, u.piece_set, u.board_frame, u.created_at,
                u.must_change_password,
                s.default_board_theme AS recommended_board_theme,
                s.id AS student_id, s.group_id, s.active, s.nickname, s.birthdate, s.parent_name,
@@ -613,8 +613,26 @@ exports.me = async (req, res) => {
 exports.updatePreferences = async (req, res) => {
   try {
     const { boardTheme, pieceSet, boardFrame } = req.body;
-    if (boardTheme === undefined && pieceSet === undefined && boardFrame === undefined) {
+    let { boardLightColor, boardDarkColor } = req.body;
+    if (boardTheme === undefined && pieceSet === undefined && boardFrame === undefined && boardLightColor === undefined && boardDarkColor === undefined) {
       return res.status(400).json({ message: 'Provide boardTheme, pieceSet and/or boardFrame' });
+    }
+    if ((boardLightColor === undefined) !== (boardDarkColor === undefined)) {
+      return res.status(400).json({ message: 'Provide both boardLightColor and boardDarkColor' });
+    }
+    if (boardLightColor !== undefined && !((boardLightColor === null && boardDarkColor === null) || (boardLightColor !== null && boardDarkColor !== null))) {
+      return res.status(400).json({ message: 'Board colors must both be custom values or both be null' });
+    }
+    const validColor = (value) => value === null || (typeof value === 'string' && /^#[0-9A-Fa-f]{6}$/.test(value));
+    if (!validColor(boardLightColor) || !validColor(boardDarkColor)) {
+      return res.status(400).json({ message: 'Board colors must be 6-digit hex values' });
+    }
+    if (boardLightColor !== undefined && boardLightColor !== null) {
+      boardLightColor = boardLightColor.toUpperCase();
+      boardDarkColor = boardDarkColor.toUpperCase();
+      if (boardLightColor === boardDarkColor) {
+        return res.status(400).json({ message: 'Light and dark squares need different colors' });
+      }
     }
     /* Coerce to a real boolean rather than trusting the client's JSON — this
        column drives whether the frame renders, so a stray "false" string would
@@ -638,13 +656,19 @@ exports.updatePreferences = async (req, res) => {
       params.push(boardFrame);
       fields.push(`board_frame = $${params.length}`);
     }
+    if (boardLightColor !== undefined) {
+      params.push(boardLightColor);
+      fields.push(`board_light_color = $${params.length}`);
+      params.push(boardDarkColor);
+      fields.push(`board_dark_color = $${params.length}`);
+    }
 
     if (fields.length === 0) return res.status(400).json({ message: 'Nothing to update' });
 
     const result = await db.query(
       `UPDATE users SET ${fields.join(', ')}, updated_at = NOW()
        WHERE id = $1
-       RETURNING id, name, email, username, phone, role, profile_image, avatar_config, board_theme, piece_set, board_frame, created_at`,
+       RETURNING id, name, email, username, phone, role, profile_image, avatar_config, board_theme, board_light_color, board_dark_color, piece_set, board_frame, created_at`,
       params
     );
     if (result.rows.length === 0) return res.status(404).json({ message: 'User not found' });

@@ -99,13 +99,20 @@ function projectReview(res) {
  *   an online game), which then just offers "Analyze locally".
  * @param {object} [props.loadAnalysis] / [props.saveAnalysis]  injected so this
  *   component needs no service import and can be exercised headlessly.
+ * @param {(payload: {ref: {gameSource: string, gameId: string|number}, game: object}) => void}
+ *   [props.onReviewComplete]  fires the moment a full Stockfish review of this
+ *   game is on screen — a finished engine run OR a stored review restored intact.
+ *   Never fires on an open alone or mid-analysis, so the surface that listens
+ *   ("✔ Reviewed") can only mark games that were genuinely reviewed. `game` is
+ *   the loaded row, so the listener reads the platform from the card's own data
+ *   instead of re-looking it up.
  * @param {boolean} [props.manageHistory]  whether the card pushes its own
  *   history entry so the browser Back button closes it. Set to false when the
  *   OPENING SURFACE already owns the URL (a ?game= parameter): the URL entry
  *   then is the history entry, and a second one would make Back skip over the
  *   page the user came from.
  */
-export default function GameViewerCard({ game = null,   gameRef = null,   resolveGame = null,   onClose,   initialMoveIndex = null,   gameId = null,   loadAnalysis = null,   saveAnalysis = null,   gameSource = 'chess_profile',   manageHistory = true, }) {
+export default function GameViewerCard({ game = null,   gameRef = null,   resolveGame = null,   onClose,   initialMoveIndex = null,   gameId = null,   loadAnalysis = null,   saveAnalysis = null,   gameSource = 'chess_profile',   manageHistory = true,   onReviewComplete = null, }) {
   useOverlayHistory('GameViewerCard', manageHistory, onClose);
   const { showToast } = useToast();
 
@@ -275,11 +282,14 @@ export default function GameViewerCard({ game = null,   gameRef = null,   resolv
       { reuseOnly: true, loadAnalysis },
     ))
       .then((res) => {
-        if (alive && res) { setReview(projectReview(res)); setRevState('done'); }
+        if (!alive || !res) return;
+        setReview(projectReview(res)); setRevState('done');
+        /* a restored review is a finished one */
+        if (onReviewComplete) onReviewComplete({ ref: { gameSource, gameId }, game: loaded });
       })
       .catch(() => { });
     return () => { alive = false; };
-  }, [gameId, gameSource, loadAnalysis, parsed.initFen, loaded?.pgn]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [gameId, gameSource, loadAnalysis, onReviewComplete, parsed.initFen, loaded?.pgn]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* Keyboard: ←/→ prev/next, ↑/Home first, ↓/End last, F flip. One listener,
      always active while the card is mounted (no need to click the board). */
@@ -352,6 +362,9 @@ export default function GameViewerCard({ game = null,   gameRef = null,   resolv
       const payload = projectReview(res);
       setReview(payload);
       setRevState('done');
+      /* Every move classified and the verdicts are on screen — this is the
+         moment "reviewed" becomes true, not the moment the card was opened. */
+      if (onReviewComplete) onReviewComplete({ ref: { gameSource, gameId }, game: gameData });
       /* File the Sigmas this review found against the imported game, so the
          Brilliant Moves list can list them. */
       if (canPersist(gameSource, gameId != null ? Number(gameId) : gameId)) {

@@ -22,7 +22,6 @@ router.post('/games/:id/resign', roleMiddleware('admin', 'student'), ctrl.resign
 /* A clock ran out. Separate from resign so the recorded reason is genuinely
    'timeout' (and never a resignation inferred from a disconnect/close). */
 router.post('/games/:id/timeout', roleMiddleware('admin', 'student'), ctrl.timeoutGame);
-router.post('/games/:id/react', ctrl.reactGame);
 /* Draw is an OFFER, not an instant finish: the opponent must accept or decline.
    `/end` stays for the abandon-style flow and is no longer what the Draw button
    calls. */

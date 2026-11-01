@@ -8,9 +8,52 @@ import api, {
 import { getDeviceInfo } from '../utils/deviceId';
 import { on } from '../services/socket';
 import { PIECE_THEMES, CURRENT_PIECE_THEME } from '../config/pieceTheme';
+import { getBoardTheme } from '../config/boardThemes';
 
 const AuthContext = createContext(null);
 const PREF_KEY = 'knightpath-board-pref-set';
+const BOARD_COLOR_CACHE_KEY = 'mz-board';
+const DEFAULT_BOARD_COLORS = { light: '#EEEED2', dark: '#769656' };
+
+const validBoardColor = (value) => typeof value === 'string' && /^#[0-9A-Fa-f]{6}$/.test(value);
+const normalizedBoardColors = (light, dark) => (
+  validBoardColor(light) && validBoardColor(dark) && light.toUpperCase() !== dark.toUpperCase()
+    ? { light: light.toUpperCase(), dark: dark.toUpperCase() }
+    : null
+);
+
+function readCachedBoardColor(userId) {
+  try {
+    const value = JSON.parse(localStorage.getItem(BOARD_COLOR_CACHE_KEY) || 'null');
+    if (!value || String(value.userId) !== String(userId)) return null;
+    const colors = normalizedBoardColors(value.light, value.dark);
+    return colors ? { ...colors, userId, localOnly: value.localOnly === true } : null;
+  } catch { return null; }
+}
+
+function writeCachedBoardColor(value) {
+  try {
+    if (!value) localStorage.removeItem(BOARD_COLOR_CACHE_KEY);
+    else localStorage.setItem(BOARD_COLOR_CACHE_KEY, JSON.stringify(value));
+  } catch { /* device storage is optional */ }
+}
+
+function applyRootBoardColors(colors, custom = false) {
+  if (typeof document === 'undefined') return;
+  document.documentElement.style.setProperty('--board-light', colors?.light || DEFAULT_BOARD_COLORS.light);
+  document.documentElement.style.setProperty('--board-dark', colors?.dark || DEFAULT_BOARD_COLORS.dark);
+  document.documentElement.dataset.boardColorCustom = custom ? 'true' : 'false';
+}
+
+/* Paint the cached palette before React mounts, so the first board frame cannot
+   flash the browser's default square colors. */
+try {
+  const cachedUser = JSON.parse(localStorage.getItem('user') || 'null');
+  const custom = normalizedBoardColors(cachedUser?.board_light_color, cachedUser?.board_dark_color);
+  const device = readCachedBoardColor(cachedUser?.id);
+  const theme = getBoardTheme(cachedUser?.board_theme || cachedUser?.recommended_board_theme);
+  applyRootBoardColors(custom || device || { light: theme.lightSq, dark: theme.darkSq }, Boolean(custom || device));
+} catch { applyRootBoardColors(DEFAULT_BOARD_COLORS); }
 
 /** True only for an id the app still ships (guards against stale/dead ids). */
 const isPieceSetId = (id) => Boolean(id && PIECE_THEMES[id]?.id === id);
@@ -29,6 +72,7 @@ function readStoredUser() {
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(readStoredUser);
+  const [deviceBoardColors, setDeviceBoardColors] = useState(() => readCachedBoardColor(readStoredUser()?.id));
   const [loading, setLoading] = useState(true);
   /* Client-side redirect for forced logouts. AuthProvider renders inside
      BrowserRouter (see main.jsx), so navigate keeps the SPA alive — the old
@@ -84,7 +128,15 @@ export function AuthProvider({ children }) {
       return;
     }
     api.get('/auth/me')
-      .then((res) => setUser(res.data.user))
+      .then((res) => {
+        const saved = res.data.user;
+        const deviceColors = readCachedBoardColor(saved.id);
+        if (!normalizedBoardColors(saved.board_light_color, saved.board_dark_color) && deviceColors && !deviceColors.localOnly) {
+          writeCachedBoardColor(null);
+          setDeviceBoardColors(null);
+        }
+        setUser(saved);
+      })
       .catch((err) => {
         /* Only a 401 means the session is genuinely gone. This call fails for
            far more mundane reasons — the backend restarting, a dropped
@@ -132,6 +184,16 @@ export function AuthProvider({ children }) {
     });
     localStorage.setItem('token', res.data.token);
     localStorage.setItem('user', JSON.stringify(res.data.user));
+    const loginColors = readCachedBoardColor(res.data.user.id);
+    if (!normalizedBoardColors(res.data.user.board_light_color, res.data.user.board_dark_color) && loginColors && !loginColors.localOnly) {
+      writeCachedBoardColor(null);
+      setDeviceBoardColors(null);
+    } else {
+      setDeviceBoardColors(loginColors);
+    }
+    const loginCustomColors = normalizedBoardColors(res.data.user.board_light_color, res.data.user.board_dark_color);
+    const loginTheme = getBoardTheme(res.data.user.board_theme || res.data.user.recommended_board_theme);
+    applyRootBoardColors(loginCustomColors || loginColors || { light: loginTheme.lightSq, dark: loginTheme.darkSq }, Boolean(loginCustomColors || loginColors));
     if (res.data.refresh_token) localStorage.setItem('refresh_token', res.data.refresh_token);
     try { localStorage.removeItem(PREF_KEY); } catch { /* ignore */ }
     setUser(res.data.user);
@@ -184,7 +246,7 @@ export function AuthProvider({ children }) {
   const recommendedBoard = user?.recommended_board_theme || null;
   const hasCustomized = selfCustomized();
 
-  const updatePrefs = async ({ boardTheme, pieceSet, boardFrame } = {}) => {
+  const updatePrefs = async ({ boardTheme, pieceSet, boardFrame, boardLightColor, boardDarkColor } = {}) => {
     const payload = {
       ...(boardTheme !== undefined ? { boardTheme } : {}),
       ...(pieceSet !== undefined ? { pieceSet } : {}),
@@ -193,6 +255,9 @@ export function AuthProvider({ children }) {
          that through would be rejected by the API — so an untouched toggle
          simply omits the key and the server keeps the stored value. */
       ...(typeof boardFrame === 'boolean' ? { boardFrame } : {}),
+      ...(boardLightColor !== undefined && boardDarkColor !== undefined
+        ? { boardLightColor, boardDarkColor }
+        : boardTheme !== undefined ? { boardLightColor: null, boardDarkColor: null } : {}),
     };
     /* Apply the choice BEFORE the round-trip so every mounted board (and the
        Settings preview) repaints on the same frame as the tap. Waiting for the
@@ -207,7 +272,26 @@ export function AuthProvider({ children }) {
       ...(boardTheme !== undefined ? { board_theme: boardTheme } : {}),
       ...(pieceSet !== undefined ? { piece_set: pieceSet } : {}),
       ...(typeof boardFrame === 'boolean' ? { board_frame: boardFrame } : {}),
+      ...(boardLightColor !== undefined && boardDarkColor !== undefined
+        ? { board_light_color: boardLightColor, board_dark_color: boardDarkColor }
+        : boardTheme !== undefined ? { board_light_color: null, board_dark_color: null } : {}),
     };
+    const previousDeviceColors = deviceBoardColors;
+    let nextDeviceColors = deviceBoardColors;
+    if (boardTheme !== undefined && boardLightColor === undefined) {
+      nextDeviceColors = null;
+      writeCachedBoardColor(null);
+    } else if (boardLightColor !== undefined && boardDarkColor !== undefined && boardLightColor !== null) {
+      nextDeviceColors = { userId: user?.id, light: boardLightColor.toUpperCase(), dark: boardDarkColor.toUpperCase(), localOnly: true };
+      writeCachedBoardColor(nextDeviceColors);
+    } else if (boardLightColor === null && boardDarkColor === null) {
+      nextDeviceColors = null;
+      writeCachedBoardColor(null);
+    }
+    setDeviceBoardColors(nextDeviceColors);
+    const localColors = normalizedBoardColors(optimistic.board_light_color, optimistic.board_dark_color) || nextDeviceColors;
+    const localTheme = getBoardTheme(boardTheme || optimistic.board_theme || optimistic.recommended_board_theme);
+    applyRootBoardColors(localColors || { light: localTheme.lightSq, dark: localTheme.darkSq }, Boolean(localColors));
     try { localStorage.setItem(PREF_KEY, '1'); } catch { /* ignore */ }
     try { localStorage.setItem('user', JSON.stringify(optimistic)); } catch { /* ignore */ }
     setUser(optimistic);
@@ -215,15 +299,39 @@ export function AuthProvider({ children }) {
       const res = await api.patch('/auth/me', payload);
       localStorage.setItem('user', JSON.stringify(res.data.user));
       setUser(res.data.user);
+      if (boardLightColor !== undefined) {
+        if (boardLightColor === null) {
+          writeCachedBoardColor(null);
+          setDeviceBoardColors(null);
+        } else {
+          const savedColors = { userId: user?.id, light: boardLightColor.toUpperCase(), dark: boardDarkColor.toUpperCase(), localOnly: false };
+          writeCachedBoardColor(savedColors);
+          setDeviceBoardColors(savedColors);
+        }
+      }
+      const savedColors = normalizedBoardColors(res.data.user.board_light_color, res.data.user.board_dark_color);
+      const savedTheme = getBoardTheme(res.data.user.board_theme || res.data.user.recommended_board_theme);
+      applyRootBoardColors(savedColors || (boardLightColor !== undefined && boardLightColor !== null ? nextDeviceColors : null) || { light: savedTheme.lightSq, dark: savedTheme.darkSq }, Boolean(savedColors || (boardLightColor !== undefined && boardLightColor !== null)));
       return res.data.user;
     } catch (err) {
+      if (boardLightColor !== undefined && boardLightColor !== null) {
+        const localOnlyColors = { userId: user?.id, light: boardLightColor.toUpperCase(), dark: boardDarkColor.toUpperCase(), localOnly: true };
+        writeCachedBoardColor(localOnlyColors);
+        setDeviceBoardColors(localOnlyColors);
+        applyRootBoardColors(localOnlyColors, true);
+        throw err;
+      }
       try {
         if (prevPref === null) localStorage.removeItem(PREF_KEY);
         else localStorage.setItem(PREF_KEY, prevPref);
         if (prevUser) localStorage.setItem('user', JSON.stringify(prevUser));
         else localStorage.removeItem('user');
       } catch { /* ignore */ }
+      setDeviceBoardColors(previousDeviceColors);
       setUser(prevUser);
+      const previousTheme = getBoardTheme(prevUser?.board_theme || prevUser?.recommended_board_theme);
+      const previousCustom = normalizedBoardColors(prevUser?.board_light_color, prevUser?.board_dark_color) || previousDeviceColors;
+      applyRootBoardColors(previousCustom || { light: previousTheme.lightSq, dark: previousTheme.darkSq }, Boolean(previousCustom));
       throw err;
     }
   };
@@ -231,6 +339,14 @@ export function AuthProvider({ children }) {
   const boardTheme = hasCustomized
     ? (explicitBoard || 'classic-green')
     : (recommendedBoard || explicitBoard || 'classic-green');
+  const userBoardColors = normalizedBoardColors(user?.board_light_color, user?.board_dark_color);
+  const cachedBoardColors = deviceBoardColors && String(deviceBoardColors.userId) === String(user?.id) ? deviceBoardColors : null;
+  const boardColors = userBoardColors || cachedBoardColors || (() => {
+    const theme = getBoardTheme(boardTheme);
+    return { light: theme.lightSq, dark: theme.darkSq };
+  })();
+  const hasCustomBoardColors = Boolean(userBoardColors || cachedBoardColors);
+  useEffect(() => applyRootBoardColors(boardColors, hasCustomBoardColors), [boardColors.light, boardColors.dark, hasCustomBoardColors]);
   /* Expose only a set that still exists, so the very first render after boot
      already uses Cburnett for a stale 'green' preference (the effect above then
      repairs the stored value). */
@@ -266,6 +382,8 @@ export function AuthProvider({ children }) {
         boardTheme,
         pieceSet,
         boardFrame,
+        boardColors,
+        hasCustomBoardColors,
         mustChangePassword,
         changeMyPassword,
         login,

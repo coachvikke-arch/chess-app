@@ -19,8 +19,8 @@ export const BOARD_THEMES = [
   {
     id: 'classic-green',
     name: 'Classic Green',
-    lightSq: '#eef0d4',
-    darkSq: '#7a9855',
+    lightSq: '#EEEED2',
+    darkSq: '#769656',
     highlight: '#7dd3fc',
     accessibility: false,
   },
@@ -326,8 +326,15 @@ export function getBoardTheme(id) {
  * Returns the react-chessboard style props for a board theme — handles both
  * solid-colour themes and full-image (SVG) boards.
  */
-export function getBoardThemeStyles(theme) {
+export function getBoardThemeStyles(theme, useRootColors = true) {
   if (!theme) return {};
+  if (useRootColors && typeof document !== 'undefined' && document.documentElement.dataset.boardColorCustom === 'true') {
+    return {
+      darkSquareStyle: { backgroundColor: 'var(--board-dark)' },
+      lightSquareStyle: { backgroundColor: 'var(--board-light)' },
+      boardStyle: null,
+    };
+  }
   if (theme.boardImage) {
     return {
       darkSquareStyle: { backgroundColor: 'transparent' },
@@ -341,8 +348,8 @@ export function getBoardThemeStyles(theme) {
     };
   }
   return {
-    darkSquareStyle: { backgroundColor: theme.darkSq },
-    lightSquareStyle: { backgroundColor: theme.lightSq },
+    darkSquareStyle: { backgroundColor: useRootColors ? 'var(--board-dark)' : theme.darkSq },
+    lightSquareStyle: { backgroundColor: useRootColors ? 'var(--board-light)' : theme.lightSq },
     boardStyle: null,
   };
 }

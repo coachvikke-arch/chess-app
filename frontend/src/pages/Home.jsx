@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import AnimatedBoard from '../components/AnimatedBoard';
 import { Piece, Card, Reveal } from '../components/ui';
 import Button from '../components/Button';
+import ContactForm from '../components/ContactForm';
 import usePageTitle from '../hooks/usePageTitle';
 import { APP_NAME, APP_TAGLINE, APP_COPYRIGHT } from '../config/brand';
 
@@ -100,6 +101,19 @@ export default function Home() {
           </Reveal>
         </div>
       </section>
+
+      {/* Contact — the form itself, inline on the landing page. There is no
+          separate /contact route any more, and no email address or phone number
+          is printed: this form is the contact method. */}
+      <Reveal>
+        <section id="contact" className="cz-contact-section">
+          <h2>Contact the Academy</h2>
+          <p>Have a question? Reach out — we&apos;ll respond in a few moves.</p>
+          <div className="cz-contact-card">
+            <ContactForm />
+          </div>
+        </section>
+      </Reveal>
 
       <footer className="border-t border-ivory-700/40">
         <div className="max-w-7xl mx-auto px-4 py-10 text-center">

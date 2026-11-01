@@ -17,6 +17,7 @@ import {
   accountRatings, fetchStatistics, fetchOpenings, fetchInsights,
   fetchGames, fetchGame, fetchAnalysis, saveAnalysis,
 } from '../services/chessProfiles';
+import { fetchReviewed, markReviewed, reviewedKey } from '../services/reviewedGames';
 import useAccountSync from '../hooks/useAccountSync';
 import Button from '../components/Button';
 
@@ -842,6 +843,45 @@ function GamesTab({ gamesVersion = 0 }) {
   const [colour, setColour] = useState('all'); // 'all' | 'white' | 'black'
   const [groupByColour, setGroupByColour] = useState(false); // default off
 
+  /* "✔ Reviewed" marks. The server is the source of truth (never
+     localStorage), so the same marks follow the user to every device. Loaded
+     once with the tab; a failed load leaves the set empty — no badge, no
+     error toast, because a missing mark is cosmetic and the list itself
+     already reports its own failures. */
+  const [reviewed, setReviewed] = useState(() => new Set());
+  const [reviewedFilter, setReviewedFilter] = useState('all'); // 'all' | 'reviewed' | 'pending'
+
+  useEffect(() => {
+    let alive = true;
+    fetchReviewed()
+      .then((list) => { if (alive) setReviewed(new Set(list)); })
+      .catch(() => { });
+    return () => { alive = false; };
+  }, []);
+
+  /* Optimistic: the badge appears the moment the analysis completes, and the
+     row disappears again only if the save actually failed. The endpoint is
+     idempotent, so re-reviewing a marked game is a harmless repeat. */
+  const markGameReviewed = useCallback(async (gameId, platform) => {
+    if (gameId == null || !platform) return;
+    const key = reviewedKey(platform, gameId);
+    setReviewed((prev) => {
+      if (prev.has(key)) return prev;
+      const next = new Set(prev);
+      next.add(key);
+      return next;
+    });
+    try {
+      await markReviewed(platform, String(gameId));
+    } catch {
+      setReviewed((prev) => {
+        const next = new Set(prev);
+        next.delete(key);
+        return next;
+      });
+    }
+  }, []);
+
   const apply = async (patch) => {
     const next = { ...filters, ...patch, page: patch !== undefined ? (patch.q !== undefined ? 1 : patch.page || filters.page) : filters.page };
     if (patch && (patch.q !== undefined || patch.from !== undefined || patch.to !== undefined)) next.q = patch.q;
@@ -900,7 +940,14 @@ function GamesTab({ gamesVersion = 0 }) {
     })),
     [data],
   );
-  const visible = colour === 'all' ? annotated : annotated.filter((a) => a.colour === colour);
+  const visible = (colour === 'all' ? annotated : annotated.filter((a) => a.colour === colour))
+    /* Reviewed filter joins the seat chips: client-side, like colour, because
+       the marks are a per-user overlay on top of the server's page. */
+    .filter((a) => {
+      if (reviewedFilter === 'all') return true;
+      const isMarked = reviewed.has(reviewedKey(a.game.platform, a.game.id));
+      return reviewedFilter === 'reviewed' ? isMarked : !isMarked;
+    });
   const whiteGames = visible.filter((a) => a.colour === 'white');
   const blackGames = visible.filter((a) => a.colour === 'black');
   const unknownGames = visible.filter((a) => a.colour !== 'white' && a.colour !== 'black');
@@ -967,6 +1014,24 @@ function GamesTab({ gamesVersion = 0 }) {
           </label>
         </div>
 
+        {/* Reviewed filter — same chip pattern as the colour row above. */}
+        <div className="cp-chips-row">
+          <span className="cp-chips-label">Reviewed:</span>
+          {[
+            ['all', 'All'],
+            ['reviewed', '✔ Reviewed'],
+            ['pending', 'Not reviewed'],
+          ].map(([v, label]) => (
+            <button
+              key={v}
+              className={`cp-chip${reviewedFilter === v ? ' active' : ''}`}
+              onClick={() => setReviewedFilter(v)}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
         {loading && !data ? <Spinner text="Loading games…" /> : null}
 
         {data && data.games.length === 0 && (
@@ -979,7 +1044,7 @@ function GamesTab({ gamesVersion = 0 }) {
 
         {data && data.games.length > 0 && visible.length === 0 && (
           <p className="text-black text-sm py-6 text-center">
-            No games as {colour === 'white' ? 'White' : 'Black'} with these filters. Try All colours or clear the search.
+            No games {colour === 'all' ? '' : `as ${colour === 'white' ? 'White' : 'Black'} `}match these filters — {reviewedFilter === 'all' ? '' : 'switch the Reviewed filter back to All, or '}try All colours or clear the search.
           </p>
         )}
 
@@ -991,7 +1056,7 @@ function GamesTab({ gamesVersion = 0 }) {
                   <>
                     <p className="cp-colour-group-label">⚪ White games ({whiteGames.length})</p>
                     {whiteGames.map((a) => (
-                      <GameRow key={a.game.id} game={a.game} colour={a.colour} userResult={a.userResult} active={String(selectedId) === String(a.game.id)} onOpen={() => openViewer(a.game.id)} />
+                      <GameRow key={a.game.id} game={a.game} colour={a.colour} userResult={a.userResult} reviewedMark={reviewed.has(reviewedKey(a.game.platform, a.game.id))} active={String(selectedId) === String(a.game.id)} onOpen={() => openViewer(a.game.id)} />
                     ))}
                   </>
                 )}
@@ -999,7 +1064,7 @@ function GamesTab({ gamesVersion = 0 }) {
                   <>
                     <p className="cp-colour-group-label">⚫ Black games ({blackGames.length})</p>
                     {blackGames.map((a) => (
-                      <GameRow key={a.game.id} game={a.game} colour={a.colour} userResult={a.userResult} active={String(selectedId) === String(a.game.id)} onOpen={() => openViewer(a.game.id)} />
+                      <GameRow key={a.game.id} game={a.game} colour={a.colour} userResult={a.userResult} reviewedMark={reviewed.has(reviewedKey(a.game.platform, a.game.id))} active={String(selectedId) === String(a.game.id)} onOpen={() => openViewer(a.game.id)} />
                     ))}
                   </>
                 )}
@@ -1007,7 +1072,7 @@ function GamesTab({ gamesVersion = 0 }) {
                   <>
                     <p className="cp-colour-group-label">❔ Seat unknown ({unknownGames.length})</p>
                     {unknownGames.map((a) => (
-                      <GameRow key={a.game.id} game={a.game} colour={a.colour} userResult={a.userResult} active={String(selectedId) === String(a.game.id)} onOpen={() => openViewer(a.game.id)} />
+                      <GameRow key={a.game.id} game={a.game} colour={a.colour} userResult={a.userResult} reviewedMark={reviewed.has(reviewedKey(a.game.platform, a.game.id))} active={String(selectedId) === String(a.game.id)} onOpen={() => openViewer(a.game.id)} />
                     ))}
                   </>
                 )}
@@ -1015,7 +1080,7 @@ function GamesTab({ gamesVersion = 0 }) {
             ) : (
               <div className="cp-games-list">
                 {visible.map((a) => (
-                  <GameRow key={a.game.id} game={a.game} colour={a.colour} userResult={a.userResult} active={String(selectedId) === String(a.game.id)} onOpen={() => openViewer(a.game.id)} />
+                  <GameRow key={a.game.id} game={a.game} colour={a.colour} userResult={a.userResult} reviewedMark={reviewed.has(reviewedKey(a.game.platform, a.game.id))} active={String(selectedId) === String(a.game.id)} onOpen={() => openViewer(a.game.id)} />
                 ))}
               </div>
             )}
@@ -1033,13 +1098,18 @@ function GamesTab({ gamesVersion = 0 }) {
       </Card>
 
       {selectedGameId && (
-        <GameViewer key={selectedGameId} gameId={selectedGameId} onClose={closeViewer} />
+        <GameViewer
+          key={selectedGameId}
+          gameId={selectedGameId}
+          onClose={closeViewer}
+          onReviewed={(gameId, platform) => markGameReviewed(gameId, platform)}
+        />
       )}
     </div>
   );
 }
 
-function GameRow({ game: g, active, onOpen, colour, userResult }) {
+function GameRow({ game: g, active, onOpen, colour, userResult, reviewedMark }) {
   const myColor = effectiveColor(g);
   const meta = resultMeta(g.result, myColor);
   const t = toneOf(g.result, myColor);
@@ -1058,6 +1128,10 @@ function GameRow({ game: g, active, onOpen, colour, userResult }) {
         </span>
         <span className={`cp-user-badge cp-user-${ur}`}>{badgeText}</span>
         <span className={`cp-game-result cp-result-${t}`}>{meta.text}</span>
+        {/* "✔ Reviewed" — the server's mark, never localStorage. */}
+        {reviewedMark && (
+          <span className="cp-reviewed-badge" title="You finished a Stockfish review of this game">✔ Reviewed</span>
+        )}
       </span>
       <span className="cp-game-main">
         <span className="cp-game-head">
@@ -1087,13 +1161,20 @@ function GameRow({ game: g, active, onOpen, colour, userResult }) {
    classification source — rather than building a parallel second one. This page
    passes the game's identity plus the stored-analysis accessors; the card itself
    knows nothing about where a game came from. */
-function GameViewer({ gameId, onClose }) {
+function GameViewer({ gameId, onClose, onReviewed }) {
   /* The card opens IMMEDIATELY and resolves the game itself, so a slow or
      failed load is reported INSIDE the card instead of leaving a dead click
      with nothing on screen. The resolver is memoised: the card re-runs its
      load whenever the resolver's identity changes, and an inline arrow would
      change on every render. */
   const resolveGame = useCallback((ref) => fetchGame(ref.gameId), []);
+  /* Stable identity: the card lists this callback in its restore effect's
+     deps, and an inline arrow would re-fire that effect on every render.
+     The platform comes from the card's own loaded row — the only copy that
+     is guaranteed to match the game being reviewed. */
+  const reviewComplete = useCallback(({ ref, game }) => {
+    if (onReviewed) onReviewed(ref.gameId, game?.platform);
+  }, [onReviewed]);
   return (
     <GameViewerCard
       gameRef={{ gameSource: 'chess_profile', gameId }}
@@ -1102,6 +1183,7 @@ function GameViewer({ gameId, onClose }) {
       gameId={gameId}
       loadAnalysis={fetchAnalysis}
       saveAnalysis={saveAnalysis}
+      onReviewComplete={reviewComplete}
       /* The ?game= parameter IS this card's history entry. A second one (the
          overlay's own push) would make the browser Back button skip over the
          list the user opened the game from. */

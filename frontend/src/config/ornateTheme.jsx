@@ -75,7 +75,8 @@ export function marbledSquareStyle(color, isDark, boardTheme) {
     `customSquareStyles`. One helper so a marble board looks identical on the
     player board, the Settings preview and the mini boards. Returns null for a
     non-ornate theme, which then simply paints its two flat colours. */
-export function ornateSquareStyles(boardTheme) {
+export function ornateSquareStyles(boardTheme, ignoreCustomColors = false) {
+  if (!ignoreCustomColors && typeof document !== 'undefined' && document.documentElement.dataset.boardColorCustom === 'true') return null;
   if (!boardTheme?.ornate) return null;
   const styles = {};
   for (let f = 0; f < 8; f++) {

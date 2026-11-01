@@ -3,16 +3,30 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content" />
-    <meta name="theme-color" content="#EAF3F5" />
+    <meta name="theme-color" content="#FFFFFF" />
     <meta name="application-name" content="MATE ZONE CHESS ACADEMY" />
     <meta name="apple-mobile-web-app-title" content="MATE ZONE" />
     <title>MATE ZONE CHESS ACADEMY</title>
     <!-- Paint the app background BEFORE the stylesheet loads so the browser
          never shows a white frame between HTML parse and CSS application
-         (and again while React hydrates #root). Matches --ink-950, the
-         light-theme page background in index.css. -->
+         (and again while React hydrates #root). Matches the installed app's
+         own splash (manifest background_color) so the two do not differ in
+         colour, and matches the white canvas the app paints in index.css. -->
     <style>
-      html, body, #root { background-color: #EAF3F5; }
+      html, body, #root { background-color: #ffffff; }
+      /* The gap between this HTML parsing and React's first paint is filled by
+         the same white field and the same emblem the manifest splash shows, so
+         an installed launch reads as one screen instead of splash → blank → app.
+         main.jsx removes it as soon as #root has content. */
+      #boot-splash {
+        position: fixed;
+        inset: 0;
+        z-index: 2147483647;
+        background: #ffffff;
+        display: grid;
+        place-items: center;
+      }
+      #boot-splash img { width: 160px; height: 160px; }
     </style>
     <meta
       name="description"
@@ -62,6 +76,7 @@
     </script>
   </head>
   <body>
+    <div id="boot-splash"><img src="/icon-maskable-512.png" alt="" width="512" height="512" /></div>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
   </body>

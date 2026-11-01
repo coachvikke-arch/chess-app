@@ -134,8 +134,11 @@ test('a stale game response cannot overwrite a newer click', () => {
   /* The card now opens synchronously and resolves the game itself, so the
      race guard moved with it: the load effect captures `alive` and clears it on
      cleanup, so a slow response from a game the user has already navigated away
-     from can never write into the current card. */
-  assert.match(CARD, /let alive = true;[\s\S]{0,400}?return \(\) => \{ alive = false; \};/,
+     from can never write into the current card.
+     Window 600 (was 400): the guard pair must stay in ONE effect, but the
+     restore effect legitimately grew a completion callback ("✔ Reviewed"),
+     and a character budget is a poor proxy for that structural guarantee. */
+  assert.match(CARD, /let alive = true;[\s\S]{0,600}?return \(\) => \{ alive = false; \};/,
     'the card ignores a load that finished after it changed/unmounted');
   /* and it never writes state from a stale response */
   const writes = CARD.match(/if \(!alive\) return;/g) || [];

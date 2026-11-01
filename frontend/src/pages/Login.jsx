@@ -9,6 +9,7 @@ import loginBrand from '../assets/login-brand.png';
 import PasswordInput from '../components/PasswordInput';
 import { homeForRole } from '../utils/roles';
 import Button from '../components/Button';
+import ContactForm from '../components/ContactForm';
 import usePageTitle from '../hooks/usePageTitle';
 import { APP_NAME } from '../config/brand';
 
@@ -24,6 +25,8 @@ export default function Login() {
      coach — there is no self-service reset without the one-time recovery
      code, and that code can only be re-issued by a super admin. */
   const [forgotOpen, setForgotOpen] = useState(false);
+  /* The contact form on this card starts collapsed (see `.cz-disclose`). */
+  const [contactOpen, setContactOpen] = useState(false);
 
   /* An already-signed-in visitor must never be shown the login form. The
      `/login` entry stays in browser history after a successful sign-in, so the
@@ -160,6 +163,26 @@ export default function Login() {
               Need an account?{' '}
               <span className="text-ivory-400">Ask your coach to add you.</span>
             </p>
+            {/* Collapsible "Contact us": the standalone /contact page is gone, so
+                this card carries the form too. Hidden until asked for, so a phone
+                never has to scroll past it to reach the password field. */}
+            <div className="cz-disclose">
+              <button
+                type="button"
+                className="cz-disclose-toggle"
+                aria-expanded={contactOpen}
+                aria-controls="login-contact"
+                onClick={() => setContactOpen((v) => !v)}
+              >
+                <span>Contact us</span>
+                <span aria-hidden="true">{contactOpen ? '−' : '+'}</span>
+              </button>
+              {contactOpen && (
+                <div id="login-contact" className="cz-disclose-body">
+                  <ContactForm compact />
+                </div>
+              )}
+            </div>
           </div>
         </Reveal>
       </div>

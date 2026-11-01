@@ -43,6 +43,7 @@ const boardVisionRoutes = require('./routes/boardVisionRoutes');
 const sigmaRoutes = require('./routes/sigmaRoutes');
 const analysisRoutes = require('./routes/analysisRoutes');
 const topPerformanceRoutes = require('./routes/topPerformanceRoutes');
+const reviewedGamesRoutes = require('./routes/reviewedGamesRoutes');
 const { studentRouter: homeworkStudentRoutes, adminRouter: homeworkAdminRoutes } = require('./routes/homeworkRoutes');
 
 const app = express();
@@ -133,6 +134,10 @@ app.use('/api/sidebar', sidebarRoutes);
 app.use('/api/certificates', certificateRoutes);
 /* Board Vision training progress — per-user JSON document (cross-device). */
 app.use('/api/board-vision', boardVisionRoutes);
+/* "✔ Reviewed" marks — per-user, and the exact same cross-device reasoning as
+   Board Vision: the badge has to follow the account to the phone, the laptop
+   and the tablet, so it lives in the DB and never in localStorage. */
+app.use('/api/reviewed', reviewedGamesRoutes);
 /* Σ Sigma Moves — mounted before the `/api` catch-all below. */
 app.use('/api/sigma', sigmaRoutes);
 /* Automatic background Stockfish analysis. Mounted BEFORE the bare `/api`

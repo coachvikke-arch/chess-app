@@ -55,6 +55,20 @@ export function onGameUpdate(callback) {
   return () => s.off('game-update', callback);
 }
 
+/* Ephemeral in-game reactions use the existing authenticated game socket. */
+export function sendGameReaction(gameId, senderId, emoji) {
+  const s = getSocket();
+  if (!s?.connected || !gameId || !emoji) return;
+  s.emit('game-reaction', { gameId, senderId, emoji });
+}
+
+export function onGameReaction(callback) {
+  const s = getSocket();
+  if (!s) return () => {};
+  s.on('game-reaction', callback);
+  return () => s.off('game-reaction', callback);
+}
+
 /* Global "a live board just stopped being watchable" signal. Sent to every
    authenticated client when a match finishes or aborts, so an open Live games
    list can drop that one card immediately instead of waiting for its poll. */

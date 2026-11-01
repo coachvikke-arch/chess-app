@@ -259,7 +259,7 @@ export default function ChessBoard({
       // Preserve the last valid position if a caller supplies malformed FEN.
     }
   }, [safeFen, controlled]);
-  const { boardTheme: savedThemeId, pieceSet, boardFrame } = useAuth();
+  const { boardTheme: savedThemeId, pieceSet, boardFrame, hasCustomBoardColors } = useAuth();
   const boardTheme = getBoardTheme(boardThemeId || savedThemeId);
   const ornate = Boolean(boardTheme.ornate);
   const royalOrnate = ornate && boardTheme.variant === 'royal';
@@ -823,7 +823,7 @@ export default function ChessBoard({
   /* ── ornate board: marble-tiled base background for every square. Highlights
      (set in squareStyles) only paint backgroundColor, so the marble veins stay
      visible beneath them. a1 is a dark square, so parity even → dark. ── */
-  const ornateBase = useMemo(() => ornateSquareStyles(boardTheme), [boardTheme]);
+  const ornateBase = useMemo(() => ornateSquareStyles(boardTheme), [boardTheme, hasCustomBoardColors]);
   const squareStyles = useMemo(() => {
     const styles = {};
 

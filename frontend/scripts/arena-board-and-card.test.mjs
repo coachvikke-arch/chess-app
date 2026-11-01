@@ -87,7 +87,14 @@ test('the Play Arena renders ONE board component in both surfaces', () => {
     'the board must not be written out twice any more');
   const uses = (ARENA.match(/<ArenaBoard/g) || []).length;
   assert.equal(uses, 2, 'the page board and the Play Mode board both use it');
-  assert.match(ARENA_BOARD, /export default function ArenaBoard/);
+  /* ONE live board at a time: the page board unmounts while Play Mode is open.
+     Both surfaces hand the same mutable Chess instance to ChessBoard, and two
+     mounted boards each ran their own position watcher against one game, which
+     is what replayed a move the visible board had already animated. */
+  assert.match(ARENA, /!playMode && \(\s*<ArenaBoard/,
+    'the page board must not stay mounted behind the Play Mode board');
+  assert.match(ARENA_BOARD, /export default memo\(ArenaBoard/,
+    'the one board is memoised, with a FEN-aware compare');
   assert.match(ARENA_BOARD, /moveEffectHostId=\{effectHostId\}/);
 });
 

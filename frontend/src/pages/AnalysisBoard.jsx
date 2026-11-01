@@ -1,5 +1,5 @@
 
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useLayoutEffect, useMemo, memo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Chess } from 'chess.js';
@@ -42,7 +42,6 @@ import {
   abortGame,
   resignGame,
   timeoutGame,
-  sendReaction,
   sendMove,
   offerDraw,
   respondDraw,
@@ -52,6 +51,8 @@ import {
   joinGameRoom,
   leaveGameRoom,
   onGameUpdate,
+  sendGameReaction,
+  onGameReaction,
   onGameInvite,
   onLiveGamesChanged,
   registerComputerSpec,
@@ -65,6 +66,15 @@ import { isTimeControlValid, timeControlFamily } from '../utils/timeControl';
 import { RATING_CLASS_BY_FAMILY, filterOnlinePlayers, ratingForPlayer, ratingPoolLabel } from '../utils/onlinePlayers';
 import useArrowKeys from '../hooks/useArrowKeys';
 import Button from '../components/Button';
+import reactionAngry from '../assets/mp4/angry.mp4';
+import reactionClap from '../assets/mp4/clap.mp4';
+import reactionCrying from '../assets/mp4/crying.mp4';
+import reactionFire from '../assets/mp4/fire.mp4';
+import reactionHandshake from '../assets/mp4/handshake.mp4';
+import reactionLaughing from '../assets/mp4/laughing.mp4';
+import reactionParty from '../assets/mp4/party.mp4';
+import reactionThumbsUp from '../assets/mp4/thumbs-up.mp4';
+import reactionWow from '../assets/mp4/wow.mp4';
 
 /* ------------------------------- helpers ---------------------------------- */
 
@@ -306,13 +316,96 @@ const PLAY_ARENA_UI_CSS = `
 }
 /* Play Mode trigger — its own compact row above the board, never over it */
 .ab-root.ab-root .ab-board-toolbar{
-  flex:0 0 auto;display:flex;justify-content:flex-end;align-items:center;
+  flex:0 0 auto;display:flex;justify-content:flex-end;align-items:center;gap:8px;
   margin:0 auto;padding:0;min-height:0;max-width:100%;
 }
 .ab-root.ab-root .ab-board-toolbar button{
   display:inline-flex;align-items:center;gap:6px;
   height:28px;padding:0 12px !important;font-size:12px !important;line-height:1;
   border-radius:8px !important;box-shadow:0 1px 2px rgba(15,23,42,.06) !important;
+}
+
+/* ── Resign / Offer Draw, behind the ⋮ menu ────────────────────────────────
+   The two buttons used to sit permanently in the banner and in the Play Mode
+   controls, which on a phone is exactly where a thumb lands — one mistap ended a
+   game. They now live in a popover opened from a 3-dot button next to Play Mode.
+   The trigger keeps its own size: the toolbar rule above shrinks every button to
+   28px, and 28px is below the 44px minimum touch target.
+   Deliberately NOT scoped under .ab-root — the same menu is mounted inside the
+   Play Mode portal, which lives outside that subtree. */
+.ab-menu-anchor{position:relative;display:inline-flex;flex:0 0 auto}
+.ab-menu-btn{
+  width:44px;height:44px;min-width:44px;min-height:44px;padding:0 !important;
+  display:inline-flex;align-items:center;justify-content:center;
+  border-radius:10px !important;font-size:20px;line-height:1;
+  color:#334155;background:rgba(255,255,255,.72);
+  border:1px solid #D7E0EE !important;box-shadow:0 1px 2px rgba(15,23,42,.06) !important;
+  -webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);
+}
+.ab-menu-btn[aria-expanded="true"]{background:#EEF2F7;border-color:#2563EB !important;color:#2563EB}
+.ab-menu-pop{
+  position:absolute;top:calc(100% + 8px);right:0;z-index:60;
+  display:flex;flex-direction:column;gap:4px;min-width:190px;padding:6px;
+  background:rgba(248,250,252,.92);border:1px solid #D7E0EE;border-radius:12px;
+  box-shadow:0 10px 28px rgba(15,23,42,.18);
+  -webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);
+  /* Never run off the screen: the anchor sits at the right edge of a row that is
+     already as wide as the board, so on a narrow phone this can only overshoot
+     to the right. */
+  max-width:min(190px,72vw);
+}
+.ab-menu-pop button{
+  min-height:44px;justify-content:flex-start;gap:8px;width:100%;
+  padding:0 12px !important;font-size:13px !important;font-weight:600;
+  border-radius:9px !important;
+}
+.ab-menu-confirm{
+  min-height:44px;display:flex;align-items:center;justify-content:space-between;gap:8px;
+  padding:0 10px;font-size:12px;font-weight:600;color:#B42318;
+  background:#FEF3F2;border:1px solid #FDA29B;border-radius:9px;
+}
+.ab-menu-confirm>span{flex:1 1 auto;min-width:0}
+.ab-menu-confirm>button{
+  flex:0 0 auto;min-height:36px;width:auto;padding:0 10px !important;font-size:12px !important;
+}
+
+/* Play Mode is a dark surface: the same menu, in the overlay's own palette. */
+.play-mode-overlay .ab-menu-btn{
+  color:var(--ivory-100);background:var(--ink-800);
+  border:1.5px solid var(--surface-border) !important;
+}
+.play-mode-overlay .ab-menu-btn:hover{background:var(--ink-900)}
+.play-mode-overlay .ab-menu-btn[aria-expanded="true"]{background:var(--ink-900);color:var(--ivory-100)}
+.play-mode-head-actions{display:inline-flex;align-items:center;gap:8px;flex:0 0 auto}
+/* The waiting overlay is absolutely positioned inside the Play Mode board area,
+   which index.css leaves unpositioned — without this it would anchor to the
+   overlay itself and cover the whole screen. */
+.play-mode-board-area{position:relative}
+/* …and in the overlay's own palette, so the spinner reads on the dark surface. */
+.play-mode-overlay .ab-waiting{background:rgba(15,23,42,.55)}
+.play-mode-overlay .ab-waiting-text{color:var(--ivory-100)}
+.play-mode-overlay .ab-waiting-spinner{border-color:rgba(236,205,118,.22);border-top-color:#ECD186}
+
+/* ── "Waiting for opponent" — a spinner over the board, not a strip of text ──
+   pointer-events:none so the overlay itself never swallows a tap; interaction is
+   switched off separately by the board's own interactive prop. Unscoped for
+   the same reason as the ⋮ menu: it also sits over the Play Mode portal board. */
+.ab-waiting{
+  position:absolute;inset:0;z-index:40;pointer-events:none;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;
+  background:rgba(255,255,255,.62);
+  -webkit-backdrop-filter:blur(2px);backdrop-filter:blur(2px);
+  border-radius:inherit;
+}
+.ab-waiting-spinner{
+  width:52px;height:52px;border-radius:50%;
+  border:4px solid #DBE4F0;border-top-color:#2563EB;
+  animation:ab-spin .8s linear infinite;
+}
+.ab-waiting-text{font-size:14px;font-weight:600;color:#334155}
+@keyframes ab-spin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){
+  .ab-waiting-spinner{animation-duration:2.4s}
 }
 
 /* moves strip — one horizontal row, current move in the accent colour */
@@ -418,23 +511,6 @@ const PLAY_ARENA_UI_CSS = `
   display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;flex:0 0 auto;
   position:relative;
 }
-.ab-root.ab-root .ab-react-anchor{position:relative;display:flex;min-width:0}
-/* The emoji trigger inside a player card: a square icon button that never
-   shrinks, sitting left of the clock. The popover is right-anchored so it
-   cannot run past the card's edge, and ab-react-below (the top card) opens
-   it downward because the board column clips its own overflow. */
-.ab-root.ab-root .ab-react-inline{flex:none;align-items:center}
-.ab-root.ab-root .ab-react-inline .ab-react-picker{left:auto;right:0;transform:none}
-.ab-root.ab-root .ab-react-below .ab-react-picker{bottom:auto;top:calc(100% + 6px)}
-.ab-root.ab-root .ab-react-btn{
-  flex:none;width:32px;height:32px;border-radius:8px;display:grid;place-items:center;
-  background:#fff;border:1px solid #E3E8F0;color:#0F172A;
-  font-size:16px;line-height:1;cursor:pointer;
-  box-shadow:0 1px 2px rgba(15,23,42,.06);
-  transition:background .15s,border-color .15s;
-}
-.ab-root.ab-root .ab-react-btn:hover,
-.ab-root.ab-root .ab-react-btn[aria-expanded="true"]{background:#EAF1FF;border-color:#2563EB}
 .ab-root.ab-root .ab-action-btn{
   display:flex;align-items:center;justify-content:center;gap:6px;
   width:100%;height:40px;border-radius:10px;
@@ -444,7 +520,6 @@ const PLAY_ARENA_UI_CSS = `
   transition:background .15s,border-color .15s,color .15s;
 }
 .ab-root.ab-root .ab-action-btn:hover{background:#EAF1FF;border-color:#2563EB;color:#2563EB}
-.ab-root.ab-root .ab-react-picker{border-color:#E3E8F0}
 
 /* short screens: shave the fixed rows, never the board */
 @media (max-height:800px){
@@ -492,6 +567,16 @@ const PLAY_ARENA_UI_CSS = `
   .ab-root.ab-root .ab-tool-label{white-space:normal}
 }
 `;
+
+/* A callback whose identity never changes but whose body is always the current
+   render's. The board is memoised, and an inline function prop would hand it a
+   new identity on every parent render, which throws the memo away. */
+function useStableCallback(fn) {
+  const ref = useRef(fn);
+  useEffect(() => { ref.current = fn; });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  return useCallback((...args) => ref.current(...args), []);
+}
 
 export default function AnalysisBoard() {
   usePageTitle('Analysis Board');
@@ -738,8 +823,15 @@ export default function AnalysisBoard() {
   const onlineSelectedPlayer =
     onlineUsers.find((u) => String(u.id) === String(onlineSelId)) || null;
   const onlineGameRef     = useRef(null);
-  const reactSeenRef      = useRef(null);
   const flagSentRef       = useRef(null);
+
+  /* The last position this board actually RENDERED, as `{ id, ply, pgn }`.
+     Every inbound update — the socket push, the 2.5 s poll, and the reply to
+     your own `sendMove` — is checked against it, so the same move arriving twice
+     is applied once and an update that is BEHIND the board (a poll that lost the
+     race) can never roll a piece back and replay it. Keyed by game id so a new
+     match starting at ply 0 is not mistaken for a stale row. */
+  const appliedRef        = useRef({ id: null, ply: 0, pgn: '' });
 
   /* live-game spectating: sessions announced by other players' clients */
   const specKeyRef        = useRef(null);
@@ -762,15 +854,18 @@ export default function AnalysisBoard() {
   const [clock,        setClock]        = useState(null);
   const [clockRunning, setClockRunning] = useState(false);
   const [clockOver,    setClockOver]    = useState(null);
-  const [clockTick,    setClockTick]    = useState(0);
   const [reviewMode,   setReviewMode]   = useState(false); // dismiss overlay, browse finished game
 
   /* reactions / analysis */
-  const [bursts,          setBursts]          = useState([]);
+  const [playerReactions, setPlayerReactions] = useState({ mine: null, opponent: null });
+  const [reactionCooling, setReactionCooling] = useState(false);
+  const [pressedReaction, setPressedReaction] = useState('');
   const [showReactPicker, setShowReactPicker] = useState(false);
   /* Which readout the FEN / PGN card shows. Presentation only. */
   const [infoTab,         setInfoTab]         = useState('fen');
-  const burstId           = useRef(0);
+  const reactionId        = useRef(0);
+  const reactionCooldownRef = useRef(0);
+  const reactionTimersRef = useRef({ mine: null, opponent: null, cooldown: null, pressed: null });
   const [gameAnalysis,    setGameAnalysis]    = useState(null);
   const [analyzing,       setAnalyzing]       = useState(false);
   const [showReviewPopup, setShowReviewPopup] = useState(false);
@@ -841,12 +936,20 @@ export default function AnalysisBoard() {
     return () => { if (ro) ro.disconnect(); window.removeEventListener('resize', solve); };
   }, [showPmFrame, orientation, playMode]);
 
-  /* Moves strip — keep the move being viewed centred in its single row. */
+  /* Moves strip — keep the move being viewed centred in its single row.
+   *
+   * Done by writing the strip's OWN scrollLeft, not with scrollIntoView.
+   * scrollIntoView walks every scrollable ancestor, so on a phone it could drag
+   * the PAGE sideways/vertically to bring the chip into view — that was the page
+   * shake during a game. This only ever moves the strip. */
   useEffect(() => {
     const strip = stripRef.current;
     if (!strip) return;
     const cur = strip.querySelector('.ab-mv.is-current');
-    if (cur && cur.scrollIntoView) cur.scrollIntoView({ block: 'nearest', inline: 'center' });
+    if (!cur) return;
+    const target = cur.offsetLeft - (strip.clientWidth - cur.offsetWidth) / 2;
+    const max = strip.scrollWidth - strip.clientWidth;
+    strip.scrollTo({ left: Math.max(0, Math.min(max, target)), behavior: 'smooth' });
   }, [moveIndex, moves.length]);
 
   /* Side-panel alignment — keep the ♟/🤖/👁/⚙ cards level with the BOARD.
@@ -1187,7 +1290,10 @@ export default function AnalysisBoard() {
     setOnlineGame(null);
     setOnlineMyColor('white');
     setOnlineTurn('white');
-    reactSeenRef.current = null;
+    clearTimeout(reactionTimersRef.current.mine);
+    clearTimeout(reactionTimersRef.current.opponent);
+    setPlayerReactions({ mine: null, opponent: null });
+    setShowReactPicker(false);
     flagSentRef.current  = null;
     /* An offer belongs to ONE match. Without this it survives leaving the board
        and the next game opens showing "X offers a draw" for a game nobody is
@@ -1209,11 +1315,28 @@ export default function AnalysisBoard() {
     if (inOnline) {
       if (gameRef.current.isCheckmate()) waitForMateReveal(move.to);
       const moverColor = onlineMyColor;
+      /* The board has already put this move on the shared game, so the position is
+         live before the server ever answers. Record it as applied — otherwise the
+         `sendMove` reply, and every socket/poll carrying the same PGN, would look
+         like a NEW position and rebuild the board under the player's own move. */
+      appliedRef.current = {
+        id: onlineGame.id,
+        ply: gameRef.current.history().length,
+        pgn: gameRef.current.pgn(),
+      };
       sendMove(onlineGame.id, { from: move.from, to: move.to, promotion: move.promotion || 'q' })
         .then((row) => applyOnline(row))
         .catch(() => {
           try { gameRef.current.undo(); } catch { /* ignore */ }
           sync();
+          /* The move never reached the server, so the ply recorded above is one
+             ahead of reality. Put the marker back or the next genuine update —
+             which is now legitimately shorter — would be dismissed as stale. */
+          appliedRef.current = {
+            id: onlineGame.id,
+            ply: gameRef.current.history().length,
+            pgn: gameRef.current.pgn(),
+          };
         });
       bumpClock(moverColor);
       return;
@@ -1248,6 +1371,11 @@ export default function AnalysisBoard() {
     sync();
   }
 
+  /* Stable identities for the two props the memoised board receives from the
+     page, so a panel opening or a clock state change cannot repaint it. */
+  const handlePositionChange = useStableCallback(onBoardPositionChange);
+  const handleBoardMove      = useStableCallback(onBoardMove);
+
   /* ─── navigation ─────────────────────────────────────────── */
   function goToMove(idx) {
     const target = Math.max(0, Math.min(moves.length, idx));
@@ -1268,6 +1396,14 @@ export default function AnalysisBoard() {
     refreshEngine();
     if (soundOn) playSound('select');
   }
+
+  /* The memoised move list needs a handler whose identity never changes; a fresh
+     closure on every render would repaint the whole list anyway. */
+  const handleNavMove = useStableCallback(goToMove);
+
+  /* Same for the verdict array: `gameAnalysis` is rebuilt by the analysis run, so
+     reading `.verdicts` off it inline hands the list a new array every render. */
+  const verdictList = gameAnalysis?.verdicts || null;
 
   function undoMove() {
     if (moveIndex <= 0) return;
@@ -1461,15 +1597,9 @@ export default function AnalysisBoard() {
     return Math.max(0, stored - Math.max(0, Date.now() - (clock.serverNow || Date.now())));
   }
 
-  /* tick every 200 ms */
-  useEffect(() => {
-    if (!clockRunning) return;
-    const t = setInterval(() => setClockTick((x) => x + 1), 200);
-    return () => clearInterval(t);
-  }, [clockRunning]);
-
   /* derived: is an online game currently active? */
   const inOnline = onlineGame && onlineGame.status === 'active';
+  const canReact = Boolean(!spectateSession && ((inOnline && onlineGame?.myColor) || computerOn));
 
   /* Which colour is the LOCAL player? Drives the "move-self" vs
      "move-opponent" sample. Against the bot it is the bot's OPPONENT's colour,
@@ -1522,17 +1652,27 @@ export default function AnalysisBoard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [computerOn, clockRunning, computerColor, clock?.turn]);
 
-  /* online flag-fall — report the clock, NOT a resignation. */
+  /* online flag-fall — report the clock, NOT a resignation.
+   *
+   * This used to ride on the page-wide 200 ms `clockTick`, which is exactly why
+   * the tick existed. That counter is gone (see GameClock) so this effect owns
+   * its own interval, and only the two colours' remaining time is read through
+   * the pure helper rather than a closure over the render. */
   useEffect(() => {
-    if (!inOnline || !clockRunning || !clock) return;
-    if (clock.turn === onlineMyColor && liveRemaining(onlineMyColor) <= 0) {
+    if (!inOnline || !clockRunning || !clock) return undefined;
+    const check = () => {
+      if (clock.turn !== onlineMyColor) return;
+      if (remainingMs(clock, true, onlineMyColor) > 0) return;
       if (flagSentRef.current !== onlineGame.id) {
         flagSentRef.current = onlineGame.id;
         flagOnlineCurrent();
       }
-    }
+    };
+    check();
+    const t = setInterval(check, 250);
+    return () => clearInterval(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [clockTick, inOnline, clockRunning, clock?.turn]);
+  }, [inOnline, clockRunning, clock, onlineMyColor]);
 
   /* ─── computer mode ──────────────────────────────────────── */
   /* ─── live-game spectating helpers ─────────────────────── */
@@ -1789,24 +1929,15 @@ export default function AnalysisBoard() {
   }, [computerOn]);
 
   /* ─── online helpers ─────────────────────────────────────── */
-  function applyOnline(row) {
-    if (!row) return;
+
+  /* The non-position part of a server row: who is playing, the clock and the
+     status. These change WITHOUT a move being played, so they follow the server
+     on every row that is not stale, whether or not the board moved. */
+  function applyOnlineMeta(row) {
     if (row.status === 'active') onlineSeenActiveRef.current = row.id;
-    const g = new Chess();
-    try { g.loadPgn(row.pgn || '', { strict: false }); } catch { /* start pos */ }
-    gameRef.current = g;
-    const { san, last } = getHistory(g);
     const ownColor = row.myColor || 'white';
     setOnlineGame(row);
     setOnlineMyColor(ownColor);
-    setOnlineTurn(san.length % 2 === 0 ? 'white' : 'black');
-    setOrientation(ownColor);
-    setMoves(san); setMoveIndex(san.length);
-    setFen(g.fen());
-    setLastMove(last ? { from: last.from, to: last.to } : null);
-    setStatus(getStatus(g));
-    if (g.isCheckmate() && onlineSeenActiveRef.current === row.id) waitForMateReveal(last?.to);
-    else if (!g.isCheckmate()) clearMateReveal();
     if (row.clock) {
       setClock({
         whiteMs: row.clock.whiteMs,
@@ -1819,22 +1950,41 @@ export default function AnalysisBoard() {
       });
     }
     setClockRunning(row.status === 'active');
-    applyReaction(row.lastReaction);
   }
 
-  /* Show an opponent's emoji once.
-     Extracted out of applyOnline because applyOnline is only reached when the
-     PGN or the status changed — and a reaction changes NEITHER. The reaction
-     therefore used to be read on the sender's own board (which bursts locally)
-     and then silently dropped on the receiver's, so the emoji only ever appeared
-     on the board that sent it. Every inbound row now funnels through here, with
-     `reactSeenRef` doing the de-duplication (a reaction is "the latest one" on
-     the row, so it is re-sent on every subsequent update until it changes). */
-  function applyReaction(lc) {
-    if (!lc || lc.mine) return;
-    if (lc.at === reactSeenRef.current) return;
-    reactSeenRef.current = lc.at;
-    burst(lc.emoji, 'them', lc.name);
+  function applyOnline(row) {
+    if (!row) return;
+    const g = new Chess();
+    try { g.loadPgn(row.pgn || '', { strict: false }); } catch { /* start pos */ }
+    const { san, last } = getHistory(g);
+
+    /* ── dedupe: one position is applied exactly once ──────────────────────
+       Three paths hand this function a row — the socket push, the 2.5 s poll, and
+       the reply to your own `sendMove` — and before, every one of them rebuilt the
+       game and re-ran the move animation. That is the "piece moves twice".
+       A row BEHIND the board (a poll that lost the race) is dropped outright: it
+       would roll a move back and replay it.
+       A row at the SAME ply with the SAME PGN is a duplicate delivery; the board
+       is already correct so only the metadata is taken.
+       A row from a DIFFERENT game always applies in full — a new match legitimately
+       starts at ply 0. */
+    const prev = appliedRef.current;
+    const pgn = row.pgn || '';
+    const sameGame = prev.id === row.id;
+    if (sameGame && san.length < prev.ply) return;
+    applyOnlineMeta(row);
+    if (sameGame && san.length === prev.ply && pgn === prev.pgn) return;
+    appliedRef.current = { id: row.id, ply: san.length, pgn };
+
+    gameRef.current = g;
+    setOnlineTurn(san.length % 2 === 0 ? 'white' : 'black');
+    setOrientation(row.myColor || 'white');
+    setMoves(san); setMoveIndex(san.length);
+    setFen(g.fen());
+    setLastMove(last ? { from: last.from, to: last.to } : null);
+    setStatus(getStatus(g));
+    if (g.isCheckmate() && onlineSeenActiveRef.current === row.id) waitForMateReveal(last?.to);
+    else if (!g.isCheckmate()) clearMateReveal();
   }
 
   /* The opponent cards need the full directory (photo, avatar, ratings, online
@@ -2071,21 +2221,43 @@ export default function AnalysisBoard() {
     } finally { setOnlineBusy(false); }
   }
 
-  function onReact(emoji) {
-    burst(emoji, 'self', null);
-    setShowReactPicker(false);
-    if (inOnline) sendReaction(onlineGame.id, emoji).catch(() => {});
+  function showPlayerReaction(emoji, who) {
+    const id = ++reactionId.current;
+    clearTimeout(reactionTimersRef.current[who]);
+    setPlayerReactions((prev) => ({ ...prev, [who]: { id, emoji } }));
+    reactionTimersRef.current[who] = setTimeout(() => {
+      setPlayerReactions((prev) => prev[who]?.id === id ? { ...prev, [who]: null } : prev);
+    }, 2800);
   }
 
-  function burst(emoji, who, name) {
-    const id = ++burstId.current;
-    setBursts((prev) => [...prev.slice(-5), {
-      id, emoji, who, name,
-      x: 16 + Math.random() * 66,
-      y: 20 + Math.random() * 55,
-    }]);
-    setTimeout(() => setBursts((prev) => prev.filter((x) => x.id !== id)), 1900);
+  function onReact(emoji) {
+    if (!canReact || Date.now() < reactionCooldownRef.current) return;
+    setShowReactPicker(false);
+    reactionCooldownRef.current = Date.now() + 2000;
+    setReactionCooling(true);
+    clearTimeout(reactionTimersRef.current.cooldown);
+    reactionTimersRef.current.cooldown = setTimeout(() => setReactionCooling(false), 2000);
+    setPressedReaction(emoji);
+    clearTimeout(reactionTimersRef.current.pressed);
+    reactionTimersRef.current.pressed = setTimeout(() => setPressedReaction(''), 300);
+    showPlayerReaction(emoji, 'mine');
+    if (inOnline && onlineGame?.id) sendGameReaction(onlineGame.id, user?.id, emoji);
   }
+
+  useEffect(() => {
+    if (!inOnline || !onlineGame?.id) return undefined;
+    return onGameReaction((payload) => {
+      if (Number(payload?.gameId) !== Number(onlineGame.id)) return;
+      if (Number(payload?.senderId) === Number(user?.id)) return;
+      showPlayerReaction(payload?.emoji, 'opponent');
+    });
+    // The per-player timer replaces old reactions on the same card.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [inOnline, onlineGame?.id, user?.id]);
+
+  useEffect(() => () => {
+    Object.values(reactionTimersRef.current).forEach(clearTimeout);
+  }, []);
 
   /* load users + matches on mount */
   useEffect(() => {
@@ -2152,29 +2324,6 @@ export default function AnalysisBoard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showToast]);
 
-  /* real-time match-list refresh — keep pending/active statuses in sync */
-  useEffect(() => {
-    const myId = user?.id;
-    const cleanup = onGameUpdate(({ forAdmin, forStudent }) => {
-      const cur = onlineGameRef.current;
-      // Pick the payload scoped to this viewer by id (robust for any role/position combo).
-      let row = forAdmin && forAdmin.meId === myId
-        ? forAdmin
-        : forStudent && forStudent.meId === myId
-          ? forStudent
-          : null;
-      if (!row && cur) {
-        row = cur?.myRole === 'admin' ? forAdmin : forStudent;
-      }
-      if (row && !(cur && row.id === cur.id)) {
-        // Update is for a different game than the one currently open — just refresh the list.
-        refreshOnlineMatches();
-      }
-    });
-    return cleanup;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
   /* keep onlineGameRef in sync for Socket.IO callback closure */
   useEffect(() => { onlineGameRef.current = onlineGame; }, [onlineGame]);
 
@@ -2198,58 +2347,65 @@ export default function AnalysisBoard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  /* Apply a freshly fetched/scoped online-game row to the board whenever the
-     server state differs from the local one. Shared by the live Socket.IO path
-     and the polling fallback so the opponent's move always reaches the board.
-
-     Reactions and draw offers are read HERE, on every row, BEFORE the
-     pgn/status/clock branching below. They are the two pieces of live state that
-     change WITHOUT moving the board or the game status, so a row carrying only
-     one of them matched no branch and was dropped — which is why the opponent
-     never saw an emoji, and why a draw offer would never appear. */
-  const applyOnlineRow = useCallback((row) => {
+  /* The ONE funnel for an inbound online-game row, shared by the socket push and
+     the polling fallback. `applyOnline` owns the dedupe and the clock/reaction
+     metadata, so this only adds what is not part of the position: the draw offer
+     (which changes neither the board nor the status) and keeping the match list
+     honest when something really did move.
+   *
+     Wrapped in useStableCallback so the socket subscription below never has to
+     re-subscribe because a render changed a closure — that re-subscribe is how
+     listeners used to stack when Play Mode was opened and closed. */
+  const applyOnlineRow = useStableCallback((row) => {
     if (!row) return;
-    applyReaction(row.lastReaction);
     setDrawOffer(row.drawOffer || null);
-    const cur = onlineGameRef.current;
-    const localPgn = gameRef.current.pgn();
-    if (row.pgn !== localPgn) {
-      /* No cue here: the opponent's move arrives as a position change, which
-         ChessBoard detects and sounds as "move opponent" (or capture/castle).
-         The old unconditional `playSound('move')` would double it. */
-      applyOnline(row);
-    } else if (row.status !== cur?.status) {
-      applyOnline(row); refreshOnlineMatches();
-    } else if (row.clock) {
-      setClock({
-        whiteMs: row.clock.whiteMs, blackMs: row.clock.blackMs,
-        baseMs: (Number(row.clock.baseMinutes) || 0) * 60000,
-        incMs: row.clock.incrementSeconds * 1000, turn: row.clock.turn,
-        startedAt: row.clock.startedAt, serverNow: row.serverNow || Date.now(),
-      });
-      setClockRunning(row.status === 'active');
+    const before = appliedRef.current;
+    const prevStatus = onlineGameRef.current?.status;
+    applyOnline(row);
+    /* A row that actually changed the board, or ended the game, is worth a list
+       refresh; a duplicate delivery is not — it would re-fetch the whole match
+       list on every poll. */
+    if (appliedRef.current !== before || (row.status && row.status !== prevStatus)) {
+      refreshOnlineMatches();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [onlineGame?.id, gameRef, onlineGameRef, soundOn]);
+  });
 
-  /* real-time Socket.IO updates for active online game */
+  /* ONE Socket.IO subscription for the whole page.
+   *
+   * There were two: one mounted at page load that only refreshed the match list,
+   * and one per game that drove the board. Both stayed attached to the socket
+   * singleton at the same time, so every `game-update` was handled twice, and the
+   * board one re-subscribed whenever its callback identity moved. A single
+   * listener, kept in sync through refs rather than re-created per render, means
+   * exactly one handler per event for the whole life of the page.
+   *
+   * Cleanup runs on unmount AND on game change, so opening/closing Play Mode or
+   * starting a rematch never leaves an old subscription behind. */
   useEffect(() => {
     const id = onlineGame?.id;
-    if (!id) return;
     const myId = user?.id;
-
-    joinGameRoom(id);
+    if (id) joinGameRoom(id);
 
     const cleanup = onGameUpdate(({ forAdmin, forStudent }) => {
       // Pick the payload scoped to this viewer by id (robust for any role/position combo).
-      const row = forAdmin && forAdmin.meId === myId ? forAdmin
+      const cur = onlineGameRef.current;
+      let row = forAdmin && forAdmin.meId === myId ? forAdmin
         : forStudent && forStudent.meId === myId ? forStudent
         : null;
+      if (!row && cur) {
+        row = cur.myRole === 'admin' ? forAdmin : forStudent;
+      }
       if (!row) return;
+      /* An update about some OTHER match: keep the pending/active list in sync,
+         leave the board alone. */
+      if (!cur || row.id !== cur.id) {
+        refreshOnlineMatches();
+        return;
+      }
       // The other side closed a pending request (declined/aborted) — take it off
       // the board and refresh instead of popping an empty start-position game.
       if (row.status === 'declined' || row.status === 'aborted') {
-        if (onlineGameRef.current?.id === row.id) clearOnline(true);
+        clearOnline(true);
         refreshOnlineMatches();
         return;
       }
@@ -2258,10 +2414,10 @@ export default function AnalysisBoard() {
 
     return () => {
       cleanup();
-      leaveGameRoom(id);
+      if (id) leaveGameRoom(id);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [onlineGame?.id]);
+  }, [onlineGame?.id, user?.id]);
 
   /* Polling fallback for the active online game: if any Socket.IO push is missed
      (connection blip, handshake delay, etc.) this converges the board to the latest
@@ -2343,6 +2499,15 @@ export default function AnalysisBoard() {
     return humanTurn ? [{ from: best.from, to: best.to, color: '#19c9c3' }] : [];
   }, [computerOn, computerHints, reviewMode, status.over, best, bestFen, fen, computerColor]);
 
+  /* The arrows array has to be identity-stable or the memoized board re-renders
+     on every parent render — and `reviewArrows` above is a fresh literal each
+     time. */
+  const boardArrows = useMemo(
+    () => (reviewMode ? reviewArrows : hintArrows),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [reviewMode, reviewArrow, hintArrows],
+  );
+
 
   const { list: savedList, refresh: refreshSaved } = useSavedAnalyses();
 
@@ -2378,6 +2543,31 @@ export default function AnalysisBoard() {
       : computerOn
         ? humanIsComputerTurn && !computerThinking
         : true;
+
+  /* "Waiting for opponent" — a spinner over the board, not a strip of text.
+   *
+   * It covers the stretch before the opponent is really IN the game: a challenge
+   * they have not accepted, or a match that is live but has not seen their first
+   * move. Mid-game "it is their turn to think" is deliberately NOT waiting —
+   * blanking the board on every one of their moves would hide the very position
+   * you are watching.
+   *
+   * The moment the opponent joins (their accept lands, or their first move
+   * arrives) one of these conditions stops holding and the overlay is gone; there
+   * is no timer and nothing to dismiss. */
+  const waitingForOpponent = Boolean(onlineGame) && !onlineFinished && (
+    onlineGame.status === 'pending'
+      ? !onlineGame.canAccept
+      : (inOnline && onlineTurn !== onlineMyColor && moves.length === 0)
+  );
+
+  /* Pieces cannot be picked up while the overlay is up, and the banner strip that
+     used to carry the message is replaced by it — except when it still has a
+     button the player needs (Accept / Abort). */
+  const boardLive = boardInteractive && !waitingForOpponent;
+  const hideWaitingBanner = waitingForOpponent
+    && onlineGame?.status === 'pending'
+    && !onlineGame?.canAccept;
 
   /* online banner */
   let onlineBanner = null;
@@ -2752,7 +2942,8 @@ export default function AnalysisBoard() {
         <div className="ab-board-col" ref={boardColRef}>
 
           {/* top player card (opponent / engine) */}
-          <div className="ab-player-row">
+          <div className="ab-player-row ab-player-row-reactions">
+            {!playMode && <ReactionBubble reaction={playerReactions.opponent} boardRef={boardAreaRef} />}
             <span className={`ab-avatar ${topColor === 'black' ? 'ab-avatar-black' : 'ab-avatar-white'}`}>
               <PlayerAvatar player={topProfile} seed={topAvatarSeed} size={32} />
             </span>
@@ -2762,20 +2953,11 @@ export default function AnalysisBoard() {
             </span>
             <CapturedTray pieces={topCaptured}
               diff={captured[`${topColor}Value`] - captured[`${topColor === 'white' ? 'black' : 'white'}Value`]} />
-            {topColor === 'white' && (
-              <EmojiReactControl
-                below
-                open={showReactPicker}
-                onToggle={() => setShowReactPicker((v) => !v)}
-                onReact={onReact}
-                onClose={() => setShowReactPicker(false)}
-              />
-            )}
-            <ClockBox
+            <GameClock
+              clock={clock}
+              running={clockRunning}
               color={topColor}
-              time={clock ? fmtClock(liveRemaining(topColor), clock.incMs === 0) : null}
-              active={!!(clock && clock.turn === topColor)}
-              low={!!(clock && liveRemaining(topColor) < 10000 && clock.turn === topColor)}
+              forceFloor={clock?.incMs === 0}
             />
           </div>
 
@@ -2784,6 +2966,16 @@ export default function AnalysisBoard() {
           {/* Play Mode trigger — its own row above the board, matched to the
               board's width so it lines up with the board's right edge. */}
           <div className="ab-board-toolbar" style={{ ...pmCss, width: boardWidth }}>
+            {inOnline && !onlineFinished && (
+              <ResignDrawMenu
+                busy={onlineBusy}
+                isBot={onlineGame?.isBot}
+                drawOffer={drawOffer}
+                opponentName={opponentName}
+                onResign={resignOnlineCurrent}
+                onOfferDraw={offerDrawOnline}
+              />
+            )}
             <Button
               onClick={() => setPlayMode(true)}
               variant="primary" size="md" className="!py-2 !px-4 text-sm"
@@ -2807,29 +2999,38 @@ export default function AnalysisBoard() {
                   "Setup Board" section, and ChessBoard already treats all three
                   as absent (off) by default, so dropping them is exactly the
                   behaviour the board had outside setup mode. */}
-              <ArenaBoard
-                game={gameRef.current}
-                orientation={orientation}
-                boardWidth={boardWidth}
-                onPositionChange={onBoardPositionChange}
-                onMove={onBoardMove}
-                interactive={boardInteractive}
-                showLegalMoves={showLegal}
-                showNotation={showNotation}
-                soundOn={soundOn}
-                selfColor={selfColorCode}
-                highlightLastMove={highlightLast}
-                lastMove={lastMove}
-                pieceTheme={pieceSel}
-                customArrows={reviewMode ? reviewArrows : hintArrows}
-                engineOn={engineOn && !inOnline}
-                reviewVerdictColor={reviewVerdictColor}
-                moveBadge={reviewMoveBadge}
-                /* Named, so an effect started by the page (a move-list click,
-                   an undo/redo) lands on THIS board. */
-                effectHostId={pageBoardHostId}
-                flat={PAGE_BOARD_FLAT}
-              />
+              {/* ONE live board per game. The Play Mode board is a portal of the
+                  same Chess instance mounted on top of this one, and two mounted
+                  boards were what let one move land twice: each board ran its own
+                  position watcher and its own animation against the same game, so
+                  the hidden one replayed what the visible one had already shown.
+                  The page board unmounts while Play Mode is open. */}
+              {!playMode && (
+                <ArenaBoard
+                  game={gameRef.current}
+                  orientation={orientation}
+                  boardWidth={boardWidth}
+                  onPositionChange={handlePositionChange}
+                  onMove={handleBoardMove}
+                  interactive={boardLive}
+                  showLegalMoves={showLegal}
+                  showNotation={showNotation}
+                  soundOn={soundOn}
+                  selfColor={selfColorCode}
+                  highlightLastMove={highlightLast}
+                  lastMove={lastMove}
+                  pieceTheme={pieceSel}
+                  customArrows={boardArrows}
+                  engineOn={engineOn && !inOnline}
+                  reviewVerdictColor={reviewVerdictColor}
+                  moveBadge={reviewMoveBadge}
+                  /* Named, so an effect started by the page (a move-list click,
+                     an undo/redo) lands on THIS board. */
+                  effectHostId={pageBoardHostId}
+                  flat={PAGE_BOARD_FLAT}
+                />
+              )}
+              {waitingForOpponent && <WaitingOverlay />}
             </div>
 
             {/* Confirm move — held back until the player accepts the move. */}
@@ -2860,20 +3061,14 @@ export default function AnalysisBoard() {
               </div>
             )}
 
-            {/* burst emotes */}
-            <div className="react-floor">
-              {bursts.map((b) => (
-                <div key={b.id} className="emote-pop" style={{ left: `${b.x}%`, top: `${b.y}%` }}>
-                  {b.emoji}
-                  {b.who === 'them' && <small>{b.name || 'Opponent'}</small>}
-                </div>
-              ))}
-            </div>
           </div>
           </div>{/* end board area */}
 
-          {/* online banner */}
-          {onlineBanner && (
+          {/* online banner — suppressed while the board is showing its own
+              "Waiting for opponent" spinner, so the message is not stated twice.
+              It stays when it still carries a button the player needs (Accept /
+              Abort a challenge they sent YOU). */}
+          {onlineBanner && !hideWaitingBanner && (
             <div className={`ab-banner ${
               onlineBanner.actions === 'active'   ? 'ab-banner-active'   :
               onlineBanner.actions === 'finished' ? 'ab-banner-finished' : 'ab-banner-pending'
@@ -2884,13 +3079,10 @@ export default function AnalysisBoard() {
               <span className="ab-banner-text">{onlineBanner.text}</span>
               <div className="ab-banner-actions">
                 {onlineBanner.actions === 'active' && (
-                  <OnlineGameActions
+                  <DrawOfferPrompt
                     busy={onlineBusy}
-                    isBot={onlineGame?.isBot}
                     drawOffer={drawOffer}
                     opponentName={opponentName}
-                    onResign={resignOnlineCurrent}
-                    onOfferDraw={offerDrawOnline}
                     onRespondDraw={respondDrawOnline}
                   />
                 )}
@@ -2924,39 +3116,21 @@ export default function AnalysisBoard() {
               canRematch={!inOnline && moves.length > 0}
             />
           ) : (
-          <div className="ab-movestrip" ref={stripRef}>
-            {moves.length === 0
-              ? <span className="ab-moves-empty">No moves yet. Play on the board or load a game.</span>
-              : Array.from({ length: Math.ceil(moves.length / 2) }, (_, i) => (
-                  <span key={i} className="ab-mvpair">
-                    <b className="ab-mvnum">{i + 1}.</b>
-                    {[0, 1].map((offset) => {
-                      const idx = i * 2 + offset;
-                      if (idx >= moves.length) return null;
-                      const v = gameAnalysis?.verdicts[idx];
-                      const vm = v ? VERDICT_META[v.verdict] : null;
-                      return (
-                        <button key={offset}
-                          onClick={() => goToMove(idx + 1)}
-                          disabled={navLocked}
-                          title={vm ? `${vm.label}${v.loss > 0 ? ` (−${v.loss} pawns)` : ''}` : ''}
-                          className={`ab-mv${idx + 1 === moveIndex ? ' is-current' : ''}${vm ? ` ab-move-verdict-${vm.tone}` : ''}`}>
-                          {vm && (
-                            <span className={`mv-badge mv-badge-${vm.tone}`} title={vm.label}>
-                              {vm.symbol}
-                            </span>
-                          )}
-                          {moves[idx]}
-                        </button>
-                      );
-                    })}
-                  </span>
-                ))}
-          </div>
+            <MoveList
+              variant="strip"
+              moves={moves}
+              moveIndex={moveIndex}
+              verdicts={verdictList}
+              navLocked={navLocked}
+              goToMove={handleNavMove}
+              containerRef={stripRef}
+              emptyText="No moves yet. Play on the board or load a game."
+            />
           )}
 
           {/* bottom player card (me) — under the moves strip */}
-          <div className="ab-player-row">
+          <div className="ab-player-row ab-player-row-reactions">
+            {!playMode && <ReactionBubble reaction={playerReactions.mine} boardRef={boardAreaRef} />}
             <span className={`ab-avatar ${orientation === 'black' ? 'ab-avatar-black' : 'ab-avatar-white'}`}>
               <PlayerAvatar player={bottomProfile} seed={bottomAvatarSeed} size={32} />
             </span>
@@ -2966,19 +3140,12 @@ export default function AnalysisBoard() {
             </span>
             <CapturedTray pieces={bottomCaptured}
               diff={captured[`${orientation}Value`] - captured[`${orientation === 'white' ? 'black' : 'white'}Value`]} />
-            {orientation === 'white' && (
-              <EmojiReactControl
-                open={showReactPicker}
-                onToggle={() => setShowReactPicker((v) => !v)}
-                onReact={onReact}
-                onClose={() => setShowReactPicker(false)}
-              />
-            )}
-            <ClockBox
+            {canReact && !playMode && <EmojiReactControl open={showReactPicker} disabled={reactionCooling} pressed={pressedReaction} onToggle={() => setShowReactPicker((value) => !value)} onReact={onReact} onClose={() => setShowReactPicker(false)} />}
+            <GameClock
+              clock={clock}
+              running={clockRunning}
               color={orientation}
-              time={clock ? fmtClock(liveRemaining(orientation), clock.incMs === 0) : null}
-              active={!!(clock && clock.turn === orientation)}
-              low={!!(clock && liveRemaining(orientation) < 10000 && clock.turn === orientation)}
+              forceFloor={clock?.incMs === 0}
             />
           </div>
 
@@ -3069,8 +3236,7 @@ export default function AnalysisBoard() {
             </pre>
           </div>
 
-          {/* Share / Download — same handlers as before. The emoji trigger
-              moved into the White player's card (see EmojiReactControl). */}
+          {/* Share / Download — same handlers as before. */}
           <div className="ab-actions">
             <button type="button" className="ab-action-btn" onClick={share} title="Share">
               <span aria-hidden>🔗</span>
@@ -3875,20 +4041,44 @@ export default function AnalysisBoard() {
               back rank. */}
           <div className="play-mode-mobile-head">
             <span className="play-mode-title">♖ Play Arena</span>
-            <button
-              type="button"
-              className="play-mode-exit-bar"
-              onClick={() => setPlayMode(false)}
-              aria-label="Exit Play Mode"
-              title="Exit Play Mode"
-            >
-              ✕
-            </button>
+            <span className="play-mode-head-actions">
+              {/* The same ⋮ the page toolbar carries, so resigning and offering a
+                  draw stay reachable once the overlay covers the page. */}
+              {inOnline && !onlineFinished && (
+                <ResignDrawMenu
+                  busy={onlineBusy}
+                  isBot={onlineGame?.isBot}
+                  drawOffer={drawOffer}
+                  opponentName={opponentName}
+                  onResign={resignOnlineCurrent}
+                  onOfferDraw={offerDrawOnline}
+                />
+              )}
+              <button
+                type="button"
+                className="play-mode-exit-bar"
+                onClick={() => setPlayMode(false)}
+                aria-label="Exit Play Mode"
+                title="Exit Play Mode"
+              >
+                ✕
+              </button>
+            </span>
           </div>
 
           <div className="play-mode-panel">
           <div className="play-mode-top">
             <span className="play-mode-title">♖ Play Arena</span>
+            {inOnline && !onlineFinished && (
+              <ResignDrawMenu
+                busy={onlineBusy}
+                isBot={onlineGame?.isBot}
+                drawOffer={drawOffer}
+                opponentName={opponentName}
+                onResign={resignOnlineCurrent}
+                onOfferDraw={offerDrawOnline}
+              />
+            )}
             <span className="play-mode-sub">
               {onlineBanner ? onlineBanner.text
                 : computerOn
@@ -3899,23 +4089,26 @@ export default function AnalysisBoard() {
 
           <div className="play-mode-panel-scroll">
             {/* top (opponent) player row */}
-            <div className="play-mode-player play-mode-player-top">
+            <div className="play-mode-player play-mode-player-top ab-player-row-reactions">
+              <ReactionBubble reaction={playerReactions.opponent} boardRef={pmAreaRef} />
               <span className="ab-player-name">{topLabel}</span>
               <CapturedTray
                 pieces={topCaptured}
                 diff={captured[`${topColor}Value`] - captured[`${topColor === 'white' ? 'black' : 'white'}Value`]}
               />
-              <ClockBox
+              <GameClock
+                clock={clock}
+                running={clockRunning}
                 color={topColor}
-                time={clock ? fmtClock(liveRemaining(topColor), clock.incMs === 0) : null}
-                active={!!(clock && clock.turn === topColor)}
-                low={!!(clock && liveRemaining(topColor) < 10000 && clock.turn === topColor)}
+                forceFloor={clock?.incMs === 0}
               />
             </div>
 
             {/* bottom (you) player row */}
-            <div className="play-mode-player play-mode-player-bot">
+            <div className="play-mode-player play-mode-player-bot ab-player-row-reactions">
+              <ReactionBubble reaction={playerReactions.mine} boardRef={pmAreaRef} />
               <span className="ab-player-name">{bottomLabel}</span>
+              {canReact && playMode && <EmojiReactControl open={showReactPicker} disabled={reactionCooling} pressed={pressedReaction} onToggle={() => setShowReactPicker((value) => !value)} onReact={onReact} onClose={() => setShowReactPicker(false)} />}
               <CapturedTray
                 pieces={bottomCaptured}
                 diff={captured[`${orientation}Value`] - captured[`${orientation === 'white' ? 'black' : 'white'}Value`]}
@@ -3952,13 +4145,10 @@ export default function AnalysisBoard() {
                   </span>
                 )}
                 {inOnline && !onlineFinished && (
-                  <OnlineGameActions
+                  <DrawOfferPrompt
                     busy={onlineBusy}
-                    isBot={onlineGame?.isBot}
                     drawOffer={drawOffer}
                     opponentName={opponentName}
-                    onResign={resignOnlineCurrent}
-                    onOfferDraw={offerDrawOnline}
                     onRespondDraw={respondDrawOnline}
                   />
                 )}
@@ -3971,35 +4161,15 @@ export default function AnalysisBoard() {
                   <span className="ab-moves-title">♘ Moves</span>
                   <span className="ab-moves-counter">{moveIndex} / {moves.length}</span>
                 </div>
-                {moves.length === 0
-                  ? <p className="ab-moves-empty">No moves yet — play on the board or load a game.</p>
-                  : (
-                    <div className="ab-move-list">
-                      {Array.from({ length: Math.ceil(moves.length / 2) }, (_, i) => (
-                        <div key={i} className="ab-move-pair">
-                          <span className="ab-move-num">{i + 1}.</span>
-                          {[0, 1].map((offset) => {
-                            const idx = i * 2 + offset;
-                            if (idx >= moves.length) return <span key={offset} className="ab-move-btn" />;
-                            const v = gameAnalysis?.verdicts[idx];
-                            const vm = v ? VERDICT_META[v.verdict] : null;
-                            return (
-                              <button key={offset}
-                                onClick={() => goToMove(idx + 1)}
-                                disabled={navLocked}
-                                title={vm ? `${vm.label}${v.loss > 0 ? ` (−${v.loss} pawns)` : ''}` : ''}
-                                className={`ab-move-btn${idx + 1 === moveIndex ? ' active' : ''}${vm ? ` ab-move-verdict-${vm.tone}` : ''}`}>
-                                {vm && (
-                                  <span className={`mv-badge mv-badge-${vm.tone}`} title={vm.label}>{vm.symbol}</span>
-                                )}
-                                {moves[idx]}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      ))}
-                    </div>
-                  )}
+                <MoveList
+                  variant="list"
+                  moves={moves}
+                  moveIndex={moveIndex}
+                  verdicts={verdictList}
+                  navLocked={navLocked}
+                  goToMove={handleNavMove}
+                  emptyText="No moves yet — play on the board or load a game."
+                />
               </Card>
           </div>
         </div>
@@ -4010,9 +4180,9 @@ export default function AnalysisBoard() {
             game={gameRef.current}
             orientation={orientation}
             boardWidth={pmBoardWidth}
-            onPositionChange={onBoardPositionChange}
-            onMove={onBoardMove}
-            interactive={boardInteractive}
+            onPositionChange={handlePositionChange}
+            onMove={handleBoardMove}
+            interactive={boardLive}
             showLegalMoves={showLegal}
             showNotation={showNotation}
             soundOn={soundOn}
@@ -4020,7 +4190,7 @@ export default function AnalysisBoard() {
             highlightLastMove={highlightLast}
             lastMove={lastMove}
             pieceTheme={pieceSel}
-            customArrows={reviewMode ? reviewArrows : hintArrows}
+            customArrows={boardArrows}
             engineOn={engineOn && !inOnline}
             reviewVerdictColor={reviewVerdictColor}
             moveBadge={reviewMoveBadge}
@@ -4029,6 +4199,8 @@ export default function AnalysisBoard() {
                the overlay. */
             effectHostId={playModeBoardHostId}
           />
+
+          {waitingForOpponent && <WaitingOverlay />}
 
           {pendingConfirm && (
             <div className="ab-move-confirm" role="alertdialog" aria-label="Confirm move" aria-live="assertive">
@@ -4118,12 +4290,151 @@ export default function AnalysisBoard() {
 
 /* ══════════════════════ sub-components ══════════════════════ */
 
+/* The move list, memoised.
+ *
+ * Both surfaces render one — the page's single scrolling strip and Play Mode's
+ * boxed list — and they were two hand-copied blocks of markup that had already
+ * started to drift. Worse, they sat inline in the page body, so ANY page state
+ * change repainted every move button on the board.
+ *
+ * Now the repaint is driven by the four things a move button actually depends
+ * on: the SAN list, which ply is being viewed, the verdict badges, and whether
+ * navigation is locked. Clocks, panels, toasts and reactions cannot touch it.
+ *
+ * `variant` picks the styling the two surfaces already had; the markup is shared.
+ */
+const MoveList = memo(function MoveList({
+  variant,
+  moves,
+  moveIndex,
+  verdicts,
+  navLocked,
+  goToMove,
+  containerRef,
+  emptyText,
+}) {
+  if (moves.length === 0) {
+    return variant === 'strip'
+      ? <div className="ab-movestrip" ref={containerRef}><span className="ab-moves-empty">{emptyText}</span></div>
+      : <p className="ab-moves-empty">{emptyText}</p>;
+  }
+
+  const pairClass = variant === 'strip' ? 'ab-mvpair' : 'ab-move-pair';
+  const numClass = variant === 'strip' ? 'ab-mvnum' : 'ab-move-num';
+  const btnBase = variant === 'strip' ? 'ab-mv' : 'ab-move-btn';
+  const currentClass = variant === 'strip' ? 'is-current' : 'active';
+
+  const rows = Array.from({ length: Math.ceil(moves.length / 2) }, (_, i) => (
+    <span key={i} className={pairClass}>
+      <span className={numClass}>{i + 1}.</span>
+      {[0, 1].map((offset) => {
+        const idx = i * 2 + offset;
+        if (idx >= moves.length) {
+          return variant === 'strip' ? null : <span key={offset} className={btnBase} />;
+        }
+        const v = verdicts ? verdicts[idx] : null;
+        const vm = v ? VERDICT_META[v.verdict] : null;
+        const current = idx + 1 === moveIndex;
+        return (
+          <button
+            key={offset}
+            type="button"
+            onClick={() => goToMove(idx + 1)}
+            disabled={navLocked}
+            title={vm ? `${vm.label}${v.loss > 0 ? ` (−${v.loss} pawns)` : ''}` : ''}
+            className={`${btnBase}${current ? ` ${currentClass}` : ''}${vm ? ` ab-move-verdict-${vm.tone}` : ''}`}
+          >
+            {vm && <span className={`mv-badge mv-badge-${vm.tone}`} title={vm.label}>{vm.symbol}</span>}
+            {moves[idx]}
+          </button>
+        );
+      })}
+    </span>
+  ));
+
+  return variant === 'strip'
+    ? <div className="ab-movestrip" ref={containerRef}>{rows}</div>
+    : <PlayModeMoveList followKey={`${moveIndex}/${moves.length}`}>{rows}</PlayModeMoveList>;
+});
+
+/* Play Mode's boxed list scrolls VERTICALLY inside itself. When the viewed ply
+ * changes — a new move, or the reader stepping back — only THIS container is
+ * moved. `scrollIntoView` is not used anywhere on this page: it walks every
+ * scrollable ancestor and could drag the whole overlay/page along with it, which
+ * is the page shake. */
+function PlayModeMoveList({ children, followKey }) {
+  const ref = useRef(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const cur = el.querySelector('.ab-move-btn.active');
+    if (!cur) return;
+    const top = cur.offsetTop - (el.clientHeight - cur.offsetHeight) / 2;
+    const max = el.scrollHeight - el.clientHeight;
+    el.scrollTo({ top: Math.max(0, Math.min(max, top)), behavior: 'smooth' });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [followKey]);
+  return <div className="ab-move-list" ref={ref}>{children}</div>;
+}
+
+/* The board's "waiting" overlay: a circular spinner with the message under it,
+ * sitting ON the board instead of the thin strip of text it replaced.
+ *
+ * Purely presentational and `pointer-events:none` — it never eats a tap. The
+ * board itself is switched off by `interactive`, which is why a waiting player
+ * cannot pick up a piece while this is up. */
+function WaitingOverlay() {
+  return (
+    <div className="ab-waiting" role="status" aria-live="polite">
+      <span className="ab-waiting-spinner" aria-hidden="true" />
+      <span className="ab-waiting-text">Waiting for opponent</span>
+    </div>
+  );
+}
+
 function ClockBox({ color, time, active, low }) {
   return (
     <div className={`ab-clock${active ? ' ab-clock-active' : ''}${low ? ' ab-clock-low' : ''}${!time ? ' ab-clock-static' : ''}`}>
       <span className="ab-clock-color">{color === 'white' ? '⚪' : '⚫'}</span>
       <span className="ab-clock-time">{time ?? '--:--'}</span>
     </div>
+  );
+}
+
+/* Milliseconds left on one side, read live. The stored value is a snapshot taken
+   when that side last moved, so the side on clock is that snapshot minus the time
+   that has passed since. Pure, so the clock display and the flag-fall checks can
+   never disagree about what the clock says. */
+function remainingMs(clock, running, color) {
+  if (!clock) return 0;
+  const stored = color === 'white' ? clock.whiteMs : clock.blackMs;
+  if (!running || clock.turn !== color) return stored;
+  return Math.max(0, stored - Math.max(0, Date.now() - (clock.serverNow || Date.now())));
+}
+
+/* A ticking clock, isolated in its own component. The page used to hold a
+   `clockTick` counter and repaint itself five times a second, so every tick
+   re-rendered the board, the move list and both side panels — the single
+   biggest reason a live game felt like it was hanging. Now only this subtree
+   sees the beat. */
+function GameClock({ clock, running, color, forceFloor }) {
+  const [, setBeat] = useState(0);
+  const ticking = !!clock && running && clock.turn === color;
+
+  useEffect(() => {
+    if (!ticking) return undefined;
+    const t = setInterval(() => setBeat((x) => x + 1), 250);
+    return () => clearInterval(t);
+  }, [ticking]);
+
+  const left = remainingMs(clock, running, color);
+  return (
+    <ClockBox
+      color={color}
+      time={clock ? fmtClock(left, forceFloor) : null}
+      active={!!(clock && clock.turn === color)}
+      low={!!(clock && left < 10000 && clock.turn === color)}
+    />
   );
 }
 
@@ -4142,14 +4453,19 @@ function ClockBox({ color, time, active, low }) {
  *
  * The offer is hidden against a computer: there is nobody to accept it, and the
  * endpoint refuses it anyway.
+ *
+ * This prompt stays always-visible — it is the OPPONENT asking something of you,
+ * so hiding it behind a menu you have to open would silently ignore them. The
+ * two buttons YOU press (Resign / Offer Draw) moved to ResignDrawMenu.
  */
-function OnlineGameActions({
-  busy, isBot, drawOffer, opponentName = 'your opponent',
-  onResign, onOfferDraw, onRespondDraw,
+function DrawOfferPrompt({
+  busy, drawOffer, opponentName = 'your opponent', onRespondDraw,
 }) {
   const theirs = drawOffer && !drawOffer.mine;
   const mine   = drawOffer && drawOffer.mine;
   const who    = drawOffer?.byName || opponentName;
+
+  if (!theirs && !mine) return null;
 
   return (
     <>
@@ -4184,58 +4500,312 @@ function OnlineGameActions({
           <span aria-hidden="true">🤝</span> Draw offered — waiting for {who}
         </span>
       )}
+    </>
+  );
+}
 
-      <Button onClick={onResign} disabled={busy} variant="danger" size="sm" className="!py-1 !px-2.5 text-xs">
-        ♟ Resign
+/* The ⋮ menu that holds Resign and Offer Draw.
+ *
+ * Both used to sit permanently beside the board. On a phone that is thumb height
+ * and thumb reach at once, and a single mistap ended a live game — so they are
+ * behind one 44px icon button now, anchored to it.
+ *
+ * Each action is a two-tap confirm: the row turns into "Resign this game? /
+ * Yes · No" instead of firing immediately. That replaces the confirm dialog the
+ * page never had, and keeps the actual `onResign` / `onOfferDraw` calls — and the
+ * draw-offer logic behind them — exactly as they were.
+ *
+ * Closes on an outside tap, on Escape, and after an action is taken. The popover
+ * is a child of the anchor (not a portal), so `contains()` is a valid outside
+ * test here.
+ */
+function ResignDrawMenu({
+  busy, isBot, drawOffer, opponentName = 'your opponent', onResign, onOfferDraw,
+}) {
+  const [open,     setOpen]    = useState(false);
+  const [confirm,  setConfirm] = useState(null);   // 'resign' | 'draw' | null
+  const anchorRef  = useRef(null);
+
+  const close = useCallback(() => {
+    setConfirm(null);
+    setOpen(false);
+  }, []);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const onDown = (e) => {
+      if (anchorRef.current && !anchorRef.current.contains(e.target)) close();
+    };
+    const onKey = (e) => { if (e.key === 'Escape') close(); };
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('touchstart', onDown, { passive: true, capture: true });
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('touchstart', onDown, true);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [open, close]);
+
+  const alreadyOffered = Boolean(drawOffer && drawOffer.mine);
+
+  /* First tap arms the row, second tap runs the original handler and closes. */
+  const run = (kind) => {
+    if (confirm !== kind) { setConfirm(kind); return; }
+    close();
+    if (kind === 'resign') onResign();
+    else onOfferDraw();
+  };
+
+  const row = (kind, label, disabled, variant) => (
+    confirm === kind ? (
+      <div className="ab-menu-confirm" key={kind}>
+        <span>{kind === 'resign' ? 'Resign this game?' : 'Offer a draw?'}</span>
+        <Button type="button" variant="danger" size="sm" disabled={busy} onClick={() => run(kind)}>Yes</Button>
+        <Button type="button" variant="secondary" size="sm" onClick={() => setConfirm(null)}>No</Button>
+      </div>
+    ) : (
+      <Button
+        type="button"
+        role="menuitem"
+        key={kind}
+        onClick={() => run(kind)}
+        disabled={busy || disabled}
+        variant={variant}
+        size="sm"
+      >
+        {label}
       </Button>
-      {!isBot && !drawOffer && (
-        <Button onClick={onOfferDraw} disabled={busy} variant="secondary" size="sm" className="!py-1 !px-2.5 text-xs">
-          🤝 Draw
-        </Button>
+    )
+  );
+
+  return (
+    <div className="ab-menu-anchor" ref={anchorRef}>
+      <button
+        type="button"
+        className="ab-menu-btn"
+        onClick={() => (open ? close() : setOpen(true))}
+        aria-haspopup="true"
+        aria-expanded={open}
+        aria-label="Game options"
+        title="Game options"
+      >
+        <span aria-hidden>⋮</span>
+      </button>
+      {open && (
+        <div className="ab-menu-pop" role="menu" aria-label="Game options">
+          {row('resign', '♟ Resign', false, 'danger')}
+          {!isBot && row('draw', alreadyOffered ? '🤝 Draw already offered' : '🤝 Offer Draw', alreadyOffered, 'secondary')}
+        </div>
+      )}
+    </div>
+  );
+}
+
+const GAME_REACTIONS = [
+  { key: 'thumbs_up', label: '👍', title: 'Like', video: reactionThumbsUp },
+  { key: 'laugh', label: '😂', title: 'Laugh', video: reactionLaughing },
+  { key: 'wow', label: '😮', title: 'Wow', video: reactionWow },
+  { key: 'sad', label: '😢', title: 'Sad', video: reactionCrying },
+  { key: 'angry', label: '😡', title: 'Angry', video: reactionAngry },
+  { key: 'fire', label: '🔥', title: 'Fire', video: reactionFire },
+  { key: 'clap', label: '👏', title: 'Clap', video: reactionClap },
+  { key: 'handshake', label: '🤝', title: 'Good game', video: reactionHandshake },
+  { key: 'gg', label: '🎉', title: 'GG', video: reactionParty },
+];
+const REACTION_PARTICLES = [
+  [-34, -24, -18], [-13, -34, 12], [16, -32, 24], [36, -10, -10],
+  [30, 20, 18], [5, 34, -24], [-25, 26, 8], [-39, 2, -6],
+];
+
+function ReactionBubble({ reaction, boardRef }) {
+  const anchorRef = useRef(null);
+  const [point, setPoint] = useState(null);
+  const [reducedMotion, setReducedMotion] = useState(() => (
+    typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+  ));
+  useEffect(() => {
+    const media = window.matchMedia?.('(prefers-reduced-motion: reduce)');
+    if (!media) return undefined;
+    const update = () => setReducedMotion(media.matches);
+    update();
+    media.addEventListener?.('change', update);
+    return () => media.removeEventListener?.('change', update);
+  }, []);
+  useLayoutEffect(() => {
+    if (!reaction || !anchorRef.current) { setPoint(null); return undefined; }
+    const boardArea = boardRef?.current;
+    if (!boardArea) return undefined;
+    const update = () => {
+      const rect = boardArea.getBoundingClientRect();
+      setPoint({ left: Math.max(8, rect.left + rect.width / 2 - 48), top: Math.max(8, rect.top + rect.height / 2 - 48) });
+    };
+    update();
+    window.addEventListener('resize', update);
+    window.addEventListener('scroll', update, true);
+    const observer = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(update) : null;
+    observer?.observe(boardArea);
+    return () => {
+      window.removeEventListener('resize', update);
+      window.removeEventListener('scroll', update, true);
+      observer?.disconnect();
+    };
+  }, [reaction?.id, boardRef]);
+  if (!reaction) return null;
+  const item = GAME_REACTIONS.find((candidate) => candidate.key === reaction.emoji);
+  if (!item) return null;
+  return (
+    <>
+      <span ref={anchorRef} className="ab-reaction-anchor-point" aria-hidden="true" />
+      {point && createPortal(
+        <div key={reaction.id} className={`ab-reaction-bubble ab-reaction-${item.key}`} style={{ left: point.left, top: point.top }} aria-hidden="true">
+          <span className="ab-reaction-main">
+            <span className="ab-reaction-character">
+              {reducedMotion
+                ? item.label
+                : <KeyedReactionVideo className="ab-reaction-motion" src={item.video} />}
+            </span>
+            {item.key === 'sad' && <span className="ab-reaction-tears"><i /><i /></span>}
+          </span>
+          <span className="ab-reaction-particles">
+            {REACTION_PARTICLES.map(([x, y, rotation], index) => (
+              <i key={index} style={{ '--rx': `${x}px`, '--ry': `${y}px`, '--rr': `${rotation}deg`, animationDelay: `${index * 18}ms` }}>{item.label}</i>
+            ))}
+          </span>
+        </div>,
+        document.body,
       )}
     </>
   );
 }
 
-function ReactionPicker({ onReact, onClose }) {
-  const EMOJIS = ['👍','❤️','🔥','😂','😮','🎯','😅','💪','🏆','👏','😍','🤩'];
-  // close when clicking outside
-  const ref = useRef(null);
+/* Remove only near-white pixels connected to the video frame edges. Interior
+   whites (eyes, highlights and lettering) stay intact. The source video remains
+   muted and hidden; its decoded frames are painted onto a transparent canvas. */
+function KeyedReactionVideo({ src, className = '' }) {
+  const videoRef = useRef(null);
+  const canvasRef = useRef(null);
   useEffect(() => {
-    function handler(e) {
-      if (ref.current && !ref.current.contains(e.target)) onClose();
-    }
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [onClose]);
-
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    if (!video || !canvas) return undefined;
+    const width = 128;
+    const height = 128;
+    canvas.width = width;
+    canvas.height = height;
+    const context = canvas.getContext('2d', { willReadFrequently: true });
+    if (!context) return undefined;
+    let frameRequest = 0;
+    let previousTime = -1;
+    const isBackgroundWhite = (data, offset) => {
+      const red = data[offset], green = data[offset + 1], blue = data[offset + 2];
+      return Math.min(red, green, blue) >= 205 && Math.max(red, green, blue) - Math.min(red, green, blue) <= 52;
+    };
+    const renderFrame = () => {
+      frameRequest = requestAnimationFrame(renderFrame);
+      if (video.readyState < 2 || video.currentTime === previousTime) return;
+      previousTime = video.currentTime;
+      context.drawImage(video, 0, 0, width, height);
+      const image = context.getImageData(0, 0, width, height);
+      const { data } = image;
+      const count = width * height;
+      const seen = new Uint8Array(count);
+      const queue = new Uint32Array(count);
+      let head = 0, tail = 0;
+      const add = (index) => {
+        if (seen[index]) return;
+        seen[index] = 1;
+        if (isBackgroundWhite(data, index * 4)) queue[tail++] = index;
+      };
+      for (let x = 0; x < width; x += 1) {
+        add(x);
+        add((height - 1) * width + x);
+      }
+      for (let y = 1; y < height - 1; y += 1) {
+        add(y * width);
+        add(y * width + width - 1);
+      }
+      while (head < tail) {
+        const index = queue[head++];
+        data[index * 4 + 3] = 0;
+        const x = index % width;
+        const y = (index - x) / width;
+        for (let dy = -1; dy <= 1; dy += 1) {
+          for (let dx = -1; dx <= 1; dx += 1) {
+            if (!dx && !dy) continue;
+            const nx = x + dx, ny = y + dy;
+            if (nx >= 0 && nx < width && ny >= 0 && ny < height) add(ny * width + nx);
+          }
+        }
+      }
+      context.putImageData(image, 0, 0);
+    };
+    video.play().catch(() => {});
+    frameRequest = requestAnimationFrame(renderFrame);
+    return () => {
+      cancelAnimationFrame(frameRequest);
+      video.pause();
+    };
+  }, [src]);
   return (
-    <div ref={ref} className="ab-react-picker">
-      {EMOJIS.map((e) => (
-        <button key={e} onClick={() => onReact(e)} className="ab-react-emoji" title={e}>{e}</button>
+    <>
+      <video
+        ref={videoRef}
+        src={src}
+        autoPlay
+        muted
+        playsInline
+        preload="auto"
+        tabIndex={-1}
+        aria-hidden="true"
+        className="ab-reaction-video-source"
+      />
+      <canvas ref={canvasRef} width={128} height={128} className={`ab-reaction-video ${className}`} aria-hidden="true" />
+    </>
+  );
+}
+
+function ReactionPicker({ disabled, pressed, onReact }) {
+  return (
+    <div className="ab-react-picker" role="group" aria-label="Choose a reaction">
+      {GAME_REACTIONS.map((reaction) => (
+        <button
+          key={reaction.key}
+          type="button"
+          className={`ab-react-emoji${pressed === reaction.key ? ' is-pressed' : ''}`}
+          onClick={() => onReact(reaction.key)}
+          disabled={disabled}
+          title={reaction.title}
+          aria-label={reaction.title}
+        >
+          {reaction.label}
+        </button>
       ))}
     </div>
   );
 }
 
-/* The emoji trigger that lives inside a player card, beside that player's
-   clock. `below` flips the popover downward — the picker must always open
-   toward the board, because the board column clips its own overflow and a
-   popover reaching past the top row would be cut off. */
-function EmojiReactControl({ open, onToggle, onReact, onClose, below }) {
+function EmojiReactControl({ open, disabled, pressed, onToggle, onReact, onClose }) {
+  const ref = useRef(null);
+  useEffect(() => {
+    if (!open) return undefined;
+    const handler = (event) => { if (!ref.current?.contains(event.target)) onClose(); };
+    document.addEventListener('pointerdown', handler, true);
+    return () => document.removeEventListener('pointerdown', handler, true);
+  }, [open, onClose]);
   return (
-    <span className={`ab-react-anchor ab-react-inline${below ? ' ab-react-below' : ''}`}>
+    <span ref={ref} className="ab-react-anchor ab-react-inline">
       <button
         type="button"
-        className="ab-react-btn"
+        className={`ab-reaction-trigger-button${disabled ? ' is-cooling' : ''}${pressed ? ' is-pressed' : ''}`}
         onClick={onToggle}
         title="React"
-        aria-label="React"
+        aria-label="Choose a reaction"
         aria-expanded={open}
       >
         <span aria-hidden>😊</span>
       </button>
-      {open && <ReactionPicker onReact={onReact} onClose={onClose} />}
+      {open && <ReactionPicker disabled={disabled} pressed={pressed} onReact={onReact} />}
     </span>
   );
 }
@@ -4456,3 +5026,5 @@ function ReviewCompletePopup({ analysis, onClose, soundOn }) {
     </div>
   );
 }
+
+/* __VITE_STALE_PROBE_9137__ */
