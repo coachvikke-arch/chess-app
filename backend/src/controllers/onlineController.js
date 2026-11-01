@@ -696,6 +696,19 @@ exports.createGame = async (req, res) => {
     const target = await db.query('SELECT id FROM users WHERE id = $1', [studentId]);
     if (target.rows.length === 0) return res.status(404).json({ message: 'Player not found' });
 
+    // A quick double tap/retried POST must reuse the pending challenge rather
+    // than create a second game and a second notification pair.
+    const pendingInvite = await db.query(
+      `SELECT id FROM online_games
+       WHERE admin_id = $1 AND student_id = $2 AND status = 'pending'
+       ORDER BY id DESC LIMIT 1`,
+      [req.user.id, studentId]
+    );
+    if (pendingInvite.rows[0]) {
+      const existing = await getGameRow(pendingInvite.rows[0].id);
+      return res.status(200).json(payload(existing, req.user.role, req.user.id));
+    }
+
     /* 360 = the picker's largest clock (5 h + 60 min). The old 60 ceiling
        silently turned every 2 h–6 h challenge into a 1 h game. */
     const baseMin = Math.max(1, Math.min(360, Number(timeControl?.baseMinutes) || 5));

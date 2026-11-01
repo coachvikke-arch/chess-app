@@ -3,23 +3,6 @@ import { checkToastDedupe, DEDUPE_WINDOW_MS } from '../utils/toastDedupe';
 import Portal from './Portal';
 import Button from './Button';
 
-/* TEMPORARY duplicate-toast diagnosis. Every show/suppress decision logs id,
- * tone, title/message, the caller-supplied source tag, dedupe key and a
- * timestamp, plus console.trace() so the exact handler/file shows in the
- * call stack. Remove once the duplicate source is confirmed fixed. */
-const TOAST_DEBUG = true;
-function toastDebugLog(verb, info) {
-  if (!TOAST_DEBUG) return;
-  // eslint-disable-next-line no-console
-  console.log(
-    `[toast-debug] ${verb} id=${info.id} tone=${info.tone} ` +
-    `title=${JSON.stringify(info.title || '')} message=${JSON.stringify(info.message || '')} ` +
-    `source=${info.source || '?'} dedupeKey=${info.dedupeKey || '-'} t=${new Date(info.at).toISOString()}`
-  );
-  // eslint-disable-next-line no-console
-  console.trace('[toast-debug] call stack');
-}
-
 /*
  * Global toast notification system.
  *
@@ -142,15 +125,11 @@ export function ToastProvider({ children }) {
          exactly as before. Returns the new toast's id, or null when suppressed
          (so callers can distinguish "shown" from "dropped as duplicate"). */
       const { suppressed } = checkToastDedupe(dedupeSeen.current, dedupeKey, at, dedupeWindowMs);
-      if (suppressed) {
-        toastDebugLog('SUPPRESSED-DUPLICATE', { id: null, tone, title, message, source, dedupeKey, at });
-        return null;
-      }
+      if (suppressed) return null;
       const id = nextId++;
       ids.current.add(id);
       setToasts((prev) => [...prev, { id, title, message, tone, action, actions, placement, onClick }]);
       timers.current.set(id, setTimeout(() => dismiss(id), duration));
-      toastDebugLog('SHOW', { id, tone, title, message, source, dedupeKey, at });
       return id;
     },
     [dismiss]

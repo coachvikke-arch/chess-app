@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from './Toast';
 import { matchRequestKey } from '../utils/toastDedupe';
@@ -119,6 +119,8 @@ function reqStatusChip(status) {
 
 export default function NotificationBell() {
   const [open, setOpen] = useState(false);
+  const openRef = useRef(false);
+  openRef.current = open;
   const [items, setItems] = useState([]);
   const [unread, setUnread] = useState(0);
   const ref = useRef(null);
@@ -127,6 +129,9 @@ export default function NotificationBell() {
   const { user } = useAuth();
   const { showToast } = useToast();
   const navigate = useNavigate();
+  const location = useLocation();
+  const notificationsPageRef = useRef(false);
+  notificationsPageRef.current = /\/notifications(?:\/|$)/.test(location.pathname);
 
   /* Where the board lives for this role. Accepting a match request navigates
      here, and it must match `notificationTarget`'s base so an admin and a
@@ -158,7 +163,7 @@ export default function NotificationBell() {
   const seenOwner = useRef(user?.id);
   if (knownIds.current === null || seenOwner.current !== user?.id) {
     try {
-      knownIds.current = new Set(JSON.parse(sessionStorage.getItem(seenStoreKey) || '[]'));
+      knownIds.current = new Set(JSON.parse(sessionStorage.getItem(seenStoreKey) || '[]').map(String));
     } catch {
       knownIds.current = new Set();
     }
@@ -173,11 +178,9 @@ export default function NotificationBell() {
      without this the same row stays "fresh" and syncFeed → toastNew shows it
      AGAIN as a second, plain toast — the duplicate popup. */
   const claimSeen = useCallback((id) => {
-    if (id == null || knownIds.current.has(id)) return;
-    knownIds.current.add(id);
+    if (id == null || knownIds.current.has(String(id))) return;
+    knownIds.current.add(String(id));
     persistSeen();
-    // eslint-disable-next-line no-console
-    console.log(`[toast-debug] CLAIM-SEEN notif-row id=${id} t=${new Date().toISOString()}`);
   }, []);
 
   /** Mark one notification read: optimistic locally, persisted server-side. */
@@ -198,10 +201,14 @@ export default function NotificationBell() {
   /** Every fresh notification (socket or fetched) surfaces as a clickable
    *  popup that marks it read and navigates to its page. */
   const toastNew = useCallback((arr) => {
-    const fresh = arr.filter((n) => !knownIds.current.has(n.id));
+    const fresh = arr.filter((n) => n?.id != null && !knownIds.current.has(String(n.id)));
     if (fresh.length === 0) return;
-    fresh.forEach((n) => knownIds.current.add(n.id));
+    fresh.forEach((n) => knownIds.current.add(String(n.id)));
     persistSeen();
+
+    // While the bell is open, the feed itself is the notification surface.
+    // Claim these IDs so a later poll cannot replay them as toasts.
+    if (openRef.current || notificationsPageRef.current) return;
 
     if (fresh.length > 5) {
       // Too many at once — collapse into one summary instead of a wall of popups.
@@ -230,18 +237,28 @@ export default function NotificationBell() {
   }, [showToast, openFromPopup, navigate, boardBase]);
 
   /** Fetch the feed, update the list + badge, and surface fresh items as toasts. */
-  const syncFeed = useCallback(() => {
+  const syncFeed = useCallback((markVisibleRead = false) => {
     api.get('/notifications', { cache: false }).then((res) => {
       const arr = Array.isArray(res.data) ? res.data : [];
-      setItems(arr);
-      setUnread(arr.filter((n) => !n.is_read).length);
-      toastNew(arr.filter((n) => !n.is_read));
+      const unique = [...new Map(arr.filter((n) => n?.id != null).map((n) => [String(n.id), n])).values()];
+      setItems(markVisibleRead ? unique.map((n) => ({ ...n, is_read: true })) : unique);
+      setUnread(markVisibleRead ? 0 : unique.filter((n) => !n.is_read).length);
+      if (openRef.current) {
+        toastNew(unique.filter((n) => !n.is_read));
+      } else toastNew(arr.filter((n) => !n.is_read));
+      if (markVisibleRead && unique.some((n) => !n.is_read)) {
+        api.put('/notifications/read-all', {}).catch(() => {});
+        unreadRef.current = 0;
+      }
     }).catch(() => { });
   }, [toastNew]);
 
   useEffect(() => {
     if (!open) return;
-    syncFeed();
+    syncFeed(true);
+    setItems((prev) => prev.map((n) => ({ ...n, is_read: true })));
+    setUnread(0);
+    unreadRef.current = 0;
     /* The panel is portalled to <body>, so it is NOT inside `ref` — without its
        own ref every mousedown inside it counts as an outside click and closes
        the panel before the button's click can fire. Same guard as ProfileMenu. */
@@ -271,7 +288,7 @@ export default function NotificationBell() {
               toastNew(arr.filter((n) => !n.is_read));
             }).catch(() => { });
           } else {
-            setUnread(count);
+            setUnread(openRef.current ? 0 : count);
           }
           unreadRef.current = count;
         })
@@ -295,6 +312,7 @@ export default function NotificationBell() {
   useEffect(() => {
     if (!user) return undefined;
     return on('live_class_invite', ({ classId, title }) => {
+      if (openRef.current || notificationsPageRef.current) return;
       showToast(`Your coach invited you to the live classroom — tap Join now.`, {
         tone: 'info',
         title: `📺 ${title || 'Live class'} invite`,
@@ -371,6 +389,7 @@ export default function NotificationBell() {
     if (!user) return undefined;
     return onNotification((n) => {
       if (n?.type !== 'match_request' || !n.related_id) return;
+      if (openRef.current || notificationsPageRef.current) { claimSeen(n.id); return; }
       const isSender = n.sender_id === user.id;
       if (isSender) return;
       const fromName = n.sender_name || 'Someone';

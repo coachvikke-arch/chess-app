@@ -837,8 +837,9 @@ export default function ChessBoard({
       /* Normal last-move wash only: the promotion's teal belongs to its effect
          and is gone with it, so a promotion leaves the same amber highlight as
          every other move. */
-      if (effectiveLastMove.from) styles[effectiveLastMove.from] = { backgroundColor: 'var(--last-move-from)' };
-      if (effectiveLastMove.to)   styles[effectiveLastMove.to]   = { backgroundColor: 'var(--last-move-to)' };
+      const goldGlow = 'inset 0 0 0 2px rgba(218, 165, 32, 0.42), inset 0 0 8px rgba(255, 215, 0, 0.18), 0 0 5px rgba(218, 165, 32, 0.16)';
+      if (effectiveLastMove.from) styles[effectiveLastMove.from] = { backgroundColor: 'var(--last-move-from)', boxShadow: goldGlow };
+      if (effectiveLastMove.to)   styles[effectiveLastMove.to]   = { backgroundColor: 'var(--last-move-to)', boxShadow: goldGlow };
     }
 
     if (selected) {

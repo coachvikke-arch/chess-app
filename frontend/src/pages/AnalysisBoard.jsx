@@ -608,6 +608,11 @@ export default function AnalysisBoard() {
   const [fen,        setFen]        = useState(gameRef.current.fen());
   const [status,     setStatus]     = useState({ label: 'In Progress', tone: '', over: false, winner: null });
   const [lastMove,   setLastMove]   = useState(null);
+  const [boardResetKey, setBoardResetKey] = useState(0);
+  const [resettingPlayArena, setResettingPlayArena] = useState(false);
+  const resetInProgressRef = useRef(false);
+  const arenaResetVersionRef = useRef(0);
+  const notificationPanelOpenRef = useRef(false);
   /* The result card is held back while a mating move's animation plays. */
   const [resultRevealPending, setResultRevealPending] = useState(false);
   const resultRevealCancelRef = useRef(null);
@@ -823,6 +828,10 @@ export default function AnalysisBoard() {
   const onlineSelectedPlayer =
     onlineUsers.find((u) => String(u.id) === String(onlineSelId)) || null;
   const onlineGameRef     = useRef(null);
+  const activeGameIdRef   = useRef(null);
+  const ignoredGameIdsRef = useRef(new Set());
+  const gameSocketCleanupRef = useRef(null);
+  const reactionSocketCleanupRef = useRef(null);
   const flagSentRef       = useRef(null);
 
   /* The last position this board actually RENDERED, as `{ id, ply, pgn }`.
@@ -876,6 +885,7 @@ export default function AnalysisBoard() {
   const [resultPopup,   setResultPopup]   = useState(null);   // descriptor or null
   const [resultDismiss, setResultDismiss] = useState(false);
   const resultSeenRef   = useRef(null);                       // which game-end we already showed
+  const gameSessionIdRef = useRef(`local-${Date.now()}-${Math.random().toString(36).slice(2)}`);
   /* The result card is shown ONCE per game: undoing and redoing the mating move
      replays the animation but never the card. That guard now lives in the
      popup's own reveal key (effects/moveEffect/completion.js), so there is no
@@ -1180,6 +1190,7 @@ export default function AnalysisBoard() {
         if (cancelled || !row) return;
         const mine = row.meId === user?.id ? row : null;
         if (!mine) return;
+        if (ignoredGameIdsRef.current.has(String(mine.id))) return;
         if (!['active', 'finished', 'pending'].includes(mine.status)) return;
         applyOnlineRow(mine);
         setOnlineNotice(
@@ -1288,6 +1299,8 @@ export default function AnalysisBoard() {
     onlineSeenActiveRef.current = null;
     clearMateReveal();
     setOnlineGame(null);
+    onlineGameRef.current = null;
+    activeGameIdRef.current = null;
     setOnlineMyColor('white');
     setOnlineTurn('white');
     clearTimeout(reactionTimersRef.current.mine);
@@ -1431,10 +1444,24 @@ export default function AnalysisBoard() {
   }
 
   function startNewGame() {
+    gameSessionIdRef.current = `local-${Date.now()}-${Math.random().toString(36).slice(2)}`;
     loadFen('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1', false);
   }
 
+  function markCurrentResultSeen(onlineId = null) {
+    const gameId = onlineId != null ? `online-${onlineId}`
+      : onlineGame?.id ? `online-${onlineGame.id}` : gameSessionIdRef.current;
+    try {
+      const key = `mz-result-seen-${user?.id || 'anon'}`;
+      const ids = JSON.parse(localStorage.getItem(key) || '[]');
+      const next = [...new Set([...ids, gameId])].slice(-100);
+      localStorage.setItem(key, JSON.stringify(next));
+    } catch { /* storage can be disabled; the in-memory guard still applies */ }
+    resultSeenRef.current = gameId;
+  }
+
   function fullReset() {
+    markCurrentResultSeen();
     endSpecSession();
     clearOnline(true);
     setComputerOn(false);
@@ -1446,19 +1473,109 @@ export default function AnalysisBoard() {
     setReviewMode(false);
     setResultPopup(null);
     setResultDismiss(false);
-    resultSeenRef.current = null;
     startNewGame();
+  }
+
+  async function resetPlayArena() {
+    if (resetInProgressRef.current) return;
+    resetInProgressRef.current = true;
+    setResettingPlayArena(true);
+
+    const oldGameId = onlineGame?.id ?? onlineWaiting?.id ?? activeGameIdRef.current;
+    const pendingId = onlineWaiting?.id ?? (onlineGame?.status === 'pending' ? onlineGame.id : null);
+    if (oldGameId != null) ignoredGameIdsRef.current.add(String(oldGameId));
+    if (pendingId != null) ignoredGameIdsRef.current.add(String(pendingId));
+    if (oldGameId != null) markCurrentResultSeen(oldGameId);
+    else markCurrentResultSeen();
+
+    // Detach the precise game handler and leave its room before changing state.
+    const cleanupGameSocket = gameSocketCleanupRef.current;
+    cleanupGameSocket?.();
+    gameSocketCleanupRef.current = null;
+    reactionSocketCleanupRef.current?.();
+    reactionSocketCleanupRef.current = null;
+    if (!cleanupGameSocket && oldGameId != null) leaveGameRoom(oldGameId);
+    onlineGameRef.current = null;
+    activeGameIdRef.current = null;
+    onlineSeenActiveRef.current = null;
+
+    // Withdraw a still-pending challenge without surfacing a toast or error.
+    if (pendingId != null) {
+      const cancelPending = onlineWaiting?.id || onlineGame?.canAbort
+        ? abortGame(pendingId)
+        : declineGame(pendingId);
+      cancelPending.catch(() => {});
+    }
+    endSpecSession();
+    onlineSearchToken.current += 1;
+    arenaResetVersionRef.current += 1;
+    computerToken.current += 1;
+    engineToken.current += 1;
+    analysisToken.current += 1;
+    clearMateReveal();
+    Object.values(reactionTimersRef.current).forEach((timer) => clearTimeout(timer));
+    reactionTimersRef.current = { mine: null, opponent: null, cooldown: null, pressed: null };
+    window.clearTimeout(inviteBarTimer.current);
+    window.clearTimeout(showOnlineNotice._t);
+
+    // Play Arena does not persist game snapshots. Clear known legacy snapshot
+    // keys while preserving the result-seen marker, sign-in and board settings.
+    const transientKeys = [
+      'mz-active-game', 'mz-active-game-id', 'mz-game-state', 'mz-saved-fen',
+      'mz-saved-pgn', 'mz-saved-clocks', 'mz-result',
+    ];
+    for (const store of [window.localStorage, window.sessionStorage]) {
+      try {
+        transientKeys.forEach((key) => store.removeItem(key));
+      } catch { /* storage may be unavailable */ }
+    }
+
+    // The mount-time `?game=` loader is the only restore path for online games.
+    if (location.search) navigate(location.pathname, { replace: true });
+
+    const fresh = new Chess();
+    gameRef.current = fresh;
+    setInitialFen('start'); setMoves([]); setMoveIndex(0); setFen(fresh.fen());
+    setLastMove(null); setStatus(getStatus(fresh)); setBoardResetKey((key) => key + 1);
+    setOrientation('white'); setPlayMode(false);
+    setComputerOn(false); setComputerThinking(false); setComputerColor('black');
+    setClock(null); setClockRunning(false); setClockOver(null);
+    setTimeSel({ hours: 0, base: 5, inc: 0 });
+    setOnlineGame(null); setOnlineMyColor('white'); setOnlineTurn('white');
+    setOnlineSelId(''); setOnlineSelName(''); onlineSelStudent.current = null;
+    setOnlineColorSel('white'); setOnlineOpponentType('player');
+    setOnlineBusy(false); setOnlineSearching(false); setOnlineWaiting(null);
+    setOnlineError(''); setOnlineNotice(''); setInviteBar(null); setDrawOffer(null);
+    setPendingConfirm(null); setActivePopup(null);
+    setPlayerReactions({ mine: null, opponent: null }); setShowReactPicker(false);
+    setReactionCooling(false); setPressedReaction(''); reactionCooldownRef.current = 0;
+    setSpectateSession(null); setLiveSessions([]); setLiveRefreshing(false);
+    setGameAnalysis(null); setAnalyzing(false); setAnalyzeProgress(0);
+    setThinking(false); setBest(null); setBestFen(''); setLines([]);
+    setReviewMode(false); setResultPopup(null); setResultDismiss(false);
+    setResultRevealPending(false); setRatingResult(null); setConfetti([]);
+    setShowReviewPopup(false);
+    setInfoTab('fen');
+    appliedRef.current = { id: null, ply: 0, pgn: '' };
+    flagSentRef.current = oldGameId ?? null; savedGameRef.current = null;
+    gameSessionIdRef.current = `local-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    refreshOnlineMatches();
+
+    window.setTimeout(() => {
+      resetInProgressRef.current = false;
+      setResettingPlayArena(false);
+    }, 350);
   }
 
   /* Rematch — same mode/color/level/time, fresh board */
   function rematch() {
+    markCurrentResultSeen();
     setReviewMode(false);
     setClockOver(null);
     setGameAnalysis(null);
     setAnalyzing(false);
     setResultPopup(null);
     setResultDismiss(false);
-    resultSeenRef.current = null;
     if (computerOn || clockOver) {
       // restart computer game with same settings
       startComputerGame(computerColor);
@@ -1848,6 +1965,7 @@ export default function AnalysisBoard() {
   }
 
   function startComputerGame(playAs) {
+    gameSessionIdRef.current = `local-${Date.now()}-${Math.random().toString(36).slice(2)}`;
     endSpecSession();
     setPendingConfirm(null);
     const g = rebuildGame('start', []);
@@ -1935,6 +2053,8 @@ export default function AnalysisBoard() {
      on every row that is not stale, whether or not the board moved. */
   function applyOnlineMeta(row) {
     if (row.status === 'active') onlineSeenActiveRef.current = row.id;
+    activeGameIdRef.current = row.id;
+    onlineGameRef.current = row;
     const ownColor = row.myColor || 'white';
     setOnlineGame(row);
     setOnlineMyColor(ownColor);
@@ -1954,6 +2074,7 @@ export default function AnalysisBoard() {
 
   function applyOnline(row) {
     if (!row) return;
+    if (ignoredGameIdsRef.current.has(String(row.id))) return;
     const g = new Chess();
     try { g.loadPgn(row.pgn || '', { strict: false }); } catch { /* start pos */ }
     const { san, last } = getHistory(g);
@@ -2001,11 +2122,14 @@ export default function AnalysisBoard() {
   }
 
   function refreshOnlineMatches() {
-    listGames().then(setOnlineMatches).catch(() => {});
+    listGames().then((rows) => setOnlineMatches(
+      rows.filter((row) => !ignoredGameIdsRef.current.has(String(row.id)))
+    )).catch(() => {});
   }
 
   async function startOnlineMatch() {
     if (onlineBusy) return;
+    const resetVersion = arenaResetVersionRef.current;
 
     let sid = onlineSelStudent.current;
 
@@ -2053,6 +2177,10 @@ export default function AnalysisBoard() {
         adminColor: chosenColor,
         timeControl: { baseMinutes: timeSel.hours * 60 + timeSel.base, incrementSeconds: timeSel.inc },
       });
+      if (resetVersion !== arenaResetVersionRef.current) {
+        abortGame(row.id).catch(() => {});
+        return;
+      }
       applyOnline(row);
       refreshOnlineMatches();
       if (soundOn) playSound('good');
@@ -2246,11 +2374,17 @@ export default function AnalysisBoard() {
 
   useEffect(() => {
     if (!inOnline || !onlineGame?.id) return undefined;
-    return onGameReaction((payload) => {
+    const cleanup = onGameReaction((payload) => {
+      if (ignoredGameIdsRef.current.has(String(payload?.gameId))) return;
       if (Number(payload?.gameId) !== Number(onlineGame.id)) return;
       if (Number(payload?.senderId) === Number(user?.id)) return;
       showPlayerReaction(payload?.emoji, 'opponent');
     });
+    reactionSocketCleanupRef.current = cleanup;
+    return () => {
+      cleanup();
+      if (reactionSocketCleanupRef.current === cleanup) reactionSocketCleanupRef.current = null;
+    };
     // The per-player timer replaces old reactions on the same card.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [inOnline, onlineGame?.id, user?.id]);
@@ -2261,12 +2395,15 @@ export default function AnalysisBoard() {
 
   /* load users + matches on mount */
   useEffect(() => {
+    const resetVersion = arenaResetVersionRef.current;
     loadOnlineUsers();
     listGames()
       .then((gs) => {
-        setOnlineMatches(gs);
-        const target = gs.find((m) => m.status === 'active')
-          || gs.find((m) => m.status === 'pending' && !m.canAccept);
+        if (resetVersion !== arenaResetVersionRef.current) return;
+        const visibleGames = gs.filter((m) => !ignoredGameIdsRef.current.has(String(m.id)));
+        setOnlineMatches(visibleGames);
+        const target = visibleGames.find((m) => m.status === 'active')
+          || visibleGames.find((m) => m.status === 'pending' && !m.canAccept);
         if (target) applyOnline(target);
       })
       .catch(() => {});
@@ -2292,8 +2429,11 @@ export default function AnalysisBoard() {
 
   /* real-time invite notifications — refresh match list when a new invite arrives */
   useEffect(() => {
+    const panelState = (event) => { notificationPanelOpenRef.current = !!event.detail?.open; };
+    window.addEventListener('chess-notif-panel', panelState);
     const cleanup = onGameInvite((payload) => {
       refreshOnlineMatches();
+      if (notificationPanelOpenRef.current) return;
       if (soundOn) playSound('good');
       const fromName = payload.from?.name || 'Someone';
       const msg = `${fromName} invited you to a game (${payload.timeLabel || '5+0'}).`;
@@ -2319,6 +2459,7 @@ export default function AnalysisBoard() {
     });
     return () => {
       cleanup();
+      window.removeEventListener('chess-notif-panel', panelState);
       window.clearTimeout(inviteBarTimer.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -2358,6 +2499,7 @@ export default function AnalysisBoard() {
      listeners used to stack when Play Mode was opened and closed. */
   const applyOnlineRow = useStableCallback((row) => {
     if (!row) return;
+    if (ignoredGameIdsRef.current.has(String(row.id))) return;
     setDrawOffer(row.drawOffer || null);
     const before = appliedRef.current;
     const prevStatus = onlineGameRef.current?.status;
@@ -2396,6 +2538,7 @@ export default function AnalysisBoard() {
         row = cur.myRole === 'admin' ? forAdmin : forStudent;
       }
       if (!row) return;
+      if (ignoredGameIdsRef.current.has(String(row.id))) return;
       /* An update about some OTHER match: keep the pending/active list in sync,
          leave the board alone. */
       if (!cur || row.id !== cur.id) {
@@ -2412,9 +2555,17 @@ export default function AnalysisBoard() {
       applyOnlineRow(row);
     });
 
-    return () => {
+    let cleaned = false;
+    const cleanGameSocket = () => {
+      if (cleaned) return;
+      cleaned = true;
       cleanup();
       if (id) leaveGameRoom(id);
+    };
+    gameSocketCleanupRef.current = cleanGameSocket;
+    return () => {
+      cleanGameSocket();
+      if (gameSocketCleanupRef.current === cleanGameSocket) gameSocketCleanupRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [onlineGame?.id, user?.id]);
@@ -2681,7 +2832,15 @@ export default function AnalysisBoard() {
   /* auto-open the popup the moment a game ends (guards each distinct end state) */
   useEffect(() => {
     if (!finalResult) { return; }
-    const key = `${finalResult.title}-${finalResult.reason}-${moves.length}`;
+    const gameId = onlineGame?.id ? `online-${onlineGame.id}` : gameSessionIdRef.current;
+    // A finished online game fetched on reload is history, not a new finish in
+    // this session. Only show the card after this tab observed its active state.
+    if (onlineFinished && onlineSeenActiveRef.current !== onlineGame?.id) return;
+    const seenKey = `mz-result-seen-${user?.id || 'anon'}`;
+    let seen = [];
+    try { seen = JSON.parse(localStorage.getItem(seenKey) || '[]'); } catch { /* ignore */ }
+    if (seen.includes(gameId) || resultSeenRef.current === gameId) return;
+    const key = gameId;
     if (resultSeenRef.current === key) return;
     resultSeenRef.current = key;
     setResultPopup(finalResult);
@@ -2698,6 +2857,7 @@ export default function AnalysisBoard() {
       fetchRatingResult(gameId)
         .then((r) => {
           /* Ignore a response for a game we have already navigated away from. */
+          if (activeGameIdRef.current !== gameId) return;
           setRatingResult((prev) => (prev && prev.gameId !== gameId ? prev : { ...r, gameId }));
         })
         .catch(() => setRatingResult(null));
@@ -2779,7 +2939,7 @@ export default function AnalysisBoard() {
       runGameAnalysis(true);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [finalResult, gameAnalysis, analyzing]);
+  }, [finalResult, gameAnalysis, analyzing, onlineFinished, onlineGame?.id, user?.id]);
 
   /* move-quality stats for the student's side + rule-based coach message */
   const resultPopupProps = useMemo(() => {
@@ -2851,7 +3011,7 @@ export default function AnalysisBoard() {
       rating: ratingResult,
       secondary,
       onReview: (resultPopup.wantsReview && moves.length > 0)
-        ? () => { setResultPopup(null); setResultDismiss(true); goToGameReview(); }
+        ? () => { markCurrentResultSeen(); setResultPopup(null); setResultDismiss(true); goToGameReview(); }
         : null,
       /* Dismissing the result deliberately does NOT touch the board. The board
          stays on the final position so the finished game can still be read,
@@ -2860,7 +3020,7 @@ export default function AnalysisBoard() {
          which returns the board to the start while KEEPING the move list.
          An earlier version reset here automatically; the user asked for reset
          on the button only. */
-      onClose: () => { setResultPopup(null); setResultDismiss(true); },
+      onClose: () => { markCurrentResultSeen(); fullReset(); },
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
@@ -3007,6 +3167,7 @@ export default function AnalysisBoard() {
                   The page board unmounts while Play Mode is open. */}
               {!playMode && (
                 <ArenaBoard
+                  key={boardResetKey}
                   game={gameRef.current}
                   orientation={orientation}
                   boardWidth={boardWidth}
@@ -3095,7 +3256,7 @@ export default function AnalysisBoard() {
                   <Button onClick={() => abortOnline(onlineGame)} disabled={onlineBusy} variant="danger" size="sm" className="!py-1 !px-2.5 text-xs">✕ Abort</Button>
                 )}
                 {onlineBanner.actions === 'finished' && (
-                  <Button onClick={fullReset} variant="primary" size="sm" className="!py-1 !px-2.5 text-xs">♞ New</Button>
+                  <Button onClick={resetPlayArena} disabled={resettingPlayArena} variant="primary" size="sm" className="!py-1 !px-2.5 text-xs">♞ New</Button>
                 )}
               </div>
             </div>
@@ -4177,6 +4338,7 @@ export default function AnalysisBoard() {
         {/* board — the star: fills every free pixel, side details stay in the panel */}
         <div className="play-mode-board-area" ref={pmAreaRef}>
           <ArenaBoard
+            key={boardResetKey}
             game={gameRef.current}
             orientation={orientation}
             boardWidth={pmBoardWidth}
