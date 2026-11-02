@@ -24,7 +24,7 @@ import { useAuth } from '../../context/AuthContext';
  * Renders nothing.
  */
 export default function LiveClassSocketBridge({ classId, onSocketError }) {
-  const { replaceParticipants, setConnection, setRemoteReview, setViewIndex, isInstructor, setSpectateEnabled, setSelfGameStatus, setChessState, setClassMeta, patchPermissions, setEvalVisible } = useLiveClass();
+  const { replaceParticipants, setConnection, setRemoteReview, setViewIndex, isInstructor, setSpectateEnabled, setSelfGameStatus, setChessState, setClassMeta, patchPermissions } = useLiveClass();
   const { user } = useAuth();
 
   useEffect(() => {
@@ -46,10 +46,6 @@ export default function LiveClassSocketBridge({ classId, onSocketError }) {
       if (payload?.moveGrants || payload?.studentInteractionEnabled !== undefined) {
         setClassMeta((prev) => prev ? ({ ...prev, moveGrants: payload.moveGrants ?? prev.moveGrants, studentInteractionEnabled: payload.studentInteractionEnabled ?? prev.studentInteractionEnabled, studentMoveSide: payload.studentMoveSide ?? prev.studentMoveSide }) : prev);
       }
-      if (payload?.boardLocked !== undefined || payload?.boardHidden !== undefined || payload?.evalVisible !== undefined) {
-        setClassMeta((prev) => prev ? ({ ...prev, boardLocked: payload.boardLocked ?? prev.boardLocked, boardHidden: payload.boardHidden ?? prev.boardHidden, evalVisible: payload.evalVisible ?? prev.evalVisible }) : prev);
-        if (payload?.evalVisible !== undefined) setEvalVisible(payload.evalVisible !== false);
-      }
       /* Rejoining mid-review: put the room-wide review (and, for the instructor
          who leads it, their own step-back) back on screen. */
       const review = payload?.review && payload.review.fen && payload.review.to != null
@@ -69,16 +65,6 @@ export default function LiveClassSocketBridge({ classId, onSocketError }) {
     };
     const handleDisconnect = () => setConnection('reconnecting');
     const handleReconnectAttempt = () => setConnection('reconnecting');
-    /* The coach extended the class (Classroom V2 "extend it so the lesson
-       isn't cut off"): move everyone's countdown instantly. */
-    const handleExtended = (payload) => {
-      if (Number(payload?.classId) !== Number(classId)) return;
-      if (payload?.endTime != null) {
-        setClassMeta((prev) => (prev ? { ...prev, endTime: payload.endTime } : prev));
-      }
-    };
-    const offExtended = on('class_extended', handleExtended);
-
     /* Order matters: the reply to the join below is delivered only to this
        socket, so every listener it depends on is attached first. */
     const offInit = on('class:init', handleInit);
@@ -98,14 +84,13 @@ export default function LiveClassSocketBridge({ classId, onSocketError }) {
 
     return () => {
       offInit();
-      offExtended();
       s.off('connect', handleConnect);
       s.off('disconnect', handleDisconnect);
       s.io.off('reconnect_attempt', handleReconnectAttempt);
     };
     /* onSocketError is a state setter from the parent and stable in practice;
        classId/replaceParticipants/setConnection are stable from context. */
-  }, [classId, replaceParticipants, setConnection, setRemoteReview, setViewIndex, isInstructor, onSocketError, setChessState, setClassMeta, setEvalVisible]);
+  }, [classId, replaceParticipants, setConnection, setRemoteReview, setViewIndex, isInstructor, onSocketError, setChessState, setClassMeta]);
 
   useEffect(() => {
     if (!classId) return undefined;
@@ -118,16 +103,6 @@ export default function LiveClassSocketBridge({ classId, onSocketError }) {
     });
     return off;
   }, [classId, setClassMeta]);
-
-  useEffect(() => {
-    if (!classId) return undefined;
-    const off = on('classroom_state_changed', (payload) => {
-      if (Number(payload?.classId) !== Number(classId)) return;
-      setClassMeta((prev) => prev ? ({ ...prev, boardLocked: payload.locked ?? prev.boardLocked, boardHidden: payload.hidden ?? prev.boardHidden, evalVisible: payload.evalVisible ?? prev.evalVisible, recording: payload.recording ?? prev.recording }) : prev);
-      if (payload?.evalVisible !== undefined) setEvalVisible(payload.evalVisible !== false);
-    });
-    return off;
-  }, [classId, setClassMeta, setEvalVisible]);
 
   useEffect(() => {
     if (!classId || !user?.id) return undefined;

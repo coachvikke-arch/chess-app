@@ -24,9 +24,14 @@ router.get('/', ctrl.mine);
 /* Only a student asks. An admin sending this would be a request to themselves. */
 router.post('/', roleMiddleware('student'), ctrl.create);
 
-/* Only the named admin decides. The controller enforces exactly that id, so a
-   Super Admin passing this role guard still gets a 403 from the controller. */
+/* Only the named admin, or the academy owner standing in for them, may answer.
+   The role guard is the door; the controller still checks WHICH request, because
+   any coach passes roleMiddleware('admin') and only one of them owns a given row. */
 router.post('/:id/accept', roleMiddleware('admin'), ctrl.accept);
-router.post('/:id/cancel', roleMiddleware('admin'), ctrl.cancel);
+
+/* Same authority as Accept, plus the learner who sent it: an unanswered ask is
+   theirs to take back, and the controller refuses them the moment the row has
+   been accepted (only a coach closes an open chat). */
+router.post('/:id/cancel', roleMiddleware('admin', 'student'), ctrl.cancel);
 
 module.exports = router;

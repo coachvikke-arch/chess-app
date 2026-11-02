@@ -23,11 +23,6 @@ export async function endClass(id) {
   return data;
 }
 
-export async function extendClass(id, minutes) {
-  const { data } = await api.post(`/classes/${id}/extend`, { minutes });
-  return data;
-}
-
 export async function updateClass(id, fields) {
   const { data } = await api.put(`/classes/${id}`, fields);
   return data;
@@ -40,11 +35,6 @@ export async function cancelClass(id) {
 
 export async function getJoinToken(id) {
   const { data } = await api.get(`/classes/${id}/join-token`);
-  return data;
-}
-
-export async function setClassroomUiMode(id, mode) {
-  const { data } = await api.put(`/classes/${id}/ui-mode`, { mode });
   return data;
 }
 

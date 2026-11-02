@@ -16,9 +16,15 @@ export const adminLinks = [
   { to: '/admin/homework', label: 'Homework', icon: '📋' },
   { to: '/admin/command-center', label: 'Command Center', icon: '🗓', feature: 'analytics' },
   { to: '/admin/messages', label: 'Messages', icon: '💬', feature: 'messaging_students', badge: true },
-  { to: '/admin/chat-requests', label: 'Chat Requests', icon: '✉', requestBadge: true },
+  /* The old "✉ Chat Requests" row is gone on purpose: an ask is answered in the
+     Requests section at the top of the Chat page, so the nav no longer needs a
+     second door to the same queue. The /admin/chat-requests page and its route
+     stay — a staff notification still opens the full request history there. */
   { to: '/admin/students', label: 'Students & Batches', superLabel: 'Students & Admins', icon: '♙', feature: 'student_roster' },
-  { to: '/admin/reports', label: 'Student Reports', icon: '♞', superHidden: true },
+  /* The "♞ Student Reports" row is gone from the admin nav on purpose. The
+     feature itself stays: the /admin/reports route, its page and its data all
+     work, so anyone who reaches the report through a saved link or a direct URL
+     lands on it exactly as before. Only the menu button was removed. */
   { to: '/admin/classes', label: 'Classes & Attendance', icon: '♘' },
   { to: '/admin/attendance', label: 'Offline Attendance', icon: '📋' },
   { to: '/admin/leaderboard', label: 'Leaderboard', icon: '♛' },
@@ -41,6 +47,7 @@ export const adminLinks = [
 export const studentLinks = [
   { to: '/student/dashboard', label: 'Dashboard', icon: '♕' },
   { to: '/student/homework', label: 'Homework', icon: '📋', feature: 'puzzle_trainer' },
+  { to: '/student/trainer', label: 'Puzzle Trainer', icon: '♞', feature: 'puzzle_trainer' },
   { to: '/openings', label: 'Openings', icon: '♞', feature: 'opening_library' },
   { to: '/student/openings', label: 'Academy', icon: '♘', feature: 'piece_lessons' },
   { to: '/student/gm-games', label: 'GM Games', icon: '♞', feature: 'gm_games' },

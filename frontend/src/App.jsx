@@ -2,6 +2,7 @@ import { Suspense, useEffect, useState } from 'react';
 import { Routes, Route, Navigate, Link, useLocation } from 'react-router-dom';
 import Navbar from './components/Navbar';
 import Logo from './components/Logo';
+import SplashScreen from './components/SplashScreen';
 /* These four are default exports; importing them by name made Rollup fail the
    whole bundle with "is not exported by ...". */
 import ChessBackground from './components/ChessBackground';
@@ -103,8 +104,8 @@ import {
   BotsPage,
   BotGamePage,
   LiveClassroom,
-  ClassroomV2,
   Puzzles,
+  PuzzleTrainer,
   MessagesPage,
 } from './utils/lazyPages';
 
@@ -237,7 +238,7 @@ export default function App() {
   const pathname = location.pathname;
   const isAdmin = pathname.startsWith('/admin') || pathname.startsWith('/super') || pathname.startsWith('/coach');
   const isStudent = pathname.startsWith('/student');
-  const isLiveClass = pathname.startsWith('/live-class') || pathname.includes('/classroom-v2');
+  const isLiveClass = pathname.startsWith('/live-class');
   const isOpeningsModule = pathname === '/openings' || pathname.startsWith('/openings/');
   /* A single bot match is a full-screen surface that renders inside the caller's
      shell, so the standalone navbar stands down for it too — otherwise the
@@ -260,6 +261,10 @@ export default function App() {
 
   return (
     <div>
+      {/* First-load splash. It sits outside the location-keyed subtree below, so
+          it plays once per app load and a route change cannot restart it, while
+          the landing page mounts and lays out underneath it. */}
+      <SplashScreen />
       <div className="min-h-screen flex flex-col">
         <ChessBackground />
         <MatchDeclineListener />
@@ -284,8 +289,6 @@ export default function App() {
           <Routes location={location}>
             {/* Live classroom — full-screen, no portal shell */}
             <Route path="/live-class/:id" element={<ProtectedRoute><LiveClassroom /></ProtectedRoute>} />
-            <Route path="/coach/dashboard/:classId/classroom-v2" element={<ProtectedRoute><ClassroomV2 /></ProtectedRoute>} />
-            <Route path="/student/classroom-v2/:classId" element={<ProtectedRoute><ClassroomV2 /></ProtectedRoute>} />
             <Route path="/classroom/board-vision" element={<ProtectedRoute><BoardVision /></ProtectedRoute>} />
             {/* Standalone student report — opened in a new tab from the admin roster */}
             <Route path="/students/:studentId/report" element={<ProtectedRoute role="admin"><StudentReport /></ProtectedRoute>} />
@@ -316,6 +319,7 @@ export default function App() {
             <Route path="/student/live-meetings" element={<ProtectedRoute role="student"><FeatureRoute feature="live_game"><StudentLayout><LiveMeetings /></StudentLayout></FeatureRoute></ProtectedRoute>} />
             <Route path="/student/attendance" element={<ProtectedRoute role="student"><StudentLayout><Attendance /></StudentLayout></ProtectedRoute>} />
             <Route path="/student/puzzles" element={<ProtectedRoute role="student"><FeatureRoute feature="puzzle_trainer"><StudentLayout><Puzzles /></StudentLayout></FeatureRoute></ProtectedRoute>} />
+            <Route path="/student/trainer" element={<ProtectedRoute role="student"><FeatureRoute feature="puzzle_trainer"><StudentLayout><PuzzleTrainer /></StudentLayout></FeatureRoute></ProtectedRoute>} />
             <Route path="/student/homework" element={<ProtectedRoute role="student"><FeatureRoute feature="puzzle_trainer"><StudentLayout><StudentHomework /></StudentLayout></FeatureRoute></ProtectedRoute>} />
             <Route path="/student/homework/:assignmentId" element={<ProtectedRoute role="student"><FeatureRoute feature="puzzle_trainer"><StudentLayout><Puzzles /></StudentLayout></FeatureRoute></ProtectedRoute>} />
             <Route path="/student/analysis" element={<ProtectedRoute role="student"><StudentLayout><AnalysisBoard /></StudentLayout></ProtectedRoute>} />

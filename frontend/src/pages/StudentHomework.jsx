@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
 import { Page, Spinner } from '../components/ui';
@@ -25,14 +25,21 @@ export default function StudentHomework() {
   const [page, setPage] = useState(1);
   const [data, setData] = useState({ items: [], total: 0, totalPages: 1 });
   const [loading, setLoading] = useState(true);
+  const [updating, setUpdating] = useState(false);
   const [error, setError] = useState('');
+  const hasCardsRef = useRef(false);
 
   const load = useCallback(async () => {
-    setLoading(true);
+    /* Same rule as the admin list: only a screen with nothing on it may swap
+       itself for a spinner. A page turn dims the cards that are already there
+       and replaces them when the next page lands, so nothing blinks or jumps. */
+    if (hasCardsRef.current) setUpdating(true);
+    else setLoading(true);
     setError('');
     try {
       const res = await api.get('/student/homework', { params: { page, limit: PAGE_SIZE } });
       const next = res.data || {};
+      hasCardsRef.current = (next.items?.length || 0) > 0;
       setData(next);
       /* A smaller result set can leave the current page out of range (a card
          disappeared, a filter narrowed). Land on the last real page. */
@@ -41,6 +48,7 @@ export default function StudentHomework() {
       setError(err.response?.data?.message || 'Failed to load homework');
     } finally {
       setLoading(false);
+      setUpdating(false);
     }
   }, [page]);
 
@@ -62,7 +70,10 @@ export default function StudentHomework() {
         </div>
       ) : (
         <>
-          <div className="space-y-3">
+          <div
+            className={`space-y-3 stable-list${updating ? ' is-refreshing' : ''}`}
+            aria-busy={updating}
+          >
             {data.items.map((h) => {
               const badge = STATUS[h.status] || STATUS.pending;
               const locked = h.status === 'submitted' || h.status === 'reviewed';

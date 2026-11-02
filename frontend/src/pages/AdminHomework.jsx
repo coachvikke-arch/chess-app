@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import api from '../services/api';
-import { Page, Spinner } from '../components/ui';
+import { useSearchParams } from 'react-router-dom';
+import api, { clearHttpCache } from '../services/api';
+import { Page, Spinner, ConfirmDialog } from '../components/ui';
 import Pagination from '../components/Pagination';
 import Button from '../components/Button';
 import PuzzleAssignPicker from '../components/PuzzleAssignPicker';
@@ -40,6 +41,61 @@ const TABS = [
 
 const EMPTY_FILTERS = { ...HOMEWORK_FILTER_DEFAULTS, search: '' };
 
+/* ── the address holds the view ────────────────────────────────────────────
+   Page, status tab and every filter go into the query string, so turning a page
+   cannot quietly change what is selected, a refresh comes back to the same
+   slice, and the state survives the last card on a page being deleted. The keys
+   are the same words the fetch params use, matching the shared pager's `page`. */
+const PAGE_PARAM = 'page';
+const STATUS_PARAM = 'status';
+const FILTER_PARAMS = { search: 'search', classId: 'classId', studentId: 'studentId', dueFrom: 'dueFrom', dueTo: 'dueTo' };
+
+function readListState(sp) {
+  const filters = { ...HOMEWORK_FILTER_DEFAULTS };
+  for (const [key, param] of Object.entries(FILTER_PARAMS)) {
+    filters[key] = sp.get(param) || '';
+  }
+  const status = sp.get(STATUS_PARAM) || 'all';
+  return {
+    page: Math.max(1, parseInt(sp.get(PAGE_PARAM), 10) || 1),
+    status: TABS.some((t) => t.key === status) ? status : 'all',
+    filters,
+  };
+}
+
+/* Written from the address it is replacing, so a parameter this list does not
+   own — one another component put there — survives the page turn. Only the
+   seven keys above are touched, and a key at its default is removed. */
+function writeListState(current, { page, status, filters }) {
+  const sp = new URLSearchParams(current);
+  const set = (param, value) => (value ? sp.set(param, value) : sp.delete(param));
+  set(PAGE_PARAM, page > 1 ? String(page) : '');
+  set(STATUS_PARAM, status !== 'all' ? status : '');
+  for (const [key, param] of Object.entries(FILTER_PARAMS)) {
+    set(param, String(filters[key] ?? '').trim());
+  }
+  return sp;
+}
+
+/* The trash can, drawn rather than an emoji so it inherits the button's colour
+   and turns red with the hover. */
+function TrashIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 16 16"
+      className="h-4 w-4"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.6"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M2.5 4h11M6.2 4V2.5h3.6V4M4.2 4l.7 9.5h6.2L11.8 4M6.6 6.5v4.6M9.4 6.5v4.6" />
+    </svg>
+  );
+}
+
 function formatDate(value) {
   return value ? new Date(value).toLocaleDateString() : '—';
 }
@@ -51,18 +107,31 @@ function formatDate(value) {
  * GET /api/homework/:id/progress (the same tracker the coach already uses).
  */
 export default function AdminHomework() {
-  const [page, setPage] = useState(1);
-  const [status, setStatus] = useState('all');
-  const [filters, setFilters] = useState(EMPTY_FILTERS);
+  const [searchParams, setSearchParams] = useSearchParams();
+  /* The address is read once, on mount, and only seeds the state. Reading it
+     live would give the router a second say over `page`, which the page-change
+     handlers below already own. */
+  const seedRef = useRef(null);
+  if (seedRef.current === null) seedRef.current = readListState(searchParams);
+
+  const [page, setPage] = useState(seedRef.current.page);
+  const [status, setStatus] = useState(seedRef.current.status);
+  const [filters, setFilters] = useState(seedRef.current.filters);
   const [data, setData] = useState({ items: [], counts: null, total: 0, totalPages: 1 });
+  /* Two busy states, because they deserve two treatments: `loading` is the list
+     with nothing on screen yet (a spinner is honest), `updating` is a page turn
+     over cards that are already there (they stay, dimmed, until the next page
+     arrives — that is what stops the blink and the layout jump). */
   const [loading, setLoading] = useState(true);
+  const [updating, setUpdating] = useState(false);
   const [error, setError] = useState('');
+  const hasCardsRef = useRef(false);
 
   const [panelOpen, setPanelOpen] = useState(false);
   /* The search box lives in the toolbar, not the drawer — like the worklist it
      narrows the list as you type, so the typed value is kept apart from the
      debounced one that goes into the query. */
-  const [searchInput, setSearchInput] = useState('');
+  const [searchInput, setSearchInput] = useState(seedRef.current.filters.search);
   const filterBtnRef = useRef(null);
   const [classes, setClasses] = useState([]);
   const [students, setStudents] = useState([]);
@@ -75,6 +144,10 @@ export default function AdminHomework() {
   const [detail, setDetail] = useState(null); // { students: [...] }
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState('');
+
+  /* The homework awaiting confirmation, and the one mid-deletion. */
+  const [confirmDelete, setConfirmDelete] = useState(null);
+  const [deletingId, setDeletingId] = useState(null);
 
   /* The student whose attempts are open in the drawer, with the pill the row was
      showing: the drawer must repeat the status the coach just read, and that is
@@ -90,7 +163,8 @@ export default function AdminHomework() {
   }
 
   const load = useCallback(async () => {
-    setLoading(true);
+    if (hasCardsRef.current) setUpdating(true);
+    else setLoading(true);
     setError('');
     try {
       const params = { page, limit: PAGE_SIZE };
@@ -100,16 +174,31 @@ export default function AdminHomework() {
       }
       const res = await api.get('/homework', { params });
       const next = res.data || {};
+      hasCardsRef.current = (next.items?.length || 0) > 0;
       setData(next);
       if (page > (next.totalPages || 1)) setPage(next.totalPages || 1);
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to load homework');
+      const message = err.response?.data?.message || 'Failed to load homework';
+      /* A refresh that fails while cards are on screen is a toast, not a
+         full-page error card: what the coach is reading stays put. */
+      if (hasCardsRef.current) showToast(message);
+      else setError(message);
     } finally {
       setLoading(false);
+      setUpdating(false);
     }
   }, [page, status, filters]);
 
   useEffect(() => { load(); }, [load]);
+
+  /* Mirror the view into the address. `replace` because a page turn is not a
+     visit — it must not stack history entries the back button has to claw
+     through — and the string compare because writing the address the router
+     just handed back would re-render this route forever. */
+  useEffect(() => {
+    const next = writeListState(searchParams, { page, status, filters });
+    if (next.toString() !== searchParams.toString()) setSearchParams(next, { replace: true });
+  }, [page, status, filters, searchParams]);
 
   /* Filter options come from the same endpoints the rest of the admin screens
      use: classes are `groups`, students are the roster. */
@@ -120,10 +209,16 @@ export default function AdminHomework() {
 
   /* The toolbar search box is debounced before it reaches the query: the list is
      narrowed by the server, so a typed word must not fire one request per
-     keystroke. */
+     keystroke. The ref is why the reset below is conditional — the timer also
+     fires 350ms after mount and after any unrelated render, and an
+     unconditional setPage(1) there is what used to snap the coach back to page
+     one while nothing about the search had changed. */
+  const appliedSearchRef = useRef(seedRef.current.filters.search);
   useEffect(() => {
     const timer = setTimeout(() => {
-      setFilters((f) => (f.search === searchInput ? f : { ...f, search: searchInput }));
+      if (appliedSearchRef.current === searchInput) return;
+      appliedSearchRef.current = searchInput;
+      setFilters((f) => ({ ...f, search: searchInput }));
       setPage(1);
       setOpenId(null);
       setDetail(null);
@@ -161,6 +256,7 @@ export default function AdminHomework() {
   function clearFilters() {
     setFilters(EMPTY_FILTERS);
     setSearchInput('');
+    appliedSearchRef.current = '';
     setStatus('all');
     setPage(1);
     setOpenId(null);
@@ -192,6 +288,51 @@ export default function AdminHomework() {
     setOpenId(null);
     setDetail(null);
     setPage(next);
+  }
+
+  /* Deleting takes the assignment, and with it every student's submission and
+     attempts (the foreign keys cascade server-side). The card is dropped from
+     the list here rather than by refetching, so the tab, the filters and the
+     page the coach was on all stay exactly as they are. */
+  async function confirmDeleteHomework() {
+    const item = confirmDelete;
+    if (!item || deletingId) return;
+    setDeletingId(item.assignmentId);
+    try {
+      await api.delete(`/homework/${item.assignmentId}`);
+
+      const remaining = data.items.filter((h) => h.assignmentId !== item.assignmentId);
+      const nextCounts = { ...counts };
+      nextCounts.all = Math.max(0, (nextCounts.all || 0) - 1);
+      nextCounts[item.status] = Math.max(0, (nextCounts[item.status] || 0) - 1);
+      const nextTotal = Math.max(0, (data.total || 0) - 1);
+      setData({
+        ...data,
+        items: remaining,
+        counts: nextCounts,
+        total: nextTotal,
+        totalPages: Math.max(1, Math.ceil(nextTotal / PAGE_SIZE)),
+      });
+
+      setOpenId(null);
+      setDetail(null);
+      setConfirmDelete(null);
+      /* The DELETE only invalidates the /homework scope in the HTTP cache, but
+         this row is gone from the student list, the worklist and every report
+         too — so drop the whole cache rather than let another surface serve it
+         for another 30 seconds. */
+      clearHttpCache();
+      showToast('Homework deleted.');
+
+      /* An empty page is not a page: if this was the last card here, step back
+         to the previous one and let the fetch below fill it. */
+      if (remaining.length === 0 && page > 1) setPage(page - 1);
+    } catch (err) {
+      setConfirmDelete(null);
+      showToast(err.response?.data?.message || 'Failed to delete homework');
+    } finally {
+      setDeletingId(null);
+    }
   }
 
   function handleAssigned(message) {
@@ -322,7 +463,10 @@ export default function AdminHomework() {
         )
       ) : (
         <>
-          <div className="space-y-3">
+          <div
+            className={`space-y-3 stable-list${updating ? ' is-refreshing' : ''}`}
+            aria-busy={updating}
+          >
             {data.items.map((h) => {
               const expanded = openId === h.assignmentId;
               const badge = HOMEWORK_STATUS[h.status] || HOMEWORK_STATUS.draft;
@@ -361,14 +505,26 @@ export default function AdminHomework() {
                         <span className="text-[0.6rem] text-ivory-500 shrink-0">{h.completionPct}%</span>
                       </div>
                     </div>
-                    <Button
-                      onClick={() => toggleProgress(h)}
-                      variant="secondary"
-                      size="sm"
-                      className="!px-3 !py-1.5 text-xs shrink-0"
-                    >
-                      {expanded ? 'Hide progress' : 'View progress'}
-                    </Button>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <Button
+                        onClick={() => toggleProgress(h)}
+                        variant="secondary"
+                        size="sm"
+                        className="!px-3 !py-1.5 text-xs shrink-0"
+                      >
+                        {expanded ? 'Hide progress' : 'View progress'}
+                      </Button>
+                      <button
+                        type="button"
+                        className="hw-delete"
+                        title="Delete homework"
+                        aria-label={`Delete ${h.title}`}
+                        disabled={deletingId === h.assignmentId}
+                        onClick={() => setConfirmDelete(h)}
+                      >
+                        <TrashIcon />
+                      </button>
+                    </div>
                   </div>
 
                   {expanded && (
@@ -441,6 +597,18 @@ export default function AdminHomework() {
       )}
       </>
       )}
+
+      {/* The app's shared two-button dialog, so a homework deletion looks and
+          behaves exactly like every other destructive confirmation. */}
+      <ConfirmDialog
+        open={!!confirmDelete}
+        title="Delete this homework?"
+        message="This will remove it for all assigned students."
+        cancelText="Cancel"
+        confirmText={deletingId ? 'Deleting…' : 'Delete'}
+        onCancel={() => { if (!deletingId) setConfirmDelete(null); }}
+        onConfirm={confirmDeleteHomework}
+      />
 
       {review && (
         <StudentAttemptDrawer

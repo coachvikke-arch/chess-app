@@ -3,6 +3,7 @@ const { Chess } = require('chess.js');
 const { userIsMemberOfClass } = require('../services/liveClassAccess');
 const { canSpectateGame } = require('../services/spectateAccess');
 const { notifyStudentUserIds } = require('../controllers/classController');
+const onlineCtrl = require('../controllers/onlineController');
 const notificationService = require('../services/notificationService');
 const rt = require('../services/tournamentRealtime');
 
@@ -415,14 +416,11 @@ module.exports = function (io) {
             ? buildReviewBroadcast(chess, initEntry.reviewTo)
             : null;
           const annotationsRes = await db.query(
-            'SELECT annotations, board_locked, board_hidden, eval_visible FROM chess_game_states WHERE live_class_id = $1',
+            'SELECT annotations FROM chess_game_states WHERE live_class_id = $1',
             [classId]
           );
           if (annotationsRes.rows.length > 0) {
             chessStateSnapshot.annotations = annotationsRes.rows[0].annotations;
-            chessStateSnapshot.boardLocked = annotationsRes.rows[0].board_locked === true;
-            chessStateSnapshot.boardHidden = annotationsRes.rows[0].board_hidden === true;
-            chessStateSnapshot.evalVisible = annotationsRes.rows[0].eval_visible !== false;
           } else {
             chessStateSnapshot.annotations = { arrows: [], highlights: [] };
           }
@@ -467,9 +465,6 @@ module.exports = function (io) {
           studentInteractionEnabled: !!classRow.student_interaction_enabled,
           studentMoveSide: classRow.student_move_side || 'both',
           moveGrants: moveGrantsSnapshot,
-          boardLocked: chessStateSnapshot.boardLocked === true,
-          boardHidden: chessStateSnapshot.boardHidden === true,
-          evalVisible: chessStateSnapshot.evalVisible !== false,
           classStatus: classRow.status,
         });
 
@@ -580,12 +575,6 @@ module.exports = function (io) {
             moveSide = classRow.student_move_side || 'both';
           } else {
             moveSide = 'none';
-          }
-          const stateRes = await db.query('SELECT board_locked FROM chess_game_states WHERE live_class_id = $1', [classId]);
-          if (stateRes.rows[0]?.board_locked) {
-            const reason = 'The coach locked the board';
-            if (ack) ack({ ok: false, error: reason });
-            return;
           }
           if (moveSide === 'none') {
             const reason = 'The coach has not allowed you to move';
@@ -823,7 +812,7 @@ module.exports = function (io) {
             return;
           }
 
-          /* Coach-side "swap sides" (Classroom V2 header swap icon): mirrors the
+          /* Coach-side "swap sides": mirrors the
              current position rank-for-rank and flips the piece colours, then
              toggles the side to move — i.e. the class game restarts from the
              colour-swapped version of wherever it was. Broadcast like every other
@@ -1024,68 +1013,6 @@ module.exports = function (io) {
         if (ack) ack({ ok: true, side });
       } catch (err) {
         console.error('[student_move_grant] error', err);
-        if (ack) ack({ ok: false, error: err.message });
-      }
-    });
-
-    socket.on('student_draw_grant', async ({ classId, userId: targetUserId, canDraw }, ack) => {
-      try {
-        const classRow = await getClassRowCached(classId);
-        if (!classRow) { if (ack) ack({ ok: false, error: 'Class not found' }); return; }
-        const access = await userIsMemberOfClass({ userId, userRole }, classRow);
-        if (!access.authorized || !access.isInstructor) { if (ack) ack({ ok: false, error: 'Instructor only' }); return; }
-        await db.query(
-          `INSERT INTO live_class_move_grants (live_class_id, user_id, move_side, can_draw, updated_at)
-           VALUES ($1, $2, 'none', $3, NOW())
-           ON CONFLICT (live_class_id, user_id) DO UPDATE SET can_draw = EXCLUDED.can_draw, updated_at = NOW()`,
-          [classId, targetUserId, Boolean(canDraw)]
-        );
-        io.to(`live-class:${classId}`).emit('draw_grant_changed', { classId: Number(classId), userId: targetUserId, canDraw: Boolean(canDraw) });
-        if (ack) ack({ ok: true, canDraw: Boolean(canDraw) });
-      } catch (err) {
-        console.error('[student_draw_grant] error', err);
-        if (ack) ack({ ok: false, error: err.message });
-      }
-    });
-
-    socket.on('classroom_setting', async ({ classId, setting, value }, ack) => {
-      try {
-        const classRow = await getClassRowCached(classId);
-        if (!classRow) { if (ack) ack({ ok: false, error: 'Class not found' }); return; }
-        const access = await userIsMemberOfClass({ userId, userRole }, classRow);
-        if (!access.authorized || !access.isInstructor) { if (ack) ack({ ok: false, error: 'Instructor only' }); return; }
-        const column = { locked: 'board_locked', hidden: 'board_hidden', evalVisible: 'eval_visible' }[setting];
-        if (column) {
-          const enabled = Boolean(value);
-          await db.query(
-            `INSERT INTO chess_game_states (live_class_id, fen, pgn, current_turn, ${column})
-             VALUES ($1, $2, '', 'w', $3)
-             ON CONFLICT (live_class_id) DO UPDATE SET ${column} = EXCLUDED.${column}, updated_at = NOW()`,
-            [classId, START_FEN, enabled]
-          );
-          const state = { [setting]: enabled };
-          io.to(`live-class:${classId}`).emit('classroom_state_changed', { classId: Number(classId), ...state });
-          if (ack) ack({ ok: true, ...state });
-          return;
-        }
-        if (setting === 'recording') {
-          if (value) {
-            const saved = await db.query(
-              `INSERT INTO class_recordings (class_id, started_by) VALUES ($1, $2) RETURNING id`,
-              [classId, userId]
-            );
-            io.to(`live-class:${classId}`).emit('classroom_state_changed', { classId: Number(classId), recording: true, recordingId: saved.rows[0].id });
-            if (ack) ack({ ok: true, recording: true, recordingId: saved.rows[0].id });
-          } else {
-            await db.query('UPDATE class_recordings SET ended_at = NOW() WHERE class_id = $1 AND ended_at IS NULL', [classId]);
-            io.to(`live-class:${classId}`).emit('classroom_state_changed', { classId: Number(classId), recording: false });
-            if (ack) ack({ ok: true, recording: false });
-          }
-          return;
-        }
-        if (ack) ack({ ok: false, error: 'Unknown classroom setting' });
-      } catch (err) {
-        console.error('[classroom_setting] error', err);
         if (ack) ack({ ok: false, error: err.message });
       }
     });
@@ -1673,39 +1600,6 @@ const body = String(text).trim();
       }
     });
 
-    /* Classroom V2: class-wide emoji reaction. The coach taps an emoji and the
-       room broadcasts it; every viewer renders it as a floating reaction pulse
-       on the board. Purely social — no DB write, no permission surface. */
-    socket.on('class_reaction', async (payload, ack) => {
-      try {
-        const classId = Number(payload?.classId);
-        const emoji = String(payload?.emoji || '').trim();
-        if (!classId || !emoji) {
-          if (ack) ack({ ok: false, error: 'classId and emoji required' });
-          return;
-        }
-        const classRow = await getClassRowCached(classId);
-        const access = classRow ? await userIsMemberOfClass({ userId, userRole }, classRow) : { authorized: false, isInstructor: false };
-        if (!access.authorized) { if (ack) ack({ ok: false, error: 'Not authorized' }); return; }
-        const targetUserId = payload?.targetUserId == null ? null : Number(payload.targetUserId);
-        if (targetUserId != null) {
-          if (!access.isInstructor) { if (ack) ack({ ok: false, error: 'Instructor only' }); return; }
-          const targetRes = await db.query(
-            `SELECT 1 FROM live_class_participants WHERE live_class_id = $1 AND user_id = $2 AND role_in_class = 'student'`,
-            [classId, targetUserId]
-          );
-          if (!targetRes.rows.length) { if (ack) ack({ ok: false, error: 'Student is not in this class' }); return; }
-          io.to(`user:${targetUserId}`).emit('class_reaction', { classId, emoji, userId, targetUserId });
-        } else {
-          io.to(`live-class:${classId}`).emit('class_reaction', { classId, emoji, userId });
-        }
-        if (ack) ack({ ok: true, emoji });
-      } catch (err) {
-        console.error('[class_reaction] error', err);
-        if (ack) ack({ ok: false, error: err.message });
-      }
-    });
-
     socket.on('game-reaction', async (payload, ack) => {
       const reactionKeys = new Set(['thumbs_up', 'laugh', 'wow', 'sad', 'angry', 'fire', 'clap', 'handshake', 'gg']);
       const gameId = Number(payload?.gameId);
@@ -1822,6 +1716,23 @@ const body = String(text).trim();
 
     socket.on('disconnect', async () => {
       try {
+        /* A player who goes away — closes the tab, loses the network, signs out —
+           has stopped waiting for an answer, so their outstanding rematch request
+           is withdrawn instead of sitting on the opponent's screen until it
+           expires. A refresh tears this socket down and opens another one within
+           a second or two, so the drop waits briefly and is skipped entirely when
+           the user still has any live connection. */
+        if (userId != null) {
+          const timer = setTimeout(async () => {
+            try {
+              const still = await io.in(`user:${userId}`).fetchSockets();
+              if (still.length > 0) return;
+              await onlineCtrl.dropPendingRematchesFor(io, userId);
+            } catch { /* a request nobody can answer is never worth an unhandled rejection */ }
+          }, 5000);
+          timer.unref?.();
+        }
+
         /* socket.io clears socket.rooms before 'disconnect', so the rooms we
            joined are remembered on socket.data instead of re-derived here. */
         const classIds = socket.data.liveClasses

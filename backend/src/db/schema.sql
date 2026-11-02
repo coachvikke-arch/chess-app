@@ -16,14 +16,12 @@ CREATE TABLE IF NOT EXISTS users (
   board_dark_color VARCHAR(7),
   piece_set VARCHAR(30) DEFAULT 'cburnett',
   created_at TIMESTAMP DEFAULT NOW(),
-  updated_at TIMESTAMP DEFAULT NOW(),
-  classroom_ui_mode VARCHAR(12) NOT NULL DEFAULT 'classic'
+  updated_at TIMESTAMP DEFAULT NOW()
 );
 
 -- Idempotent upgrades for already-initialized databases.
 ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_config JSONB;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS country_code VARCHAR(8);
-ALTER TABLE users ADD COLUMN IF NOT EXISTS classroom_ui_mode VARCHAR(12) NOT NULL DEFAULT 'classic';
 ALTER TABLE users ADD COLUMN IF NOT EXISTS board_light_color VARCHAR(7);
 ALTER TABLE users ADD COLUMN IF NOT EXISTS board_dark_color VARCHAR(7);
 
@@ -463,6 +461,17 @@ CREATE TABLE IF NOT EXISTS online_games (
   created_at TIMESTAMP DEFAULT NOW(),
   updated_at TIMESTAMP DEFAULT NOW()
 );
+
+-- A rematch request lives on the FINISHED match it is about: who asked, and
+-- when. Both NULL means nobody has asked. Accepting inserts a NEW game row and
+-- clears these, so the finished match keeps its own result, PGN and rating.
+-- No foreign key on rematch_requested_by: it points at users.id, and the
+-- reaction / draw-offer columns use the same bare-INTEGER convention so a stale
+-- request can never block a row from being deleted.
+ALTER TABLE online_games ADD COLUMN IF NOT EXISTS rematch_requested_by INTEGER;
+ALTER TABLE online_games ADD COLUMN IF NOT EXISTS rematch_requested_at TIMESTAMP;
+CREATE INDEX IF NOT EXISTS idx_online_games_rematch_request
+  ON online_games (id) WHERE rematch_requested_by IS NOT NULL;
 
 -- Live-class puzzle drills: an instructor-run puzzle exercise inside a live
 -- classroom. One active drill per class at a time (starting a new one ends the

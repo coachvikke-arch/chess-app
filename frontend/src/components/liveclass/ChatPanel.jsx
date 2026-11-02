@@ -59,9 +59,7 @@ export default function ChatPanel({ asMobilePanel = false, panelVisible = true, 
       return t === 'files' || t === 'moves' || t === 'leaderboard' || t === 'participants' || t === 'assignments' ? t : 'chat';
     } catch { return 'chat'; }
   }); // 'chat' | 'files' | 'moves' | 'leaderboard' | 'participants' | 'assignments' (persisted across refresh; 'files'/'assignments' are coach-only)
-  /* Classroom V2 hosts this panel inside its own "Classroom Activity" tab bar,
-     so the room can pin the tab it wants (and get told when it changes) instead
-     of the panel owning the selection. `null` keeps the classic behaviour. */
+  /* A parent may pin the tab it wants; `null` keeps the panel's own selection. */
   const activeTab = tabOverride || tab;
   function openTab(t) {
     setTab(t);

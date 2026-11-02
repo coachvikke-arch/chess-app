@@ -53,36 +53,20 @@ export function isAdminChannelPair(callerRole, peerRole) {
   return (callerRole === 'student') !== (peerRole === 'student');
 }
 
-/** The short label shown in the People row chip for this channel.
- *
- * `asCoach` is the VIEWER, not a permission: the pair has one server-decided state,
- * but a coach reading "Request" on a student who has never asked learns nothing,
- * and a student reading it knows exactly which button to press. */
-export function adminChannelStatusLabel(state, asCoach = false) {
-  if (state === 'accepted') return 'Open';
-  if (state === 'pending') return asCoach ? 'Their request' : 'Pending';
-  if (state === 'cancelled') return 'Cancelled';
-  if (state === 'not_allocated') return asCoach ? 'Not your student' : 'Not your coach';
-  return asCoach ? 'No request' : 'Request';
-}
-
-/** The one-line explanation under a row's name for this channel. */
-export function adminChannelRowCopy(state, peerName, asCoach = false) {
-  const name = peerName || 'this coach';
+/** What a blocked coach/learner row is waiting on, in the one line the tap's toast
+ *  gets. Only a LEARNER ever sees this: the server gives a coach `canMessage` for
+ *  their own student from the first keystroke, so a coach's row is never blocked and
+ *  a coach's view of an ask is the Requests panel's business, not a row's. */
+export function adminChannelRowCopy(state, peerName) {
+  const name = peerName || 'your coach';
   switch (state) {
-    case 'accepted':
-      return 'You can message each other';
     case 'pending':
-      return asCoach ? `${name} wants to chat with you` : 'Request pending';
+      return 'Request sent. Waiting for your coach to answer.';
     case 'cancelled':
-      return asCoach
-        ? 'You closed this chat. They can ask again.'
-        : 'Request cancelled - you can ask again';
+      return 'This request was cancelled. You can ask again.';
     case 'not_allocated':
-      return asCoach ? 'No longer allocated to you' : 'Not allocated to you';
+      return 'This coach is not allocated to you.';
     default:
-      return asCoach
-        ? `${name} has not asked to chat yet`
-        : `Ask ${name} to open chat`;
+      return `Use "Request chat" to ask ${name} to open a chat.`;
   }
 }

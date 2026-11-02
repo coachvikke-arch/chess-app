@@ -378,6 +378,18 @@ function payload(row, viewerRole, viewerId) {
           mine: row.draw_offered_by === viewerId,
         }
       : null,
+    /* A pending rematch request, same `mine` rule as the draw offer: one row
+       describes both "I asked, waiting" and "they asked, answer me". Carrying it
+       on the game means a player who reloads the arena lands back on the exact
+       state instead of losing a request that is still live. */
+    rematchRequest: row.rematch_requested_by
+      ? {
+          by: row.rematch_requested_by,
+          byName: row.rematch_requested_by === row.admin_id ? row.admin_name : row.student_name,
+          at: row.rematch_requested_at ? rowMs(row.rematch_requested_at) : null,
+          mine: row.rematch_requested_by === viewerId,
+        }
+      : null,
     updatedAt: row.updated_at,
   };
 }
@@ -723,6 +735,10 @@ exports.createGame = async (req, res) => {
       [req.user.id, studentId, color, START_FEN, baseMin, incSec, startMs]
     );
     const row = await getGameRow(result.rows[0].id);
+
+    /* Starting a new match settles any rematch request this player still has
+       outstanding — the popup on the other side can no longer lead anywhere. */
+    await dropPendingRematchesFor(req.app.get('io'), req.user.id);
 
     // Notify the invited player in real time (they must be online).
     const io = req.app.get('io');
@@ -1207,6 +1223,10 @@ exports.acceptGame = async (req, res) => {
       const senderRows = await notif.setRequestStatus({ relatedId: row.id, userId: row.admin_id, requestStatus: 'accepted', message: `${row.student_name} accepted your match request`, isRead: false });
       senderRows.forEach((n) => notif.emitToUser(io, row.admin_id, 'notification', n));
     }
+    /* Accepting starts this match, so any rematch request the acceptor still
+       has outstanding is moot — it would open a third board nobody is waiting
+       for any more. */
+    if (wasPending) await dropPendingRematchesFor(req.app.get('io'), req.user.id);
     emitGameUpdate(req, row.id);
     res.json(payload(row, req.user.role, req.user.id));
   } catch (err) {
@@ -1542,6 +1562,256 @@ exports.respondDraw = async (req, res) => {
     res.status(500).json({ message: 'Failed to answer the draw offer', error: err.message });
   }
 };
+
+/* ── Rematch (a finished player-vs-player match) ────────────────────────────
+ *
+ * A rematch is an OFFER, exactly like a draw: one player asks, the other
+ * answers, and nothing happens until both agree. The request lives on the
+ * FINISHED match row (`rematch_requested_by` / `rematch_requested_at`) because
+ * it belongs to that match — which also makes "only one pending request per
+ * game" a property of the row rather than a rule every client has to remember.
+ *
+ * Accepting inserts a NEW online_games row. The finished match keeps its own
+ * result, PGN and rating, so nothing about the game that was actually played is
+ * rewritten. The new row copies the two players, the base time and the
+ * increment, and swaps `admin_color` — which is what swaps the sides, because
+ * both players are the same two accounts. Whether a game is rated is derived
+ * from those same two players and `is_bot`, so copying the players copies the
+ * rated/casual setting without a flag to keep in sync.
+ *
+ * The 30-second window is enforced at both ends. The requester's client counts
+ * it down and withdraws the request, and the server also refuses an answer that
+ * arrives long after it expired — so a player whose device was asleep cannot
+ * accept their way into a game the other side already gave up on. */
+const REMATCH_WINDOW_MS = 30000;
+/* A little slack: a request that was already in flight when the requester's own
+   timer fired is honoured rather than bounced. */
+const REMATCH_GRACE_MS = 10000;
+
+function rematchOpponentId(row, userId) {
+  return row.admin_id === userId ? row.student_id : row.admin_id;
+}
+
+function rematchNameOf(row, userId) {
+  return userId === row.admin_id ? row.admin_name : row.student_name;
+}
+
+/* Take the pending request off the match. Deliberately NOT touching
+   `updated_at`: that column decides how long a finished game stays on the live
+   boards list, and withdrawing a rematch request must not resurrect a match
+   that everyone has already moved on from. */
+async function clearRematchRequest(gameId) {
+  await db.query(
+    'UPDATE online_games SET rematch_requested_by = NULL, rematch_requested_at = NULL WHERE id = $1',
+    [gameId]
+  );
+}
+
+/* Resolve the rematch bell cards to `status` ("declined", "expired", …). The
+   reader's own card is marked read — they just acted on it — and the other
+   player's card flips to the same label. */
+async function closeRematchNotifications(io, gameId, status, readerId) {
+  const mine = await notif.setRequestStatus({
+    relatedId: gameId, userId: readerId, requestStatus: status, type: 'rematch_request', isRead: true,
+  });
+  mine.forEach((n) => notif.emitToUser(io, n.user_id, 'notification', n));
+  const theirs = await notif.setRequestStatus({
+    relatedId: gameId, userId: null, requestStatus: status, type: 'rematch_request',
+  });
+  theirs.forEach((n) => {
+    if (n.user_id === readerId) return;
+    notif.emitToUser(io, n.user_id, 'notification', n);
+  });
+}
+
+exports.requestRematch = async (req, res) => {
+  try {
+    const row = await getGameRow(req.params.id);
+    if (!row) return res.status(404).json({ message: 'Match not found' });
+    if (row.admin_id !== req.user.id && row.student_id !== req.user.id) {
+      return res.status(403).json({ message: 'Not part of this match' });
+    }
+    /* The two sides must be the real players of THIS finished game, and it must
+       really be finished: 'aborted' means it never started, so there is nothing
+       to redo. */
+    if (row.status !== 'finished' || row.result === 'aborted') {
+      return res.status(400).json({ message: 'Only a finished match can be rematched' });
+    }
+    if (row.is_bot) return res.status(400).json({ message: 'This game was against the computer' });
+    if (row.class_id) return res.status(400).json({ message: 'Classroom pairings are set by the coach' });
+
+    const opponentId = rematchOpponentId(row, req.user.id);
+
+    if (row.rematch_requested_by) {
+      /* Tapping twice re-sends nothing — the opponent's popup is already up. */
+      if (row.rematch_requested_by === req.user.id) {
+        return res.status(200).json(payload(row, req.user.role, req.user.id));
+      }
+      return res.status(409).json({
+        message: 'Your opponent asked for a rematch first — answer their request.',
+      });
+    }
+
+    await db.query(
+      'UPDATE online_games SET rematch_requested_by = $2, rematch_requested_at = NOW() WHERE id = $1',
+      [row.id, req.user.id]
+    );
+
+    const myName = req.user.name || rematchNameOf(row, req.user.id) || 'A player';
+    const io = req.app.get('io');
+    emitToUser(io, opponentId, 'rematch-request', {
+      gameId: row.id,
+      requesterId: req.user.id,
+      requesterName: myName,
+      /* What the next game will be, so the responder's popup can say so and the
+         client can ignore a request about a match it is not looking at. */
+      adminColor: row.admin_color === 'white' ? 'black' : 'white',
+      baseMinutes: Number(row.time_base_minutes) || 5,
+      incrementSeconds: Number(row.time_increment_seconds) || 0,
+    });
+    await notif.push(io, opponentId, 'Rematch request', `${myName} wants a rematch`, {
+      type: 'rematch_request', senderId: req.user.id, relatedId: row.id, requestStatus: 'pending',
+    });
+
+    const updated = await getGameRow(row.id);
+    res.status(200).json(payload(updated, req.user.role, req.user.id));
+  } catch (err) {
+    res.status(500).json({ message: 'Failed to send the rematch request', error: err.message });
+  }
+};
+
+exports.respondRematch = async (req, res) => {
+  try {
+    const row = await getGameRow(req.params.id);
+    if (!row) return res.status(404).json({ message: 'Match not found' });
+    if (row.admin_id !== req.user.id && row.student_id !== req.user.id) {
+      return res.status(403).json({ message: 'Not part of this match' });
+    }
+    if (!row.rematch_requested_by) {
+      return res.status(400).json({ message: 'There is no rematch request to answer' });
+    }
+    if (row.rematch_requested_by === req.user.id) {
+      return res.status(400).json({ message: 'You cannot answer your own rematch request' });
+    }
+    if (row.status !== 'finished') {
+      return res.status(400).json({ message: 'Only a finished match can be rematched' });
+    }
+
+    const io = req.app.get('io');
+    const requesterId = row.rematch_requested_by;
+    const myName = req.user.name || rematchNameOf(row, req.user.id) || 'A player';
+    const ageMs = Date.now() - rowMs(row.rematch_requested_at || row.updated_at);
+
+    if (ageMs > REMATCH_WINDOW_MS + REMATCH_GRACE_MS) {
+      await clearRematchRequest(row.id);
+      await closeRematchNotifications(io, row.id, 'expired', req.user.id);
+      emitToUser(io, requesterId, 'rematch-expired', { gameId: row.id });
+      emitToUser(io, req.user.id, 'rematch-expired', { gameId: row.id });
+      return res.status(410).json({ message: 'This rematch request has expired.' });
+    }
+
+    if (req.body?.accept !== true) {
+      await clearRematchRequest(row.id);
+      await closeRematchNotifications(io, row.id, 'declined', req.user.id);
+      emitToUser(io, requesterId, 'rematch-declined', {
+        gameId: row.id, declinerId: req.user.id, declinerName: myName,
+      });
+      /* Both sides carry the request on the game row, so re-emitting the row
+         clears the other tab's copy too if the dedicated event missed them. */
+      emitGameUpdate(req, row.id);
+      const declined = await getGameRow(row.id);
+      return res.json(payload(declined, req.user.role, req.user.id));
+    }
+
+    /* Accept: the same two players on the same clock, with the sides swapped. */
+    const baseMin = Number(row.time_base_minutes) || 5;
+    const incSec = Number(row.time_increment_seconds) || 0;
+    const startMs = baseMin * 60000;
+    const inserted = await db.query(
+      `INSERT INTO online_games (admin_id, student_id, admin_color, fen, pgn, status,
+         time_base_minutes, time_increment_seconds, white_ms, black_ms)
+       VALUES ($1, $2, $3, $4, '', 'active', $5, $6, $7, $7)
+       RETURNING id`,
+      [row.admin_id, row.student_id, row.admin_color === 'white' ? 'black' : 'white',
+        START_FEN, baseMin, incSec, startMs]
+    );
+    await clearRematchRequest(row.id);
+    await closeRematchNotifications(io, row.id, 'accepted', req.user.id);
+
+    const next = await getGameRow(inserted.rows[0].id);
+    /* Each player is pushed their OWN scoped payload — the same reason the
+       rating delta has its own endpoint: one shared object would show one
+       player the other side's colour. */
+    emitToUser(io, next.admin_id, 'rematch-started', {
+      gameId: row.id, game: payload(next, 'admin', next.admin_id),
+    });
+    emitToUser(io, next.student_id, 'rematch-started', {
+      gameId: row.id, game: payload(next, 'student', next.student_id),
+    });
+    emitGameUpdate(req, next.id);
+
+    res.status(201).json(payload(next, req.user.role, req.user.id));
+  } catch (err) {
+    res.status(500).json({ message: 'Failed to answer the rematch request', error: err.message });
+  }
+};
+
+exports.cancelRematch = async (req, res) => {
+  try {
+    const row = await getGameRow(req.params.id);
+    if (!row) return res.status(404).json({ message: 'Match not found' });
+    if (!row.rematch_requested_by) {
+      /* Nothing to withdraw: the request was already answered or expired. This
+         is a 200 and not an error, because the client also calls it when it
+         unmounts — a stale id there must never surface as a failure. */
+      return res.json(payload(row, req.user.role, req.user.id));
+    }
+    if (row.rematch_requested_by !== req.user.id) {
+      return res.status(400).json({ message: 'This rematch request was not sent by you' });
+    }
+    await clearRematchRequest(row.id);
+    const io = req.app.get('io');
+    await closeRematchNotifications(io, row.id, 'cancelled', req.user.id);
+    emitToUser(io, rematchOpponentId(row, req.user.id), 'rematch-cancelled', { gameId: row.id });
+    res.json(payload(row, req.user.role, req.user.id));
+  } catch (err) {
+    res.status(500).json({ message: 'Failed to cancel the rematch request', error: err.message });
+  }
+};
+
+/* A pending request dies the moment either player moves on — they close the
+   arena, drop offline, or start a different match. Without this the other side
+   sits on a popup that can no longer lead anywhere. Also exported for the socket
+   disconnect handler, which has no req/res of its own. */
+async function dropPendingRematchesFor(io, userId, event = 'rematch-cancelled') {
+  const uid = Number(userId);
+  if (!Number.isInteger(uid)) return 0;
+  try {
+    const rows = await db.query(
+      `SELECT g.id, g.admin_id, g.student_id, g.rematch_requested_by
+       FROM online_games g
+       WHERE g.rematch_requested_by IS NOT NULL
+         AND (g.admin_id = $1 OR g.student_id = $1)`,
+      [uid]
+    );
+    for (const row of rows.rows) {
+      /* Decided BEFORE the request is cleared: who asked and who is left waiting
+         must be read off the row as it was, not after the columns go NULL. */
+      const requesterId = row.rematch_requested_by;
+      const otherId = row.admin_id === requesterId ? row.student_id : row.admin_id;
+      await clearRematchRequest(row.id);
+      await closeRematchNotifications(io, row.id, 'cancelled', requesterId);
+      emitToUser(io, otherId, event, { gameId: row.id });
+    }
+    return rows.rows.length;
+  } catch (err) {
+    /* Cleaning up a request nobody can use any more must never break the flow
+       that triggered it (creating a game, accepting one, disconnecting). */
+    console.warn('[rematch] drop failed:', err.message);
+    return 0;
+  }
+}
+exports.dropPendingRematchesFor = dropPendingRematchesFor;
 
 // Apply a move. Server validates turn + legality with chess.js, runs the clock.
 exports.moveGame = async (req, res) => {

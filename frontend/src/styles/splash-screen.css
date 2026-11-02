@@ -1,0 +1,110 @@
+/* First-load splash: a plain white field, the Mate Zone emblem, and out again.
+   Plain CSS keyframes rather than gsap — the whole sequence is four timed
+   states, and pulling an animation library into the entry chunk to play them
+   would cost more than the splash itself. */
+.mz-splash {
+  position: fixed;
+  inset: 0;
+  /* Above everything the app can draw, including the modals that mount on the
+     shared --z-* scale, because this has to cover a page that is still busy
+     laying itself out underneath. */
+  z-index: 2147483647;
+  display: grid;
+  place-items: center;
+  background: #ffffff;
+  opacity: 1;
+}
+
+.mz-splash-logo {
+  width: 92px;
+  /* height:auto keeps the artwork's own ratio at every breakpoint instead of
+     trusting that the file is square. */
+  height: auto;
+  display: block;
+  opacity: 0;
+  transform: scale(0.85);
+  will-change: opacity, transform;
+}
+
+@media (max-width: 640px) {
+  .mz-splash-logo { width: 74px; }
+}
+
+.mz-splash-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* enter: fade in with a slight rise. The animation holds its end state, because
+   the next phase begins from opacity 1 / scale 1. */
+.mz-splash.is-enter .mz-splash-logo {
+  animation: mz-splash-in 500ms ease-out forwards;
+}
+
+/* pulse: one gentle breath with a soft cyan rim behind the knight. Base values
+   are the resting state so nothing snaps when this animation ends. */
+.mz-splash.is-pulse .mz-splash-logo {
+  opacity: 1;
+  transform: scale(1);
+  animation: mz-splash-pulse 800ms ease-in-out;
+}
+
+/* exit: the emblem lifts away while the white field drains, and the field stops
+   swallowing taps so the landing page is live the moment the fade starts. */
+.mz-splash.is-exit {
+  pointer-events: none;
+  animation: mz-splash-field 560ms ease-in-out forwards;
+}
+
+.mz-splash.is-exit .mz-splash-logo {
+  opacity: 1;
+  animation: mz-splash-lift 560ms ease-in-out forwards;
+}
+
+@keyframes mz-splash-in {
+  from { opacity: 0; transform: scale(0.85); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes mz-splash-pulse {
+  0%, 100% {
+    transform: scale(1);
+    filter: drop-shadow(0 0 0 rgba(14, 165, 233, 0));
+  }
+  50% {
+    transform: scale(1.08);
+    filter: drop-shadow(0 0 16px rgba(14, 165, 233, 0.45));
+  }
+}
+
+@keyframes mz-splash-lift {
+  from { opacity: 1; transform: scale(1); }
+  to { opacity: 0; transform: scale(1.12); }
+}
+
+@keyframes mz-splash-field {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* No motion at all: the emblem is simply there, then the field fades out.
+     SplashScreen shortens its own timers to match. */
+  .mz-splash-logo,
+  .mz-splash.is-enter .mz-splash-logo,
+  .mz-splash.is-pulse .mz-splash-logo {
+    opacity: 1;
+    transform: none;
+    animation: none;
+  }
+  .mz-splash.is-exit {
+    animation: mz-splash-field 250ms ease-in forwards;
+  }
+  .mz-splash.is-exit .mz-splash-logo {
+    animation: none;
+  }
+}

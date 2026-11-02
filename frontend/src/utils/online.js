@@ -75,6 +75,27 @@ export async function respondDraw(id, accept) {
   return (await api.post(`/online/games/${id}/draw-respond`, { accept: Boolean(accept) })).data;
 }
 
+/* ── Rematch (a finished player-vs-player match) ─────────────────────────────
+   Mirrors the draw-offer pair: the request lives on the finished game, so the
+   server is the single source of truth for "someone has already asked".
+   `requestRematch` resolves with the refreshed game payload, which carries
+   `rematchRequest: { by, byName, at, mine }`.
+   `respondRematch` with accept:true resolves with the NEW game payload (201),
+   and also pushes it to both players over `rematch-started`.
+   `cancelRematch` is safe to call unconditionally — a request that was already
+   answered comes back as a plain 200 so unmount cleanup never logs an error. */
+export async function requestRematch(id) {
+  return (await api.post(`/online/games/${id}/rematch-request`, {}, { cache: false })).data;
+}
+
+export async function respondRematch(id, accept) {
+  return (await api.post(`/online/games/${id}/rematch-respond`, { accept: Boolean(accept) }, { cache: false })).data;
+}
+
+export async function cancelRematch(id) {
+  return (await api.post(`/online/games/${id}/rematch-cancel`, {}, { cache: false })).data;
+}
+
 export async function sendMove(id, move) {
   return (await api.post(`/online/games/${id}/move`, move)).data;
 }

@@ -27,5 +27,8 @@ adminRouter.use(authMiddleware, roleMiddleware('admin'));
 
 adminRouter.get('/', homework.listHomework);
 adminRouter.get('/:id/progress', assignmentCtrl.getPuzzleAssignmentStudents);
+/* Deleting takes the assignment and, through its ON DELETE CASCADE edges, the
+   puzzle list, every submission and every attempt recorded against it. */
+adminRouter.delete('/:id', homework.deleteHomework);
 
 module.exports = { studentRouter, adminRouter };

@@ -113,7 +113,20 @@ exports.listAdmins = async (req, res) => {
 
 exports.listAdminStudents = async (req, res) => {
   try {
-    const r = await db.query('SELECT * FROM students WHERE coach_id = $1', [req.params.id]);
+    /* The `students` row is only a link (user_id, group_id, coach_id) — the name
+       and email live on `users` — so a bare SELECT * returned rows with no name
+       at all and the modal rendered blank rows. These are the same columns the
+       roster query returns, so both lists describe a student identically. */
+    const r = await db.query(
+      `SELECT s.id, s.group_id, s.coach_id, s.active, g.name AS group_name,
+              u.id AS user_id, u.name, u.email, u.profile_image
+       FROM students s
+       JOIN users u ON u.id = s.user_id
+       LEFT JOIN groups g ON g.id = s.group_id
+       WHERE s.coach_id = $1
+       ORDER BY u.name ASC`,
+      [req.params.id]
+    );
     res.json(r.rows);
   } catch (err) {
     res.status(500).json({ message: 'Failed to list admin students', error: err.message });

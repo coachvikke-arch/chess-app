@@ -2000,13 +2000,9 @@ tbody tr:hover {
 
 /* ── one accent: the cyan/teal actives join the blue ramp ────────────────── */
 
-.set-switch:checked {
-  background: #2563eb;
-  border-color: #2563eb;
-}
-.set-switch:focus-visible {
-  outline-color: #2563eb;
-}
+/* `.set-switch` is deliberately not re-styled here: the Settings pill already
+   paints itself with --set-accent, and an override in this file would silently
+   win the cascade on the checked state. */
 .online-pick-check {
   background: #2563eb;
   color: #ffffff;

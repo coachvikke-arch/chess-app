@@ -1,16 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useUrlTab } from '../hooks/useUrlTab';
-import AnimatedBoard from '../components/board/AnimatedBoard';
-import useArrowKeys from '../hooks/useArrowKeys';
-import { Page, Piece } from '../components/ui';
+import { Chess } from 'chess.js';
+import ChessBoard from '../components/ChessBoard';
+import { Page } from '../components/ui';
+import Modal from '../components/Modal';
 import { useAuth } from '../context/AuthContext';
 import { useSound } from '../context/SoundContext';
-import { BOARD_THEMES, BOARD_THEMES_HIDDEN_IN_SETTINGS, getBoardTheme, getBoardThemeStyles } from '../config/boardThemes';
-import { PIECE_THEMES, PIECE_THEMES_HIDDEN_IN_SETTINGS, GLYPHS, getPieceTheme, pieceGlyphStyle, buildCustomPieces } from '../config/pieceTheme';
-import { ornateSquareStyles } from '../config/ornateTheme';
+import { BOARD_THEMES, BOARD_THEMES_HIDDEN_IN_SETTINGS, getBoardTheme } from '../config/boardThemes';
+import { PIECE_THEMES, PIECE_THEMES_HIDDEN_IN_SETTINGS, GLYPHS, getPieceTheme, pieceGlyphStyle } from '../config/pieceTheme';
 import { BOARD_ANIMATION_PRESETS, useBoardAnimationId, setBoardAnimation } from '../config/boardAnimation';
 import { useShowLegalMoves, setShowLegalMoves } from '../config/legalMoves';
-import { setAllowPieceDrag, useAllowPieceDrag } from '../config/pieceDrag';
+import { getAllowPieceDrag, setAllowPieceDrag, useAllowPieceDrag } from '../config/pieceDrag';
 import { useAutoQueen, setAutoQueen } from '../config/autoQueen';
 import {
   useHaptics,
@@ -19,64 +18,140 @@ import {
   useHapticStrength,
   HAPTIC_STRENGTHS,
 } from '../config/haptics';
+import { playMoveEffectHaptics } from '../effects/moveEffect/haptics';
 import { FacedPiece } from '../components/FacedPiece';
 import { RoyalPiece } from '../components/RoyalPieces';
 import Button from '../components/Button';
 import { useToast } from '../components/Toast';
 
-const PREVIEW_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
+/* Settings is one flat white/blue list: nothing heavy is painted on the page.
+   Every row opens ONE card that contains a real, playable board plus the
+   controls for that row, so each setting is demonstrated by the thing it
+   changes instead of by a picture of it.
 
-/* Board theme and piece set are picked on ONE page under ONE preview, so the
-   combination you are choosing is the thing on screen. The root list is the
-   mobile idiom (grouped rows, value + chevron, drill into a sub-page). */
+   The preview is the app's own `ChessBoard`, not a static mock-up: it reads the
+   live board theme, piece set, frame, legal-move, drag, auto-queen, animation
+   and sound preferences exactly as a game board does. Changing a control inside
+   the card therefore changes the board above it on the same tick, and what the
+   user sees is what every other page in the app will show. */
 
-/** Tiny static board preview for a specific theme + piece set. */
-export function ThemePreview({ themeId, pieceSet, size = 160, useRootColors = true }) {
-  const theme = getBoardTheme(themeId);
-  const marbleSquares = useMemo(() => ornateSquareStyles(theme, !useRootColors), [theme, useRootColors]);
-  const customPieces = useMemo(() => buildCustomPieces(getPieceTheme(pieceSet || 'cburnett')), [pieceSet]);
-  const themeStyles = getBoardThemeStyles(theme, useRootColors);
-  return (
-    <AnimatedBoard
-      position={PREVIEW_FEN}
-      boardWidth={size}
-      boardOrientation="white"
-      arePiecesDraggable={false}
-      arePiecesAnimated={false}
-      animationDuration={0}
-      showNotation={false}
-      customPieces={customPieces}
-      customDarkSquareStyle={themeStyles.darkSquareStyle || { backgroundColor: theme.darkSq }}
-      customLightSquareStyle={themeStyles.lightSquareStyle || { backgroundColor: theme.lightSq }}
-      customSquareStyles={marbleSquares || undefined}
-      customBoardStyle={
-        themeStyles.boardStyle || {
-          borderRadius: '10px',
-          overflow: 'hidden',
-          /* Mirrors the real board's ornate edge, so a themed board in the
-             picker looks the same as it will once applied. */
-          ...(theme.ornate ? { border: '2px solid rgba(96,165,250,0.8)' } : {}),
-        }
-      }
-    />
-  );
-}
+const START_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
+/* A white pawn one rank from promotion with both kings out of the way, so the
+   push is legal from any state the demo line has reached. */
+const PROMOTION_FEN = '4k3/P7/8/8/8/8/1K6/8 w - - 0 1';
+/* The line "Play a move" walks through — a quiet opening, so both colours get
+   to be seen moving and the animation preset is on display for every ply. */
+const DEMO_LINE = ['e4', 'e5', 'Nf3', 'Nc6', 'Bc4', 'Bc5', 'O-O', 'd6', 'd3', 'a6'];
+
+/* The cards that get an automatic script. `look` and `frame` are left out on
+   purpose: what they change is the board's own surface, and that repaints the
+   moment a pick lands — a scripted move could show nothing new. */
+const DEMO_SCRIPTS = ['anim', 'legal', 'drag', 'queen', 'sound', 'vib'];
+
+/* The wait before the first action, so the card and its board are mounted and
+   painted before anything moves, and the gap between the two taps the tap-to-move
+   demo has to show one at a time. */
+const DEMO_OPEN_MS = 420;
+const DEMO_TAP_MS = 1100;
+
+/* The animation dropdown lists the presets in this fixed order — the preset map
+   is keyed by id and the stored value is still just the id. */
+const ANIMATION_ORDER = ['glide', 'spring', 'snap', 'off'];
+
+/* One entry per card: what the row shows, and what the card shows. Keeping them
+   in the same object is what stops a row and its card from describing the
+   setting differently. */
+const CARDS = {
+  look: {
+    icon: '🎨',
+    label: 'Board & Pieces',
+    rowHint: 'Theme, piece set and custom colors',
+    desc: 'Every pick applies instantly to every board in the app.',
+    hint: 'Tap a piece, then a square — or drag — to play on the board you are setting up.',
+  },
+  frame: {
+    icon: '🖼',
+    label: 'Board Frame',
+    rowHint: 'Decorative edge and coordinates around the board',
+    desc: 'On draws the plinth and the file/rank labels; Off gives a bare board.',
+    hint: 'The board above grows and shrinks its edge as you switch, exactly like the board you play on.',
+  },
+  anim: {
+    icon: '⚡',
+    label: 'Board Animation',
+    rowHint: 'How pieces travel when a move is played',
+    desc: 'Choose how a piece travels from its old square to its new one.',
+    hint: 'The knight plays itself every time you pick a style, so the travel you are choosing is the travel you see.',
+  },
+  legal: {
+    icon: '💡',
+    label: 'Show Legal Moves',
+    rowHint: 'Highlight possible moves when you select a piece',
+    desc: 'Marks the squares a selected piece can actually reach.',
+    hint: 'The knight on g1 selects itself: On leaves its dots and capture rings lit, Off leaves the same piece with nothing around it.',
+  },
+  drag: {
+    icon: '✋',
+    label: 'Drag Pieces',
+    rowHint: 'Drag pieces to move them instead of tapping',
+    desc: 'How a move is made on every board in the app.',
+    hint: 'On: the knight is carried to f3 in one action. Off: it is tapped, then its destination is tapped — the demo replays whichever of those you just switched to.',
+  },
+  queen: {
+    icon: '♛',
+    label: 'Auto-queen',
+    rowHint: 'Promote pawns to a Queen without asking',
+    desc: 'What happens when a pawn reaches the last rank.',
+    hint: 'The card puts a white pawn on the seventh and runs it to the back rank by itself: On makes a Queen at once, Off opens the piece picker.',
+  },
+  sound: {
+    icon: '🔊',
+    label: 'Move Sounds',
+    rowHint: 'Knocks, captures, castling and check',
+    desc: 'The cue each move plays, and how loud it is.',
+    hint: 'A move plays itself when you open this card or flip the switch, so the cue arrives at the level you set. Dragging the slider answers with one knock.',
+  },
+  vib: {
+    icon: '◉',
+    label: 'Vibration',
+    rowHint: 'A pulse on brilliant, mate and promotion moves',
+    desc: 'A short pulse alongside the move effect.',
+    hint: 'Each change fires the pulse a real brilliant move plays — same pattern, delay and strength scaling. "Test pulse" repeats it, and only a device with a vibration motor can answer.',
+  },
+};
+
+const APPEARANCE_ROWS = ['look', 'frame', 'anim', 'legal', 'drag', 'queen'];
 
 export default function Settings() {
-  const { boardTheme, pieceSet, boardFrame, boardColors, updatePrefs } = useAuth();
+  const { boardTheme, pieceSet, boardFrame, boardColors, hasCustomBoardColors, updatePrefs } = useAuth();
   const [saving, setSaving] = useState(false);
   const [savedMsg, setSavedMsg] = useState('');
   /* The same app-wide preference the Play Arena's toggle writes to, so sound is
      adjustable from the page a user actually goes to for preferences. */
   const { soundOn, setSoundOn, volume, setVolume, playSound, unlockAudio } = useSound();
+  const { showToast } = useToast();
 
-  /* Which settings sub-page is open, or `null` for the root list.
-     Settings follows the same model as a phone's Settings app: one root list of
-     grouped rows, and tapping a row drills into a sub-page with a back button.
-     It used to open straight onto the Board panel with a live board already
-     rendered, so arriving at the page dumped you into the most expensive view
-     and the controls read as one long form instead of as navigation. */
-  const [view, setView] = useUrlTab('view', null);
+  /* Which card is open. Every detail screen is a centred card, so the page
+     behind never changes and the list stays exactly where it was. */
+  const [popup, setPopup] = useState(null);
+  /* The row that opened the card, so closing hands focus back to it. */
+  const triggerRef = useRef(null);
+
+  /* The card's board. One chess.js instance, owned here and handed to the
+     preview as its controlled game; a state bump repaints it after a move the
+     board itself did not make (the demo buttons). The instance is recreated
+     whenever a card opens, so a card always starts from the standard position. */
+  const gameRef = useRef(null);
+  const demoStepRef = useRef(0);
+  const [, setTick] = useState(0);
+
+  /* The automatic demo (see runDemo below): one action handed to the preview
+     board at a time, and the token that retires a script still in flight. */
+  const [demoAction, setDemoAction] = useState(null);
+  const demoTokenRef = useRef(0);
+  const demoNonceRef = useRef(0);
+  const demoTimersRef = useRef([]);
+  const volumeSampleRef = useRef(0);
 
   const activeThemeId = boardTheme || 'classic-green';
   const activePieceSet = pieceSet || 'cburnett';
@@ -124,431 +199,528 @@ export default function Settings() {
     }
   }
 
-  // Live preview shows the *currently applied* selection.
-  const selectable = BOARD_THEMES.filter((t) => !BOARD_THEMES_HIDDEN_IN_SETTINGS.has(t.id));
-  const regular = selectable.filter((t) => !t.accessibility);
-  const accessible = selectable.filter((t) => t.accessibility);
+  /* The choice is a display preference, stored per user on this device, and
+     every board reads it live — so the card's own board is the confirmation and
+     the toast is only a label for what just happened. The card then replays its
+     script, because the only way to judge a travel is to watch a piece travel. */
+  function pickAnimation(id) {
+    setBoardAnimation(id);
+    showToast(`Board animation set to ${BOARD_ANIMATION_PRESETS[id]?.name || id}.`, {
+      tone: 'info',
+      title: 'Board animation',
+      source: 'Settings:animation',
+    });
+    runDemo('anim');
+  }
 
-  // Only the non-hidden piece sets are offered in the Settings picker.
-  const pieceOptions = Object.values(PIECE_THEMES).filter(
-    (p) => !PIECE_THEMES_HIDDEN_IN_SETTINGS.has(p.id)
-  );
+  /* The volume slider is dragged, so it arrives as a stream of changes: one cue
+     per pause in the drag rather than one per pixel. `playSound` is already mute
+     when the switch is off, so a slide while muted stays quiet. */
+  function sampleVolume(next) {
+    setVolume(next);
+    const now = Date.now();
+    if (now - volumeSampleRef.current < 320) return;
+    volumeSampleRef.current = now;
+    playSound('move');
+  }
 
-  const themeName = getBoardTheme(activeThemeId).name;
-  const pieceName = getPieceTheme(activePieceSet || 'cburnett').name;
   const animationId = useBoardAnimationId();
-  const animationPreset = BOARD_ANIMATION_PRESETS[animationId] || BOARD_ANIMATION_PRESETS.glide;
   const showLegalMoves = useShowLegalMoves();
   const allowPieceDrag = useAllowPieceDrag();
   const autoQueen = useAutoQueen();
   const haptics = useHaptics();
   const [hapticStrength, setHapticStrength] = useHapticStrength();
 
-  /* ── the one shared ◀ Prev / Next ▶ pair ──
-     Both lists sit on this page, so a bare pair of arrows would have to guess
-     which one to move — that ambiguity is the whole reason this used to be two
-     separate tabs. The fix is not two pairs of arrows (back to the old
-     "which one did I just tap?" problem) but ONE pair with an explicit target
-     selector inside the same row, so what the arrows will do is always stated
-     before you press them.
+  /* Live preview shows the *currently applied* selection. */
+  const selectable = BOARD_THEMES.filter((t) => !BOARD_THEMES_HIDDEN_IN_SETTINGS.has(t.id));
+  const regular = selectable.filter((t) => !t.accessibility);
+  const accessible = selectable.filter((t) => t.accessibility);
 
-     The cursor is DERIVED from the applied selection, not stored. Stepping
-     applies the change immediately, so the selection and the cursor can never
-     disagree — no index state, no sync effect, nothing to fall out of step when
-     the theme is changed from somewhere else. */
-  const [stepTarget, setStepTarget] = useState('board');
+  // Only the non-hidden piece sets are offered in the picker.
+  const pieceOptions = Object.values(PIECE_THEMES).filter(
+    (p) => !PIECE_THEMES_HIDDEN_IN_SETTINGS.has(p.id)
+  );
 
-  /* Step over `selectable` (regular + high-contrast), NOT `regular`. Anything
-     visible on this page must be reachable by the arrows, and it also keeps
-     findIndex from returning -1: with a high-contrast theme applied, a
-     `regular`-only list would put the cursor on Classic Green while
-     Hi-Contrast was actually applied — the stepper would lie. */
-  const themeIdx = Math.max(0, selectable.findIndex((t) => t.id === activeThemeId));
-  const pieceIdx = Math.max(0, pieceOptions.findIndex((p) => p.id === activePieceSet));
+  const themeName = getBoardTheme(activeThemeId).name;
+  const pieceName = getPieceTheme(activePieceSet || 'cburnett').name;
+  const hapticsSupported = isHapticsSupported();
+  const strengthLabel = HAPTIC_STRENGTHS.find((s) => s.id === hapticStrength)?.label || 'On';
 
-  function stepTheme(delta) {
-    if (!selectable.length) return;
-    setTheme(selectable[(themeIdx + delta + selectable.length) % selectable.length].id);
+  const rowValues = {
+    look: `${themeName} · ${pieceName}`,
+    frame: boardFrame ? 'On' : 'Off',
+    anim: BOARD_ANIMATION_PRESETS[animationId]?.name || animationId,
+    legal: showLegalMoves ? 'On' : 'Off',
+    drag: allowPieceDrag ? 'On' : 'Off',
+    queen: autoQueen ? 'On' : 'Off',
+    sound: soundOn ? `${Math.round(volume * 100)}%` : 'Off',
+    vib: haptics ? strengthLabel : 'Off',
+  };
+
+  /* ── the card's demo board ── */
+  function openCard(id, trigger) {
+    triggerRef.current = trigger;
+    gameRef.current = new Chess(START_FEN);
+    demoStepRef.current = 0;
+    /* Retired before the new board mounts: the preview is keyed by the card, so
+       a leftover action would replay itself on the fresh board. */
+    stopDemo();
+    setPopup(id);
+    runDemo(id);
   }
-  function stepPiece(delta) {
-    if (!pieceOptions.length) return;
-    setPieceSet(pieceOptions[(pieceIdx + delta + pieceOptions.length) % pieceOptions.length].id);
+
+  function closeCard() {
+    stopDemo();
+    setPopup(null);
   }
 
-  /* ← / → drive the SAME stepper the ◀ / ▶ buttons drive.
-     This used to do nothing at all: Settings was the only board-navigating page
-     in the app with no `useArrowKeys` binding, so the arrows that step every
-     other board (replay, review, chess profile, library, openings) were dead
-     here. The keys are enabled only on the "Board & Pieces" sub-page — the only
-     place there is anything to step — and `stepTarget` picks which list moves,
-     so the keyboard cannot disagree with the on-screen target selector.
-     A save in flight is not re-checked here on purpose: the buttons don't
-     disable either, and the stepper derives its cursor from the APPLIED
-     selection, so holding the key simply keeps stepping from where it lands. */
-  useArrowKeys(
-    () => (stepTarget === 'board' ? stepTheme(-1) : stepPiece(-1)),
-    () => (stepTarget === 'board' ? stepTheme(1) : stepPiece(1)),
-    { enabled: view === 'look' },
-  );
+  /* ── the automatic demo ─────────────────────────────────────────────────────
+     A card opens by showing its own setting in action, and changing one of its
+     controls replays it, so the card answers "what does this actually do?" before
+     anyone looks for a button. A script is a chain of timed actions handed down to
+     the preview board (`demoAction`), and that board reads every live preference —
+     so what the chain produces is the effect of the setting, not a drawing of it.
 
-  const onBoard = stepTarget === 'board';
-  const stepName = onBoard ? selectable[themeIdx]?.name : pieceOptions[pieceIdx]?.name;
+     `demoTokenRef` retires a chain. Opening a card, closing it, or starting a new
+     run bumps the token, and any step still waiting sees a mismatch and goes out
+     with it. The manual demo buttons retire it too: a hand-made move leaves the
+     position the rest of the script was written against, and its dots would land
+     on squares that no longer hold the pieces they expect. */
+  function stopDemo() {
+    demoTokenRef.current += 1;
+    for (const timer of demoTimersRef.current) clearTimeout(timer);
+    demoTimersRef.current = [];
+    setDemoAction(null);
+  }
 
-  /* The board and the pieces are chosen together on one page, so they share a
-     single live preview: a theme only makes sense next to the set it will be
-     seen with, and one board shows both at once. */
-  const preview = (
-    <div className="flex items-center justify-center pb-3 mb-3">
-      <div className="text-center">
-        <ThemePreview
-          themeId={activeThemeId}
-          pieceSet={activePieceSet}
-          size={Math.max(180, Math.min(300, (typeof window !== 'undefined' ? window.innerWidth : 360) - 96))}
-        />
-        <p className="mt-3 text-xs text-ivory-500">Live preview · {themeName} + {pieceName}</p>
-      </div>
-    </div>
-  );
+  /* Runs `fn` unless the chain was retired while it waited. */
+  function demoLater(ms, token, fn) {
+    const timer = setTimeout(() => {
+      demoTimersRef.current = demoTimersRef.current.filter((t) => t !== timer);
+      if (token === demoTokenRef.current) fn();
+    }, ms);
+    demoTimersRef.current.push(timer);
+  }
 
-  const backBar = (label) => (
-    <button type="button" className="set-back" onClick={() => setView(null)}>
-      <span aria-hidden>‹</span> {label}
-    </button>
-  );
+  /* One action for the board. A new nonce is what makes it fire, so the same
+     square can be tapped again on the next run of the same script. */
+  function act(action) {
+    demoNonceRef.current += 1;
+    setDemoAction({ ...action, nonce: demoNonceRef.current });
+  }
 
-  const saveNote = savedMsg && (
-    <p className={`text-sm text-center mb-4 ${savedMsg.startsWith('Failed') ? 'chess-error' : 'chess-link'}`}>
+  function runDemo(id) {
+    const game = gameRef.current;
+    if (!game || !DEMO_SCRIPTS.includes(id)) return;
+    /* Every entry point here is a real gesture — a row tap, a switch, a chip —
+       which is the only moment a browser honours an audio resume. Without this a
+       card that opens and then plays its own move is silent on the first try. */
+    unlockAudio();
+    stopDemo();
+    const token = demoTokenRef.current;
+
+    game.load(id === 'queen' ? PROMOTION_FEN : START_FEN);
+    demoStepRef.current = 0;
+    repaint();
+    /* The board is told to drop its own selection before the script starts, so a
+       card replayed a second time does not find the piece the first run left
+       selected and read its opening tap as a deselect. */
+    act({ kind: 'reset' });
+
+    const later = (ms, fn) => demoLater(ms, token, fn);
+    const move = (from, to) => act({ kind: 'move', from, to });
+    const tap = (square) => act({ kind: 'select', square });
+
+    if (id === 'anim') later(DEMO_OPEN_MS, () => move('g1', 'f3'));
+    else if (id === 'legal') later(DEMO_OPEN_MS, () => tap('g1'));
+    else if (id === 'queen') later(DEMO_OPEN_MS, () => move('a7', 'a8'));
+    else if (id === 'sound') later(DEMO_OPEN_MS, () => move('e2', 'e4'));
+    else if (id === 'vib') later(DEMO_OPEN_MS, () => playMoveEffectHaptics({ type: 'brilliant' }));
+    else if (id === 'drag') {
+      /* Read when the step runs, not now: this script also replays the moment the
+         switch flips, and this click handler's closure still holds the old value.
+         On: the knight is carried to f3 in one action. Off: no piece can be
+         carried, so the demo is the two taps a player makes instead. */
+      later(DEMO_OPEN_MS, () => {
+        if (getAllowPieceDrag()) move('g1', 'f3');
+        else {
+          tap('g1');
+          later(DEMO_TAP_MS, () => tap('f3'));
+        }
+      });
+    }
+  }
+
+  /* A chain must not outlive the page it was scripted on. */
+  useEffect(() => () => stopDemo(), []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /* Repaints the preview after the position changes from outside the board.
+     A move the board makes itself already repaints, so only the demo buttons
+     need this. */
+  function repaint() {
+    setTick((t) => t + 1);
+  }
+
+  /* Walks the scripted opening one ply at a time. Once the user has moved
+     pieces the script no longer matches the position, so it falls back to any
+     legal move and only re-seeds the start position when there is nothing left
+     to play — the button must always produce a move. */
+  function playDemoMove() {
+    const game = gameRef.current;
+    if (!game) return;
+    stopDemo();
+    let made = null;
+    try {
+      made = game.move(DEMO_LINE[demoStepRef.current % DEMO_LINE.length]);
+    } catch {
+      made = null;
+    }
+    demoStepRef.current += 1;
+    if (!made) {
+      const options = game.moves();
+      if (options.length) {
+        try {
+          made = game.move(options[Math.floor(Math.random() * options.length)]);
+        } catch {
+          made = null;
+        }
+      } else {
+        game.load(START_FEN);
+        demoStepRef.current = 1;
+        made = game.move('e4');
+      }
+    }
+    repaint();
+  }
+
+  function setupPromotion() {
+    const game = gameRef.current;
+    if (!game) return;
+    stopDemo();
+    game.load(PROMOTION_FEN);
+    repaint();
+  }
+
+  function resetBoard() {
+    const game = gameRef.current;
+    if (!game) return;
+    stopDemo();
+    game.load(START_FEN);
+    demoStepRef.current = 0;
+    repaint();
+  }
+
+  const { width: viewportWidth, height: viewportHeight } = useViewportSize();
+  /* The card is a 440px column until the desktop breakpoint turns it into a wide
+     two-panel one (the min-width: 1000px block in index.css — this flag has to
+     match it), so the board follows that layout: on a phone it is capped by the
+     card it sits in, on a desktop by the stage column it owns. The 1.35 divisor
+     is the frame variant's own band, and the height budget is what is left for
+     the badge, the board's well and the demo bar — which the pinned stage can
+     never be taller than. */
+  const desktop = viewportWidth >= 1000;
+  const previewWidth = Math.round(Math.max(
+    176,
+    desktop
+      ? Math.min(360, viewportWidth * 0.42 - 100, (viewportHeight - 250) / 1.35)
+      : Math.min(272, viewportWidth - 150, (viewportHeight - 314) / 1.35)
+  ));
+
+  const status = savedMsg && (
+    <p className={`set-status${savedMsg.startsWith('Failed') ? ' is-error' : ''}`} aria-live="polite">
       {savedMsg}
     </p>
   );
 
+  const card = CARDS[popup];
+
   return (
-    <Page title="Settings" piece="⚙" sub="Personalise your chessboard — the look applies everywhere you play.">
-      {/* ── ROOT: the list, exactly like a phone's Settings app ──
-          Grouped rows, no board, nothing heavy rendered. Each row either shows
-          its current value or drills into a sub-page. */}
-      {view === null && (
-        <>
-          {saveNote}
+    <>
+      <Page
+        title="Settings"
+        piece="⚙"
+        sub="Personalise your chessboard — the look applies everywhere you play."
+        className="settings-page"
+      >
+        {/* The list-level rows have no card open, so this is where a save from
+            the frame toggle gets reported. */}
+        {!popup && status}
 
-          <Group cap="Appearance">
-            {/* One row for the whole look. Board theme and piece set are two
-                halves of the same choice — a theme is only ever seen with a
-                piece set — so they open together instead of as two rows that
-                each hide half the result. */}
+        <Group cap="Appearance">
+          {/* Board theme, piece set and custom squares are one row: a board is
+              only ever seen as a theme wearing a set on a colour, so the three
+              are picked together against the same preview. */}
+          {APPEARANCE_ROWS.map((id) => (
             <NavRow
-              icon="🎨"
-              label="Board &amp; Pieces"
-              hint="Theme and piece set, chosen together"
-              value={`${themeName} · ${pieceName}`}
-              onClick={() => setView('look')}
+              key={id}
+              icon={CARDS[id].icon}
+              label={CARDS[id].label}
+              hint={CARDS[id].rowHint}
+              value={rowValues[id]}
+              onOpen={(el) => openCard(id, el)}
             />
-            <BoardColorSettings
-              colors={boardColors}
-              pieceSet={activePieceSet}
-              boardFrame={boardFrame}
-              onApply={(light, dark) => updatePrefs({ boardLightColor: light, boardDarkColor: dark })}
-            />
-            {/* Board Frame is its own row with its own pair of buttons. It used
-                to be a checkbox buried inside the Board panel, where it was easy
-                to miss and looked like part of the theme picker. Two explicit
-                buttons make both choices visible and each is a single tap. */}
-            <div className="set-row">
-              <span className="set-row-icon" aria-hidden>🖼</span>
-              <span className="set-row-text">
-                <span className="set-row-label">Board Frame</span>
-                <span className="set-row-hint">
-                  {boardFrame
-                    ? 'Plinth, gold trim and coordinates shown'
-                    : 'Bare board — more space, same theme'}
-                </span>
-              </span>
-              <div className="set-seg" role="group" aria-label="Board frame">
-                <button
-                  type="button"
-                  aria-pressed={boardFrame}
-                  disabled={saving}
-                  onClick={() => setBoardFrame(true)}
-                >
-                  On
-                </button>
-                <button
-                  type="button"
-                  aria-pressed={!boardFrame}
-                  disabled={saving}
-                  onClick={() => setBoardFrame(false)}
-                >
-                  Off
-                </button>
-              </div>
-            </div>
-            <NavRow
-              icon="⚡"
-              label="Board Animation"
-              hint="How pieces travel when a move is played"
-              value={animationPreset.name}
-              onClick={() => setView('anim')}
-            />
-            {/* Master switch for the legal-move hints. Off hides the dots/rings
-                on every board, but a piece can still be selected and moved. */}
-            <SwitchRow
-              icon="💡"
-              label="Show Legal Moves"
-              hint="Highlight possible moves when you select a piece"
-              checked={showLegalMoves}
-              onChange={setShowLegalMoves}
-            />
-            {/* Gesture switch: when off (default) pieces move by tapping a piece
-                then a destination; when on, pieces can also be dragged. */}
-            <SwitchRow
-              icon="✋"
-              label="Drag Pieces"
-              hint="Drag pieces to move them instead of tapping"
-              checked={allowPieceDrag}
-              onChange={setAllowPieceDrag}
-            />
-            {/* Promotion shortcut: skip the picker and always promote to a
-                Queen. Off by default so the player still chooses. */}
-            <SwitchRow
-              icon="♛"
-              label="Auto-queen"
-              hint="Promote pawns to a Queen automatically, without asking"
-              checked={autoQueen}
-              onChange={setAutoQueen}
-            />
-          </Group>
+          ))}
+        </Group>
 
-          <Group cap="Sound">
-            <SwitchRow
-              icon="🔊"
-              label="Move Sounds"
-              hint="Knocks, captures, castling, check"
-              checked={soundOn}
-              onChange={setSoundOn}
-            />
+        <Group cap="Sound">
+          <NavRow
+            icon={CARDS.sound.icon}
+            label={CARDS.sound.label}
+            hint={CARDS.sound.rowHint}
+            value={rowValues.sound}
+            onOpen={(el) => openCard('sound', el)}
+          />
+          {/* Vibration rides the MoveEffect timeline (a tick on landing, then a
+              short swell). Only offered where the Vibration API exists. */}
+          {hapticsSupported && (
             <NavRow
-              icon="🎚"
-              label="Volume"
-              value={`${Math.round(volume * 100)}%`}
-              onClick={() => setView('sound')}
+              icon={CARDS.vib.icon}
+              label={CARDS.vib.label}
+              hint={CARDS.vib.rowHint}
+              value={rowValues.vib}
+              onOpen={(el) => openCard('vib', el)}
             />
-            {/* Vibration rides the MoveEffect timeline (a tick on landing, then
-                a short swell). Only offered where the Vibration API exists. */}
-            {isHapticsSupported() && (
-              <>
-                <SwitchRow
-                  icon="◉"
-                  label="Vibration"
-                  hint="A short pulse on brilliant, mate and promotion moves"
-                  checked={haptics}
-                  onChange={setHaptics}
+          )}
+        </Group>
+      </Page>
+
+      {/* ── one card per row ──
+           Same shape every time: a playable board, the three ways to make it do
+           something, and the control this row is about. Only the controls
+           change, so nothing has to be relearned between cards. */}
+      <Modal
+        open={Boolean(card)}
+        onClose={closeCard}
+        title={card?.label}
+        description={card?.desc}
+        size="md"
+        modalClass="mz-modal-settings"
+        layerClass="mz-layer-settings"
+        returnFocusRef={triggerRef}
+        closeLabel={card ? `Close ${card.label}` : 'Close settings'}
+      >
+        {card && (
+          <>
+            {/* Badge, board and control bar travel together: the card keeps them
+                pinned while the (often much longer) controls scroll under them,
+                so a pick is always made with the board it changes on screen. */}
+            <div className="set-stage">
+              <p className="set-live">
+                <span className="set-live-dot" aria-hidden />
+                Live preview · applies instantly
+              </p>
+
+              <div className="set-preview">
+                <ChessBoard
+                  key={popup}
+                  game={gameRef.current}
+                  mode="game"
+                  interactive
+                  showLegalMoves
+                  orientation="white"
+                  boardWidth={previewWidth}
+                  allowNativeArrows={false}
+                  demoAction={demoAction}
                 />
-                {haptics && (
-                  <div className="set-row">
-                    <span className="set-row-icon" aria-hidden>≋</span>
-                    <span className="set-row-text">
-                      <span className="set-row-label">Vibration Strength</span>
-                      <span className="set-row-hint">How long each pulse stays on</span>
-                    </span>
-                    <div className="set-seg" role="group" aria-label="Vibration strength">
-                      {HAPTIC_STRENGTHS.map((s) => (
-                        <button
-                          key={s.id}
-                          type="button"
-                          aria-pressed={hapticStrength === s.id}
-                          onClick={() => setHapticStrength(s.id)}
-                        >
-                          {s.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </>
-            )}
-          </Group>
-        </>
-      )}
-
-      {/* ── Board & Pieces: ONE page ──
-          Both pickers live in the same card under a single live preview, so the
-          combination you are actually going to see is on screen while you
-          choose. They used to be two separate drill-downs, which meant picking
-          a theme, going back, then picking pieces and never seeing the two
-          together. */}
-      {view === 'look' && (
-        <>
-          {backBar('Settings')}
-          <h2 className="set-sub-title">Board &amp; Pieces</h2>
-          {saveNote}
-          <div className="chess-card">
-            {preview}
-
-            <div className="set-stepper">
-              <div className="set-seg set-stepper-target" role="group" aria-label="Choose what the arrows move">
-                <button
-                  type="button"
-                  onClick={() => setStepTarget('board')}
-                  aria-pressed={onBoard}
-                >
-                  Board Theme
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setStepTarget('pieces')}
-                  aria-pressed={!onBoard}
-                >
-                  Piece Set
-                </button>
-              </div>
-              <div className="set-stepper-nav">
-                <button
-                  type="button"
-                  className="set-stepper-btn"
-                  aria-label={`Previous ${onBoard ? 'board theme' : 'piece set'}`}
-                  aria-keyshortcuts="ArrowLeft"
-                  title="Previous (←)"
-                  onClick={() => (onBoard ? stepTheme(-1) : stepPiece(-1))}
-                >
-                  ◀
-                </button>
-                <span className="set-stepper-name" aria-live="polite">{stepName}</span>
-                <button
-                  type="button"
-                  className="set-stepper-btn"
-                  aria-label={`Next ${onBoard ? 'board theme' : 'piece set'}`}
-                  aria-keyshortcuts="ArrowRight"
-                  title="Next (→)"
-                  onClick={() => (onBoard ? stepTheme(1) : stepPiece(1))}
-                >
-                  ▶
-                </button>
               </div>
             </div>
 
-            <p className="text-xs uppercase tracking-wider text-ivory-500 font-semibold mb-2">Board Theme</p>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-              {regular.map((t) => (
-                <ThemeOption key={t.id} theme={t} active={t.id === activeThemeId} saving={saving} onPick={setTheme} pieceSet={activePieceSet} />
-              ))}
-            </div>
+            {/* Everything that is not the board belongs to the controls column.
+                On a phone that column simply continues under the pinned stage;
+                on a desktop card the two become side by side (see the
+                min-width: 1000px block in index.css), so nothing else in the card
+                has to know which layout it is in. */}
+            <div className="set-controls">
+            <p className="set-note">{card.hint}</p>
 
-            {accessible.length > 0 && (
-              <>
-                <p className="text-xs uppercase tracking-wider text-ivory-500 font-semibold mt-6 mb-2">High-contrast themes</p>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                  {accessible.map((t) => (
-                    <ThemeOption key={t.id} theme={t} active={t.id === activeThemeId} saving={saving} onPick={setTheme} pieceSet={activePieceSet} />
+            {status}
+
+            {popup === 'look' && (
+              <div className="set-card-body">
+                <p className="set-cap">Board theme</p>
+                <div className="set-chips">
+                  {regular.map((t) => (
+                    <Chip key={t.id} active={t.id === activeThemeId} disabled={saving} onPick={setTheme} value={t.id}>
+                      <ThemeSwatch theme={t} />
+                      {t.name}
+                    </Chip>
                   ))}
                 </div>
-                <p className="text-xs text-ivory-500 mt-2">High-contrast themes improve piece visibility for low-vision and colour-blind players.</p>
-              </>
+
+                {accessible.length > 0 && (
+                  <>
+                    <p className="set-cap is-spaced">High-contrast themes</p>
+                    <div className="set-chips">
+                      {accessible.map((t) => (
+                        <Chip key={t.id} active={t.id === activeThemeId} disabled={saving} onPick={setTheme} value={t.id}>
+                          <ThemeSwatch theme={t} />
+                          {t.name}
+                        </Chip>
+                      ))}
+                    </div>
+                    <p className="set-note">
+                      High-contrast themes improve piece visibility for low-vision and colour-blind players.
+                    </p>
+                  </>
+                )}
+
+                <p className="set-cap is-spaced">Piece set</p>
+                <div className="set-chips">
+                  {pieceOptions.map((p) => (
+                    <Chip key={p.id} active={p.id === activePieceSet} disabled={saving} onPick={setPieceSet} value={p.id}>
+                      <PieceIcon pieceId={p.id} />
+                      {p.name}
+                    </Chip>
+                  ))}
+                </div>
+
+                <p className="set-cap is-spaced">Custom square colors</p>
+                <BoardColorSettings
+                  colors={boardColors}
+                  hasCustom={hasCustomBoardColors}
+                  onApply={(light, dark) => updatePrefs({ boardLightColor: light, boardDarkColor: dark })}
+                />
+              </div>
             )}
 
-            <div className="pt-5 mt-6 border-t border-ivory-700/40">
-              <p className="text-xs uppercase tracking-wider text-ivory-500 font-semibold mb-2">Piece Set</p>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                {pieceOptions.map((p) => (
-                  <PieceOption key={p.id} p={p} active={p.id === activePieceSet} saving={saving} onPick={setPieceSet} />
+            {popup === 'frame' && (
+              <SwitchRow
+                label="Show the frame"
+                hint={boardFrame ? 'Frame and coordinates shown' : 'Bare board — more space, same theme'}
+                checked={Boolean(boardFrame)}
+                disabled={saving}
+                onChange={setBoardFrame}
+              />
+            )}
+
+            {popup === 'anim' && (
+              <div className="set-chips">
+                {ANIMATION_ORDER.map((id) => (
+                  <Chip
+                    key={id}
+                    active={id === animationId}
+                    onPick={pickAnimation}
+                    value={id}
+                    title={BOARD_ANIMATION_PRESETS[id].description}
+                  >
+                    {BOARD_ANIMATION_PRESETS[id].name}
+                  </Chip>
                 ))}
               </div>
-              <p className="text-xs text-ivory-500 mt-3">
-                Every set renders with its own colours &amp; glow and applies instantly across the whole app.
-              </p>
-            </div>
-          </div>
-        </>
-      )}
+            )}
 
-      {/* ── Board Animation sub-page ──
-          Four presets, one tap each. The choice is a display preference, so it
-          is stored per user on this device and every board reads it live. */}
-      {view === 'anim' && (
-        <>
-          {backBar('Settings')}
-          <h2 className="set-sub-title">Board Animation</h2>
-          {saveNote}
-          <div className="chess-card">
-            <div className="flex flex-col gap-2">
-              {['glide', 'spring', 'snap', 'off'].map((id) => {
-                const p = BOARD_ANIMATION_PRESETS[id];
-                const active = animationId === id;
-                return (
-                  <button
-                    key={id}
+            {popup === 'legal' && (
+              <SwitchRow
+                label="Show legal moves"
+                hint="Off hides the dots and rings on every board; you can still select and move a piece"
+                checked={showLegalMoves}
+                onChange={(next) => { setShowLegalMoves(next); runDemo('legal'); }}
+              />
+            )}
+
+            {popup === 'drag' && (
+              <SwitchRow
+                label="Allow dragging"
+                hint="Off means every move is made by tapping a piece and then a square"
+                checked={allowPieceDrag}
+                onChange={(next) => { setAllowPieceDrag(next); runDemo('drag'); }}
+              />
+            )}
+
+            {popup === 'queen' && (
+              <SwitchRow
+                label="Promote straight to a Queen"
+                hint="Off keeps the picker, so you can under-promote to a Rook, Bishop or Knight"
+                checked={autoQueen}
+                onChange={(next) => { setAutoQueen(next); runDemo('queen'); }}
+              />
+            )}
+
+            {popup === 'sound' && (
+              <div className="set-card-body">
+                <SwitchRow
+                  label="Move sounds"
+                  hint="Off mutes every cue in the app, on this device"
+                  checked={soundOn}
+                  onChange={(next) => { setSoundOn(next); runDemo('sound'); }}
+                />
+                <div className="set-volume-row">
+                  <label htmlFor="set-volume" className="set-volume-label">Volume</label>
+                  <span className="set-volume-value tabular-nums">{Math.round(volume * 100)}%</span>
+                </div>
+                <input
+                  id="set-volume"
+                  type="range"
+                  className="chess-range set-volume"
+                  min="0"
+                  max="2"
+                  step="0.05"
+                  value={volume}
+                  disabled={!soundOn}
+                  onChange={(e) => sampleVolume(Number(e.target.value))}
+                  aria-label="Sound volume"
+                />
+                <p className="set-note">100% = as designed. Up to 200%.</p>
+                <div className="set-actions">
+                  {/* Plays a real move cue inside the click gesture, so it doubles
+                      as the "is audio allowed at all in this browser?" check. */}
+                  <Button
                     type="button"
-                    aria-pressed={active}
-                    onClick={() => {
-                      setBoardAnimation(id);
-                      setSavedMsg(`Board animation set to ${p.name}.`);
-                    }}
-                    className="flex items-center justify-between px-3 py-2.5 rounded-lg text-left"
-                    style={{
-                      border: `1px solid ${active ? 'rgba(59, 130, 246, 0.65)' : 'rgba(37, 99, 235, 0.2)'}`,
-                      background: active ? 'rgba(59, 130, 246, 0.16)' : 'var(--surface-soft)',
-                    }}
+                    size="sm"
+                    variant="secondary"
+                    className="set-test"
+                    disabled={!soundOn}
+                    onClick={() => { unlockAudio(); playSound('move'); }}
                   >
-                    <span>
-                      <span className="block text-sm font-semibold" style={{ color: 'var(--ivory-100)' }}>{p.name}</span>
-                      <span className="block text-xs" style={{ color: 'var(--ivory-500)' }}>{p.description}</span>
-                    </span>
-                    {active && <span aria-hidden style={{ color: '#93c5fd' }}>✓</span>}
-                  </button>
-                );
-              })}
-            </div>
-            <p className="text-xs text-ivory-500 mt-3">
-              Applies to every board — play, puzzles, review and the live classroom. &ldquo;Off&rdquo; moves pieces instantly.
-            </p>
-          </div>
-        </>
-      )}
+                    🔊 Test sound
+                  </Button>
+                </div>
+              </div>
+            )}
 
-      {/* ── Volume sub-page ──
-          Sound also lives in the Play Arena; both write the same app-wide
-          preference, so the two controls can never disagree. */}
-      {view === 'sound' && (
-        <>
-          {backBar('Settings')}
-          <h2 className="set-sub-title">Volume</h2>
-          {saveNote}
-          <div className="chess-card">
-            <div className="flex items-center justify-between">
-              <label htmlFor="set-volume" className="text-sm text-ivory-200">Output level</label>
-              <span className="text-sm text-ivory-400 tabular-nums">{Math.round(volume * 100)}%</span>
+            {popup === 'vib' && (
+              <div className="set-card-body">
+                <SwitchRow
+                  label="Vibration"
+                  hint="Off stops every move pulse"
+                  checked={haptics}
+                  onChange={(next) => { setHaptics(next); runDemo('vib'); }}
+                />
+                <p className="set-cap is-spaced">Strength</p>
+                <div className="set-chips">
+                  {HAPTIC_STRENGTHS.map((s) => (
+                    <Chip
+                      key={s.id}
+                      active={s.id === hapticStrength}
+                      onPick={(id) => { setHapticStrength(id); runDemo('vib'); }}
+                      value={s.id}
+                    >
+                      {s.label}
+                    </Chip>
+                  ))}
+                </div>
+                <div className="set-actions">
+                  {/* The app's own pulse: the same pattern, delay and strength
+                     scaling a real brilliant move plays, so the test is honest. */}
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="secondary"
+                    className="set-test"
+                    disabled={!haptics}
+                    onClick={() => playMoveEffectHaptics({ type: 'brilliant' })}
+                  >
+                    ◉ Test pulse
+                  </Button>
+                </div>
+                {!haptics && <p className="set-note">Turn vibration on to test it.</p>}
+              </div>
+            )}
             </div>
-            <input
-              id="set-volume"
-              type="range"
-              className="chess-range mt-2"
-              min="0"
-              max="2"
-              step="0.05"
-              value={volume}
-              disabled={!soundOn}
-              onChange={(e) => setVolume(Number(e.target.value))}
-              aria-label="Sound volume"
-            />
-            <p className="text-[11px] leading-snug text-ivory-500 mt-1">
-              100% = as designed. Up to 200%.
-            </p>
-
-            <div className="pt-4 mt-4 border-t border-ivory-700/40">
-              {/* Plays a real move cue inside the click gesture, so it doubles as
-                  the "is audio allowed at all in this browser?" check. */}
-              <Button
-                type="button"
-                onClick={() => { unlockAudio(); playSound('move'); }}
-                disabled={!soundOn}
-                variant="secondary" size="sm" fullWidth className="!py-2 !px-3 text-xs w-full"
-              >
-                🔊 Test sound
-              </Button>
-            </div>
-          </div>
-        </>
-      )}
-    </Page>
+          </>
+        )}
+      </Modal>
+    </>
   );
 }
 
@@ -563,6 +735,115 @@ function Group({ cap, children }) {
     </div>
   );
 }
+
+/** The only row on this page: it opens the card for one setting, and shows the
+ *  current value so nothing has to be opened just to read a state. The whole row
+ *  is the tap target, which is what makes this usable with a thumb; the element
+ *  itself is remembered so the card can hand focus back to it on close. */
+function NavRow({ icon, label, hint, value, onOpen }) {
+  return (
+    <button type="button" className="set-row" onClick={(e) => onOpen(e.currentTarget)}>
+      {icon && <span className="set-row-icon" aria-hidden>{icon}</span>}
+      <span className="set-row-text">
+        <span className="set-row-label">{label}</span>
+        {hint && <span className="set-row-hint">{hint}</span>}
+      </span>
+      {value && <span className="set-row-value">{value}</span>}
+      <span className="set-row-chevron" aria-hidden>›</span>
+    </button>
+  );
+}
+
+/** A labelled switch inside a card — the same control the list used to carry
+ *  inline, now with room for the hint that explains what it does. */
+function SwitchRow({ label, hint, checked, onChange, disabled }) {
+  return (
+    <label className="set-toggle">
+      <span className="set-row-text">
+        <span className="set-row-label">{label}</span>
+        {hint && <span className="set-row-hint">{hint}</span>}
+      </span>
+      <input
+        type="checkbox"
+        className="set-switch"
+        checked={Boolean(checked)}
+        disabled={disabled}
+        onChange={(e) => onChange(e.target.checked)}
+      />
+    </label>
+  );
+}
+
+/** A chip is one choice in a wrapping row: pressed state is the applied value,
+ *  so the whole list reads as "which of these is on" at a glance. */
+function Chip({ active, value, onPick, disabled, title, children }) {
+  return (
+    <button
+      type="button"
+      className={`set-chip-btn${active ? ' is-active' : ''}`}
+      aria-pressed={active}
+      disabled={disabled}
+      title={title}
+      onClick={() => onPick(value)}
+    >
+      {children}
+    </button>
+  );
+}
+
+/** The two squares of a theme, as the chip sees them. The textured and
+ *  ornate themes are still identified by name in the chip and shown properly by
+ *  the playable board above. */
+function ThemeSwatch({ theme }) {
+  return (
+    <span
+      className="set-chip-swatch"
+      aria-hidden
+      style={{ backgroundImage: `linear-gradient(135deg, ${theme.lightSq} 50%, ${theme.darkSq} 50%)` }}
+    />
+  );
+}
+
+/* One knight is enough to tell two piece sets apart, and it keeps a chip the
+   height of its text instead of a column of glyphs. It is always the BLACK
+   knight: every offered set paints its white pieces near-white, which vanishes
+   on a white chip, while the black side carries the set's tint, glow and font.
+   The wrapper is what aligns the four kinds of artwork — the SVG sets take no
+   className of their own. */
+function PieceIcon({ pieceId, size = 20 }) {
+  const theme = getPieceTheme(pieceId);
+  return (
+    <span className="set-chip-piece" aria-hidden>
+      {theme.type === 'png' || theme.type === 'img' ? (
+        <img src={theme.images.bN} alt="" draggable={false} width={size} height={size} />
+      ) : theme.type === 'faced' ? (
+        <FacedPiece type="n" side="b" size={size} />
+      ) : theme.type === 'royal' ? (
+        <RoyalPiece type="n" side="b" size={size} />
+      ) : (
+        <span style={pieceGlyphStyle(theme, 'bN', size)}>{GLYPHS.bN}</span>
+      )}
+    </span>
+  );
+}
+
+/* The board size only matters while a card is open, but a phone rotated or a
+   window resized mid-card must not leave the board wider than the card, or the
+   pinned stage taller than the card itself. */
+function useViewportSize() {
+  const [size, setSize] = useState(() => ({
+    width: typeof window === 'undefined' ? 360 : window.innerWidth,
+    height: typeof window === 'undefined' ? 640 : window.innerHeight,
+  }));
+  useEffect(() => {
+    const onResize = () => setSize({ width: window.innerWidth, height: window.innerHeight });
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+  return size;
+}
+
+/* ── custom square colours ── */
 
 const BOARD_COLOR_DEFAULTS = { light: '#EEEED2', dark: '#769656' };
 const BOARD_COLOR_THEMES = [
@@ -599,9 +880,13 @@ function hsvToHex(h, s, v) {
   return `#${rgb.map((n) => Math.round((n + m) * 255).toString(16).padStart(2, '0')).join('').toUpperCase()}`;
 }
 
-function BoardColorSettings({ colors, pieceSet, boardFrame, onApply }) {
+/** The custom-square section of the Board & Pieces card — panel content only.
+ *  The card owns the title, the close button and the playable board, so the
+ *  wheel, the two square colours and the quick palettes are all that live here.
+ *  Nothing repaints the board until Apply, because the colours a user is
+ *  composing are not applied colours yet. */
+function BoardColorSettings({ colors, onApply, hasCustom }) {
   const { showToast } = useToast();
-  const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState(colors || BOARD_COLOR_DEFAULTS);
   const [activeSquare, setActiveSquare] = useState('light');
   const [hexInput, setHexInput] = useState((colors || BOARD_COLOR_DEFAULTS).light);
@@ -609,7 +894,6 @@ function BoardColorSettings({ colors, pieceSet, boardFrame, onApply }) {
   const wheelRef = useRef(null);
   const currentHex = draft[activeSquare];
   const hsv = useMemo(() => hexToHsv(currentHex), [currentHex]);
-  const customPieces = useMemo(() => buildCustomPieces(getPieceTheme(pieceSet || 'cburnett')), [pieceSet]);
   const sameSquares = draft.light.toUpperCase() === draft.dark.toUpperCase();
   const pinAngle = ((hsv.h - 90) * Math.PI) / 180;
   const pinStyle = {
@@ -617,9 +901,6 @@ function BoardColorSettings({ colors, pieceSet, boardFrame, onApply }) {
     top: `${50 + Math.sin(pinAngle) * hsv.s * 50}%`,
   };
 
-  useEffect(() => {
-    if (!open) setDraft(colors || BOARD_COLOR_DEFAULTS);
-  }, [colors, open]);
   useEffect(() => setHexInput(draft[activeSquare]), [draft, activeSquare]);
 
   useEffect(() => {
@@ -655,7 +936,7 @@ function BoardColorSettings({ colors, pieceSet, boardFrame, onApply }) {
     wheel.setAttribute('aria-valuetext', `${Math.round(hsv.h)} degrees hue, ${Math.round(hsv.s * 100)} percent saturation`);
   }, [hsv.h, hsv.s]);
 
-  const changeActiveColor = (hex) => setDraft((prev) => ({ ...prev, [activeSquare]: hex }));
+  const changeActiveColor = (hex) => setDraft((d) => ({ ...d, [activeSquare]: hex }));
   const pickWheel = (event) => {
     const rect = event.currentTarget.getBoundingClientRect();
     const x = event.clientX - rect.left - rect.width / 2;
@@ -693,239 +974,90 @@ function BoardColorSettings({ colors, pieceSet, boardFrame, onApply }) {
 
   const sliderFill = hsvToHex(hsv.h, hsv.s, 1);
   return (
-    <div className="board-color-settings">
-      <button
-        type="button"
-        className="set-row board-color-row"
-        aria-expanded={open}
-        aria-controls="board-color-panel"
-        onClick={() => {
-          if (!open) {
-            // Re-read the latest saved/device palette when opening so the
-            // first Settings visit never starts with an old draft.
-            setDraft(colors || BOARD_COLOR_DEFAULTS);
-            setActiveSquare('light');
-          }
-          setOpen(!open);
-        }}
-      >
-        <span className="set-row-icon" aria-hidden>🌈</span>
-        <span className="set-row-text">
-          <span className="set-row-label">Board Color <span className="board-color-new">New</span></span>
-          <span className="set-row-hint">Pick your own square colors with the color wheel</span>
-        </span>
-        <span className="board-color-row-swatches" aria-label={`Light ${colors.light}, dark ${colors.dark}`}>
-          <span style={{ backgroundColor: colors.light }} />
-          <span style={{ backgroundColor: colors.dark }} />
-        </span>
-        <span className={`set-row-chevron${open ? ' is-open' : ''}`} aria-hidden>›</span>
-      </button>
-      {open && (
-        <div className="board-color-panel" id="board-color-panel">
-          <div className="board-color-wheel-column">
-            <div className="board-color-wheel-wrap">
-              <canvas
-                ref={wheelRef}
-                id="board-color-wheel"
-                className="board-color-wheel"
-                role="slider"
-                aria-label="Color wheel: use arrow keys to adjust hue and saturation"
-                aria-valuemin={0}
-                aria-valuemax={360}
-                tabIndex={0}
-                onPointerDown={(event) => { event.currentTarget.setPointerCapture(event.pointerId); pickWheel(event); }}
-                onPointerMove={(event) => { if (event.buttons || event.pressure > 0) pickWheel(event); }}
-                onKeyDown={handleWheelKey}
-              />
-              <span className="board-color-wheel-pin" style={pinStyle} aria-hidden />
-            </div>
-            <p className="board-color-wheel-help">Drag to choose hue and saturation</p>
-          </div>
-          <div className="board-color-controls">
-            <div className="board-color-tabs" role="group" aria-label="Choose square color">
-              {['light', 'dark'].map((side) => (
-                <button key={side} type="button" aria-pressed={activeSquare === side} onClick={() => setActiveSquare(side)}>
-                  {side === 'light' ? 'Light squares' : 'Dark squares'}
-                </button>
-              ))}
-            </div>
-            <label className="board-color-brightness">
-              <span>Brightness <strong>{Math.round(hsv.v * 100)}%</strong></span>
-              <input
-                type="range" min="0" max="100" value={Math.round(hsv.v * 100)}
-                aria-label="Brightness"
-                style={{ '--board-color-slider': `linear-gradient(90deg, #000 0%, ${sliderFill} 100%)` }}
-                onChange={(event) => changeActiveColor(hsvToHex(hsv.h, hsv.s, Number(event.target.value) / 100))}
-              />
-            </label>
-            <label className="board-color-hex-label" htmlFor="board-color-hex">Hex color</label>
-            <div className="board-color-hex-row">
-              <span className="board-color-chip" style={{ backgroundColor: currentHex }} aria-hidden />
-              <input
-                id="board-color-hex" className="board-color-hex" value={hexInput}
-                aria-label={`${activeSquare === 'light' ? 'Light' : 'Dark'} square hex color`}
-                onChange={(event) => {
-                  const raw = event.target.value;
-                  setHexInput(raw);
-                  const clean = raw.startsWith('#') ? raw : `#${raw}`;
-                  if (/^#[0-9A-Fa-f]{6}$/.test(clean)) changeActiveColor(clean.toUpperCase());
-                }}
-                onBlur={() => { if (!/^#?[0-9A-Fa-f]{6}$/.test(hexInput)) setHexInput(currentHex); }}
-              />
-            </div>
-            <div className={`board-color-preview${boardFrame ? ' has-frame' : ''}`} aria-label={`Live preview, board frame ${boardFrame ? 'on' : 'off'}`}>
-              <AnimatedBoard
-                position={PREVIEW_FEN} boardWidth={176} boardOrientation="white"
-                arePiecesDraggable={false} arePiecesAnimated={false} animationDuration={0}
-                showNotation={false} customPieces={customPieces}
-                customLightSquareStyle={{ backgroundColor: draft.light }}
-                customDarkSquareStyle={{ backgroundColor: draft.dark }}
-                customBoardStyle={{ borderRadius: 0, boxShadow: 'none', transform: 'none', overflow: 'hidden' }}
-              />
-            </div>
-          </div>
-          <div className="board-color-themes">
-            <p>Quick themes</p>
-            <div>
-              {BOARD_COLOR_THEMES.map((theme) => (
-                <button
-                  type="button" key={theme.name} title={theme.name} aria-label={theme.name}
-                  onClick={() => setDraft({ light: theme.light, dark: theme.dark })}
-                  className={draft.light === theme.light && draft.dark === theme.dark ? 'selected' : ''}
-                >
-                  <span style={{ backgroundColor: theme.light }} />
-                  <span style={{ backgroundColor: theme.dark }} />
-                </button>
-              ))}
-            </div>
-          </div>
-          {sameSquares && <p className="board-color-error" role="alert">Light and dark squares need different colors</p>}
-          <div className="board-color-actions">
-            <Button type="button" variant="primary" size="sm" disabled={saving || sameSquares} loading={saving} onClick={() => apply(draft.light, draft.dark)}>Apply</Button>
-            <Button type="button" variant="secondary" size="sm" disabled={saving} onClick={() => {
-              setDraft(BOARD_COLOR_DEFAULTS);
-              setActiveSquare('light');
-              apply(BOARD_COLOR_DEFAULTS.light, BOARD_COLOR_DEFAULTS.dark, true);
-            }}>Reset to default</Button>
+    <div className="board-color-panel">
+      <div className="board-color-wheel-column">
+        <div className="board-color-wheel-wrap">
+          <canvas
+            ref={wheelRef}
+            id="board-color-wheel"
+            className="board-color-wheel"
+            role="slider"
+            aria-label="Color wheel: use arrow keys to adjust hue and saturation"
+            aria-valuemin={0}
+            aria-valuemax={360}
+            tabIndex={0}
+            onPointerDown={(event) => { event.currentTarget.setPointerCapture(event.pointerId); pickWheel(event); }}
+            onPointerMove={(event) => { if (event.buttons || event.pressure > 0) pickWheel(event); }}
+            onKeyDown={handleWheelKey}
+          />
+          <span className="board-color-wheel-pin" style={pinStyle} aria-hidden />
+        </div>
+        <p className="board-color-wheel-help">Drag to choose hue and saturation</p>
+      </div>
+      <div className="board-color-controls">
+        <div className="board-color-tabs" role="group" aria-label="Choose square color">
+          {['light', 'dark'].map((side) => (
+            <button key={side} type="button" aria-pressed={activeSquare === side} onClick={() => setActiveSquare(side)}>
+              {side === 'light' ? 'Light squares' : 'Dark squares'}
+            </button>
+          ))}
+        </div>
+        <label className="board-color-brightness">
+          <span>Brightness <strong>{Math.round(hsv.v * 100)}%</strong></span>
+          <input
+            type="range" min="0" max="100" value={Math.round(hsv.v * 100)}
+            aria-label="Brightness"
+            style={{ '--board-color-slider': `linear-gradient(90deg, #000 0%, ${sliderFill} 100%)` }}
+            onChange={(event) => changeActiveColor(hsvToHex(hsv.h, hsv.s, Number(event.target.value) / 100))}
+          />
+        </label>
+        <div className="board-color-hex-block">
+          <label className="board-color-hex-label" htmlFor="board-color-hex">Hex color</label>
+          <div className="board-color-hex-row">
+            <span className="board-color-chip" style={{ backgroundColor: currentHex }} aria-hidden />
+            <input
+              id="board-color-hex" className="board-color-hex" value={hexInput}
+              aria-label={`${activeSquare === 'light' ? 'Light' : 'Dark'} square hex color`}
+              onChange={(event) => {
+                const raw = event.target.value;
+                setHexInput(raw);
+                const clean = raw.startsWith('#') ? raw : `#${raw}`;
+                if (/^#[0-9A-Fa-f]{6}$/.test(clean)) changeActiveColor(clean.toUpperCase());
+              }}
+              onBlur={() => { if (!/^#?[0-9A-Fa-f]{6}$/.test(hexInput)) setHexInput(currentHex); }}
+            />
           </div>
         </div>
-      )}
-    </div>
-  );
-}
-
-/** A row that drills into a sub-page: label + hint on the left, current value
- *  and a chevron on the right. The whole row is the tap target, not just the
- *  text, which is what makes this usable with a thumb. */
-function NavRow({ icon, label, hint, value, onClick }) {
-  return (
-    <button type="button" className="set-row" onClick={onClick}>
-      {icon && <span className="set-row-icon" aria-hidden>{icon}</span>}
-      <span className="set-row-text">
-        <span className="set-row-label">{label}</span>
-        {hint && <span className="set-row-hint">{hint}</span>}
-      </span>
-      {value && <span className="set-row-value">{value}</span>}
-      <span className="set-row-chevron" aria-hidden>›</span>
-    </button>
-  );
-}
-
-/** A row with an inline switch — the standard place for a plain on/off
- *  preference, since it needs no sub-page to change it. */
-function SwitchRow({ icon, label, hint, checked, onChange }) {
-  return (
-    <label className="set-row">
-      {icon && <span className="set-row-icon" aria-hidden>{icon}</span>}
-      <span className="set-row-text">
-        <span className="set-row-label">{label}</span>
-        {hint && <span className="set-row-hint">{hint}</span>}
-      </span>
-      <input
-        type="checkbox"
-        className="set-switch"
-        checked={checked}
-        onChange={(e) => onChange(e.target.checked)}
-      />
-    </label>
-  );
-}
-
-function ThemeOption({ theme, active, saving, onPick, pieceSet }) {
-  return (
-    <button
-      disabled={saving}
-      onClick={() => onPick(theme.id)}
-      title={theme.name}
-      className={`group rounded-xl border p-3 transition ${
-        active
-          ? 'border-gold-500/60 bg-gold-700/15 shadow-[0_0_20px_rgba(96,165,250,0.12)]'
-          : 'border-ivory-700/50 bg-black/[0.03] hover:border-gold-500/40 hover:bg-black/[0.05]'
-      }`}
-    >
-      <ThemePreview themeId={theme.id} pieceSet={pieceSet} size={120} useRootColors={false} />
-      <p className="mt-2 text-sm font-semibold text-ivory-300 truncate">{theme.name}</p>
-      {theme.accessibility && (
-        <span className="mt-1 inline-block text-[0.6rem] px-1.5 py-0.5 rounded-full bg-gold-500/10 text-gold-500 border border-gold-500/30">
-          High-contrast
-        </span>
-      )}
-      {active && (
-        <span className="mt-1 inline-block text-[0.6rem] px-1.5 py-0.5 rounded-full bg-gold-500/15 text-gold-400 border border-gold-500/30">
-          Current
-        </span>
-      )}
-    </button>
-  );
-}
-
-/* Royal-range piece types shown in every swatch row. */
-const SWATCH_TYPES = ['K', 'Q', 'R', 'B', 'N', 'P'];
-
-/** Glyph-only preview of a piece set — transparent background (no board, no
-    squares). One white row + one black row, styled exactly like the on-board
-    pieces via the shared pieceGlyphStyle(). */
-function PieceSwatch({ pieceId, base = 16 }) {
-  const theme = getPieceTheme(pieceId);
-  return (
-    <div className="flex flex-col items-center gap-1 leading-none min-h-[3.4rem]" aria-hidden>
-      {['w', 'b'].map((side) => (
-        <div key={side} className="flex items-center justify-center gap-1.5 leading-none select-none">
-          {SWATCH_TYPES.map((pc) => {
-            const key = side + pc;
-            if (theme.type === 'png' || theme.type === 'img')
-              return <img key={pc} src={theme.images[key]} alt="" draggable={false} style={{ width: base * (theme.scale || 0.74), height: base * (theme.scale || 0.74), ...(side === 'b' && theme.blackFilter ? { filter: theme.blackFilter } : {}) }} />;
-            if (theme.type === 'faced')
-              return <FacedPiece key={pc} type={pc.toLowerCase()} side={side} size={base} />;
-            if (theme.type === 'royal')
-              return <RoyalPiece key={pc} type={pc.toLowerCase()} side={side} size={base} />;
-            return <span key={pc} style={pieceGlyphStyle(theme, key, base)}>{GLYPHS[key]}</span>;
-          })}
+      </div>
+      <div className="board-color-themes">
+        <p className="set-cap">Quick themes</p>
+        <div>
+          {BOARD_COLOR_THEMES.map((theme) => (
+            <button
+              type="button" key={theme.name} title={theme.name} aria-label={theme.name}
+              onClick={() => setDraft({ light: theme.light, dark: theme.dark })}
+              className={draft.light === theme.light && draft.dark === theme.dark ? 'selected' : ''}
+            >
+              <span style={{ backgroundColor: theme.light }} />
+              <span style={{ backgroundColor: theme.dark }} />
+            </button>
+          ))}
         </div>
-      ))}
+      </div>
+      {sameSquares && <p className="board-color-error" role="alert">Light and dark squares need different colors</p>}
+      <div className="board-color-actions">
+        <Button type="button" variant="primary" size="sm" disabled={saving || sameSquares} loading={saving} onClick={() => apply(draft.light, draft.dark)}>Apply</Button>
+        <Button type="button" variant="secondary" size="sm" disabled={saving} onClick={() => {
+          setActiveSquare('light');
+          setDraft(BOARD_COLOR_DEFAULTS);
+          apply(BOARD_COLOR_DEFAULTS.light, BOARD_COLOR_DEFAULTS.dark, true);
+        }}>Reset to default</Button>
+      </div>
+      <p className="set-note">
+        {hasCustom
+          ? 'Custom squares are applied — they are what the board above is wearing.'
+          : 'A theme is applied. Press Apply to put your own squares on the board above.'}
+      </p>
     </div>
-  );
-}
-
-function PieceOption({ p, active, saving, onPick }) {
-  return (
-    <button
-      disabled={saving}
-      onClick={() => onPick(p.id)}
-      title={p.name}
-      className={`group rounded-xl border p-2 text-center transition ${
-        active
-          ? 'border-gold-500/60 bg-gold-700/15 shadow-[0_0_20px_rgba(96,165,250,0.12)]'
-          : 'border-ivory-700/50 bg-black/[0.03] hover:border-gold-500/40 hover:bg-black/[0.05]'
-      }`}
-    >
-      <PieceSwatch pieceId={p.id} />
-      <p className="mt-1.5 text-sm font-semibold text-ivory-300 truncate">{p.name}</p>
-      {active && (
-        <span className="mt-1 inline-block text-[0.6rem] px-1.5 py-0.5 rounded-full bg-gold-500/15 text-gold-400 border border-gold-500/30">
-          Current
-        </span>
-      )}
-    </button>
   );
 }

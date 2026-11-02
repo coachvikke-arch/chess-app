@@ -11,22 +11,21 @@ const adminReq = require('./chatAdminRequestService');
  *                             already opened a thread with them, so the academy
  *                             owner is never on the receiving end of unsolicited
  *                             mail from every learner in the system.
- *   Admin <-> student         PERMISSIONED. The student must be allocated to that
- *                             admin (students.coach_id or student_coaches) AND
- *                             that admin must have accepted a chat request. This
- *                             is the flow chatAdminRequestService owns. It used
- *                             to be wide open - see the note on isStaffPair.
+ *   Admin <-> student         ASYMMETRIC, and that is the whole design. The coach
+ *                             writes to any student allocated to them (coach_id or
+ *                             student_coaches) with NO request at all. The student
+ *                             writes to that coach only after the coach accepts -
+ *                             the flow chatAdminRequestService owns. It used to be
+ *                             wide open both ways - see the note on isStaffPair.
  *   Admin <-> admin           not part of the chat directory. The academy scoped
  *                             the messenger to "your students and the owner", so
  *                             a coach no longer finds a colleague in the People
  *                             list.
- *   Student <-> student       unchanged: an APPROVED peer chat_request is
- *                             required, decided by the two coaches plus Super
- *                             Admin as a panel.
- *
- * Note the asymmetry that falls out of this: a student may only reach the coach
- * who owns them, and only once that coach says yes, but a coach reaches any of
- * their own students the moment a request is accepted.
+ *   Student <-> student       OPENED BY REQUEST, and the peer queue below is what
+ *                             opens it: a learner asks, the coach who owns the pair
+ *                             accepts, and the two may then write freely. Only a
+ *                             learner inside the same allocation can be asked at
+ *                             all - see mayRequestChat.
  */
 
 /* Roles that are staff. Kept as a set rather than reusing isAdminRole at each
@@ -172,13 +171,45 @@ async function evaluateStaffChannel(meId, otherId, meRole, otherRole, otherName)
     };
   }
 
-  /* One coach, one learner: the allocated-admin request flow decides this pair,
-   * and it answers the same way whichever side is asking. */
+  /* One coach, one learner. The two sides are deliberately NOT symmetric:
+   *
+   *   The coach writes to any student allocated to them, straight away. No
+   *     request is part of their path, and a request row never restricts them -
+   *     the rows describe what the LEARNER may do.
+   *   The learner writes only once that coach has accepted. For them the newest
+   *     request row IS the permission.
+   *
+   * `evaluateChannel` stays direction-free (it reports the state of the pair),
+   * which is what lets the coach's People row and the student's People row read
+   * the same row and agree about what it means. */
   const studentIsMe = meRole === 'student';
   const channel = await adminReq.evaluateChannel(
     studentIsMe ? meId : otherId,
     studentIsMe ? otherId : meId
   );
+
+  if (!studentIsMe) {
+    if (channel.state === 'not_allocated') {
+      return {
+        ...base,
+        allowed: false,
+        state: 'not_allocated',
+        reason: 'not_allocated',
+        message: 'This student is allocated to another coach.',
+      };
+    }
+    /* Allocation held, so the coach is open. `requestId` still travels so the
+     * detail panel can offer Accept/Cancel on a request the student sent. */
+    return {
+      ...base,
+      allowed: true,
+      state: 'not_required',
+      reason: 'admin_direct',
+      requestId: channel.requestId,
+      message: `You can message ${otherName} directly.`,
+    };
+  }
+
   return {
     ...base,
     ...channel,
@@ -297,6 +328,38 @@ async function resolvePrimaryCoachId(userId) {
     [userId]
   );
   return r.rows.length > 0 ? Number(r.rows[0].coach_id) : null;
+}
+
+/**
+ * Whether `me` may file a chat REQUEST against `other` at all.
+ *
+ * The rule the People list is built on, stated as a check the API can enforce: a
+ * learner may ask a classmate, and only a classmate - someone they share an
+ * allocated coach with. Two reasons it lives here instead of only in the directory:
+ * the request endpoint takes a bare user id, so without this any learner could open
+ * a queue entry for a stranger; and a coach who is later re-assigned students must
+ * not inherit a queue full of asks about people they no longer own.
+ *
+ * The other three channels deliberately do NOT come through here, because none of
+ * them uses a request: the owner is reachable directly, a coach writes to their own
+ * students from the first keystroke, and a learner's ask to their own coach lives in
+ * `chat_admin_requests`, which has ONE named decider rather than this queue's panel.
+ *
+ * Allocation is the live roster, read through the same helper the coach/learner
+ * channel uses, so the two flows can never disagree about who owns whom.
+ *
+ * @returns {Promise<{ok: boolean, reason?: string}>}
+ */
+async function mayRequestChat(meId, otherId, meRole, otherRole) {
+  if (meRole !== 'student' || otherRole !== 'student') {
+    return { ok: false, reason: 'not_a_peer_pair' };
+  }
+  const mine = await adminReq.allocatedAdminUserIds(meId);
+  if (mine.length === 0) return { ok: false, reason: 'not_allocated' };
+  if (Number(meId) === Number(otherId)) return { ok: false, reason: 'self' };
+  const theirs = await adminReq.allocatedAdminUserIds(otherId);
+  if (!theirs.some((id) => mine.includes(id))) return { ok: false, reason: 'not_allocated' };
+  return { ok: true };
 }
 
 /** Names for a list of coach ids, primary order preserved, blanks dropped. */
@@ -418,8 +481,10 @@ async function findPendingRequest(meId, otherId) {
  *   {
  *     allowed,          // may send/read right now
  *     requiresApproval, // false means the gate does not apply to this pair
- *     state,            // self | unavailable | not_required | approved | pending
- *                      // | rejected | cancelled | none
+ *     state,            // self | unavailable | not_required
+ *                      // | approved | pending | rejected | cancelled | none
+ *                      // staff shapes add: accepted | not_allocated
+ *                      // | superadmin_unopened | staff_pair_closed
  *     requestId,        // latest request id, for history links
  *     reason,           // machine-readable code
  *     message,          // human-readable, safe to show
@@ -465,14 +530,22 @@ async function evaluateAccess(meId, otherId, meRole) {
 
   /* ── Staff channels ──
    * Three shapes, decided by evaluateStaffChannel: the owner is always reachable,
-   * a coach and a learner need an accepted request plus a live allocation, and two
-   * coaches are outside the directory. */
+   * a coach reaches their own students freely while a learner needs that coach's
+   * acceptance, and two coaches are outside the directory. */
   if (isStaffPair(meRole, otherRole)) {
     return evaluateStaffChannel(me, other, meRole, otherRole, otherName);
   }
 
-  // Student <-> student: an approval is required, so everything below is
-  // about whether one already exists.
+  /* ── Every other pair, learner↔learner included ──
+   * The peer request queue below owns these. Two learners are an ordinary peer
+   * pair here: they may not write until one of them has asked and their coach has
+   * accepted, and the newest chat_requests row is what says whether that has
+   * happened. Who is allowed to ask at all is mayRequestChat's job, enforced by
+   * the request endpoint rather than by this gate, so that a pairing the coach
+   * already accepted keeps working even if the roster has since moved one of them.
+   */
+
+  // Everything below is about whether an approval already exists.
   const latest = await latestRequest(me, other);
   const approved = latest ? latest.status === STATUS.APPROVED : await hasApprovedRequest(me, other);
 
@@ -583,6 +656,7 @@ module.exports = {
 resolveRequestParties,
   resolveSuperadminIds,
   resolvePrimaryCoachId,
+  mayRequestChat,
       coachNamesFor,
   getSettings,
   latestRequest,

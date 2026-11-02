@@ -44,18 +44,26 @@ function StudentAttendance() {
   const [month, setMonth] = useState('');
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  /* A page turn must not blank the list: once rows are on screen they stay,
+     dimmed, until the next page arrives. `loading` is the first fetch only. */
+  const [updating, setUpdating] = useState(false);
+  const hasRowsRef = useRef(false);
   const [error, setError] = useState('');
 
   const load = useCallback(async () => {
-    setLoading(true);
+    if (hasRowsRef.current) setUpdating(true);
+    else setLoading(true);
     setError('');
     try {
       const res = await api.get('/attendance/me', { params: { page, limit: PAGE_SIZE, type, month } });
-      setData(res.data);
+      const next = res.data || {};
+      hasRowsRef.current = (next.records || []).length > 0;
+      setData(next);
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to load attendance');
     } finally {
       setLoading(false);
+      setUpdating(false);
     }
   }, [page, type, month]);
 
@@ -148,7 +156,7 @@ function StudentAttendance() {
         </div>
       ) : (
         <>
-          <div className="space-y-3">
+          <div className={`space-y-3 stable-list${updating ? ' is-refreshing' : ''}`} aria-busy={updating}>
             {records.map((r) => <AttendanceRecord key={recordKey(r)} r={r} />)}
           </div>
           <Pagination

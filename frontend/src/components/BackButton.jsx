@@ -33,7 +33,7 @@ const HIDDEN_PATHS = new Set(['/', '/login', '/student/dashboard', '/admin/dashb
    (`/play/bot/pip`), which a plain exact-match set cannot express.
    The live classroom is hidden for the same reason: the room is full-screen
    chrome with its own leave controls, and the row sits over the board. */
-const HIDDEN_PREFIXES = ['/play/bots', '/play/bot/', '/live-class/', '/coach/dashboard/', '/student/classroom-v2'];
+const HIDDEN_PREFIXES = ['/play/bots', '/play/bot/', '/live-class/', '/coach/dashboard/'];
 
 /* Used until the real bar has been measured (one frame). */
 const FALLBACK_NAV_HEIGHT = 68;

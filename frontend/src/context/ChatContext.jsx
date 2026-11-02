@@ -15,6 +15,7 @@ import {
   getGroupMessages,
   sendGroupMessage,
   markGroupRead,
+  deleteGroup as deleteGroupApi,
 } from '../utils/chat';
 import { listChatRequestInbox } from '../utils/chatRequests';
 
@@ -80,7 +81,7 @@ let liveFresh = true;
       try {
         const [cs, rr, gr] = await Promise.all([
           listConversations(),
-          api.get('/chat/users', { params: { q: '' } }),
+          api.get('/chat/users', { params: { q: '' }, cache: false }),
           listGroups(),
         ]);
         if (!liveFresh) return;
@@ -124,6 +125,13 @@ let liveFresh = true;
         grps.forEach((g) => { if (g.unread) gun[Number(g.id)] = Number(g.unread); });
         setGroupUnreadByGroup((prev) => ({ ...prev, ...gun }));
       }).catch(() => {});
+      /* The directory carries each row's permission (canMessage, chatState), and
+         those verdicts move server-side — a coach answers, a chat is closed, the
+         owner opens one by writing first. The socket pushes cover a connected
+         client, but this is what makes the People list honest again after a drop,
+         a backgrounded tab, or a missed event. Read with the live query so a search
+         in progress is not reset. */
+      listContacts(searchQueryRef.current).then((d) => setContacts(d?.users || [])).catch(() => {});
     }, 15_000);
 
     return () => { liveFresh = false; clearInterval(poll); };
@@ -178,6 +186,10 @@ const offUnread = on('chat_unread_changed', (payload) => {
     const offGroupAdded = on('chat_group_added', () => refreshGroups());
     const offGroupRemoved = on('chat_group_removed', () => refreshGroups());
     const offGroupUpdated = on('chat_group_updated', () => refreshGroups());
+    /* The room no longer exists — the server has already erased its messages and
+       memberships. The list must stop offering it, and if it was on screen the
+       pane falls back to the empty chat state rather than an empty room. */
+    const offGroupDeleted = on('chat_group_deleted', (payload) => dropGroup(payload?.group?.id));
     const offReaction = on('chat_reaction', (payload) => {
       const scope = payload?.scope === 'group' ? 'group' : 'dm';
       const mid = Number(payload?.messageId);
@@ -240,7 +252,20 @@ const offUnread = on('chat_unread_changed', (payload) => {
       refreshConversations();
     });
 
-    return () => { offPresence?.(); offDm?.(); offUnread?.(); offGroupMsg?.(); offGroupUnread?.(); offGroupAdded?.(); offGroupRemoved?.(); offGroupUpdated?.(); offReaction?.(); offDeleted?.(); offRequestBell?.(); offCancelled?.(); offAdminRequest?.(); };
+    /* The same for a classmate pairing, which lives on the peer queue rather than
+       on the coach/learner table. One push per transition, to the asker, the asked
+       and the coaches on the panel, so:
+         - the asker's row moves Request chat → Request sent without the 15s poll
+         - the asked learner's row and the coach's Requests list move the same way
+         - an approved pair gets a live thread from both ends at once
+       The contacts and the inbox are re-read instead of patched, because which row
+       is decided is the server's rule, not something the client should recompute. */
+    const offPeerRequest = on('chat_request', () => {
+      searchContacts(searchQueryRef.current);
+      refreshConversations();
+    });
+
+    return () => { offPresence?.(); offDm?.(); offUnread?.(); offGroupMsg?.(); offGroupUnread?.(); offGroupAdded?.(); offGroupRemoved?.(); offGroupUpdated?.(); offGroupDeleted?.(); offReaction?.(); offDeleted?.(); offRequestBell?.(); offCancelled?.(); offAdminRequest?.(); offPeerRequest?.(); };
   }, [meId]); // threadFor read via ref-free effect dependency handled below
 
   const threadForRef = useRef(threadFor);
@@ -251,6 +276,24 @@ const offUnread = on('chat_unread_changed', (payload) => {
   useEffect(() => { searchQueryRef.current = searchQuery; }, [searchQuery]);
   async function refreshConversations() { listConversations().then((d) => setConversations(d?.conversations || [])).catch(() => {}); }
   async function refreshGroups() { listGroups().then((d) => setGroups(d?.groups || [])).catch(() => {}); }
+
+  /* Take one room out of every piece of state that could still name it: the
+     list row, its unread count and, if it was the open room, the thread pane —
+     which then falls back to the "pick a conversation" empty state. Called by
+     the `chat_group_deleted` push (every connected member) and by the delete
+     action below. */
+  function dropGroup(groupId) {
+    const gid = Number(groupId);
+    if (!gid) return;
+    setGroups((list) => list.filter((g) => Number(g.id) !== gid));
+    setGroupUnreadByGroup((u) => {
+      if (!(gid in u)) return u;
+      const next = { ...u };
+      delete next[gid];
+      return next;
+    });
+    if (activeGroupIdRef.current === gid) closeGroup();
+  }
 
   /* ---------------- actions ---------------- */
   const openDrawer = useCallback(() => setDrawerOpen(true), []);
@@ -278,7 +321,19 @@ const openThread = useCallback(async (otherId) => {
       setMessages(oldestFirst(d?.messages));
       setUnreadByThread((u) => ({ ...u, [Number(otherId)]: 0 }));
       markRead(otherId).catch(() => {});
-    } catch (e) { console.warn('[chat:openThread]', e.message); setMessages([]); }
+    } catch (e) {
+      setMessages([]);
+      setThreadFor(null);
+      /* Rejected on purpose. The People list is a snapshot of the server's verdict
+         and that verdict can move between the load and the tap — a request withdrawn,
+         an allocation changed, a chat the owner closed. The page owns what a refusal
+         means (a 403 drops the pair into its request flow, anything else into an
+         error toast); swallowing it here leaves the thread open on an empty list with
+         nothing said, which reads as a row that does not work. The pane is closed for
+         the same reason: an empty thread you never agreed to open is not a state a
+         user can get out of. */
+      throw e;
+    }
     finally { setBusy(false); }
   }, []);
 
@@ -302,6 +357,15 @@ const openThread = useCallback(async (otherId) => {
 
   const closeGroup = useCallback(() => {
     setActiveGroupId(null); setActiveGroup(null); setActiveGroupMembers([]); setGroupMessages([]);
+  }, []);
+
+  /* Admin-only room deletion. `dropGroup` runs here as well as on the
+     `chat_group_deleted` push because the push only reaches members who are
+     connected at that moment — the deleting admin must never be left with a row
+     that 404s when opened. Dropping twice is harmless. */
+  const deleteGroupRoom = useCallback(async (groupId) => {
+    await deleteGroupApi(groupId);
+    dropGroup(groupId);
   }, []);
 
   /* Toggle an emoji reaction on a message. The server returns the message's
@@ -370,12 +434,12 @@ const value = useMemo(() => ({
     drawerOpen, threadFor, messages, contacts, searchQuery, busy, cancelledChats,
     groups, groupUnreadByGroup, activeGroupId, groupMessages, activeGroup, activeGroupMembers,
     openDrawer, closeDrawer, closeThread, openThread, send, searchContacts, isOnline,
-    openGroup, closeGroup, sendToGroup, react, deleteMessage,
+    openGroup, closeGroup, sendToGroup, react, deleteMessage, deleteGroupRoom,
   }), [meId, conversations, presence, unreadByThread, unreadTotal, pendingRequests, drawerOpen,
       threadFor, messages, contacts, searchQuery, busy, cancelledChats,
       groups, groupUnreadByGroup, activeGroupId, groupMessages, activeGroup, activeGroupMembers,
       openDrawer, closeDrawer, closeThread,
-      openThread, send, searchContacts, isOnline, openGroup, closeGroup, sendToGroup, react, deleteMessage]);
+      openThread, send, searchContacts, isOnline, openGroup, closeGroup, sendToGroup, react, deleteMessage, deleteGroupRoom]);
 
   return <ChatContext.Provider value={value}>{children}</ChatContext.Provider>;
 }

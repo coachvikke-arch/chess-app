@@ -9,6 +9,10 @@ router.get('/', authMiddleware, ctrl.listPuzzles);
 router.get('/themes', ctrl.themeCategories);
 router.get('/assigned', authMiddleware, roleMiddleware('student'), requireFeature('puzzle_trainer'), ctrl.listStudentAssignedPuzzles);
 router.get('/my-assignments', authMiddleware, roleMiddleware('student'), requireFeature('puzzle_trainer'), ctrl.listStudentPuzzleAssignments);
+/* The trainer feed. Declared above the `/:id` readers at the bottom: mounted
+   after them, "/next" is swallowed by `/:id` and the student is served the
+   puzzle whose id happens to be the string "next". */
+router.get('/next', authMiddleware, roleMiddleware('student'), requireFeature('puzzle_trainer'), ctrl.trainerNext);
 router.post('/:id/submit-assignment', authMiddleware, roleMiddleware('student'), requireFeature('puzzle_trainer'), ctrl.submitPuzzleAssignment);
 router.get('/listing', authMiddleware, roleMiddleware('admin'), ctrl.listingPuzzles);
 router.get('/sets', authMiddleware, roleMiddleware('admin'), ctrl.listSets);

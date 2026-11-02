@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   getEligibility,
   sendChatRequest,
+  cancelChatRequest,
   requestPromptCopy,
 } from '../utils/chatRequests';
 import { useAuth } from '../context/AuthContext';
@@ -56,6 +57,9 @@ export default function ChatRequestButton({ targetUserId, targetName, size = 'sm
     setBusy(true);
     setError(null);
     try {
+      /* One endpoint for every pair that needs a coach's answer, learner↔learner
+         included: the server works out who decides (the asker's coach, with the
+         other student's coach copied) and refuses a pairing outside the cohort. */
       await sendChatRequest(targetUserId);
       setNotice('Request sent. Waiting for coach approval.');
       setConfirming(false);
@@ -63,6 +67,22 @@ export default function ChatRequestButton({ targetUserId, targetName, size = 'sm
     } catch (e) {
       setError(e.response?.data?.message || e.message || 'Could not send the request.');
       await load();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const withdrawRequest = async () => {
+    const id = Number(access?.requestId);
+    if (!id) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await cancelChatRequest(id);
+      setNotice('Request cancelled.');
+      await load();
+    } catch (e) {
+      setError(e.response?.data?.message || e.message || 'Could not cancel this request.');
     } finally {
       setBusy(false);
     }
@@ -84,32 +104,43 @@ export default function ChatRequestButton({ targetUserId, targetName, size = 'sm
   });
   const coachWhoLabel = coachNames.length > 0 ? ` (${coachNames.join(', ')})` : '';
   const buttonSize = size === 'lg' ? 'md' : 'sm';
-  if (access?.canMessage) {
+  /* The vocabulary is the People row's: an open channel is "Chat", an ask that was
+     refused or stopped is asked again with "Request again". */
+  const askAgain = state === 'cancelled' || state === 'rejected';
+  /* `allowed`, not `canMessage`: /chat-requests/eligibility answers with the
+     permission service's own object, where the "may write right now" flag is
+     `allowed`. `canMessage` only exists on the People-list rows, so reading it
+     here left this branch dead and an already-accepted pair still offered
+     "Request chat". */
+  if (access?.allowed) {
     return (
       <Button
         type="button"
         onClick={openConversation}
-        aria-label={`Message ${targetName || 'user'}`}
+        aria-label={`Open the chat with ${targetName || 'user'}`}
         variant="primary"
         size={buttonSize}
         className={className}
       >
-        Message
+        Chat
       </Button>
     );
   }
   if (state === 'pending') {
     return (
       <div className={className}>
-        <Button
-          type="button"
-          disabled
-          aria-disabled="true"
-          variant="primary"
-          size={buttonSize}
-        >
-          Chat request pending
-        </Button>
+        <span className="flex items-center gap-2">
+          <span className="rounded-lg bg-blue-50 px-3 py-2 text-xs font-bold text-gold-500 ring-1 ring-gold-500/25">
+            Request sent
+          </span>
+          {access?.requestId && (
+            <Button type="button" variant="secondary" size={buttonSize} disabled={busy}
+              aria-label="Cancel this chat request"
+              onClick={withdrawRequest}>
+              Cancel
+            </Button>
+          )}
+        </span>
         <p className="mt-1 text-xs text-amber-300/90">
           Waiting for your coach&apos;s approval.
         </p>
@@ -130,7 +161,7 @@ export default function ChatRequestButton({ targetUserId, targetName, size = 'sm
         variant="primary"
         size={buttonSize}
       >
-        {busy ? 'Sending…' : 'Send Chat Request'}
+        {busy ? 'Sending…' : askAgain ? 'Request again' : 'Request chat'}
       </Button>
 
       {cooldownActive && (
@@ -161,7 +192,7 @@ export default function ChatRequestButton({ targetUserId, targetName, size = 'sm
       {confirming && (
         <Portal>
         <div
-          className="fixed inset-0 z-[var(--z-modal-backdrop)] grid place-items-center bg-black/70 p-4"
+          className="fixed inset-0 z-[var(--z-z-modal-backdrop)] grid place-items-center bg-black/70 p-4"
           onClick={(e) => { if (e.target === e.currentTarget) setConfirming(false); }}
         >
           <div

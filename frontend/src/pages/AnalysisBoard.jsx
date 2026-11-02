@@ -45,12 +45,16 @@ import {
   sendMove,
   offerDraw,
   respondDraw,
+  requestRematch,
+  respondRematch,
+  cancelRematch,
   fetchRatingResult,
 } from '../utils/online';
 import {
   joinGameRoom,
   leaveGameRoom,
   onGameUpdate,
+  on as onSocketEvent,
   sendGameReaction,
   onGameReaction,
   onGameInvite,
@@ -89,6 +93,23 @@ function rebuildGame(init, movesList) {
 function getHistory(g) {
   const verbose = g.history({ verbose: true });
   return { san: verbose.map((m) => m.san), last: verbose.length ? verbose[verbose.length - 1] : null };
+}
+
+/* How long a rematch offer stays alive on this client. The server keeps the same
+   window (plus a little slack for a request already in flight) and refuses an
+   answer that arrives after it, so a tab that slept through the deadline cannot
+   accept its way into a game the other side gave up on. */
+const REMATCH_WINDOW_MS = 30000;
+
+/* Only a finished PLAYER-vs-PLAYER match can be rematched. A bot game needs no
+   consent and restarts on the spot; a classroom board is paired by the coach; an
+   aborted match was never played, so there is nothing to redo. The server
+   enforces all of this too — the check exists so the button is never offered in a
+   mode where clicking it can only fail. */
+function onlineRematchTarget(game) {
+  if (!game || game.status !== 'finished' || game.result === 'aborted') return null;
+  if (game.isBot || game.classId) return null;
+  return game;
 }
 
 function getStatus(g) {
@@ -406,6 +427,51 @@ const PLAY_ARENA_UI_CSS = `
 @keyframes ab-spin{to{transform:rotate(360deg)}}
 @media (prefers-reduced-motion:reduce){
   .ab-waiting-spinner{animation-duration:2.4s}
+}
+
+/* ── Rematch card ─────────────────────────────────────────────────────────
+   Both halves of one offer, in the slot the result card just vacated:
+     they asked → "<name> wants a rematch"  + Accept / Reject
+     I asked    → "Waiting for <name>…"     + Cancel
+   The layer is centred but transparent to taps, so the finished board stays
+   readable and clickable behind a card that has nothing to do with it. White
+   card, blue action — the same language as the result popup it replaces.
+   At phone widths the two buttons take the full row so they stay real tap
+   targets instead of squashing the sentence above them. */
+.ab-rematch-layer{
+  position:fixed;inset:0;z-index:var(--z-modal);pointer-events:none;
+  display:grid;place-items:center;padding:14px;
+}
+.ab-rematch-card{
+  pointer-events:auto;
+  display:flex;align-items:center;gap:12px;flex-wrap:wrap;
+  width:min(460px,100%);
+  padding:13px 15px;background:#fff;color:#0f172a;
+  border:1px solid #dbe4f0;border-radius:15px;
+  box-shadow:0 16px 38px rgba(15,23,42,.18),0 2px 8px rgba(15,23,42,.06);
+  font-family:'Inter',system-ui,-apple-system,'Segoe UI',sans-serif;
+  animation:ab-rematch-in .18s cubic-bezier(.22,1,.36,1) both;
+}
+@keyframes ab-rematch-in{
+  from{opacity:0;transform:translateY(6px) scale(.995)}
+  to{opacity:1;transform:none}
+}
+.ab-rematch-body{flex:1 1 200px;min-width:0;display:flex;flex-direction:column;gap:2px}
+.ab-rematch-title{margin:0;font-size:14px;font-weight:700;line-height:1.3;overflow-wrap:anywhere}
+.ab-rematch-sub{margin:0;font-size:11.5px;font-weight:600;color:#64748b;line-height:1.35}
+.ab-rematch-actions{display:flex;gap:8px;flex:0 0 auto;align-items:center}
+.ab-rematch-spinner{
+  width:22px;height:22px;border-radius:50%;flex:0 0 auto;
+  border:3px solid #dbe4f0;border-top-color:#2563EB;
+  animation:ab-spin .8s linear infinite;
+}
+@media (max-width:430px){
+  .ab-rematch-actions{flex:1 1 100%}
+  .ab-rematch-actions>button{flex:1 1 0}
+}
+@media (prefers-reduced-motion:reduce){
+  .ab-rematch-card{animation:none}
+  .ab-rematch-spinner{animation-duration:2.4s}
 }
 
 /* moves strip — one horizontal row, current move in the accent colour */
@@ -816,6 +882,30 @@ export default function AnalysisBoard() {
      answer" — the same row carries both states and only that flag tells them
      apart, so it is read straight off the server payload rather than guessed. */
   const [drawOffer,       setDrawOffer]       = useState(null);
+  /* Rematch on a FINISHED player-vs-player match, in the two shapes one offer
+     can take for the viewer:
+       ask    → "I asked, waiting for <opponent>" + Cancel
+       invite → "<them> wants a rematch"          + Accept / Reject
+     Both hold the finished game's id and a client-side expiry, so the requester
+     is never left staring at a dead "waiting" card when the opponent's tab is
+     closed. Kept in page state (not only on the game row) because the offer must
+     stay visible after the result card itself is dismissed. */
+  const [rematchAsk,      setRematchAsk]      = useState(null);
+  const [rematchInvite,   setRematchInvite]   = useState(null);
+  const [rematchBusy,     setRematchBusy]     = useState(false);
+  const rematchAskTimer   = useRef(null);
+  const rematchInviteTimer = useRef(null);
+  const rematchAskRef     = useRef(null);
+  const rematchInviteRef  = useRef(null);
+  /* While a rematch card is on screen the result card steps aside. This is
+     derived, not remembered: the popup's own one-tap lock releases whenever its
+     `open` prop flips, so an ask that ends must always re-open the card and a
+     card the player had already dismissed must never come back. */
+  const rematchLive = Boolean(rematchAsk || rematchInvite);
+  /* The rematch socket handlers subscribe once for the life of the page, so they
+     read the live card through refs rather than closing over one render. */
+  rematchAskRef.current = rematchAsk;
+  rematchInviteRef.current = rematchInvite;
   const inviteBarTimer    = useRef(null);
   const onlineSelStudent  = useRef(null);
   /* Cards show the rating pool the picked clock belongs to, and the search +
@@ -1312,6 +1402,12 @@ export default function AnalysisBoard() {
        and the next game opens showing "X offers a draw" for a game nobody is
        playing. */
     setDrawOffer(null);
+    /* Same rule as the draw offer: a rematch request belongs to the match it was
+       made on, so leaving that board takes the card with it. */
+    window.clearTimeout(rematchAskTimer.current);
+    window.clearTimeout(rematchInviteTimer.current);
+    setRematchAsk(null);
+    setRematchInvite(null);
     if (clocks) { setClock(null); setClockRunning(false); }
   }
 
@@ -1326,8 +1422,22 @@ export default function AnalysisBoard() {
 
   function commitBoardMove(move) {
     if (inOnline) {
-      if (gameRef.current.isCheckmate()) waitForMateReveal(move.to);
       const moverColor = onlineMyColor;
+      /* Paint the page's own view of this move NOW. Nothing else does:
+         `onBoardPositionChange` refuses to sync while a match is live, and the
+         row that carries this very move is dismissed by `applyOnline` as a
+         duplicate (same ply, same PGN) before it reaches `setLastMove`. So the
+         amber from/to squares stayed on the OPPONENT's previous move, the new
+         ply was missing from the move list, and a mating move never set
+         `status.over`. `sync` also arms the checkmate reveal gate, which is the
+         only reason the old inline `waitForMateReveal` was here. */
+      sync();
+      /* The same swallowed update also left the turn behind: `onlineTurn` is
+         only advanced on applyOnline's full path, so after your own move the
+         banner kept saying "Your move!", the board stayed live for a second
+         drag the server would refuse, and the waiting overlay never appeared.
+         The turn is a fact about the position the board already holds. */
+      setOnlineTurn(gameRef.current.turn() === 'w' ? 'white' : 'black');
       /* The board has already put this move on the shared game, so the position is
          live before the server ever answers. Record it as applied — otherwise the
          `sendMove` reply, and every socket/poll carrying the same PGN, would look
@@ -1342,6 +1452,10 @@ export default function AnalysisBoard() {
         .catch(() => {
           try { gameRef.current.undo(); } catch { /* ignore */ }
           sync();
+          /* Rolling the move back gives the turn to me as well, so the hand-off
+             recorded above has to be rolled back too — otherwise the board sits
+             "waiting for opponent" over a move that never happened. */
+          setOnlineTurn(gameRef.current.turn() === 'w' ? 'white' : 'black');
           /* The move never reached the server, so the ply recorded above is one
              ahead of reality. Put the marker back or the next genuine update —
              which is now legitimately shorter — would be dismissed as stale. */
@@ -1463,6 +1577,12 @@ export default function AnalysisBoard() {
   function fullReset() {
     markCurrentResultSeen();
     endSpecSession();
+    /* Starting a new game settles an outstanding request the same way the server
+       does when a fresh challenge is sent: the opponent gets told, the card goes
+       away, and nobody is left waiting on a match they have already left. */
+    if (rematchAskRef.current?.gameId != null) {
+      cancelRematch(rematchAskRef.current.gameId).catch(() => {});
+    }
     clearOnline(true);
     setComputerOn(false);
     computerToken.current++;
@@ -1506,6 +1626,13 @@ export default function AnalysisBoard() {
         : declineGame(pendingId);
       cancelPending.catch(() => {});
     }
+    /* A rematch request dies with the arena reset too — the player is explicitly
+       starting over, so the opponent must not keep a popup that leads nowhere. */
+    window.clearTimeout(rematchAskTimer.current);
+    window.clearTimeout(rematchInviteTimer.current);
+    if (rematchAsk?.gameId != null) cancelRematch(rematchAsk.gameId).catch(() => {});
+    setRematchAsk(null);
+    setRematchInvite(null);
     endSpecSession();
     onlineSearchToken.current += 1;
     arenaResetVersionRef.current += 1;
@@ -1584,8 +1711,35 @@ export default function AnalysisBoard() {
     }
   }
 
-  /* Review — dismiss overlay, auto-analyze, navigate to start */
-  function startReview() {
+  /* Rematch versus the computer, from the result card. There is nobody to ask —
+     the opponent is the engine — so it starts on the spot with the SAME settings
+     (level, clock, hints, confirm-move: none of those are touched) and my colour
+     flipped. A game started on random colour stays random.
+
+     The engine readout is cleared because it describes the position the game ENDED
+     on: leaving it would flash last game's evaluation and, with hints on, an
+     arrow pointing at a move no longer available. */
+  function rematchComputer() {
+    const nextColor = computerColorChoice === 'random'
+      ? (Math.random() < 0.5 ? 'white' : 'black')
+      : (computerColor === 'white' ? 'black' : 'white');
+    const botHadTheMove = computerOn;
+    markCurrentResultSeen();
+    setBest(null); setLines([]); setBestFen('');
+    setReviewMode(false);
+    setResultPopup(null);
+    setResultDismiss(false);
+    setClockOver(null);
+    setGameAnalysis(null);
+    setAnalyzing(false);
+    startComputerGame(nextColor);
+    /* The "bot opens as White" effect runs when `computerOn` turns on. In a
+       rematch it is already on, so the opening has to be scheduled here —
+       otherwise the bot, now playing White, would sit forever on the first move. */
+    if (botHadTheMove && nextColor === 'black') scheduleComputerMove();
+  }
+
+  /* Review — dismiss overlay, auto-analyze, navigate to start */  function startReview() {
     setReviewMode(true);
     // go to move 0 so user steps forward through the game
     goToMove(0);
@@ -2349,6 +2503,225 @@ export default function AnalysisBoard() {
     } finally { setOnlineBusy(false); }
   }
 
+  /* ── Rematch (a finished player-vs-player match) ──────────────────────────
+     The offer lives on the server, on the finished match — these are only the two
+     cards that describe it from the viewer's side:
+
+       rematchAsk    → I asked. "Waiting for <opponent>" + Cancel
+       rematchInvite → they asked. "<name> wants a rematch" + Accept / Reject
+
+     They live on the page rather than inside PostGameResultPopup for two reasons:
+     the popup disables its own buttons after the first tap until it re-opens, and
+     the opponent's invite has to appear even after they dismissed their result
+     card. So the card steps aside for the duration and comes back exactly as it
+     was. */
+
+  /* Ask the opponent for another game. */
+  async function askRematchOnline() {
+    const game = onlineRematchTarget(onlineGame);
+    if (!game || rematchBusy) return;
+    setRematchBusy(true);
+    setOnlineError('');
+    try {
+      const updated = await requestRematch(game.id);
+      applyOnline(updated);
+      /* The card says who I am waiting for, so it is the OPPONENT's name — never
+         `rematchRequest.byName`, which on my own request is my own name. */
+      const who = game.opponentName || updated?.opponentName || 'your opponent';
+      window.clearTimeout(rematchAskTimer.current);
+      setRematchAsk({ gameId: game.id, opponentName: who });
+      /* The requester should not have to guess whether the other tab is even
+         open: after the window closes the request is withdrawn on the server,
+         which also takes the card off the opponent's screen. */
+      rematchAskTimer.current = window.setTimeout(() => {
+        if (!rematchAskRef.current) return;
+        cancelRematch(game.id).catch(() => {});
+        setRematchAsk(null);
+        showToast(`No response from ${who}.`, {
+          tone: 'info', title: '♞ Rematch', source: 'AnalysisBoard:rematch_timeout',
+          dedupeKey: `rematch-timeout-${game.id}`,
+        });
+      }, REMATCH_WINDOW_MS);
+      refreshOnlineMatches();
+    } catch (e) {
+      setOnlineError(e.response?.data?.message || 'Could not ask for a rematch.');
+    } finally { setRematchBusy(false); }
+  }
+
+  /* Withdraw my own request before the window runs out. */
+  function cancelRematchAsk() {
+    const ask = rematchAskRef.current;
+    if (!ask) return;
+    window.clearTimeout(rematchAskTimer.current);
+    setRematchAsk(null);
+    cancelRematch(ask.gameId).catch(() => {});
+    refreshOnlineMatches();
+  }
+
+  /* Answer their request. Accepting is the only side that changes the board, and
+     the new game also arrives over `rematch-started`, so this must stay safe to
+     call alongside it — entering the same row twice is a no-op by design. */
+  async function answerRematchInvite(accept) {
+    const invite = rematchInviteRef.current;
+    if (!invite || rematchBusy) return;
+    setRematchBusy(true);
+    try {
+      const row = await respondRematch(invite.gameId, accept);
+      stopRematchTimers();
+      setRematchInvite(null);
+      if (accept) {
+        enterRematchGame(row);
+      } else {
+        refreshOnlineMatches();
+      }
+    } catch (e) {
+      stopRematchTimers();
+      setRematchInvite(null);
+      setOnlineError(e.response?.data?.message || 'Could not answer the rematch request.');
+    } finally { setRematchBusy(false); }
+  }
+
+  function stopRematchTimers() {
+    window.clearTimeout(rematchAskTimer.current);
+    window.clearTimeout(rematchInviteTimer.current);
+    rematchAskTimer.current = null;
+    rematchInviteTimer.current = null;
+  }
+
+  /* Move both players into the game that was just created for them: the board,
+     the clocks and the move list all come off the new row, so a rematch opens on
+     the starting position with the original time control and the finished match
+     left behind exactly as it was saved. */
+  const enterRematchGame = useStableCallback((row) => {
+    if (!row || row.meId == null) return;
+    if (ignoredGameIdsRef.current.has(String(row.id))) return;
+    /* The acceptor hears about the new match twice — once from their own request
+       and once from the socket push that also carries it to the other player.
+       Already on that board means the second delivery is a no-op. */
+    if (onlineGameRef.current && String(onlineGameRef.current.id) === String(row.id)) return;
+    stopRematchTimers();
+    setRematchAsk(null);
+    setRematchInvite(null);
+    clearOnline(true);
+    setClockOver(null);
+    setReviewMode(false);
+    setResultPopup(null);
+    setResultDismiss(false);
+    applyOnline(row);
+    refreshOnlineMatches();
+    if (soundOn) playSound('select');
+  });
+
+  /* One place where a request stops existing, whichever card it was on. The
+     server sends the same three endings (declined / withdrawn / expired) as
+     separate events because the wording the player needs differs. */
+  const resolveRematchCards = useStableCallback((gameId, message, kind) => {
+    const id = String(gameId ?? '');
+    const ask = rematchAskRef.current;
+    const invite = rematchInviteRef.current;
+    if (!ask && !invite) return;
+    if ((!ask || String(ask.gameId) !== id) && (!invite || String(invite.gameId) !== id)) return;
+    stopRematchTimers();
+    setRematchAsk(null);
+    setRematchInvite(null);
+    if (message) {
+      showToast(message, {
+        tone: 'info', title: '♞ Rematch', source: 'AnalysisBoard:rematch_end',
+        /* Each ending carries different news, so each gets its own key — one
+           shared key let the central 8s dedupe swallow a decline that arrived
+           just after an expiry on the same game. */
+        dedupeKey: `rematch-end-${kind || 'end'}-${id}`,
+      });
+    }
+  });
+
+  /* A rematch offer for the match I am looking at, or one the server is still
+     holding on the game row — which is how a reload lands back on the exact same
+     "waiting / answer me" card instead of silently dropping a live request. */
+  const applyRematchFromRow = useStableCallback((row) => {
+    const req = row?.rematchRequest;
+    if (!req) {
+      resolveRematchCards(row?.id, null);
+      return;
+    }
+    if (req.mine) {
+      if (rematchAskRef.current) return;
+      /* `byName` is the requester — me, in this branch — so the name the waiting
+         card needs is the row's opponent. */
+      setRematchAsk({ gameId: row.id, opponentName: row.opponentName || 'your opponent' });
+      window.clearTimeout(rematchAskTimer.current);
+      const left = REMATCH_WINDOW_MS - Math.max(0, Date.now() - (req.at || Date.now()));
+      rematchAskTimer.current = window.setTimeout(() => cancelRematchAsk(), Math.max(500, left));
+      return;
+    }
+    if (rematchInviteRef.current) return;
+    setRematchInvite({ gameId: row.id, fromName: req.byName || row.opponentName || 'Your opponent' });
+    window.clearTimeout(rematchInviteTimer.current);
+    const left = REMATCH_WINDOW_MS - Math.max(0, Date.now() - (req.at || Date.now()));
+    rematchInviteTimer.current = window.setTimeout(
+      () => resolveRematchCards(row.id, null),
+      Math.max(500, left),
+    );
+  });
+
+  /* The two handlers that need to know WHO I am. They read live values, so both
+     must be stable-identity wrappers: this page subscribes once for its whole
+     life, and a plain closure here would keep the `user` of the very first
+     render — an identity that has not arrived yet. */
+  const handleRematchInvite = useStableCallback((p) => {
+    if (!p?.gameId) return;
+    if (Number(p.requesterId) === Number(user?.id)) return;
+    if (rematchAskRef.current) {
+      /* We are the one who asked, so this is our own round trip or a race;
+         the card is already up and the server refused the duplicate. */
+      return;
+    }
+    window.clearTimeout(rematchInviteTimer.current);
+    setRematchInvite({ gameId: p.gameId, fromName: p.requesterName || 'Your opponent' });
+    rematchInviteTimer.current = window.setTimeout(
+      () => resolveRematchCards(p.gameId, null),
+      REMATCH_WINDOW_MS,
+    );
+  });
+
+  const handleRematchStarted = useStableCallback((p) => {
+    if (!p?.game) return;
+    if (Number(p.game.meId) !== Number(user?.id)) return;
+    enterRematchGame(p.game);
+  });
+
+  /* Everything the rematch needs over the socket, in ONE subscription — the
+     same reason the page has one `game-update` listener: re-subscribing per
+     render is how handlers used to stack. */
+  useEffect(() => {
+    const offs = [
+      onSocketEvent('rematch-request', (p) => handleRematchInvite(p)),
+      onSocketEvent('rematch-declined', (p) => {
+        resolveRematchCards(p?.gameId, `${p?.declinerName || 'Your opponent'} declined the rematch.`, 'declined');
+      }),
+      onSocketEvent('rematch-cancelled', (p) => {
+        resolveRematchCards(p?.gameId, 'The rematch request was withdrawn.', 'cancelled');
+      }),
+      onSocketEvent('rematch-expired', (p) => {
+        resolveRematchCards(p?.gameId, 'No response — the rematch request expired.', 'expired');
+      }),
+      onSocketEvent('rematch-started', (p) => handleRematchStarted(p)),
+    ];
+    return () => offs.forEach((off) => off());
+    // Stable callbacks + refs only: re-subscribing on a render would duplicate
+    // every handler for the life of the page.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => () => {
+    /* Leaving the arena must not leave the other player waiting on a card that
+       can no longer lead to a game. The server also drops it on disconnect, but
+       an unmount with a live socket is far more common than a dropped line. */
+    stopRematchTimers();
+    const ask = rematchAskRef.current;
+    if (ask) cancelRematch(ask.gameId).catch(() => {});
+  }, []);
+
   function showPlayerReaction(emoji, who) {
     const id = ++reactionId.current;
     clearTimeout(reactionTimersRef.current[who]);
@@ -2501,6 +2874,7 @@ export default function AnalysisBoard() {
     if (!row) return;
     if (ignoredGameIdsRef.current.has(String(row.id))) return;
     setDrawOffer(row.drawOffer || null);
+    applyRematchFromRow(row);
     const before = appliedRef.current;
     const prevStatus = onlineGameRef.current?.status;
     applyOnline(row);
@@ -2997,10 +3371,19 @@ export default function AnalysisBoard() {
     const players = [playerFor('white'), playerFor('black')];
 
     const secondary = [];
-    /* Online rematch has no backend contract, so it is offered only where a
-       fresh local game can be started against the same opponent/settings. */
-    if (!inOnline && !onlineFinished && moves.length > 0) {
-      secondary.push({ label: 'Rematch', onClick: rematch, primary: true });
+    /* Rematch is offered in exactly two modes, and nowhere else:
+
+         finished player-vs-player → an OFFER. The opponent accepts or rejects,
+             and accepting opens a brand new match on the server.
+         vs Computer               → immediate. There is nobody to consent, so it
+             restarts on the spot with the same settings and the colours swapped.
+
+       A live board, Annotate & Save, a Saved position and Settings have no
+       finished game to replay against an opponent, so they get no button. */
+    if (onlineRematchTarget(onlineGame) && moves.length > 0) {
+      secondary.push({ label: 'Rematch', onClick: askRematchOnline, primary: true });
+    } else if (vsComputer && !onlineGame && moves.length > 0) {
+      secondary.push({ label: 'Rematch', onClick: rematchComputer, primary: true });
     }
     secondary.push({ label: 'New game', onClick: fullReset });
 
@@ -3039,7 +3422,7 @@ export default function AnalysisBoard() {
   /* post-game result card — rendered on the page, or over Play Mode when active */
   const resultCard = resultPopupProps ? (
     <PostGameResultPopup
-      open={!resultDismiss && !resultRevealPending}
+      open={!resultDismiss && !resultRevealPending && !rematchLive}
       title={resultPopupProps.title}
       reason={resultPopupProps.reason}
       tone={resultPopupProps.tone}
@@ -3049,6 +3432,50 @@ export default function AnalysisBoard() {
       onReview={resultPopupProps.onReview}
       secondary={resultPopupProps.secondary}
     />
+  ) : null;
+
+  /* The rematch offer, in whichever of its two shapes this viewer is in. Portalled
+     to the body so it renders identically on the page and inside Play Mode, and
+     it never needs the board column to have room for it.
+     Rendered whenever a request is live — including for a player who had already
+     closed their result card, which is the whole reason this is not a row inside
+     that card. */
+  const rematchCard = (rematchAsk || rematchInvite) ? createPortal(
+    <div className="ab-rematch-layer">
+      {rematchInvite ? (
+        <div className="ab-rematch-card" role="alertdialog" aria-label="Rematch request" aria-live="assertive">
+          <span className="ab-rematch-body">
+            <span className="ab-rematch-title">♞ {rematchInvite.fromName} wants a rematch</span>
+            <span className="ab-rematch-sub">Same clock, your colours swapped.</span>
+          </span>
+          <span className="ab-rematch-actions">
+            <Button type="button" variant="primary" size="sm" disabled={rematchBusy}
+              onClick={() => answerRematchInvite(true)} className="!py-1.5 !px-3 text-xs">
+              ✓ Accept
+            </Button>
+            <Button type="button" variant="secondary" size="sm" disabled={rematchBusy}
+              onClick={() => answerRematchInvite(false)} className="!py-1.5 !px-3 text-xs">
+              ✕ Reject
+            </Button>
+          </span>
+        </div>
+      ) : (
+        <div className="ab-rematch-card" role="status" aria-live="polite">
+          <span className="ab-rematch-spinner" aria-hidden="true" />
+          <span className="ab-rematch-body">
+            <span className="ab-rematch-title">Waiting for {rematchAsk.opponentName}…</span>
+            <span className="ab-rematch-sub">Rematch sent. Same clock, colours swapped.</span>
+          </span>
+          <span className="ab-rematch-actions">
+            <Button type="button" variant="secondary" size="sm"
+              onClick={cancelRematchAsk} className="!py-1.5 !px-3 text-xs">
+              Cancel
+            </Button>
+          </span>
+        </div>
+      )}
+    </div>,
+    document.body,
   ) : null;
 
   /* ========================= RENDER ========================= */
@@ -4191,6 +4618,10 @@ export default function AnalysisBoard() {
           </div>
         </div>
       )}
+
+      {/* One rematch card for the whole page: portalled to the body, so the page
+          board and Play Mode never disagree about whether the offer is on screen. */}
+      {rematchCard}
 
       {/* ════════════ Play Mode — fullscreen immersive board ════════════ */}
       {playMode && createPortal(

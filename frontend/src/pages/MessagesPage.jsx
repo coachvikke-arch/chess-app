@@ -14,15 +14,16 @@ import usePageTitle from '../hooks/usePageTitle';
 import { useFullHeight } from '../context/FullHeightContext';
 import { listContacts, createGroup, addGroupMembers, removeGroupMember, updateGroupAvatar } from '../utils/chat';
 import ChatRequestButton from '../components/ChatRequestButton';
-import AdminChatRequestButton from '../components/AdminChatRequestButton';
+import PeopleRowAction from '../components/PeopleRowAction';
+import ChatRequestsPanel from '../components/ChatRequestsPanel';
 import {
   isAdminChannelPair,
-  adminChannelStatusLabel,
   adminChannelRowCopy,
 } from '../utils/chatAdminRequests';
 import StudentAvatar from '../components/StudentAvatar';
 import Button from '../components/Button';
 import { useToast } from '../components/Toast';
+import { ConfirmDialog } from '../components/ui';
 import { formatTime12 } from '../utils/time';
 
 function fmtTime(iso) {
@@ -75,6 +76,48 @@ function UnreadBadge({ n }) {
       {n > 99 ? '99+' : n}
     </span>
   );
+}
+
+/* The role tag's word. `u.role` is the raw token the accounts are stored under,
+   which reads as "superadmin" in a sentence nobody wrote. */
+const ROLE_LABELS = { student: 'Student', admin: 'Admin', superadmin: 'Super Admin' };
+function roleLabel(role) {
+  return ROLE_LABELS[role] || String(role || '—');
+}
+
+/* The read-only notice that replaces the composer for a learner whose channel is
+   not open yet. One entry per state, because "ask first", "your coach has the ask"
+   and "you were refused" are three different things to read. */
+const BLOCKED_COMPOSER_COPY = {
+  pending: { title: 'Request pending', body: 'You can send messages as soon as your coach accepts.' },
+  rejected: { title: 'Request declined', body: 'Your coach did not approve this chat. You can ask again from the People tab.' },
+  cancelled: { title: 'Chat closed', body: 'This chat was cancelled. Use "Request again" in the People tab to start a fresh approval.' },
+  not_allocated: { title: 'Chat not available', body: 'You can only message a coach allocated to you, and the students in that cohort.' },
+};
+function blockedComposerCopy(state) {
+  return BLOCKED_COMPOSER_COPY[state] ||
+    { title: 'Chat not open yet', body: 'Send a chat request from the People tab to start messaging.' };
+}
+
+/* The one short tag a People row carries, beside the role.
+ *
+ * Deliberately NOT the status the action slot already says: a row that offers
+ * "Request chat", "Request sent" or "Chat" has its state in the button, and a second
+ * word beside the name is the noise this list was drowning in. The tag exists for the
+ * three cases the button cannot speak — an ask waiting on the coach (whose decision
+ * lives in the Requests panel, not the row), and a pairing that was refused or
+ * stopped, where the button says "Request again" and owes an explanation of why.
+ */
+function peopleRowChip(u, { isDecision, blocked, asCoachView }) {
+  if (isDecision) return { label: 'Waiting on you', className: 'chess-chip-amber' };
+  if (blocked) {
+    if (u.chatState === 'not_allocated') {
+      return { label: asCoachView ? 'Not your student' : 'Not your coach', className: 'chess-chip-red' };
+    }
+    if (u.chatState === 'rejected') return { label: 'Rejected', className: 'chess-chip-red' };
+    if (u.chatState === 'cancelled') return { label: 'Cancelled', className: '' };
+  }
+  return null;
 }
 
 /* Attachment bubble inside a message: images render inline, everything else is
@@ -391,6 +434,9 @@ export default function MessagesPage() {
   const [showInfo, setShowInfo] = useState(false);
   const [addMode, setAddMode] = useState(false);
   const [creating, setCreating] = useState(false);
+  /* The room awaiting the admin's delete confirmation, and the one mid-deletion. */
+  const [confirmGroupDelete, setConfirmGroupDelete] = useState(false);
+  const [deletingGroup, setDeletingGroup] = useState(false);
   const [emojiOpen, setEmojiOpen] = useState(false);
   const [emojiScope, setEmojiScope] = useState(null); /* which composer is picking */
   const [sheetFor, setSheetFor] = useState(null); /* message shown in the actions sheet */
@@ -443,7 +489,7 @@ export default function MessagesPage() {
     threadFor, messages, conversations, contacts, searchQuery,
     groups, groupUnreadByGroup, activeGroupId, groupMessages, activeGroup, activeGroupMembers,
     closeThread, openThread, send, searchContacts, isOnline, cancelledChats,
-    openGroup, closeGroup, sendToGroup, react, deleteMessage,
+    openGroup, closeGroup, sendToGroup, react, deleteMessage, deleteGroupRoom,
   } = chat;
 
   const groupOpen = activeGroupId != null;
@@ -588,6 +634,18 @@ export default function MessagesPage() {
     otherContact?.name || 'Chat';
   const creatorName = activeGroup?.creator_name || contactById.get(Number(activeGroup?.created_by))?.name || 'Someone';
   const creatorRole = activeGroup?.creator_role || '';
+
+  /* A learner may write to their coach only once that coach has accepted, so the
+     composer follows the request row rather than the thread. The server refuses to
+     open an unaccepted channel, so a thread that is already on screen was accepted
+     when it opened — reaching one of these states means the row moved underneath it
+     (the coach closed the chat, the allocation changed) while this list was live.
+     The send gate is the enforcement; this is the honesty, so an input that cannot
+     send never looks sendable. A coach is deliberately absent from the rule: they
+     write to an allocated student from the first keystroke, request row or not. */
+  const dmRequestBlocked = dmOpen && !dmCancelled &&
+    user?.role === 'student' &&
+    ['none', 'pending', 'rejected', 'cancelled', 'not_allocated'].includes(otherContact?.chatState);
 
   /* Keep the newest message pinned into view (threads render oldest→newest).
 
@@ -795,6 +853,28 @@ export default function MessagesPage() {
     } catch (err) { console.warn('[chat:group avatar]', err.message); }
   };
 
+  /* ── Room deletion (admins) ──
+     The context owns the state: it drops the row from the list, forgets its
+     unread count and closes the pane if this was the open room, so the thread
+     area falls back to the empty chat state. Everyone else gets the same result
+     from the `chat_group_deleted` push. */
+  const doDeleteGroup = async () => {
+    const gid = Number(activeGroupId);
+    if (!gid) { setConfirmGroupDelete(false); return; }
+    if (deletingGroup) return;
+    setDeletingGroup(true);
+    try {
+      await deleteGroupRoom(gid);
+      setConfirmGroupDelete(false);
+      showToast('Group deleted.');
+    } catch (e) {
+      console.warn('[chat:deleteGroup]', e.message);
+      showToast(e?.response?.data?.message || 'Failed to delete group');
+    } finally {
+      setDeletingGroup(false);
+    }
+  };
+
   const everyone = contacts.filter((c) => Number(c.id) !== meId);
   const notYetInGroup = everyone.filter((c) => !activeGroupMembers.some((m) => Number(m.id) === Number(c.id)));
 
@@ -855,6 +935,9 @@ export default function MessagesPage() {
                   className="w-full bg-ink-900 border border-ivory-700/30 rounded-lg px-3.5 py-2.5 text-base text-ivory-300 placeholder:text-ivory-600 outline-none focus:border-gold-500/60 transition" />
               </div>
               <div className="flex-1 min-h-0 overflow-y-auto chat-scroll chat-scroll-thin">
+                {/* A coach answers asks here, above the list, and nowhere else —
+                    see ChatRequestsPanel. Renders nothing when there is none. */}
+                {isAdmin && <ChatRequestsPanel />}
                 {peopleRows.length === 0 ? (
                   <p className="px-4 py-10 text-center text-sm text-ivory-500">{peopleEmptyCopy}</p>
                 ) : peopleRows.map((u) => {
@@ -865,28 +948,37 @@ export default function MessagesPage() {
                      a blocked contact is visibly blocked rather than silently
                      failing after the click. */
                   const blocked = u.canMessage === false;
-                  /* Two request flows share this row and neither can use the
-                     other's controls: the peer queue is answered by a panel that
-                     replaces the thread area, the coach/learner channel by the
-                     button beside the row. Which one applies is the pair's roles,
-                     read from the same rule the backend uses. */
+                  /* Both ends of the coach/learner channel read the row differently:
+                     a coach and the owner are on the deciding side of an ask, a
+                     learner is on the asking side. View, not permission. */
+                  const asCoachView = user?.role !== 'student';
                   const adminPair = isAdminChannelPair(user?.role, u.role);
-                  const asCoachView = user?.role === 'admin';
-                  const adminChip = adminPair && blocked && u.chatState !== 'accepted';
+                  const isDecision = Boolean(u.canDecideAdminRequest && u.adminRequestId);
+                  /* What this row is ABOUT. For the owner it cannot be chatState: their
+                     own channel to that learner is open by rule, so the server says
+                     'not_required' while an ask is sitting in the same row. The ask IS
+                     the row, and an ask that reached a decider is pending by definition. */
+                  const rowState = isDecision ? 'pending' : u.chatState;
+                  /* A short tag, never a sentence: what the pair is waiting on, for the
+                     rows whose action slot is empty or whose ask was refused. */
+                  const chip = peopleRowChip(u, { isDecision, blocked, asCoachView });
                   return (
                     <div key={u.id}
                       className={"flex items-center gap-2 px-4 py-3.5 transition " +
-                        (blocked ? 'opacity-80 hover:bg-slate-50' : 'hover:bg-slate-100')}>
+                        (blocked ? 'opacity-90' : 'hover:bg-slate-100')}>
                       <button type="button" onClick={() => {
                         if (blocked) {
-                          if (adminPair) {
-                            showToast(adminChannelRowCopy(u.chatState, u.name, asCoachView), {
-                              tone: 'info',
-                              title: `Chat with ${u.name} is not open`,
-                            });
-                            return;
-                          }
-                          setRequestTarget(u);
+                          /* The action slot already carries the button this pair needs,
+                             so a tap on the name says why the thread will not open
+                             rather than failing quietly — and for a classmate it also
+                             opens the panel that names the coach being asked. */
+                          showToast(adminPair || isDecision
+                            ? adminChannelRowCopy(rowState, u.name)
+                            : 'You need your coach’s approval before you can chat with them.', {
+                            tone: 'info',
+                            title: `Chat with ${u.name} is not open`,
+                          });
+                          if (!adminPair && !isDecision) setRequestTarget(u);
                           return;
                         }
                         openRowConversation(Number(u.id), u.name, 'people');
@@ -896,45 +988,29 @@ export default function MessagesPage() {
                           <PersonAvatar u={u} name={u.name} size={48} />
                           <span className={"online-dot absolute -bottom-0.5 -right-0.5 ring-2 ring-ink-800 " + (online ? 'online-dot-on' : '')} />
                         </span>
+                        {/* Name and role on separate lines. They sat on one flex line
+                            before, and on a narrow screen the two ran together into
+                            "Kevinstudent" with the status copy welded on the end. */}
                         <span className="min-w-0 flex-1">
-                          <span className="flex items-center justify-between gap-2">
-                            <span className="text-base font-bold text-ivory-300 truncate">{u.name}</span>
-                            <span className="flex shrink-0 items-center gap-1.5">
-                              {adminChip && (
-                                <span className={"chess-chip text-[10px] " +
-                                  (u.chatState === 'pending' ? 'chess-chip-amber'
-                                    : u.chatState === 'not_allocated' ? 'chess-chip-red' : '')}>
-                                  {adminChannelStatusLabel(u.chatState, asCoachView)}
-                                </span>
-                              )}
-                              {!adminPair && u.chatState === 'pending' && (
-                                <span className="chess-chip chess-chip-amber text-[10px]">Pending</span>
-                              )}
-                              {!adminPair && u.chatState === 'rejected' && (
-                                <span className="chess-chip chess-chip-red text-[10px]">Rejected</span>
-                              )}
-                              {!adminPair && u.chatState === 'cancelled' && (
-                                <span className="chess-chip text-[10px]">Cancelled</span>
-                              )}
-                              {!adminPair && u.chatState === 'none' && (
-                                <span className="chess-chip text-[10px]">Request</span>
-                              )}
-                              <span className="text-[10px] uppercase tracking-wide px-2 py-0.5 rounded-md bg-gold-500/15 text-gold-400 font-bold">{u.role}</span>
+                          {/* No `truncate`: a "Request sent" + Cancel pair is the widest
+                              action slot in the list, and at 360px it squeezed the name
+                              into an ellipsis ("Coach An…"). The name is the one thing a
+                              row must always say in full, so it wraps instead. */}
+                          <span className="block text-base font-bold text-ivory-300 break-words">{u.name}</span>
+                          <span className="mt-1.5 flex items-center gap-1.5">
+                            <span className="shrink-0 rounded-md bg-gold-500/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-gold-400">
+                              {roleLabel(u.role)}
                             </span>
-                          </span>
-                          <span className="mt-0.5 block text-sm text-ivory-600">
-                            {blocked
-                              ? (adminPair
-                                ? adminChannelRowCopy(u.chatState, u.name, asCoachView)
-                                : (u.chatState === 'pending' ? 'Chat request pending'
-                                  : u.chatState === 'rejected' ? 'Rejected by coach'
-                                  : u.chatState === 'cancelled' ? 'This chat was cancelled'
-                                  : 'Approval required to chat'))
-                              : (online ? 'Online now' : 'Offline')}
+                            {chip && (
+                              <span className={"chess-chip shrink-0 text-[10px] " + chip.className}>
+                                {chip.label}
+                              </span>
+                            )}
                           </span>
                         </span>
                       </button>
-                      {adminPair && <AdminChatRequestButton contact={u} />}
+                      <PeopleRowAction contact={u}
+                        onOpenChat={(id, name) => openRowConversation(id, name, 'people')} />
                     </div>
                   );
                 })}
@@ -1060,6 +1136,23 @@ export default function MessagesPage() {
                           </ul>
                         )}
                       </div>
+
+                      {/* Admins only, and only here: a room takes its whole
+                          history with it, so the button sits at the bottom of
+                          the sheet, away from the member rows above it. */}
+                      {isAdmin && (
+                        <div className="mt-5 pt-4 border-t border-ivory-700/30">
+                          <Button
+                            type="button"
+                            variant="danger"
+                            size="md"
+                            fullWidth
+                            onClick={() => { setShowInfo(false); setConfirmGroupDelete(true); }}
+                          >
+                            Delete group
+                          </Button>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -1151,7 +1244,7 @@ export default function MessagesPage() {
                   <span className="min-w-0">
                     <span className="block text-[17px] font-bold text-ivory-100 truncate">{otherName}</span>
                     <span className="block text-xs text-ivory-500">
-                      {otherContact?.role ? <>{otherContact.role} · </> : null}
+                      {otherContact?.role ? <>{roleLabel(otherContact.role)} · </> : null}
                       {isOnline(threadFor) ? '● online' : 'offline'}
                     </span>
                   </span>
@@ -1202,6 +1295,18 @@ export default function MessagesPage() {
                       : ''}
                     . Neither of you can send messages any more, and you can only
                     message again by sending a new chat request.
+                  </p>
+                </div>
+              ) : dmRequestBlocked ? (
+                /* The learner's channel is shut until the coach accepts. Same
+                   treatment as the cancelled notice — the composer is replaced, not
+                   greyed out — so nothing sendable-looking is left on screen. */
+                <div role="status" className="shrink-0 border-t border-ivory-700/40 px-4 py-3">
+                  <p className="rounded-lg border border-ivory-700/60 bg-slate-100 px-3 py-2 text-center text-base font-semibold text-ivory-200">
+                    {blockedComposerCopy(otherContact?.chatState).title}
+                  </p>
+                  <p className="mt-1.5 text-center text-sm text-ivory-500">
+                    {blockedComposerCopy(otherContact?.chatState).body}
                   </p>
                 </div>
               ) : (
@@ -1314,6 +1419,19 @@ export default function MessagesPage() {
           </div>
         </div>
       )}
+
+      {/* The shared confirmation, same surface as every other destructive
+          action in the app. The info sheet is already closed by the time this
+          opens, so the two never stack. */}
+      <ConfirmDialog
+        open={confirmGroupDelete}
+        title="Delete this group?"
+        message="All messages in it will be removed."
+        cancelText="Cancel"
+        confirmText={deletingGroup ? 'Deleting…' : 'Delete'}
+        onCancel={() => { if (!deletingGroup) setConfirmGroupDelete(false); }}
+        onConfirm={doDeleteGroup}
+      />
 
       {/* Reactions + delete, in one viewport-centred sheet (see MessageActionSheet
           for why this can't be an in-bubble popover). */}

@@ -25,10 +25,6 @@ export function LiveClassProvider({ children, boot }) {
   const [chat, setChat] = useState(boot?.chatMessages ?? []);
   const [privateChat, setPrivateChat] = useState(boot?.privateChat ?? []);
   const [connection, setConnection] = useState('connected');
-  /* Whether the eval bar is SHOWN to this viewer in the classroom board. The
-     coach toggles it from the V2 board tools ("Eye"); students read it. Server
-     broadcast via the `eval_visibility_changed` socket event. */
-  const [evalVisible, setEvalVisible] = useState(boot?.classMeta?.evalVisible !== false);
   /* "Students may watch their classmates" — seeded from the join token (so a
      refresh keeps the coach's setting) and updated live by `spectate_toggled`. */
   const [spectateEnabled, setSpectateEnabled] = useState(boot?.classMeta?.spectateEnabled !== false);
@@ -150,8 +146,6 @@ export function LiveClassProvider({ children, boot }) {
       chat,
       privateChat,
       connection,
-      evalVisible,
-      setEvalVisible,
       quizAsk,
       openQuizAsk,
       closeQuizAsk,
@@ -182,7 +176,6 @@ export function LiveClassProvider({ children, boot }) {
       setSelfGameStatus,
     }),
     [classMeta, isInstructor, permissions, chessState, participants, chat, privateChat, connection,
-     evalVisible, setEvalVisible,
      quizAsk, openQuizAsk, closeQuizAsk, viewIndex, remoteReview,
      patchPermissions, upsertParticipant, removeParticipant, replaceParticipants, appendChat, appendPrivateChat,
      activityByStudent, bulkSetActivity, spectateEnabled, selfGameStatus]

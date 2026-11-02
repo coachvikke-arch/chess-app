@@ -501,3 +501,43 @@ exports.listHomework = async (req, res) => {
     res.status(500).json({ message: 'Failed to load homework', error: err.message });
   }
 };
+
+/* DELETE /api/homework/:id
+ *
+ * A single row removal is the whole job: assignment_puzzles,
+ * assignment_submissions and puzzle_attempts.puzzle_assignment_id all reference
+ * assignments(id) ON DELETE CASCADE, so the homework's composition, every
+ * student's submission and their attempts go with the assignment itself.
+ *
+ * Reachability is already role-gated by the router (roleMiddleware('admin')),
+ * which answers 403 to a student before this runs. The check below is the
+ * narrower one: a coach may only take down homework they set, while the super
+ * admin may take down any. */
+exports.deleteHomework = async (req, res) => {
+  try {
+    const assignmentId = parseInt(req.params.id, 10);
+    if (!Number.isInteger(assignmentId)) {
+      return res.status(400).json({ message: 'Invalid homework id' });
+    }
+
+    const found = await db.query(
+      "SELECT id, title, created_by FROM assignments WHERE id = $1 AND type = 'puzzle_assignment'",
+      [assignmentId]
+    );
+    if (found.rows.length === 0) return res.status(404).json({ message: 'Homework not found' });
+    const row = found.rows[0];
+
+    const ownsIt =
+      row.created_by != null && Number(row.created_by) === Number(req.user.id);
+    if (req.user.role !== 'superadmin' && !ownsIt) {
+      return res
+        .status(403)
+        .json({ message: 'You can only delete homework you created.' });
+    }
+
+    await db.query('DELETE FROM assignments WHERE id = $1', [assignmentId]);
+    res.json({ message: 'Homework deleted', assignmentId, title: row.title });
+  } catch (err) {
+    res.status(500).json({ message: 'Failed to delete homework', error: err.message });
+  }
+};

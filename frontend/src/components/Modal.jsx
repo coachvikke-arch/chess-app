@@ -16,6 +16,8 @@ const FOCUSABLE = [
  * Handles the shared behaviour so the six popups cannot drift apart:
  * portal rendering, scroll lock, focus trap/restore, Escape, backdrop click
  * and the fade + scale entrance. Content and footer are supplied by callers.
+ * `modalClass` adds one surface class for callers that need a different skin,
+ * and `layerClass` the matching class on the backdrop behind it.
  */
 export default function Modal({
   open,
@@ -26,6 +28,8 @@ export default function Modal({
   children,
   footer = null,
   size = 'md',
+  modalClass = '',
+  layerClass = '',
   id,
   closeLabel = 'Close dialog',
   returnFocusRef = null,
@@ -110,13 +114,13 @@ export default function Modal({
 
   return createPortal(
     <div
-      className="mz-modal-layer"
+      className={`mz-modal-layer${layerClass ? ` ${layerClass}` : ''}`}
       onMouseDown={(event) => {
         if (event.target === event.currentTarget && !busy) closeRef.current?.();
       }}
     >
       <div
-        className={`mz-modal mz-modal-${size}`}
+        className={`mz-modal mz-modal-${size}${modalClass ? ` ${modalClass}` : ''}`}
         id={id}
         role="dialog"
         aria-modal="true"

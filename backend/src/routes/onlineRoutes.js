@@ -27,6 +27,13 @@ router.post('/games/:id/timeout', roleMiddleware('admin', 'student'), ctrl.timeo
    calls. */
 router.post('/games/:id/draw-offer', roleMiddleware('admin', 'student'), ctrl.offerDraw);
 router.post('/games/:id/draw-respond', roleMiddleware('admin', 'student'), ctrl.respondDraw);
+/* Rematch: an offer on a FINISHED match, answered the same way a draw offer is.
+   The server re-checks that both callers are the two players of that game and
+   that the game really is over, so a crafted request cannot open a board for
+   somebody else's match. */
+router.post('/games/:id/rematch-request', roleMiddleware('admin', 'student'), ctrl.requestRematch);
+router.post('/games/:id/rematch-respond', roleMiddleware('admin', 'student'), ctrl.respondRematch);
+router.post('/games/:id/rematch-cancel', roleMiddleware('admin', 'student'), ctrl.cancelRematch);
 router.post('/games/:id/move', ctrl.moveGame);
 router.post('/games/:id/end', ctrl.endGame);
 

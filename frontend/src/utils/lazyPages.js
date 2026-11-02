@@ -18,8 +18,8 @@ export const AdminGmGames = lazy(() => import('../pages/AdminGmGames'));
 export const BotsPage = lazy(() => import('../pages/BotsPage'));
 export const BotGamePage = lazy(() => import('../pages/BotGamePage'));
 export const LiveClassroom = lazy(() => import('../pages/LiveClassroom'));
-export const ClassroomV2 = lazy(() => import('../pages/ClassroomV2'));
 export const Puzzles = lazy(() => import('../pages/Puzzles'));
+export const PuzzleTrainer = lazy(() => import('../pages/PuzzleTrainer'));
 export const MessagesPage = lazy(() => import('../pages/MessagesPage'));
 
 /* Path prefix -> chunk loader. Longest match wins (first hit in order, so
@@ -34,8 +34,8 @@ const preloaders = [
   [/^\/play\/bots/, () => import('../pages/BotsPage')],
   [/^\/play\/bot\//, () => import('../pages/BotGamePage')],
   [/^\/live-class\//, () => import('../pages/LiveClassroom')],
-  [/^\/(coach\/dashboard\/.+\/classroom-v2|student\/classroom-v2\/)/, () => import('../pages/ClassroomV2')],
   [/^\/student\/puzzles/, () => import('../pages/Puzzles')],
+  [/^\/student\/trainer/, () => import('../pages/PuzzleTrainer')],
   [/^\/(admin|student)\/messages/, () => import('../pages/MessagesPage')],
 ];
 

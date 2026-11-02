@@ -7,6 +7,13 @@ const { STATUS, pairKey } = chatPerm;
 
 const NOTIF_TYPE = 'chat_request';
 
+/* The socket every Chat page listens to for this queue. Mirrors the coach/learner
+ * channel's `admin_chat_request`: one event for every transition, so a People row
+ * that is on screen moves from "Request chat" to "Request sent" to "Chat" without
+ * waiting for the 15s poll, and the admin's Requests list loses a row the moment it
+ * is decided. The bell (notifications) is the durable record; this is the live one. */
+const SOCKET_EVENT = 'chat_request';
+
 /* Full row shape shared by the coach queue, the requester's history, the Super
  * Admin oversight list and the detail view, so all four surfaces render exactly
  * the same fields. Every name and id the spec asks for is resolved here. */
@@ -120,6 +127,35 @@ async function settleApproverBells(requestId, status) {
       })
     )
   );
+}
+
+/* Tell everyone who can SEE this request that its status moved: the two students it
+ * is about, plus the panel that decides it. Unlike the coach/learner channel, one
+ * body serves every recipient, because the row already names both users — a client
+ * finds its own People row by `requesterUserId`/`targetUserId` rather than by a
+ * per-viewer `otherId`.
+ *
+ * `row` must come from REQUEST_SELECT, which is where the two names come from. */
+async function emitTransition(io, row, status) {
+  if (!io) return;
+  const panel = await db.query(
+    `SELECT coach_id AS user_id FROM chat_request_approvers WHERE chat_request_id = $1`,
+    [row.id]
+  );
+  const recipients = new Set([
+    Number(row.requester_user_id),
+    Number(row.target_user_id),
+    ...panel.rows.map((r) => Number(r.user_id)),
+  ]);
+  const payload = {
+    requestId: Number(row.id),
+    status,
+    requesterUserId: Number(row.requester_user_id),
+    requesterName: row.requester_name,
+    targetUserId: Number(row.target_user_id),
+    targetName: row.target_name,
+  };
+  recipients.forEach((userId) => notif.emitToUser(io, userId, SOCKET_EVENT, payload));
 }
 
 /* ── Cancellation ──────────────────────────────────────────────────────────
@@ -274,30 +310,61 @@ async function eligibility(req, res) {
  *
  * The pending check runs first and the database's partial unique index backs it
  * up, because two fast clicks (or a double-submitted form) must not produce two
- * requests that a coach then has to arbitrate. */
+ * requests that a coach then has to arbitrate.
+ *
+ * An already-pending pair is NOT an error: the existing request is returned as a
+ * 200. A second tap on "Request chat" and a resubmitted form both mean "get me an
+ * answer", and an answer that says `alreadyPending` lets the People row repaint
+ * itself to "Request sent" instead of showing a failure for something that worked
+ * the first time. */
 async function create(req, res) {
   try {
     const me = req.user.id;
     const targetUserId = Number(req.body.targetUserId);
     if (!targetUserId) return res.status(400).json({ message: 'targetUserId required' });
 
+    /* This queue is the learner↔learner channel, and only inside one allocation.
+     * Checked before anything is written, because the endpoint takes a bare user id:
+     * without it any learner could open a queue entry for a stranger, and a coach
+     * would be asked to decide a pairing of two students they do not own. */
+    const targetRes = await db.query('SELECT id, name, role FROM users WHERE id = $1', [targetUserId]);
+    if (targetRes.rows.length === 0) return res.status(404).json({ message: 'That user could not be found.' });
+    const targetRole = targetRes.rows[0].role;
+    const targetName = targetRes.rows[0].name;
+
+    const gate = await chatPerm.mayRequestChat(me, targetUserId, req.user.role, targetRole);
+    if (!gate.ok) {
+      return res.status(403).json({
+        message: gate.reason === 'self'
+          ? 'You cannot start a chat with yourself.'
+          : gate.reason === 'not_a_peer_pair'
+            ? 'Chat requests are only for classmates. Your coach is reached from their row in the People list.'
+            : 'You can only request a chat with a classmate who shares your coach.',
+        code: gate.reason,
+      });
+    }
+
     const access = await chatPerm.evaluateAccess(me, targetUserId, req.user.role);
 
     // Staff pairs never need one, and neither does an approved pair.
-    if (access.state === 'not_required' || access.state === 'approved') {
+    if (access.state === 'not_required') {
       return res.status(409).json({
         message: access.message,
         state: access.state,
         code: 'no_request_needed',
       });
     }
+    if (access.state === 'approved') {
+      return res.json({
+        requestId: access.requestId, status: STATUS.APPROVED,
+        message: `You and ${targetName} can chat.`,
+      });
+    }
     if (access.state === 'self') return res.status(400).json({ message: access.message });
     if (access.state === 'pending') {
-      return res.status(409).json({
-        message: 'Chat request pending',
-        state: 'pending',
-        requestId: access.requestId,
-        code: 'already_pending',
+      return res.json({
+        requestId: access.requestId, status: STATUS.PENDING, alreadyPending: true,
+        message: 'Request sent. Waiting for coach approval.',
       });
     }
     // Re-request rules live in the service so the button and this endpoint can
@@ -341,11 +408,10 @@ async function create(req, res) {
     // than pretending a second request was created.
     if (inserted.rows.length === 0) {
       const existing = await chatPerm.findPendingRequest(me, targetUserId);
-      return res.status(409).json({
-        message: 'Chat request pending',
-        state: 'pending',
+      return res.json({
         requestId: existing ? Number(existing.id) : null,
-        code: 'already_pending',
+        status: STATUS.PENDING, alreadyPending: true,
+        message: 'Request sent. Waiting for coach approval.',
       });
     }
 
@@ -362,12 +428,8 @@ async function create(req, res) {
       [requestId, partyIds]
     );
 
-    const [meRow, targetRow] = await Promise.all([
-      db.query('SELECT name FROM users WHERE id = $1', [me]),
-      db.query('SELECT name FROM users WHERE id = $1', [targetUserId]),
-    ]);
-    const meName = meRow.rows[0]?.name || 'A user';
-    const targetName = targetRow.rows[0]?.name || 'another user';
+    const meRow = await db.query('SELECT name FROM users WHERE id = $1', [me]);
+    const meName = meRow.rows[0]?.name || 'A student';
 
     /* Everyone in the panel gets the same actionable notification: each of them can
      * approve or reject, so none of them is being told about someone else's
@@ -379,10 +441,19 @@ async function create(req, res) {
         notif.push(
           io, userId,
           'New chat request',
-          `${meName} wants to chat with ${targetName}. You can approve or reject this request.`,
+          `${meName} wants to chat with ${targetName}. You can accept or cancel this request.`,
           { type: NOTIF_TYPE, senderId: me, relatedId: requestId, requestStatus: STATUS.PENDING }
         )
       )
+    );
+    /* ...and the same panel's live Requests list repaints without waiting for the
+       poll. The bell above is the durable notice; this is the on-screen one. */
+    partyIds.forEach((userId) =>
+      notif.emitToUser(io, userId, SOCKET_EVENT, {
+        requestId, status: STATUS.PENDING,
+        requesterUserId: Number(me), requesterName: meName,
+        targetUserId: Number(targetUserId), targetName,
+      })
     );
 
     res.status(201).json({
@@ -631,6 +702,7 @@ async function approve(req, res) {
     ]);
     // Settle every asked coach's bell entry so none of them stop showing as pending.
     await settleApproverBells(row.id, STATUS.APPROVED);
+    await emitTransition(io, row, STATUS.APPROVED);
 
     res.json({ message: 'Chat request approved.', requestId: Number(row.id), status: STATUS.APPROVED });
   } catch (err) {
@@ -659,13 +731,14 @@ async function reject(req, res) {
       return res.status(409).json({ message: 'This request was already decided.' });
     }
 
-    await db.query(
-      `INSERT INTO conversations (user1_id, user2_id, chat_request_id, status)
-       VALUES ($1, $2, $3, 'locked')
-       ON CONFLICT (user1_id, user2_id) DO UPDATE SET status = 'locked', updated_at = NOW()`,
-      [pair[0], pair[1], row.id]
-    );
+    /* Nothing else to write. A rejection only ever happens on a PENDING row, so
+     * there is no pairing record to retire (that is cancel's job) and no thread to
+     * close: chatPermissionService reads the newest request and refuses the pair by
+     * itself. An INSERT here was once attempted with a 'locked' status the
+     * conversations CHECK does not allow, and it crashed after the row above had
+     * already committed - a rejection that answered 500. */
     await settleApproverBells(row.id, STATUS.REJECTED);
+    await emitTransition(req.app.get('io'), row, STATUS.REJECTED);
 
     const settings = await chatPerm.getSettings();
     res.json({
@@ -754,17 +827,26 @@ async function cancel(req, res) {
     const io = req.app.get('io');
     /* Both participants are told, so neither is left wondering why the other
      * went quiet. Each is told the OTHER user's name, which is the person whose
-     * chat it is from their side. */
+     * chat it is from their side.
+     *
+     * The wording splits on what was stopped: an unanswered ask and a live chat are
+     * different things to the person reading the bell, and the People row they then
+     * look for says "Request cancelled" or "This chat was cancelled" to match. */
     const by = req.user.name || 'Someone';
+    const wasPending = row.status === STATUS.PENDING;
     await Promise.all([
-      notif.push(io, row.requester_user_id, 'Chat cancelled',
-        `Your chat with ${row.target_name} was cancelled by ${by}.`, {
-          type: NOTIF_TYPE, senderId: req.user.id, relatedId: Number(row.id), requestStatus: STATUS.CANCELLED,
-        }),
-      notif.push(io, row.target_user_id, 'Chat cancelled',
-        `Your chat with ${row.requester_name} was cancelled by ${by}.`, {
-          type: NOTIF_TYPE, senderId: req.user.id, relatedId: Number(row.id), requestStatus: STATUS.CANCELLED,
-        }),
+      notif.push(io, row.requester_user_id, wasPending ? 'Chat request cancelled' : 'Chat cancelled',
+        wasPending
+          ? `Your request to chat with ${row.target_name} was cancelled by ${by}.`
+          : `Your chat with ${row.target_name} was cancelled by ${by}.`, {
+            type: NOTIF_TYPE, senderId: req.user.id, relatedId: Number(row.id), requestStatus: STATUS.CANCELLED,
+          }),
+      notif.push(io, row.target_user_id, wasPending ? 'Chat request cancelled' : 'Chat cancelled',
+        wasPending
+          ? `${row.requester_name}'s request to chat with you was cancelled by ${by}.`
+          : `Your chat with ${row.requester_name} was cancelled by ${by}.`, {
+            type: NOTIF_TYPE, senderId: req.user.id, relatedId: Number(row.id), requestStatus: STATUS.CANCELLED,
+          }),
     ]);
 
     /* Real time. The two participants are NOT in a shared socket room - each is in
@@ -774,7 +856,12 @@ async function cancel(req, res) {
      *
      * `otherId` is the person I was talking to, so it is DIFFERENT for the two
      * recipients and the payload cannot be built once and reused: the requester
-     * keys it on the target, the target keys it on the requester. */
+     * keys it on the target, the target keys it on the requester.
+     *
+     * Only for a chat that was actually live. An unanswered ask never had a thread,
+     * and `chat_cancelled` makes the client drop the conversation and lock the
+     * composer - right answer for a closed chat, wrong for a request that simply
+     * stopped existing. */
     const cancelledBy = req.user.name || 'Someone';
     const base = {
       requestId: Number(row.id),
@@ -783,7 +870,7 @@ async function cancel(req, res) {
       cancelledAt: now.cancelled_at,
       reason,
     };
-    if (io) {
+    if (io && !wasPending) {
       io.to(`user:${row.requester_user_id}`).emit('chat_cancelled', {
         ...base, otherId: Number(row.target_user_id),
       });
@@ -794,6 +881,7 @@ async function cancel(req, res) {
 
     // Coaches' "pending" bells must not keep showing a request that is now dead.
     await settleApproverBells(row.id, STATUS.CANCELLED);
+    await emitTransition(io, row, STATUS.CANCELLED);
 
     res.json({
       message: 'Chat cancelled.',

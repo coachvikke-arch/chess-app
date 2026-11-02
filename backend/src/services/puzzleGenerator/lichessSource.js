@@ -35,10 +35,18 @@ function uciMoveObject(uci) {
 }
 
 /**
- * One database row → one puzzle, or null when the line is not playable.
- * The trigger move is consumed silently; solution moves are converted to SAN.
+ * The Lichess line rule, in one place.
+ *
+ * `Moves` starts with the OPPONENT's trigger move. It is applied and dropped, so
+ * what comes back is a position with the SOLVER to move plus the solver-first
+ * solution line. Both consumers need exactly this and nothing else:
+ *  - `toPuzzle` — the admin generator, which also wants the theme and rating;
+ *  - `toTrainerPuzzle` — the rating-level trainer, which must not see either.
+ *
+ * @returns {{startFen: string, solverColor: string, solutionUci: string[],
+ *            solutionSan: string[]}|null} null when the line is not playable.
  */
-function toPuzzle(row, topic) {
+function solveLineFromRow(row) {
   try {
     const chess = new Chess(row.fen);
     const moves = String(row.moves || '').trim().split(/\s+/).filter(Boolean);
@@ -48,8 +56,12 @@ function toPuzzle(row, topic) {
     const triggerMove = chess.move(uciMoveObject(trigger));
     if (!triggerMove) return null;
 
+    /* Read BEFORE the line is replayed: this is the position the solver sees,
+       with the solver to move. Reading `chess.fen()` at the end would hand back
+       the mating position instead. */
     const startFen = chess.fen();
     const solverColor = chess.turn();
+
     const solutionSan = [];
     const solutionUci = [];
     for (const uci of moves) {
@@ -60,25 +72,52 @@ function toPuzzle(row, topic) {
     }
     if (!solutionSan.length) return null;
 
-    const rating = Number(row.rating) || null;
     return {
-      id: `lichess-${row.puzzle_id}`,
-      source: 'lichess',
-      lichessId: row.puzzle_id,
-      fen: startFen,
+      startFen,
       solverColor,
-      theme: topic.label,
-      themes: Array.isArray(row.themes) ? row.themes : [],
-      difficulty: difficultyForRating(rating),
-      rating,
-      popularity: Number(row.popularity) || 0,
-      gameUrl: row.game_url || null,
       solutionUci,
       solutionSan,
     };
   } catch {
     return null;
   }
+}
+
+/**
+ * One database row → one puzzle, or null when the line is not playable.
+ */
+function toPuzzle(row, topic) {
+  const line = solveLineFromRow(row);
+  if (!line) return null;
+
+  const rating = Number(row.rating) || null;
+  return {
+    id: `lichess-${row.puzzle_id}`,
+    source: 'lichess',
+    lichessId: row.puzzle_id,
+    fen: line.startFen,
+    solverColor: line.solverColor,
+    theme: topic.label,
+    themes: Array.isArray(row.themes) ? row.themes : [],
+    difficulty: difficultyForRating(rating),
+    rating,
+    popularity: Number(row.popularity) || 0,
+    gameUrl: row.game_url || null,
+    solutionUci: line.solutionUci,
+    solutionSan: line.solutionSan,
+  };
+}
+
+/**
+ * One database row → the shape the trainer's `/next` hands the client.
+ * Only what a board needs to be played: an id, the position, the line. No theme,
+ * no rating — a student who can see the difficulty can sort the feed by it, and
+ * a label would tell them the answer before they move.
+ */
+function toTrainerPuzzle(row) {
+  const line = solveLineFromRow(row);
+  if (!line) return null;
+  return { id: String(row.puzzle_id), fen: line.startFen, moves: line.solutionUci };
 }
 
 /**
@@ -131,4 +170,10 @@ async function countForTopic(topic) {
   return r.rows[0].n;
 }
 
-module.exports = { pickLichessPuzzles, countForTopic, toPuzzle, difficultyForRating };
+module.exports = {
+  pickLichessPuzzles,
+  countForTopic,
+  toPuzzle,
+  toTrainerPuzzle,
+  difficultyForRating,
+};

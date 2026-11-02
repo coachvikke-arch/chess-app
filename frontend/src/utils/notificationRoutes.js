@@ -20,6 +20,9 @@ export const NOTIFICATION_TYPE_ROUTES = {
   /* Online games / challenges are surfaced by the Analysis page — that is where
      acceptGame/declineGame and "Challenge waiting" live. */
   match_request: ({ base }) => ({ to: `${base}/analysis` }),
+  /* A rematch is answered on the arena itself — the card carrying Accept/Reject
+     is already there, so the notification only has to get you onto the page. */
+  rematch_request: ({ base }) => ({ to: `${base}/analysis` }),
   /* related_id is the REQUEST id, not a user id, so it must NOT be passed as
      openUserId. Coaches land on their queue; students land on Messages where
      the People tab carries the request buttons. */

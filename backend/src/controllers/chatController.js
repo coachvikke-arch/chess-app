@@ -1,5 +1,5 @@
 /*
- * One-on-one messenger: student <-> coach and student <-> student.
+ * One-on-one messenger: a learner and their coach, and the owner with anyone.
  *
  * Conversations are derived on the fly from chat_messages (the same table the
  * live-classroom chat uses) by looking at who a private message's recipient
@@ -18,9 +18,13 @@
  * Deriving history does NOT mean deriving permission. Chat access is governed by
  * chatPermissionService, and the directory a caller is shown is decided here by
  * allowedPeerIds() from the SAME roster: Super Admin reaches everyone, a coach
- * reaches their allocated students and the owner, and a student reaches their
- * classmates, their own coaches, and an owner who has written to them. A coach and
- * a learner need an accepted chat_admin_requests row on top of a live allocation.
+ * reaches their allocated students and the owner, and a student reaches their own
+ * coaches, the students who share those coaches, and an owner who has written to
+ * them. Classmates are listed for context and nothing can be sent between two
+ * learners: a learner's channel is their coach, and it opens only on that coach's
+ * acceptance. A coach, the other way round, writes to their own students without
+ * asking - and their first message is itself the acceptance, which is why
+ * sendDirectMessage records the row that lets the learner reply.
  * A `conversations` row exists to hold an approved pair that has no messages yet,
  * so an approved contact still shows up in the inbox before anyone has written
  * anything - but it is a pairing record, not a source of truth for message content.
@@ -43,6 +47,10 @@ const db = require('../config/database');
 const notif = require('../services/notificationService');
 const chatPerm = require('../services/chatPermissionService');
 const adminReq = require('../services/chatAdminRequestService');
+/* Only for emitToPair, so the transition a coach's first message causes is pushed
+ * in exactly the shape the Accept button already uses. The request controller never
+ * requires this file, so there is no cycle. */
+const adminReqCtrl = require('./chatAdminRequestController');
 const { isAdminRole } = require('../middleware/roleMiddleware');
 const fs = require('fs');
 const path = require('path');
@@ -293,8 +301,14 @@ exports.listContacts = async (req, res) => {
         const found = latest.get(Number(u.id)) || null;
         const state = adminReq.stateFromRow(found ? { id: found.requestId, status: found.status } : null);
         u.chatState = state.state;
-        u.canMessage = state.allowed;
         u.adminRequestId = found ? found.requestId : null;
+        /* The row's state is ONE fact read by BOTH sides, but what it permits is
+         * not symmetric. For a learner it is the permission. For the coach in the
+         * row it is only the student's paperwork: a coach writes to their own
+         * student from the first keystroke, request row or not. Same rule the send
+         * gate uses, applied here so the People list can never offer a row the API
+         * would refuse (or hide one it would accept). */
+        u.canMessage = isStudentCaller ? state.allowed : true;
         /* A pending row is a decision, and only the coach it was sent to owns it.
          * The UI renders Accept and Cancel from this flag instead of inferring it
          * from "I am a coach and this student is in my list". */
@@ -303,7 +317,41 @@ exports.listContacts = async (req, res) => {
       }
     }
 
-    /* Student <-> student rows: the peer chat_requests queue, unchanged. */
+    /* The owner may answer ANY learner's ask, so their People row has to surface a
+     * request that is not between the two of them at all: for a coach the ask is
+     * found on the peer, for the owner it is found on the STUDENT. Their own channel
+     * to that learner stays open by rule, so only the decision flags are written -
+     * chatState is left at 'not_required' above, which is the truth about messaging. */
+    if (callerIsSuperadmin) {
+      const studentIds = contacts.filter((u) => u.role === 'student').map((u) => Number(u.id));
+      if (studentIds.length > 0) {
+        const pending = await db.query(
+          `SELECT student_user_id, MAX(id) AS request_id
+             FROM chat_admin_requests
+            WHERE status = 'pending' AND student_user_id = ANY($1::int[])
+            GROUP BY student_user_id`,
+          [studentIds]
+        );
+        const byStudent = new Map(pending.rows.map((row) => [Number(row.student_user_id), Number(row.request_id)]));
+        for (const u of contacts) {
+          const requestId = byStudent.get(Number(u.id));
+          if (!requestId) continue;
+          u.adminRequestId = requestId;
+          u.canDecideAdminRequest = true;
+        }
+      }
+    }
+
+    /* Everything else a learner sees is a classmate, and a classmate row is decided
+     * by the peer queue below: "none" until one of them asks, "pending" while the
+     * coach has the ask, "approved" once it is accepted. Nothing is stamped over
+     * those four states here, because the row that says "you may chat with this
+     * person" and the gate that lets the message through have to read the same row.
+     */
+
+    /* Any other pair still in the directory - which, with the rosters below, means
+     * nobody today. Kept so the peer queue's answers stay consistent for a caller
+     * type that might be added later, rather than silently reporting 'none'. */
     const peerIds = contacts
       .filter((u) => u.chatState === undefined && !adminChannelSet.has(u))
       .map((u) => Number(u.id));
@@ -337,14 +385,27 @@ exports.listContacts = async (req, res) => {
       );
       const pendingRows = await db.query(
         `SELECT LEAST(requester_user_id, target_user_id) AS lo,
-                GREATEST(requester_user_id, target_user_id) AS hi
+                GREATEST(requester_user_id, target_user_id) AS hi,
+                id, requester_user_id
            FROM chat_requests
-          WHERE status = 'pending' AND ${pairMatch}`,
+          WHERE status = 'pending' AND ${pairMatch}
+          ORDER BY id ASC`,
         values
       );
 
       const approvedSet = new Set(approvedRows.rows.map((row) => `${row.lo}:${row.hi}`));
       const pendingSet = new Set(pendingRows.rows.map((row) => `${row.lo}:${row.hi}`));
+      /* WHO asked, and which row is the ask. The symmetric pair match cannot answer
+         the first and the row id is what a withdrawal needs, so both ride along: to
+         the asker the pending row reads "Request sent" with a Cancel that posts this
+         id, to the classmate it was filed against it reads "Waiting for your coach",
+         which is not their paperwork. `ORDER BY id ASC` above makes a pair that
+         somehow holds two asks settle on the newer one, which is the row the send
+         gate reads too. */
+      const pendingByPair = new Map(pendingRows.rows.map((row) => [
+        `${row.lo}:${row.hi}`,
+        { requesterUserId: Number(row.requester_user_id), requestId: Number(row.id) },
+      ]));
       /* A rejected pair must read as rejected, not as "never asked": without
          this the row looks identical to a first-time contact and the detail
          panel offers a plain Send button with no trace of the refusal. Live
@@ -381,8 +442,14 @@ exports.listContacts = async (req, res) => {
           u.chatState = 'approved';
           u.canMessage = true;
         } else if (pendingSet.has(key)) {
+          const pending = pendingByPair.get(key);
           u.chatState = 'pending';
           u.canMessage = false;
+          u.requestDirection = pending && pending.requesterUserId === Number(me) ? 'sent' : 'received';
+          /* The ask's own id, so the asker's row can withdraw it. Mirrors
+             adminRequestId on the coach/learner rows: the client posts back an id the
+             server handed it and never has to go looking for one. */
+          u.peerRequestId = pending ? pending.requestId : null;
         } else if (rejectedSet.has(key)) {
           u.chatState = 'rejected';
           u.canMessage = false;
@@ -421,9 +488,12 @@ exports.listContacts = async (req, res) => {
  *                fellow coaches - the People list was scoped to "my students and
  *                the owner", and a list that hides a pair the gate allows is a
  *                hole waiting to be found.
- *   Student      every classmate (the peer-request flow has to be able to FIND
- *                someone before it can ask for them), their own coaches, and a
- *                Super Admin only once that owner has written to them first.
+ *   Student      their own coaches, the rest of the students under those same
+ *                coaches (listed, but the send gate refuses anything between two
+ *                learners), and a Super Admin only once that owner has written to
+ *                them first. Nobody else in the academy is reachable, which is why
+ *                the search box needs no extra filter: a name that is not in this
+ *                set is not in the list either.
  *
  * Allocation is the live roster - students.coach_id for the primary coach and
  * student_coaches for the rest. There is no second allocation table, so moving a
@@ -454,18 +524,36 @@ async function allowedPeerIds(me, role) {
     return new Set(r.rows.map((row) => Number(row.id)));
   }
 
+  /* A learner's directory: the coaches who own them, the students who share those
+   * coaches, and the owner - but the owner only once they have written first.
+   *
+   * The COHORT, not the academy, is the classmate half of the rule. Listing every
+   * student made this a wall of names the learner can never message; the rows that
+   * stay are the ones that mean something to them, and each is still annotated
+   * with why its Message action is off. */
   const r = await db.query(
-    `SELECT u.id AS id FROM users u
-      WHERE u.id <> $1 AND u.role = 'student'
+    `WITH mine AS (
+       SELECT s.coach_id AS id
+         FROM students s
+        WHERE s.user_id = $1 AND s.coach_id IS NOT NULL
+        UNION
+       SELECT sc.coach_id AS id
+         FROM students s
+         JOIN student_coaches sc ON sc.student_id = s.id
+        WHERE s.user_id = $1 AND sc.coach_id IS NOT NULL
+     )
+     SELECT id FROM mine
      UNION
-     SELECT s.coach_id AS id
-       FROM students s
-      WHERE s.user_id = $1 AND s.coach_id IS NOT NULL
+     SELECT s2.user_id AS id
+       FROM students s2
+       JOIN mine ON mine.id = s2.coach_id
+      WHERE s2.user_id IS NOT NULL AND s2.user_id <> $1 AND COALESCE(s2.active, TRUE)
      UNION
-     SELECT sc.coach_id AS id
-       FROM students s
-       JOIN student_coaches sc ON sc.student_id = s.id
-      WHERE s.user_id = $1 AND sc.coach_id IS NOT NULL
+     SELECT s2.user_id AS id
+       FROM students s2
+       JOIN student_coaches sc2 ON sc2.student_id = s2.id
+       JOIN mine ON mine.id = sc2.coach_id
+      WHERE s2.user_id IS NOT NULL AND s2.user_id <> $1 AND COALESCE(s2.active, TRUE)
      UNION
      /* Reachable back only because the owner wrote first - this is the whole of
         "a Super Admin appears once they have messaged the student". */
@@ -575,28 +663,37 @@ exports.listConversations = async (req, res) => {
     /* Two questions have to be answered YES before a thread is listed, and the
      * messages being on disk answers neither of them:
      *   allowed - is this person in my directory at all? (roster rule, above)
-     *   open    - may this pair still write? A coach/learner pair needs an
-     *             ACCEPTED request, so a thread that exists only because it came
-     *             in through a side door - a live-class private note, history from
-     *             before the gate, a re-allocation - is not a channel around it.
-     * The second is one batched read for the whole page, exactly like the People
-     * list, and the two surfaces share isAdminChannelPair so they cannot disagree
-     * about which rows the question even applies to. */
+     *   open    - may this pair still WRITE? The inbox has to agree with the send
+     *             gate, in both directions: a thread it would refuse to open must
+     *             not sit here waiting to be tapped, and a thread the caller is
+     *             entitled to answer must not be hidden. So a coach sees every
+     *             learner in their directory (they may always write), a learner sees
+     *             a coach only on an ACCEPTED request, and two learners see nothing
+     *             at all - a history between them is not a channel any more.
+     * The batched read below is one per page, exactly like the People list, and the
+     * two surfaces share isAdminChannelPair so they cannot disagree about which rows
+     * the question even applies to. */
     const directory = r.rows.filter((row) => allowed.has(Number(row.other_id)));
     const pairings = empty.rows.filter((row) => allowed.has(Number(row.other_id)));
 
+    const callerIsStudent = req.user.role === 'student';
     const adminPeers = [...new Set(
       [...directory, ...pairings]
         .filter((row) => isAdminChannelPair(req.user.role, row.other_role))
         .map((row) => Number(row.other_id))
     )];
     const liveAdmin = await adminReq.latestRequestsForPeers(
-      me, adminPeers, req.user.role === 'student'
+      me, adminPeers, callerIsStudent
     );
     const mayList = (row) => {
-      if (!isAdminChannelPair(req.user.role, row.other_role)) return true;
-      const found = liveAdmin.get(Number(row.other_id));
-      return Boolean(found) && found.status === adminReq.ADMIN_REQUEST_STATUS.ACCEPTED;
+      if (isAdminChannelPair(req.user.role, row.other_role)) {
+        if (!callerIsStudent) return true;
+        const found = liveAdmin.get(Number(row.other_id));
+        return Boolean(found) && found.status === adminReq.ADMIN_REQUEST_STATUS.ACCEPTED;
+      }
+      /* A Super Admin on either side lands here too, and is left alone: that
+       * channel is open by rule and is decided by the directory, not by a row. */
+      return !(callerIsStudent && row.other_role === 'student');
     };
 
     const rows = directory
@@ -769,7 +866,7 @@ exports.sendDirectMessage = async (req, res) => {
     if (!text && !file) return res.status(400).json({ message: 'text or file required' });
     if (text.length > 4000) return res.status(400).json({ message: 'Message too long' });
 
-    const recp = await db.query('SELECT id FROM users WHERE id = $1', [otherId]);
+    const recp = await db.query('SELECT id, name, role FROM users WHERE id = $1', [otherId]);
     if (recp.rows.length === 0) return res.status(404).json({ message: 'User not found' });
 
     // The authoritative check. Everything above is validation; this is the gate.
@@ -782,7 +879,13 @@ exports.sendDirectMessage = async (req, res) => {
      * the write path itself to require an APPROVED chat - and it has to, because a
      * client can be arbitrarily out of date: an open tab, a queued send, a replayed
      * retry. Stating it here means a cancelled chat cannot accept a message even
-     * if some earlier gate is ever relaxed. */
+     * if some earlier gate is ever relaxed.
+     *
+     * This is the PEER queue's row. A coach closing a learner channel lives in
+     * chat_admin_requests instead, where the same shape of check happens inside the
+     * gate - and, asymmetrically, it binds the learner only: a coach writing after a
+     * cancellation is the coach reopening the channel, which is what the block after
+     * the INSERT records. */
     const cancelled = await chatPerm.cancelledChatRequest(me, otherId);
     if (cancelled) {
       if (req.file) { try { fs.unlinkSync(req.file.path); } catch {} }
@@ -813,6 +916,31 @@ exports.sendDirectMessage = async (req, res) => {
     const io = req.app.get('io');
     const sender = await db.query('SELECT name, role FROM users WHERE id = $1', [me]);
     const senderName = sender.rows[0]?.name || 'Someone';
+    const recipient = recp.rows[0];
+
+    /* A coach's own message IS the acceptance.
+     *
+     * A learner's permission is a row in chat_admin_requests, and there may not be
+     * one - they never asked, their coach came to them. Without the row the student
+     * reads a message they are not allowed to answer, and the thread is not in their
+     * inbox, which is exactly the "the admin messaged first so the chat is active"
+     * case the spec names. Recording it here keeps the database the single truth the
+     * gate, the People list and the inbox all read, instead of making each of them
+     * also ask "but did the coach write first?".
+     *
+     * Best-effort and after the INSERT: the message is delivered either way, so the
+     * worst a failure costs is a one-way thread until the next write retries it.
+     * A Super Admin is never such a pair - their channel needs no paperwork and no
+     * coach's consent, so nothing is written on their behalf. */
+    let opened = null;
+    if (isAdminChannelPair(req.user.role, recipient.role) && req.user.role !== 'student') {
+      try {
+        opened = await adminReq.openChannelByAdmin(otherId, me);
+      } catch (e) {
+        console.warn('[chat:coach-opened-channel]', e.message);
+      }
+    }
+
     if (io) {
       try {
         io.to(`user:${otherId}`).emit('chat_dm', {
@@ -820,6 +948,21 @@ exports.sendDirectMessage = async (req, res) => {
         });
       } catch (e) {
         console.warn('[chat dm broadcast]', e.message);
+      }
+    }
+
+    /* Same event the Accept button fires, so a learner who was sitting on their
+     * coach's row with "Send chat request" on it flips to an open channel without a
+     * refetch - the two sides of the People list cannot drift apart on this path. */
+    if (io && opened && opened.changed && opened.row) {
+      try {
+        adminReqCtrl.emitToPair(io, {
+          ...opened.row,
+          admin_name: senderName,
+          student_name: recipient.name,
+        });
+      } catch (e) {
+        console.warn('[chat opened-channel emit]', e.message);
       }
     }
 
@@ -1497,5 +1640,52 @@ exports.updateGroupAvatar = async (req, res) => {
     if (req.file) { try { fs.unlinkSync(req.file.path); } catch {} }
     console.error('[chat:updateGroupAvatar] error', err);
     res.status(500).json({ message: 'Failed to update group avatar', error: err.message });
+  }
+};
+
+/* DELETE /api/chat/groups/:id  (admin/superadmin)
+ *
+ * One row removes the group, and the ON DELETE CASCADE edges on
+ * chat_group_members, chat_group_reads and chat_group_messages take the
+ * membership, the read markers and every message with it.
+ *
+ * Members and attachments are read BEFORE the delete precisely because the
+ * cascade erases the rows that hold them — the sockets need the member list to
+ * notify, and the upload cleanup needs the file names. */
+exports.deleteGroup = async (req, res) => {
+  try {
+    const groupId = Number(req.params.id);
+    const g = await db.query('SELECT id, name, avatar FROM chat_groups WHERE id = $1', [groupId]);
+    if (g.rows.length === 0) return res.status(404).json({ message: 'Group not found' });
+
+    const memberIds = await groupMemberIds(groupId);
+    const files = await db.query(
+      'SELECT attachment FROM chat_group_messages WHERE group_id = $1 AND attachment IS NOT NULL',
+      [groupId]
+    );
+
+    await db.query('DELETE FROM chat_groups WHERE id = $1', [groupId]);
+
+    /* Same guard as the avatar swap: only files this folder owns. */
+    [g.rows[0].avatar, ...files.rows.map((f) => f.attachment)]
+      .filter((u) => typeof u === 'string' && u.startsWith('/uploads/chat/'))
+      .forEach((u) => {
+        const p = path.join(__dirname, '..', '..', 'uploads', 'chat', path.basename(u));
+        if (fs.existsSync(p)) { try { fs.unlinkSync(p); } catch {} }
+      });
+
+    const io = req.app.get('io');
+    if (io) {
+      try {
+        for (const uid of memberIds) {
+          io.to(`user:${uid}`).emit('chat_group_deleted', { group: { id: groupId } });
+        }
+      } catch (e) { console.warn('[chat group delete broadcast]', e.message); }
+    }
+
+    res.json({ ok: true, deleted: { id: groupId, name: g.rows[0].name } });
+  } catch (err) {
+    console.error('[chat:deleteGroup] error', err);
+    res.status(500).json({ message: 'Failed to delete group', error: err.message });
   }
 };

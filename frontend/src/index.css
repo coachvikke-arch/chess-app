@@ -1441,49 +1441,90 @@ input[type='time'].chess-input::-webkit-calendar-picker-indicator:hover {
 
 /* ---------------------------- settings list ---------------------------------
    The grouped-list idiom every phone uses (iOS Settings / Material Settings):
-   small uppercase group captions, hairline-separated full-width rows, label on
-   the left and the current value on the right, and a row that drills into a
-   sub-page. A plain stack of cards reads as a form; this reads as navigation,
-   which is what Settings actually is. */
+   small uppercase group captions, hairline-separated full-width rows on a flat
+   white card, label on the left and the current control on the right. The page
+   itself is only this list — every detail screen is a centred card, so nothing
+   heavy (board, picker grid, colour wheel) is ever painted behind it.
 
-.set-group {
-  margin-bottom: 1.5rem;
-  max-width: 34rem;
+   The page has no palette of its own: every token below is the app's light-UI
+   value (white surface, soft #f8fafc panel, slate hairline, ink text, Tournaments
+   blue as the only accent), so Settings is the same UI as the pages around it and
+   follows the theme if that theme ever moves. */
+
+/* Declared on :root, not on the page, because the Settings cards are portalled
+   onto <body> and still have to read the same tokens as the list they came from. */
+:root {
+  --set-accent: var(--tn-blue);
+  --set-accent-strong: #1d4ed8;
+  --set-accent-soft: var(--surface-hover);
+  --set-accent-line: #bfdbfe;
+  --set-surface: var(--tn-bg);
+  --set-page: var(--tn-panel);
+  --set-line: var(--hairline);
+  --set-edge: var(--surface-border);
+  --set-text: var(--tn-text);
+  --set-muted: var(--tn-dim);
+  --set-error: var(--tn-red);
+  --set-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
+  --set-radius: 14px;
+}
+
+/* The list is capped at 720px and centred, with safe-area padding so a notched
+   phone never buries the last row under a home indicator.
+   The tray is the app's soft panel (`--tn-panel`) behind white cards: every page
+   in the app is a white panel on a white canvas, and a settings list painted the
+   same way reads as blank rather than as a list of cards. The shared `.chess-page`
+   frame (radius, border, padding) is kept — only its fill moves to the app's own
+   inset value. */
+.settings-page.chess-page {
+  max-width: 720px;
   margin-inline: auto;
+  padding: 24px 16px max(56px, env(safe-area-inset-bottom));
+  background: var(--set-page);
+  border: 1px solid var(--set-edge);
+  border-radius: 18px;
+  box-shadow: none;
+}
+
+.settings-page .set-group {
+  margin: 0 0 22px;
+}
+.settings-page .set-group:last-of-type {
+  margin-bottom: 0;
 }
 
 .set-group-cap {
-  font-size: 0.6875rem;
+  font-size: 11px;
   font-weight: 700;
-  letter-spacing: 0.09em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--ivory-500);
-  padding: 0 0.5rem 0.5rem;
+  color: var(--set-muted);
+  padding: 0 4px 8px;
 }
 
-/* The rounded container the rows sit in. Overflow-hidden so the first/last row
-   separators stop at the rounded corners instead of poking out of them.
-   Light-theme surface (white card + soft blue shadow), matching .chess-card,
-   instead of the old dark translucent overlay that read as a dark card on the
-   light page. */
+/* The rounded container the rows sit in. Overflow-hidden so a row's hover fill
+   stops at the rounded corners instead of poking out of them. Its edge is the
+   app's panel border, which is what separates a white card from the soft panel
+   it sits on. */
 .set-group-body {
-  border-radius: 0.9rem;
-  border: 1px solid var(--surface-border);
-  background: var(--ink-800);
-  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.08);
+  border-radius: var(--set-radius);
+  border: 1px solid var(--set-edge);
+  background: var(--set-surface);
+  box-shadow: var(--set-shadow);
   overflow: hidden;
 }
 
 .set-row {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  gap: 12px;
   width: 100%;
-  padding: 0.85rem 1rem;
+  padding: 13px 16px;
   text-align: left;
-  color: var(--ivory-100);
-  border-bottom: 1px solid var(--hairline);
-  transition: background 0.15s ease;
+  color: var(--set-text);
+  background: var(--set-surface);
+  border-bottom: 1px solid var(--set-line);
+  transition: background-color 0.15s ease;
 }
 .set-row:last-child {
   border-bottom: 0;
@@ -1492,24 +1533,37 @@ input[type='time'].chess-input::-webkit-calendar-picker-indicator:hover {
    is not clickable must not look clickable. */
 button.set-row {
   cursor: pointer;
+  font: inherit;
 }
 button.set-row:hover {
-  background: var(--surface-hover);
+  background: var(--set-accent-soft);
 }
 button.set-row:active {
-  background: rgba(25, 189, 242, 0.16);
+  background: var(--set-accent-soft);
 }
-.set-row:focus-visible {
-  outline: 2px solid #19bdf2;
+.set-row:focus-visible,
+.set-switch:focus-visible,
+.set-chip-btn:focus-visible,
+.board-color-tabs button:focus-visible,
+.board-color-themes button:focus-visible,
+.board-color-wheel:focus-visible,
+.board-color-hex:focus-visible {
+  outline: 2px solid var(--set-accent);
   outline-offset: -2px;
 }
 
 .set-row-icon {
-  font-size: 1.05rem;
-  line-height: 1;
-  width: 1.5rem;
-  text-align: center;
+  display: grid;
+  place-items: center;
   flex-shrink: 0;
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  border: 1px solid var(--set-accent-line);
+  background: var(--set-accent-soft);
+  color: var(--set-accent);
+  font-size: 16px;
+  line-height: 1;
 }
 .set-row-text {
   min-width: 0;
@@ -1517,22 +1571,24 @@ button.set-row:active {
 }
 .set-row-label {
   display: block;
-  font-size: 0.95rem;
+  font-size: 15px;
   font-weight: 600;
   line-height: 1.3;
+  color: var(--set-text);
 }
 .set-row-hint {
   display: block;
-  font-size: 0.75rem;
+  font-size: 12.5px;
   line-height: 1.35;
-  color: var(--ivory-500);
-  margin-top: 0.1rem;
+  color: var(--set-muted);
+  margin-top: 2px;
 }
-/* Current value, right-aligned and de-emphasised so the label stays the thing
-   the eye lands on first. */
+/* The current value is the answer to the row's question, so it is the second
+   bluest thing on it — the label stays dark ink and the value stays blue. */
 .set-row-value {
-  font-size: 0.875rem;
-  color: var(--ivory-500);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--set-accent);
   text-align: right;
   flex-shrink: 0;
   max-width: 45%;
@@ -1542,266 +1598,774 @@ button.set-row:active {
 }
 .set-row-chevron {
   flex-shrink: 0;
-  color: var(--ivory-500);
-  font-size: 0.9rem;
+  color: var(--set-edge);
+  font-size: 17px;
+  line-height: 1;
+}
+button.set-row:hover .set-row-chevron {
+  color: var(--set-accent);
 }
 
-/* Board Color is an expanded settings row, with all controls kept inside the
-   settings card so it stays centered and usable at laptop and phone widths. */
-.board-color-settings { border-bottom: 1px solid var(--hairline); }
-.board-color-row { border: 0; }
-.board-color-new {
-  display: inline-flex;
+/* The one on/off control inside a card: the label and its explanation on the
+   left, the pill switch on the right. It is the row idiom from the list, minus
+   the hairline and the chevron, because there is nowhere to go from here. */
+.set-toggle {
+  display: flex;
   align-items: center;
-  margin-left: .35rem;
-  padding: .1rem .4rem;
-  border-radius: 999px;
-  background: rgba(25, 189, 242, .14);
-  color: #087da3;
-  font-size: .65rem;
-  line-height: 1.4;
-  vertical-align: middle;
+  gap: 14px;
+  width: 100%;
+  padding: 12px 0;
+  text-align: left;
+  color: var(--set-text);
 }
-.board-color-row-swatches { display: inline-flex; gap: .25rem; flex-shrink: 0; }
-.board-color-row-swatches span,
-.board-color-themes button span {
-  display: block;
-  width: 1.1rem;
-  height: 1.1rem;
-  border: 1px solid rgba(15, 23, 42, .18);
-  border-radius: .22rem;
-}
-.board-color-row .set-row-chevron { transition: transform .16s ease; }
-.board-color-row .set-row-chevron.is-open { transform: rotate(90deg); }
+
+/* Board Colour is a section of the Board & Pieces card now, not an expanding
+   row. Everything is laid out on one
+   grid: the wheel on the left, the square controls on the right, and the quick
+   palettes, the validation line and the two actions spanning both. */
 .board-color-panel {
   display: grid;
-  grid-template-columns: minmax(170px, 220px) minmax(220px, 1fr);
-  gap: 1rem 1.25rem;
+  /* The wheel column is a track of its own, capped at 176px, not an `auto` one:
+     the quick-theme row below spans both columns, and an `auto` track happily
+     grows to that row's max-content width — which squeezed the square controls
+     to nothing and pushed the whole card into sideways scroll. */
+  grid-template-columns: minmax(0, 176px) minmax(0, 1fr);
+  gap: 14px 16px;
   align-items: start;
-  padding: 1rem 1.25rem 1.25rem;
-  border-top: 1px solid var(--hairline);
-  background: var(--surface-soft);
+  padding: 4px 0 2px;
 }
-.board-color-wheel-column { display: flex; flex-direction: column; align-items: center; }
-.board-color-wheel-wrap { position: relative; width: min(100%, 190px); aspect-ratio: 1; }
-.board-color-wheel { display: block; width: 100%; height: 100%; border-radius: 50%; touch-action: none; cursor: crosshair; }
-.board-color-wheel:focus-visible { outline: 3px solid #19bdf2; outline-offset: 4px; }
+.board-color-wheel-column {
+  grid-column: 1;
+  grid-row: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.board-color-controls {
+  grid-column: 2;
+  grid-row: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+.board-color-wheel-wrap {
+  position: relative;
+  /* The grid track above already caps this column at 176px, so the wheel fills
+     it instead of sizing itself against the viewport — the card it sits in is
+     what decides how wide the wheel may be. */
+  width: 100%;
+  aspect-ratio: 1;
+}
+.board-color-wheel {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  touch-action: none;
+  cursor: crosshair;
+}
 .board-color-wheel-pin {
   position: absolute;
   width: 14px;
   height: 14px;
   border: 2px solid #fff;
   border-radius: 50%;
-  box-shadow: 0 0 0 1px rgba(15, 23, 42, .8), 0 1px 4px rgba(0, 0, 0, .4);
+  box-shadow: 0 0 0 1px rgba(15, 23, 42, 0.8), 0 1px 4px rgba(0, 0, 0, 0.4);
   transform: translate(-50%, -50%);
   pointer-events: none;
 }
-.board-color-wheel-help { margin: .55rem 0 0; color: var(--ivory-500); font-size: .72rem; text-align: center; }
-.board-color-controls { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: .75rem 1rem; align-items: center; }
-.board-color-tabs { display: flex; gap: .35rem; grid-column: 1 / -1; }
+.board-color-wheel-help {
+  margin: 8px 0 0;
+  color: var(--set-muted);
+  font-size: 11.5px;
+  text-align: center;
+}
+.board-color-tabs {
+  display: flex;
+  gap: 6px;
+}
 .board-color-tabs button {
   flex: 1;
-  min-height: 2.35rem;
-  padding: .4rem .55rem;
-  border: 1px solid var(--surface-border);
-  border-radius: .55rem;
-  background: var(--ink-800);
-  color: var(--ivory-300);
-  font-size: .78rem;
+  min-height: 34px;
+  padding: 6px 8px;
+  border: 1px solid var(--set-edge);
+  border-radius: 7px;
+  background: var(--set-surface);
+  color: var(--set-text);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
 }
-.board-color-tabs button[aria-pressed="true"] { border-color: #19bdf2; color: var(--ivory-100); box-shadow: 0 0 0 1px #19bdf2 inset; }
-.board-color-brightness { display: grid; gap: .4rem; grid-column: 1 / -1; color: var(--ivory-300); font-size: .78rem; }
-.board-color-brightness span { display: flex; justify-content: space-between; }
-.board-color-brightness input { width: 100%; accent-color: #19bdf2; }
-.board-color-hex-label { color: var(--ivory-300); font-size: .78rem; }
-.board-color-hex-row { display: flex; align-items: center; justify-self: end; gap: .45rem; }
-.board-color-chip { width: 1.4rem; height: 1.4rem; border: 1px solid var(--surface-border); border-radius: .3rem; }
-.board-color-hex { width: 7.7rem; padding: .45rem .55rem; border: 1px solid var(--surface-border); border-radius: .45rem; background: var(--ink-800); color: var(--ivory-100); font: inherit; font-size: .8rem; text-transform: uppercase; }
-.board-color-hex:focus-visible { outline: 2px solid #19bdf2; outline-offset: 2px; }
-.board-color-preview { grid-column: 1 / -1; justify-self: center; width: 176px; height: 176px; overflow: hidden; background: #fff; }
-.board-color-preview.has-frame { border: 5px solid #896b43; box-shadow: 0 2px 5px rgba(15, 23, 42, .18); }
-.board-color-themes { grid-column: 1 / -1; }
-.board-color-themes p { margin: 0 0 .5rem; color: var(--ivory-300); font-size: .78rem; font-weight: 600; }
-.board-color-themes > div { display: flex; flex-wrap: wrap; gap: .55rem; }
-.board-color-themes button { display: inline-flex; gap: 2px; padding: .25rem; border: 1px solid var(--surface-border); border-radius: .4rem; background: var(--ink-800); cursor: pointer; }
-.board-color-themes button.selected { border-color: #19bdf2; box-shadow: 0 0 0 1px #19bdf2; }
-.board-color-themes button:focus-visible, .board-color-actions button:focus-visible { outline: 2px solid #19bdf2; outline-offset: 2px; }
-.board-color-error { grid-column: 1 / -1; margin: -.4rem 0 0; color: #b42318; font-size: .78rem; }
-.board-color-actions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: .55rem; grid-column: 1 / -1; }
-@media (max-width: 640px) {
-  .board-color-panel { grid-template-columns: minmax(0, 1fr); gap: 1rem; padding: .9rem; }
-  .board-color-wheel-wrap { width: min(70vw, 210px); }
-  .board-color-row { gap: .5rem; padding-inline: .75rem; }
-  .board-color-row .set-row-hint { max-width: 35ch; }
+.board-color-tabs button:hover {
+  border-color: var(--set-accent-line);
+  background: var(--set-accent-soft);
+  color: var(--set-accent);
 }
-
-/* The paired buttons used for a two-state preference (Board Frame). Rendered
-   inline on the right of its own row so the choice is obvious and one tap,
-   instead of a checkbox that has to be discovered and flipped. */
-.set-seg {
+.board-color-tabs button[aria-pressed='true'] {
+  border-color: var(--set-accent-strong);
+  background: var(--set-accent);
+  color: #ffffff;
+}
+.board-color-brightness {
+  display: grid;
+  gap: 6px;
+  color: var(--set-muted);
+  font-size: 12.5px;
+}
+.board-color-brightness span {
+  display: flex;
+  justify-content: space-between;
+}
+.board-color-brightness strong {
+  color: var(--set-text);
+  font-variant-numeric: tabular-nums;
+}
+.board-color-brightness input {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 16px;
+  background: transparent;
+  cursor: pointer;
+}
+/* The track is the colour itself: it runs from black to the hue/saturation just
+   picked on the wheel, so the slider reads as a shade bar rather than a blank
+   groove. */
+.board-color-brightness input::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--board-color-slider, var(--set-line));
+}
+.board-color-brightness input::-moz-range-track {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--board-color-slider, var(--set-line));
+}
+.board-color-brightness input::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 16px;
+  height: 16px;
+  margin-top: -5px;
+  border: 2px solid var(--set-surface);
+  border-radius: 999px;
+  background: var(--set-accent);
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.25);
+}
+.board-color-brightness input::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--set-surface);
+  border-radius: 999px;
+  background: var(--set-accent);
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.25);
+}
+.board-color-brightness input:focus-visible {
+  outline: 2px solid var(--set-accent);
+  outline-offset: 2px;
+}
+.board-color-hex-block {
+  display: grid;
+  gap: 6px;
+}
+.board-color-hex-label {
+  color: var(--set-muted);
+  font-size: 12.5px;
+}
+.board-color-hex-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.board-color-chip {
+  width: 26px;
+  height: 26px;
+  flex-shrink: 0;
+  border: 1px solid var(--set-edge);
+  border-radius: 7px;
+}
+.board-color-hex {
+  width: min(11rem, 100%);
+  padding: 7px 9px;
+  border: 1px solid var(--set-edge);
+  border-radius: 9px;
+  background: var(--set-surface);
+  color: var(--set-text);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12.5px;
+  text-transform: uppercase;
+}
+.board-color-themes {
+  grid-column: 1 / -1;
+  grid-row: 3;
+}
+.board-color-themes > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.board-color-themes button {
   display: inline-flex;
-  gap: 0.25rem;
-  padding: 0.2rem;
-  border-radius: 0.6rem;
-  border: 1px solid var(--surface-border);
-  background: var(--surface-soft);
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--set-edge);
+  border-radius: 8px;
+  background: var(--set-surface);
+  cursor: pointer;
+}
+.board-color-themes button span {
+  display: block;
+  width: 18px;
+  height: 18px;
+  border: 1px solid rgba(15, 23, 42, 0.18);
+  border-radius: 4px;
+}
+.board-color-themes button:hover {
+  border-color: var(--set-accent-line);
+}
+.board-color-themes button.selected {
+  border-color: var(--set-accent);
+  box-shadow: 0 0 0 2px var(--set-accent);
+}
+.board-color-error {
+  grid-column: 1 / -1;
+  grid-row: 4;
+  margin: 0;
+  color: var(--set-error);
+  font-size: 12.5px;
+}
+.board-color-actions {
+  grid-column: 1 / -1;
+  grid-row: 5;
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.board-color-row-swatches {
+  display: inline-flex;
+  gap: 4px;
   flex-shrink: 0;
 }
-.set-seg button {
-  padding: 0.3rem 0.7rem;
-  border-radius: 0.45rem;
-  font-size: 0.8rem;
-  font-weight: 600;
-  color: var(--ivory-500);
-  transition: all 0.15s ease;
-  white-space: nowrap;
-}
-.set-seg button:hover:not(:disabled) {
-  color: var(--ivory-300);
-}
-.set-seg button[aria-pressed='true'] {
-  background: #ffffff;
-  color: #0b7ea8;
-  box-shadow: inset 0 0 0 1px var(--olive65), 0 1px 3px rgba(15, 23, 42, 0.12);
-}
-.set-seg button:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
+@media (max-width: 520px) {
+  .board-color-panel {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 14px;
+  }
+  .board-color-wheel-column,
+  .board-color-controls,
+  .board-color-themes {
+    grid-column: 1;
+    grid-row: auto;
+  }
+  .board-color-wheel-wrap {
+    width: min(180px, 60vw);
+  }
 }
 
-/* ── the shared ◀ Prev / Next ▶ pair, directly under the preview board ──
-   One pair of arrows, plus a segmented control stating which list it drives.
-   The two lists share a page, so the selector is what keeps a single pair of
-   arrows from being ambiguous. Sits tight under the board with one rule below
-   it, so it reads as the board's own controls rather than a separate band. */
-.set-stepper {
+/* ── the choice rows inside a card ──
+   One wrapping row of chips per list of options: theme, piece set, animation
+   style, vibration strength. A chip is the pressed-state idiom of a phone —
+   the applied value is filled, everything else is outlined — so a row reads as
+   "which of these is on" without a separate selection control. */
+.set-chips {
   display: flex;
-  flex-direction: column;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.set-chip-btn {
+  display: inline-flex;
   align-items: center;
-  gap: 0.5rem;
-  padding: 0 0 0.9rem;
-  margin-bottom: 1.1rem;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  gap: 7px;
+  min-height: 38px;
+  padding: 6px 12px;
+  border: 1px solid var(--set-edge);
+  border-radius: 999px;
+  background: var(--set-surface);
+  color: var(--set-text);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
 }
-.set-stepper-target {
-  /* The segmented control reuses .set-seg's own look; keep it from stretching. */
-  align-self: center;
+.set-chip-btn:hover:not(:disabled) {
+  border-color: var(--set-accent-line);
+  background: var(--set-accent-soft);
+  color: var(--set-accent);
 }
-.set-stepper-nav {
-  display: flex;
+/* The applied value wears the app's blue action colour, so a picker row reads as
+   a line of neutral choices with the live one standing out of it — the same
+   selected-state language as the tabs and pills everywhere else in the app. */
+.set-chip-btn[aria-pressed='true'] {
+  border-color: var(--set-accent-strong);
+  background: var(--set-accent);
+  color: #ffffff;
+  box-shadow: 0 1px 3px rgba(37, 99, 235, 0.35);
+}
+.set-chip-btn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+/* The two squares of a board theme, as a chip-sized tile. */
+.set-chip-swatch {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  border-radius: 5px;
+  border: 1px solid rgba(15, 23, 42, 0.14);
+}
+.set-chip-piece {
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 0.6rem;
-  width: 100%;
-}
-.set-stepper-btn {
   flex-shrink: 0;
-  width: 2.6rem;
-  height: 2.6rem;
-  display: grid;
-  place-items: center;
-  font-size: 0.95rem;
+  width: 20px;
+  height: 20px;
   line-height: 1;
-  color: var(--ivory-300);
-  border-radius: 0.6rem;
-  border: 1px solid rgba(25, 189, 242, 0.2);
-  background: rgba(0, 0, 0, 0.25);
-  transition: all 0.15s ease;
+  font-size: 18px;
 }
-.set-stepper-btn:hover {
-  color: #7dd3fc;
-  border-color: rgba(25, 189, 242, 0.45);
-  background: rgba(25, 189, 242, 0.12);
-}
-.set-stepper-btn:active {
-  transform: scale(0.94);
-}
-/* `flex: 0 1 auto` (NOT 1 1 auto) is what keeps the row centred: if the name
-   could grow it would fill the width and shove the arrows out to the two ends,
-   so ◀ Name ▶ stopped reading as one centred group. It may still SHRINK to
-   ellipsise, hence `min-width: 0` + a `max-width` cap for long names like
-   "Hi-Contrast Black & White" or "Royal Emerald · Imperial". */
-.set-stepper-name {
-  flex: 0 1 auto;
-  min-width: 0;
-  max-width: 13rem;
-  text-align: center;
-  font-size: 0.85rem;
-  font-weight: 600;
-  color: var(--ivory-100);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+.set-chip-piece img,
+.set-chip-piece svg {
+  display: block;
+  width: 20px;
+  height: 20px;
 }
 
 /* The inline on/off switch. A real checkbox is kept as the control (so it stays
-  keyboard- and screen-reader-accessible) but it is drawn as the pill toggle
-  every phone uses, which is what makes the row read as a setting. */
+   keyboard- and screen-reader-accessible) but it is drawn as the pill toggle
+   every phone uses, which is what makes the row read as a setting. */
 .set-switch {
   appearance: none;
   -webkit-appearance: none;
   position: relative;
   flex-shrink: 0;
-  width: 3.1rem;
-  height: 1.85rem;
+  width: 42px;
+  height: 24px;
   margin: 0;
   border-radius: 999px;
-  background: rgba(24, 112, 152, 0.18);
-  border: 1px solid rgba(24, 112, 152, 0.35);
+  background: var(--set-page);
+  border: 1px solid var(--set-edge);
   cursor: pointer;
-  transition: background 0.18s ease, border-color 0.18s ease;
+  transition: background-color 0.2s ease, border-color 0.2s ease;
 }
 .set-switch::after {
   content: '';
   position: absolute;
   top: 50%;
-  left: 0.15rem;
-  width: 1.4rem;
-  height: 1.4rem;
+  left: 2px;
+  width: 18px;
+  height: 18px;
   border-radius: 999px;
   background: #ffffff;
   box-shadow: 0 1px 3px rgba(15, 23, 42, 0.25);
   transform: translateY(-50%);
-  transition: transform 0.18s ease, background 0.18s ease;
+  transition: transform 0.2s ease;
 }
 .set-switch:checked {
-  background: #19a5e3;
-  border-color: #0b7ea8;
+  background: var(--set-accent);
+  border-color: var(--set-accent);
 }
 .set-switch:checked::after {
-  transform: translate(1.25rem, -50%);
-  background: #ffffff;
+  transform: translate(18px, -50%);
 }
-.set-switch:focus-visible {
-  outline: 2px solid #19bdf2;
-  outline-offset: 2px;
+.set-switch:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.set-row:focus-within {
+  background: var(--set-accent-soft);
 }
 
-/* Sub-page drill-down. The back bar replaces the page title so the header never
-   shows two competing headings. */
-.set-back {
+/* ── the card every row opens, skinned onto the shared app modal ──
+   The dialog behaviour (portal, scroll lock, focus trap, Escape, backdrop) is
+   the app-wide `Modal`; only this surface is re-skinned, so the card matches the
+   list it was opened from instead of the Play Arena it shares code with.
+   `.mz-modal` is declared much further down this file, so the panel rule needs
+   both classes to win the cascade at equal weight.
+
+   The card is deliberately narrow: it holds one square board and one control,
+   and a wide card would push the board away from the buttons under it. */
+.mz-modal-layer.mz-layer-settings {
+  background: rgba(10, 14, 22, 0.4);
+  -webkit-backdrop-filter: blur(7px);
+  backdrop-filter: blur(7px);
+}
+.mz-modal.mz-modal-settings {
+  border: 1px solid var(--set-edge);
+  border-radius: 16px;
+  /* `max-width`, not `width`, so a narrower `size` still keeps its own width. */
+  max-width: min(440px, calc(100vw - 24px));
+  background: var(--set-surface);
+  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.18), 0 2px 8px rgba(15, 23, 42, 0.06);
+  color: var(--set-text);
+  animation: set-card-in 0.18s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.mz-modal-settings .mz-modal-head {
+  padding: 14px 16px 12px;
+  border-bottom: 1px solid var(--set-line);
+  background: var(--set-surface);
+  border-radius: 16px 16px 0 0;
+}
+.mz-modal-settings .mz-modal-title {
+  font-family: inherit;
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: 0;
+  color: var(--set-text);
+}
+.mz-modal-settings .mz-modal-desc {
+  font-size: 12.5px;
+  color: var(--set-muted);
+}
+.mz-modal-settings .mz-modal-close {
+  width: 30px;
+  height: 30px;
+  margin: 0;
+  border: 1px solid var(--set-edge);
+  border-radius: 50%;
+  background: var(--set-surface);
+  color: var(--set-muted);
+  font-size: 12px;
+}
+.mz-modal-settings .mz-modal-close:hover {
+  border-color: var(--set-accent-line);
+  background: var(--set-accent-soft);
+  color: var(--set-accent);
+}
+.mz-modal-settings .mz-modal-body {
+  padding: 16px;
+}
+.mz-modal-settings .mz-modal-foot {
+  padding: 12px 16px;
+  border-top: 1px solid var(--set-line);
+  border-radius: 0 0 16px 16px;
+  background: var(--set-page);
+}
+.mz-modal-settings .mz-modal-foot > * {
+  flex: 1 1 100%;
+}
+@keyframes set-card-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mz-modal.mz-modal-settings {
+    animation: none;
+  }
+}
+
+/* ── the anatomy of a card ──
+   badge · board · what the board can be made to do · the control.
+   Always in that order, so the thing the setting changes is the first thing the
+   card shows and the buttons that demonstrate it are always under it. */
+
+/* The stage is pinned to the top of the card while the controls scroll under it.
+   A Board & Pieces card is far taller than the card it sits in, and a pick made
+   with the board scrolled out of view isn't a live preview — so the board, and
+   the bar that makes it move, stay on screen. The negative margins pull the
+   stage's own opaque background across the card body's padding, so nothing
+   scrolls through the seam above or beside it. */
+.mz-modal-settings .mz-modal-body > .set-stage {
+  position: sticky;
+  top: -16px;
+  z-index: 1;
+  margin: -16px -16px 0;
+  padding: 16px 16px 10px;
+  background: var(--set-surface);
+  min-width: 0;
+}
+
+/* The dot is the only moving part on the page, and it stops for users who ask
+   for less motion — it is a label, not a light show. */
+/* The live badge is the card's only blue pill, and the card's one promise: this
+   board is the real thing, not a picture of it. */
+.set-live {
   display: inline-flex;
   align-items: center;
-  gap: 0.35rem;
-  margin-bottom: 0.75rem;
-  padding: 0.4rem 0.7rem 0.4rem 0.5rem;
-  border-radius: 0.6rem;
-  border: 1px solid rgba(25, 189, 242, 0.2);
-  color: var(--ivory-300);
-  font-size: 0.875rem;
-  font-weight: 600;
-  transition: all 0.15s ease;
-}
-.set-back:hover {
-  border-color: rgba(25, 189, 242, 0.45);
-  color: #7dd3fc;
-}
-.set-sub-title {
-  font-size: 1.25rem;
+  gap: 6px;
+  margin: 0 0 10px;
+  padding: 4px 9px;
+  border: 1px solid var(--set-accent-line);
+  border-radius: 999px;
+  background: var(--set-accent-soft);
+  font-size: 10.5px;
   font-weight: 700;
-  color: var(--ivory-100);
-  margin-bottom: 0.75rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--set-accent);
+}
+.set-live-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--set-accent);
+  animation: set-live-pulse 1.8s ease-in-out infinite;
+}
+@keyframes set-live-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.35; transform: scale(0.8); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .set-live-dot {
+    animation: none;
+  }
+}
+
+/* The playable board, sitting in the app's soft panel so it reads as an inset
+   preview surface rather than as a hole cut in the card. It is centred because
+   the card is wider than the board at every size, and the frame variant grows
+   the board itself — this box never needs to know which of the two it is
+   holding. */
+.set-preview {
+  display: flex;
+  justify-content: center;
+  width: fit-content;
+  margin: 0 auto 12px;
+  padding: 9px;
+  border: 1px solid var(--set-line);
+  border-radius: 12px;
+  background: var(--set-page);
+}
+
+/* The three demo buttons share one row so they read as a control bar under the
+   board, not as three actions of different weight. They wrap rather than shrink:
+   a truncated "Play a…" is worse than a second line. */
+.set-demo {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 4px;
+}
+.set-demo .app-btn {
+  flex: 1 1 auto;
+}
+
+/* Everything below the control bar is the setting itself. The wrapper only
+   exists to give a multi-section card (theme chips, piece chips, colour wheel)
+   one consistent top edge. */
+.set-card-body {
+  min-width: 0;
+  margin-top: 14px;
+}
+
+/* The controls column: the hint line, the save status and the setting itself.
+   On a phone it is the rest of the card, continuing under the pinned board; on
+   a desktop card it is the column beside it (see the min-width: 1000px block). */
+.mz-modal-settings .set-controls {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+.set-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+/* What the last pick actually did. Blue for a save, red for a failure, and it
+   never takes up space when there is nothing to say — the card body scrolls, so
+   a status line appearing cannot shift the list behind it. */
+.set-status {
+  margin: 0 0 12px;
   text-align: center;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--set-accent);
+}
+.set-status.is-error {
+  color: var(--set-error);
+}
+
+.set-cap {
+  margin: 0 0 8px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--set-muted);
+}
+.set-cap.is-spaced {
+  margin-top: 18px;
+}
+.set-note {
+  margin: 10px 0 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--set-muted);
+}
+
+/* Sound card. */
+.set-volume-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+.set-volume-label {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--set-text);
+}
+.set-volume-value {
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  color: var(--set-muted);
+}
+.set-volume:disabled {
+  opacity: 0.5;
+}
+/* The app-wide range skin is gold (it belongs to the Play Arena); inside this
+   card the slider is blue like every other control here. */
+.mz-modal-settings .chess-range::-webkit-slider-runnable-track,
+.mz-modal-settings .chess-range::-moz-range-track {
+  height: 4px;
+  border-radius: 999px;
+  background: var(--set-line);
+  border: 0;
+}
+.mz-modal-settings .chess-range::-webkit-slider-thumb,
+.mz-modal-settings .chess-range::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 999px;
+  background: var(--set-accent);
+  border: 2px solid var(--set-surface);
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.25);
+}
+.mz-modal-settings .chess-range:focus-visible::-webkit-slider-thumb,
+.mz-modal-settings .chess-range:focus-visible::-moz-range-thumb {
+  outline: 2px solid var(--set-accent);
+  outline-offset: 2px;
+}
+.set-test {
+  width: 100%;
+}
+
+@media (max-width: 430px) {
+  .settings-page .set-group {
+    margin-bottom: 18px;
+  }
+  /* 40px-plus tap targets: the row keeps its own height and the controls get
+     the same minimum, so nothing on this page is a thumb-sized miss. */
+  .set-row {
+    gap: 10px;
+    padding: 12px 14px;
+    min-height: 48px;
+  }
+  .set-chip-btn,
+  .board-color-tabs button {
+    min-height: 40px;
+  }
+  /* The demo bar is pinned with the board, so it has to stay one row: the three
+     labels share the card and give up padding before they give up a line. */
+  .set-demo {
+    gap: 6px;
+  }
+  .set-demo .app-btn {
+    flex: 1 1 0;
+    min-width: 0;
+    padding-inline: 4px;
+    font-size: 10.5px;
+  }
+  /* Smallest phones: three labels barely share the bar, so the decorative
+     glyph gives way before a word is cut short. */
+  @media (max-width: 340px) {
+    .set-demo-icon {
+      display: none;
+    }
+    .set-demo .app-btn {
+      gap: 0;
+    }
+  }
+  /* A phone popup is a sheet, not a floating box: it sits on the bottom edge,
+     full bleed, with only the top corners rounded and the footer clear of the
+     gesture bar. */
+  .mz-modal-layer.mz-layer-settings {
+    align-items: flex-end;
+    padding: 0;
+  }
+  .mz-modal.mz-modal-settings {
+    width: 100%;
+    max-width: none;
+    max-height: 92vh;
+    max-height: 92dvh;
+    border-radius: 16px 16px 0 0;
+  }
+  .mz-modal-settings .mz-modal-head {
+    border-radius: 16px 16px 0 0;
+  }
+  .mz-modal-settings .mz-modal-foot {
+    border-radius: 0;
+    padding-bottom: max(12px, env(safe-area-inset-bottom));
+  }
+}
+
+/* ── desktop: one wide card, board beside the controls ──
+   A 440px column wastes a large screen: the board is small and the controls run
+   far below it, so the user scrolls away from the thing they are previewing.
+   From this width the card becomes a horizontal panel — stage on the left,
+   controls on the right — and the stage stays pinned inside its own column, so
+   the board is on screen for every pick in a long card.
+
+   1000px is where that split stops being a squeeze: the stage needs ~515px for a
+   360px board in its frame and well, and the chip rows need the rest. Below this
+   width the card keeps the phone's stacked column, which is the better use of a
+   tablet's or a split screen's space. The phone sheet above and this block can
+   never both match, so neither has to undo the other. */
+@media (min-width: 1000px) {
+  .mz-modal.mz-modal-settings {
+    width: min(1040px, calc(100vw - 48px));
+    max-width: none;
+    max-height: min(88vh, 860px);
+  }
+  .mz-modal-settings .mz-modal-head {
+    padding: 16px 22px 14px;
+  }
+  .mz-modal-settings .mz-modal-title {
+    font-size: 19px;
+  }
+  .mz-modal-settings .mz-modal-body {
+    display: flex;
+    align-items: flex-start;
+    gap: 24px;
+    padding: 18px 22px 20px;
+  }
+  .mz-modal-settings .mz-modal-body > .set-stage {
+    /* Same pinned behaviour as the phone card, re-anchored to this block's
+       padding: the negative margins only reach up and to the left, because the
+       right-hand seam is the column gap and not padding. */
+    top: -18px;
+    flex: 0 0 auto;
+    margin: -18px 0 0 -22px;
+    padding: 18px 24px 14px 22px;
+    border-right: 1px solid var(--set-line);
+  }
+  .mz-modal-settings .mz-modal-body > .set-controls {
+    flex: 1 1 auto;
+  }
+  /* The card is wide, so the demo bar gets its labels back at full size and the
+     hint line stops competing with the board for attention. */
+  .mz-modal-settings .set-demo .app-btn {
+    font-size: 12.5px;
+    padding-inline: 12px;
+  }
+  .mz-modal-settings .set-note {
+    margin-top: 0;
+    margin-bottom: 12px;
+  }
+  .mz-modal-settings .mz-modal-foot {
+    padding: 14px 22px;
+  }
 }
 
 /* ------------------------------- game over ---------------------------------- */
@@ -24528,6 +25092,57 @@ html, body {
   .sad-skeleton-line { animation: none; }
 }
 
+/* ── Paginated lists: the page swap must not blank the screen ─────────────
+   Turning a page used to unmount the whole list in favour of a full-height
+   spinner, which read as a reload: white flash, cards gone, pager jumping up.
+   The container keeps a floor height so the layout cannot collapse, and an
+   in-flight page only dims the cards that are already on screen. */
+.stable-list {
+  min-height: 340px;
+  transition: opacity 0.18s ease;
+}
+.stable-list.is-refreshing {
+  opacity: 0.62;
+  pointer-events: none;
+}
+@media (max-width: 640px) {
+  .stable-list { min-height: 260px; }
+}
+
+/* Trash action on a homework card. Plain CSS rather than a Tailwind hover
+   utility because the shared .chess-card ink pass can outrank a utility, and a
+   delete that never turns red looks inert. */
+.hw-delete {
+  display: inline-grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+  border: 1px solid var(--surface-border, #e2e8f0);
+  border-radius: 9px;
+  background: transparent;
+  color: var(--ivory-500, #64748b);
+  cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease, background-color 0.15s ease;
+}
+.hw-delete:hover:not(:disabled) {
+  color: #dc2626;
+  border-color: rgba(220, 38, 38, 0.55);
+  background: rgba(220, 38, 38, 0.08);
+}
+.hw-delete:focus-visible {
+  outline: 2px solid rgba(37, 99, 235, 0.6);
+  outline-offset: 2px;
+}
+.hw-delete:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+/* Phones get the bigger tap target the rest of the app's icon actions use. */
+@media (max-width: 640px) {
+  .hw-delete { width: 40px; height: 40px; }
+}
+
 /* Global overlay ladder: all full-screen layers are portal-mounted so these
    levels are compared against the page, shell, and chessboard in one context. */
 
@@ -24558,11 +25173,7 @@ html, body {
 .cp-ink-all .live-open-video,
 .cp-ink-all .live-chat-panel .live-chat-send,
 .cp-ink-all .live-chat-panel .live-dm-newpill,
-.cp-ink-all .live-chat-panel .live-unread-badge,
-.cp-ink-all .cv2-tabs button.active,
-.cp-ink-all .cv2-inline-actions button,
-.cp-ink-all .cv2-homework-list button,
-.cp-ink-all .live-v2-main-tabs button.active {
+.cp-ink-all .live-chat-panel .live-unread-badge {
   color: #ffffff !important;
 }
 /* A wrapped label (icon + text) inherits instead of being re-darkened. */

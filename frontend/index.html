@@ -14,19 +14,19 @@
          colour, and matches the white canvas the app paints in index.css. -->
     <style>
       html, body, #root { background-color: #ffffff; }
-      /* The gap between this HTML parsing and React's first paint is filled by
-         the same white field and the same emblem the manifest splash shows, so
-         an installed launch reads as one screen instead of splash → blank → app.
-         main.jsx removes it as soon as #root has content. */
+      /* The gap between this HTML parsing and React's first paint is filled by a
+         plain white field — the same white the manifest splash paints, so an
+         installed launch reads as one screen instead of splash → blank → app.
+         The logo is deliberately NOT here: SplashScreen.jsx fades it in as part
+         of the intro, and a static emblem in this field would either jump size
+         or cancel that fade-in. main.jsx removes it as soon as #root has
+         content. */
       #boot-splash {
         position: fixed;
         inset: 0;
         z-index: 2147483647;
         background: #ffffff;
-        display: grid;
-        place-items: center;
       }
-      #boot-splash img { width: 160px; height: 160px; }
     </style>
     <meta
       name="description"
@@ -76,7 +76,7 @@
     </script>
   </head>
   <body>
-    <div id="boot-splash"><img src="/icon-maskable-512.png" alt="" width="512" height="512" /></div>
+    <div id="boot-splash"></div>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
   </body>

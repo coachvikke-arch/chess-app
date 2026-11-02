@@ -65,7 +65,7 @@ const framedWidth = (bw) => bw + 2 * Math.min(46, Math.max(20, Math.round(bw * 0
  *    board is one position broadcast to the whole room — every other viewer's
  *    pieces must not move because one student tried a wrong move.
  */
-export default function SharedChessBoard({ drill = null, drillStatus = null, onDrillViewPly = null, hosted = null }) {
+export default function SharedChessBoard({ drill = null, drillStatus = null, onDrillViewPly = null }) {
   const [manualSize, setManualSize] = useState(() => {
     try {
       const n = Number(localStorage.getItem('liveBoardManualSize') || '0');
@@ -218,9 +218,9 @@ export default function SharedChessBoard({ drill = null, drillStatus = null, onD
   const [playOffer, setPlayOffer] = useState(false);
   const [fen, setFen] = useState(chessState?.fen || START_FEN);
   const [orientation, setOrientation] = useState('white');
-  const [showCoordinates, setShowCoordinates] = useState(() => { try { return localStorage.getItem('liveV2Coordinates') !== '0'; } catch { return true; } });
-  const [classroomSound, setClassroomSound] = useState(() => { try { return localStorage.getItem('liveV2Sound') !== '0'; } catch { return true; } });
-  const [illegalMovesOn, setIllegalMovesOn] = useState(() => { try { return localStorage.getItem('liveV2IllegalMoves') === '1'; } catch { return false; } });
+  const [showCoordinates, setShowCoordinates] = useState(() => { try { return localStorage.getItem('liveClassCoordinates') !== '0'; } catch { return true; } });
+  const [classroomSound, setClassroomSound] = useState(() => { try { return localStorage.getItem('liveClassSound') !== '0'; } catch { return true; } });
+  const [illegalMovesOn, setIllegalMovesOn] = useState(() => { try { return localStorage.getItem('liveClassIllegalMoves') === '1'; } catch { return false; } });
   const [annotations, setAnnotations] = useState(chessState?.annotations || { arrows: [], highlights: [] });
   /* Local-only engine suggestion arrow — rendered only on THIS board (instructor),
      never broadcast to students like real annotations. */
@@ -353,7 +353,6 @@ export default function SharedChessBoard({ drill = null, drillStatus = null, onD
        every move,
      - else locked (class not live). */
   const myMoveSide = useMemo(() => {
-    if (classMeta?.boardLocked) return null;
     /* "Students move: Off" (the instructor's Stop all students button) is a
        hard stop for every student, grants included — the server rejects the
        move too, this only keeps the board from offering it. */
@@ -1216,20 +1215,15 @@ const DRAWN_ARROW_COLOR = 'rgba(0, 255, 0, 0.7)';
     });
   }, [classMeta.id, flash]);
 
-  /* Classroom V2: host-supplied control overrides. When the room passes `hosted`
-     these replace the board's own handlers (flip / undo / redo / new game / best
-     move / annotations / interaction switches); otherwise every fallback is the
-     board's own behaviour, exactly as before. All live AFTER the handlers they
-     may wrap, so no temporal-dead-zone reads. */
-  const doFlip = hosted?.flip || flip;
-  const doUndo = hosted?.undo || handleUndo;
-  const doRedo = hosted?.redo || handleRedo;
-  const doNewGame = hosted?.newGame || (() => { setRedoCount(0); setViewIndex(null); sendControl('new_game'); });
-  const doToggleInteraction = hosted?.toggleInteraction || ((action, payload) => sendControl(action, payload));
-  const doSetMoveSide = hosted?.setMoveSide || ((action, payload) => sendControl(action, payload));
-  const doClearAnnotations = hosted?.clearAnnotations || handleClearAnnotations;
-  const doBestMove = hosted?.bestMove || handleBestMove;
-  const doSwap = hosted?.swap || (() => sendControl('swap', {}));
+  const doFlip = flip;
+  const doUndo = handleUndo;
+  const doRedo = handleRedo;
+  const doNewGame = () => { setRedoCount(0); setViewIndex(null); sendControl('new_game'); };
+  const doToggleInteraction = (action, payload) => sendControl(action, payload);
+  const doSetMoveSide = (action, payload) => sendControl(action, payload);
+  const doClearAnnotations = handleClearAnnotations;
+  const doBestMove = handleBestMove;
+  const doSwap = () => sendControl('swap', {});
 
   /* ── 👥 Add students — invite class members mid-session ────────────────
      The instructor picks which students (not yet in the room) to invite via
@@ -1301,40 +1295,6 @@ const DRAWN_ARROW_COLOR = 'rgba(0, 255, 0, 0.7)';
     setPosGameIndex(0);
     setPosOpen(true);
   }, []);
-
-  useEffect(() => {
-    const handlers = {
-      setup: () => setSetupOpen(true),
-      position: openPositionPanel,
-      playbot: () => setBotPanelOpen(true),
-      bestmove: () => doBestMove(),
-      flip: () => doFlip(),
-      undo: () => doUndo(),
-      redo: () => doRedo(),
-      first: () => setViewIndex(-1),
-      last: () => setViewIndex(null),
-      start: () => doNewGame(),
-      prev: () => viewPrev(),
-      next: () => viewNext(),
-      swap: () => doSwap(),
-      coordinates: () => setShowCoordinates((v) => { const n = !v; try { localStorage.setItem('liveV2Coordinates', n ? '1' : '0'); } catch {} return n; }),
-      sound: () => setClassroomSound((v) => { const n = !v; try { localStorage.setItem('liveV2Sound', n ? '1' : '0'); } catch {} return n; }),
-      illegal: () => setIllegalMovesOn((v) => { const n = !v; try { localStorage.setItem('liveV2IllegalMoves', n ? '1' : '0'); } catch {} return n; }),
-      layout: (event) => {
-        const size = Number(event.detail);
-        if (!Number.isFinite(size)) return;
-        const next = Math.max(MIN_BOARD, Math.min(maxFitRef.current, size));
-        setManualSize(next); setBoardSize(next);
-        try { localStorage.setItem('liveBoardManualSize', String(next)); } catch {}
-      },
-    };
-    const listeners = Object.entries(handlers).map(([key, handler]) => {
-      const event = `classroom-v2:${key}`;
-      window.addEventListener(event, handler);
-      return () => window.removeEventListener(event, handler);
-    });
-    return () => listeners.forEach((off) => off());
-  }, [openPositionPanel, doBestMove, doFlip, doUndo, doRedo, doSwap, doNewGame, viewPrev, viewNext, setViewIndex]);
 
   const handleLoadPosition = useCallback(() => {
     const text = posText.trim();
@@ -1441,7 +1401,7 @@ const DRAWN_ARROW_COLOR = 'rgba(0, 255, 0, 0.7)';
           </div>
         </div>
 
-        {!(!isInstructor && classMeta?.boardHidden) ? <div className="live-board-body" ref={stageRef}>
+        <div className="live-board-body" ref={stageRef}>
           {/* The student's drill card, on the board's LEFT inside the stage so
               the fit above measures it (see infoCardWidth). CSS drops it under
               the board on a narrow screen, where it must not take width. */}
@@ -1506,7 +1466,7 @@ const DRAWN_ARROW_COLOR = 'rgba(0, 255, 0, 0.7)';
               </div>
             </div>
           </div>
-        </div> : <div className="cv2-board-hidden">The coach has hidden the board for now.</div>}
+        </div>
 
         {/* Student Board tools card: a fixed panel docked RIGHT of the board —
             always visible, never a toggle or overlay — with the same titled

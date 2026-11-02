@@ -3,9 +3,14 @@ import api from '../services/api';
 /* REST client for the 1:1 messenger. Every call returns the body only
  * (data) — mirroring online.js so the drawer can `.then(...)` directly. */
 
+/* The People list is a permission surface: which rows appear, and whether each
+   one says "Message" or "Request chat", is computed server-side from the request
+   row that a socket push may have just changed. A 30s cache would serve a stale
+   verdict, so this read opts out (api.js only invalidates the same path segment
+   on writes, and request decisions are posted under /chat-admin-requests). */
 export async function listContacts(q = '') {
   const params = q ? { q } : {};
-  return (await api.get('/chat/users', { params })).data;
+  return (await api.get('/chat/users', { params, cache: false })).data;
 }
 
 export async function listConversations() {
@@ -89,4 +94,10 @@ export async function updateGroupAvatar(groupId, file) {
   const fd = new FormData();
   fd.append('file', file);
   return (await api.post(`/chat/groups/${groupId}/avatar`, fd)).data;
+}
+
+/* Admin-only. The server cascades the messages and the memberships, and pushes
+   `chat_group_deleted` to every member, so nobody keeps a dead room in the list. */
+export async function deleteGroup(groupId) {
+  return (await api.delete(`/chat/groups/${groupId}`)).data;
 }

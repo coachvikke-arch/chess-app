@@ -4,6 +4,7 @@ const { pool } = require('../config/database');
 const { Chess } = require('chess.js');
 const { isAdminRole } = require('../middleware/roleMiddleware');
 const { deriveStudentSubmissionStatus } = require('../utils/assignmentStatus');
+const { pickTrainerPuzzle, LEVELS: TRAINER_LEVELS } = require('../services/puzzleTrainer');
 
 /* ───────────────────── lichess theme taxonomy ───────────────────── */
 
@@ -1345,6 +1346,33 @@ exports.themeCategories = async (_req, res) => {
     res.json({ categories, totalThemes: Object.keys(themeCounts).length });
   } catch (err) {
     res.status(500).json({ message: 'Failed to load theme categories', error: err.message });
+  }
+};
+
+/* ───────────── rating-level trainer: one fresh puzzle ───────────── */
+
+/**
+ * GET /api/puzzles/next?level=0..4&seen=<ids>
+ *
+ * The endless feed behind the trainer. The response is deliberately three
+ * fields — an id, a position and a line — and carries no theme, rating or
+ * difficulty (see services/puzzleTrainer.js). The line is solver-first, so the
+ * client plays the position it is handed and nothing else.
+ */
+exports.trainerNext = async (req, res) => {
+  try {
+    const level = Number(req.query.level);
+    if (!Number.isInteger(level) || level < 0 || level >= TRAINER_LEVELS.length) {
+      return res.status(400).json({ message: 'level must be 0 to 4' });
+    }
+
+    const puzzle = await pickTrainerPuzzle({ level, seen: req.query.seen });
+    if (!puzzle) {
+      return res.status(404).json({ message: 'No new puzzle in this band right now — try again in a moment.' });
+    }
+    res.json(puzzle);
+  } catch (err) {
+    res.status(500).json({ message: 'Failed to fetch puzzle', error: err.message });
   }
 };
 

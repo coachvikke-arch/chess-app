@@ -2,16 +2,19 @@ import api from '../services/api';
 import { formatTime12 } from './time';
 
 /* REST client for coach-approved chat requests.
- *
+
  * Separate from utils/chat.js on purpose: the messenger is feature-gated per
  * role and /chat-requests is not, because a coach whose messaging switch is off
  * still has to be able to approve requests. Keeping the two clients apart stops
  * that distinction from being quietly lost.
- *
+
  * Every call returns the body only (data), matching the chat.js convention.
  */
 
-/** The one call the Message button makes. Returns the whole state machine. */
+/* ── The peer queue ─────────────────────────────────────────────────────────
+ * Any pair that needs a coach's answer, learner↔learner included. The two calls
+ * the People row and the Message button make.
+ */
 export async function getEligibility(targetUserId) {
   return (await api.get('/chat-requests/eligibility', {
     params: { targetUserId },
@@ -19,7 +22,13 @@ export async function getEligibility(targetUserId) {
   })).data;
 }
 
-/** Create a pending request. Throws on 409 (already pending) / 403 (cooldown). */
+/** Create a pending request for this pair.
+ *
+ * One endpoint for every pair that needs approval, learner↔learner included: the
+ * server routes it to the right deciders (the requester's coach decides, the
+ * target's coach is copied) and answers 200 with the existing request when one is
+ * already open, so a second tap is a repaint rather than a failure.
+ */
 export async function sendChatRequest(targetUserId) {
   return (await api.post('/chat-requests', { targetUserId })).data;
 }
@@ -61,8 +70,7 @@ export async function rejectChatRequest(id) {
   return (await api.post(`/chat-requests/${id}/reject`)).data;
 }
 
-/**
- * Cancel a chat request. `reason` is optional and is recorded on the request,
+/** Cancel a chat request. `reason` is optional and is recorded on the request,
  * shown on the detail page and kept in the audit log.
  *
  * Works while the request is PENDING and while it is APPROVED - cancelling an
@@ -81,7 +89,8 @@ export async function cancelChatRequest(id, reason) {
 
 /* ── Shared presentation helpers ──
  * Kept here rather than in each component so the coach queue, the admin list
- * and the Message button can never disagree about what a status looks like. */
+ * and the Message button can never disagree about what a status looks like.
+ */
 
 export const CHAT_REQUEST_STATUSES = ['pending', 'approved', 'rejected', 'cancelled'];
 
@@ -115,9 +124,9 @@ export function formatDateTime(value) {
  * The copy shown in the "Chat Request Required" panel and its confirm button.
  * Returns null when no request is needed or one is already approved, which is
  * the signal to render a plain Message button instead.
+ * Phrased without a coach count on purpose: a student can have several coaches
+ * and the copy below must read correctly for one and for many.
  */
-/* Phrased without a coach count on purpose: a student can have several coaches
- * and the copy below must read correctly for one and for many. */
 export function requestPromptCopy(state) {
   if (state === 'approved' || state === 'not_required') return null;
   if (state === 'pending') {

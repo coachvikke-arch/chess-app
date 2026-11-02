@@ -624,7 +624,11 @@ exports.updatePreferences = async (req, res) => {
       return res.status(400).json({ message: 'Board colors must both be custom values or both be null' });
     }
     const validColor = (value) => value === null || (typeof value === 'string' && /^#[0-9A-Fa-f]{6}$/.test(value));
-    if (!validColor(boardLightColor) || !validColor(boardDarkColor)) {
+    /* Only judge colours that were actually sent: an omitted key means "leave
+       what is stored alone", and `undefined` is not an invalid hex. A frame- or
+       piece-set-only save reaches here with both keys absent, so validating
+       unconditionally rejected every one of them with a 400. */
+    if (boardLightColor !== undefined && !(validColor(boardLightColor) && validColor(boardDarkColor))) {
       return res.status(400).json({ message: 'Board colors must be 6-digit hex values' });
     }
     if (boardLightColor !== undefined && boardLightColor !== null) {

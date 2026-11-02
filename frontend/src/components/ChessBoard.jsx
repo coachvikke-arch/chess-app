@@ -202,7 +202,18 @@ export default function ChessBoard({
   onEraseArrow = null,           // called when a plain right-click happens (erase last arrow)
   onClearArrows = null,          // called when a plain LEFT-click happens (clear all arrows)
   onSquareRightClick = null,     // called with the square on a plain right-click (no drag)
-  extraSquareClick = null,     // extra callback fired on every square click (alongside internal logic)
+  /* A parent-driven tap or move, for the Settings preview cards:
+       { nonce, kind: 'reset' }                 — clears the selection and picker
+       { nonce, kind: 'select', square }        — the tap that selects a piece
+       { nonce, kind: 'move', from, to }        — the drop that plays it
+     It runs through the board's OWN click/drop handlers, so a demo move is
+     classified exactly like a player's — legal dots, sounds, the promotion
+     picker or auto-queen, the move effect. Absent, nothing changes for any other
+     board. `nonce` is what fires it: a new value runs once, repeating the same
+     action means a new nonce. `reset` is what makes a script idempotent: a card
+     replayed a second time would otherwise find the piece the first run left
+     selected and treat its own opening tap as a deselect. */
+  demoAction = null,
 }) {
   const internalGameRef = useRef(null);
   /* Drop castling rights the position does not support BEFORE chess.js sees the
@@ -766,7 +777,6 @@ export default function ChessBoard({
   }, [game.fen(), showLegalMoves]);  // eslint-disable-line react-hooks/exhaustive-deps
 
   function handleSquareClick(sq) {
-    if (extraSquareClick) extraSquareClick(sq);
     if (setupMode) {
       if (onSetupSquare) onSetupSquare(sq);
       return;
@@ -796,6 +806,26 @@ export default function ChessBoard({
       if (onSetupSquare) onSetupSquare(sq);
     }
   }
+
+  /* ── the parent-driven demo (Settings preview cards) ──
+     Deliberately routed through the board's own tap and drop handlers instead of
+     mutating `game`: a demo move then produces everything a real one does — the
+     legal dots on select, the cue, the promotion picker or the auto-queen, the
+     move effect. The nonce, not the object identity, is what fires it, so the
+     same action can be replayed by handing down a new one. A stale picker is
+     dropped first, because a script that lands a new position has no move
+     waiting for a piece choice. */
+  const demoNonceRef = useRef(0);
+  useEffect(() => {
+    if (!demoAction || !interactive) return;
+    if (demoAction.nonce === demoNonceRef.current) return;
+    demoNonceRef.current = demoAction.nonce;
+    if (pendingPromo) cancelPromo();
+    if (demoAction.kind === 'reset') setSelected(null);
+    else if (demoAction.kind === 'select' && demoAction.square) handleSquareClick(demoAction.square);
+    else if (demoAction.kind === 'move' && demoAction.from && demoAction.to) doMove(demoAction.from, demoAction.to);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [demoAction]);
 
   /* ── last move ─────────────────────────────────────────────────────────────
      The from/to highlight is derived from the move list, never from its own

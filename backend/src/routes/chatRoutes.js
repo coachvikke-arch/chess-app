@@ -65,5 +65,6 @@ router.post('/groups/:id/read', ctrl.markGroupRead);
 router.post('/groups/:id/members', roleMiddleware('admin'), ctrl.addGroupMembers);
 router.delete('/groups/:id/members/:userId', roleMiddleware('admin'), ctrl.removeGroupMember);
 router.post('/groups/:id/avatar', roleMiddleware('admin'), upload.single('file'), ctrl.updateGroupAvatar);
+router.delete('/groups/:id', roleMiddleware('admin'), ctrl.deleteGroup);
 
 module.exports = router;

@@ -1,0 +1,578 @@
+/* Puzzle Trainer — the app's own flat blue/white card idiom (no glass, no blur):
+   white cards on the inset panel, hairline edges, the shared Tournaments blue as
+   the only accent, --tn-green/--tn-red for the two verdict colours.
+
+   The page is ONE screen: no vertical and no horizontal page scroll, from a
+   318px phone to a desktop. It gets that by turning the shell's content area
+   into a flex column and taking the height left after the top bar and the Back
+   row. No `vh` number is written here on purpose: `.admin-shell` is already
+   `height: 100dvh` (with `overflow: hidden`), so the box the page receives IS
+   "100dvh minus the app top bar" - restating it as a calc() would only drift
+   when the bar changes.
+
+   The board then solves against that box (useFittedSquare, both axes):
+   min(column width, free height) with a 440px ceiling - which on a phone
+   resolves to ≈92% of the viewport width, and on a short landscape screen
+   shrinks the board instead of pushing the controls below the fold.
+
+   Above 900px the board sits on the left and the puzzle info on the right; at
+   or below it the same nodes stack board → controls → status, in one column. */
+
+/* ── the one-screen frame ───────────────────────────────────────────────────
+   Every rule here is scoped through `:has(.pt-page)` so no other route's
+   content area changes, and they live in this file because this page owns them.
+   The shell's own Back row is deliberately kept visible and non-growing: it is
+   the back affordance the compact mobile header needs. */
+
+.admin-content:has(.pt-page) {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+  padding-bottom: 0;
+}
+
+.admin-content:has(.pt-page) > .chess-back-row {
+  flex: none;
+}
+
+/* The route wrapper carries Tailwind's py-6/px-4…px-8; a page fitted to the
+   viewport has no use for it, and plain CSS like this outranks those utilities. */
+.admin-content:has(.pt-page) > div:not(.chess-back-row) {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+}
+
+.admin-content:has(.pt-page) .admin-route-fade {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.chess-page.pt-page {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  /* `mx-auto` in the shared `.chess-page` makes the card size itself to its
+     content, and the board's content is sized FROM the card - a loop the
+     two-axis fit resolves by shrinking both. A page that fits the screen needs
+     a width that comes from the screen, so the card takes 100% of the column
+     (the theme's max-width still caps it) and `.pt-wrap` centres inside it. */
+  width: 100%;
+}
+
+/* The page title stays, the paragraph under it does not earn its height on a
+   phone: the header has to stay a single line so the board gets the room. */
+.pt-page .chess-page-head {
+  margin-bottom: 10px;
+  padding-bottom: 8px;
+}
+
+/* ── the column(s) ────────────────────────────────────────────────────────── */
+
+.pt-wrap {
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  max-width: 880px;
+  margin: 0 auto;
+  display: grid;
+  /* row 1 = whatever height is left (min 0, so it can give it all back and the
+     stage scrolls itself before the page ever overflows); row 2 = the controls,
+     always at their natural height. */
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr) auto;
+  gap: 10px;
+  color: var(--tn-text);
+}
+
+/* Desktop: board left, puzzle info right, both inside the screen height. */
+@media (min-width: 900px) {
+  .pt-wrap {
+    grid-template-columns: minmax(0, 1fr) minmax(250px, 310px);
+    grid-template-rows: minmax(0, 1fr);
+    gap: 18px;
+  }
+
+  /* Only the side column is pulled to the middle; the stage keeps stretching,
+     which is what gives the board a real height to solve against. */
+  .pt-side {
+    align-self: center;
+  }
+}
+
+/* The info column may be taller than its row on a cramped screen, and then it
+   scrolls by itself - the page never does. */
+.pt-side {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
+
+/* ── the board ────────────────────────────────────────────────────────────── */
+
+.pt-stage {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* 5px all round, and see the margin on .pt-board below: the fit models the
+     themed frame as board + 2·remC + 24, but the board paints a further border
+     on each side and the band rounds up, so the ink lands a few px wider and
+     taller than the solve asked for. That spill is the stage's own padding to
+     give - it never reaches the page - but it is still counted as an overflow,
+     so the board wears a matching negative margin and the box reads as full. */
+  padding: 5px;
+  /* Below useFittedSquare's floor the position would be unreadable, so the
+     stage keeps its own scroll rather than shrinking the board further or
+     letting it spill into the page. */
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
+
+.pt-board {
+  flex: none;
+  display: flex;
+  justify-content: center;
+  min-width: 0;
+  /* The other half of the slack the stage's comment describes: the ink of the
+     framed board is a few px wider and taller than the box the sizer solved
+     for, so the box that holds it is given that much back. Centred and
+     symmetric, so the board does not move - it simply stops being counted as
+     overflowing its stage. */
+  margin: -5px;
+}
+
+.pt-empty {
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--hairline);
+  border-radius: 12px;
+  background: var(--tn-panel);
+}
+
+/* The failed state keeps the frame the same size but stops it spinning: nothing
+   is loading, the feed just came back empty. */
+.pt-idle {
+  font-size: 34px;
+  color: var(--tn-dim);
+}
+
+/* ── the bar: band picker on the left, whose colour you play on the right ── */
+
+.pt-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  flex: none;
+}
+
+.pt-level,
+.pt-levelrow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 44px;
+  padding: 8px 12px;
+  border: 1px solid var(--hairline);
+  border-radius: 12px;
+  background: #ffffff;
+  color: var(--tn-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+@media (min-width: 900px) {
+  .pt-level,
+  .pt-levelrow {
+    min-height: 52px;
+    padding: 8px 14px;
+  }
+}
+
+.pt-level {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.pt-level:hover,
+.pt-levelrow:hover {
+  border-color: #93c5fd;
+  background: var(--surface-hover);
+}
+
+.pt-badge {
+  flex: none;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  background: var(--tn-blue);
+  color: #ffffff;
+  font-weight: 700;
+  font-size: 15px;
+}
+
+/* Long band names end in an ellipsis instead of widening the row. */
+.pt-level-text {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.pt-level-text b {
+  display: block;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.25;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pt-level-text small {
+  display: block;
+  font-size: 12px;
+  color: var(--tn-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pt-chevron {
+  flex: none;
+  margin-left: auto;
+  color: var(--tn-dim);
+  font-size: 13px;
+}
+
+.pt-turn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--tn-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pt-dot {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid var(--tn-line);
+}
+
+.pt-dot.is-w {
+  background: #ffffff;
+}
+
+.pt-dot.is-b {
+  background: #16233f;
+  border-color: #16233f;
+}
+
+/* ── one status line, owned by the page: the board's own copy is switched off ── */
+
+.pt-msg {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid var(--hairline);
+  border-radius: 12px;
+  background: #ffffff;
+  font-weight: 700;
+}
+
+@media (min-width: 900px) {
+  .pt-msg {
+    min-height: 52px;
+    padding: 12px 14px;
+  }
+}
+
+.pt-msg > span {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* The only button this page owns, kept at a comfortable tap size. */
+.pt-msg .app-btn {
+  flex: none;
+  min-height: 40px;
+}
+
+.pt-msg.ok {
+  color: var(--tn-green);
+}
+
+.pt-msg.bad {
+  color: var(--tn-red);
+}
+
+/* ── stats ── */
+
+.pt-stats {
+  flex: none;
+  display: flex;
+  gap: 8px;
+}
+
+@media (min-width: 900px) {
+  .pt-stats {
+    gap: 10px;
+  }
+}
+
+.pt-stat {
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 8px 6px;
+  border: 1px solid var(--hairline);
+  border-radius: 12px;
+  background: #ffffff;
+  text-align: center;
+}
+
+@media (min-width: 900px) {
+  .pt-stat {
+    padding: 12px 8px;
+  }
+}
+
+.pt-stat b {
+  display: block;
+  font-size: 18px;
+  line-height: 1.2;
+}
+
+.pt-stat span {
+  display: block;
+  font-size: 12px;
+  color: var(--tn-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── the level sheet ── */
+
+.pt-levels {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.pt-levelrow {
+  width: 100%;
+}
+
+.pt-levelrow.is-current {
+  border-color: var(--tn-blue);
+  background: var(--surface-hover);
+}
+
+.pt-count {
+  flex: none;
+  margin-left: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  font-size: 12px;
+  color: var(--tn-dim);
+}
+
+.pt-count em {
+  font-style: normal;
+  font-weight: 700;
+  color: var(--tn-blue);
+}
+
+.pt-level:focus-visible,
+.pt-levelrow:focus-visible {
+  outline: 2px solid var(--tn-blue);
+  outline-offset: 2px;
+}
+
+/* ── phones and small tablets (≤900px): one column, tight chrome ────────────
+   The page card gives up its side margin so the framed board measures ≈92vw,
+   and the safe-area inset keeps the last row clear of the iOS gesture bar. */
+@media (max-width: 900px) {
+  .admin-content:has(.pt-page) > .chess-back-row {
+    padding: 2px 0;
+  }
+
+  .chess-page.pt-page {
+    margin-left: 0;
+    margin-right: 0;
+    border: 0;
+    border-radius: 0;
+    padding: 8px 12px calc(8px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .pt-page .chess-page-head {
+    margin-bottom: 8px;
+    padding-bottom: 6px;
+  }
+
+  .pt-page .chess-page-title {
+    font-size: 17px;
+    gap: 6px;
+    flex-wrap: nowrap;
+  }
+
+  .pt-page .chess-page-title .piece-title-icon {
+    font-size: 1.15em;
+  }
+
+  .pt-page .chess-page-sub {
+    display: none;
+  }
+
+  .pt-side {
+    gap: 8px;
+  }
+}
+
+/* The badge and the status give a little space back on the narrowest screens.
+   Above the short-screen block on purpose: a landscape phone is also a narrow
+   screen, and there the tighter control rows are the ones that must win. */
+@media (max-width: 430px) {
+  .pt-badge {
+    width: 30px;
+    height: 30px;
+    font-size: 14px;
+  }
+
+  .pt-msg {
+    font-size: 14px;
+  }
+}
+
+/* ── short screens ───────────────────────────────────────────────────────────
+   A rotated phone - or any window barely taller than it is wide - has no
+   height left for a board once the header and the controls have taken theirs.
+   The fix is the desktop one: put the controls BESIDE the board, so their
+   ~135px of stacked rows become ~135px of width and the board keeps the whole
+   height. The column is as narrow as its own rows allow; the band name, the
+   status line and the three counters truncate rather than widening it.
+
+   A short desktop window is deliberately not in here: it has the width to keep
+   the normal two-column layout, and the fit already gives its board less
+   height. A phone this narrow (under 360px) has neither, so it stays stacked -
+   the board shrinks to its width and the controls keep their rows. */
+
+@media (max-height: 620px) and (max-width: 899px) and (orientation: landscape),
+       (max-height: 480px) and (min-width: 360px) and (max-width: 899px) {
+  .pt-page .chess-page-head {
+    margin-bottom: 6px;
+    padding-bottom: 5px;
+  }
+
+  .pt-wrap {
+    grid-template-columns: minmax(0, 1fr) minmax(104px, 150px);
+    grid-template-rows: minmax(0, 1fr);
+    gap: 10px;
+  }
+
+  .pt-side {
+    align-self: center;
+    gap: 6px;
+  }
+
+  .pt-level,
+  .pt-levelrow {
+    min-height: 40px;
+    padding: 6px 10px;
+    gap: 8px;
+  }
+
+  .pt-badge {
+    width: 26px;
+    height: 26px;
+    border-radius: 8px;
+    font-size: 13px;
+  }
+
+  .pt-level-text b {
+    font-size: 14px;
+  }
+
+  .pt-level-text small {
+    font-size: 11px;
+  }
+
+  .pt-turn {
+    font-size: 12px;
+    gap: 6px;
+  }
+
+  .pt-msg {
+    min-height: 40px;
+    padding: 6px 10px;
+    font-size: 13px;
+  }
+
+  /* The three counters lie down: one row of numbers is what keeps the column
+     inside the height a landscape phone has. */
+  .pt-stats {
+    gap: 4px;
+  }
+
+  .pt-stat {
+    padding: 4px 2px;
+  }
+
+  .pt-stat b {
+    font-size: 14px;
+  }
+
+  .pt-stat span {
+    font-size: 9px;
+  }
+}
+
+/* …and on a phone this small the column takes its minimum, because 150px of
+   side would leave the board narrower than the sizer's floor and put the
+   position back into a scroll. The guards of the block above are restated on
+   purpose: without them a 320x568 phone matches on height alone and loses a
+   112px column it never had room for. */
+@media (max-height: 620px) and (max-width: 480px) and (orientation: landscape),
+       (max-height: 480px) and (min-width: 360px) and (max-width: 480px) {
+  .pt-wrap {
+    grid-template-columns: minmax(0, 1fr) minmax(96px, 112px);
+  }
+}
+
+/* The only motion this page owns is the loading spinner; the board's own
+   animation and FX are already guarded by the shared effects layer. */
+@media (prefers-reduced-motion: reduce) {
+  .pt-wrap .chess-spinner {
+    animation: none;
+  }
+}
