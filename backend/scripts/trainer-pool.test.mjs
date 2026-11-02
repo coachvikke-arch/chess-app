@@ -167,6 +167,14 @@ test('a database failure is not memoised into permanent silence', async () => {
   assert.equal(state.inserts, 2500, 'the retry did not rebuild the pool');
 });
 
+test('the pool is installed at start-up, not on a child first opening the page', () => {
+  const boot = readFileSync(join(BACKEND, 'server.js'), 'utf8');
+  const warm = boot.match(/require\('\.\/src\/services\/puzzleTrainer'\)\.ensurePool\(\)[\s\S]{0,220}/);
+  assert.ok(warm, 'server.js no longer warms the trainer pool at boot');
+  assert.ok(warm[0].includes('.catch'), 'a failed install could crash the server');
+  assert.ok(/Puzzle trainer pool ready/.test(warm[0]), 'the boot log does not say whether the pool is there');
+});
+
 test('the pool file is not shut out of the Railway image', () => {
   const ignored = readFileSync(join(BACKEND, '.railwayignore'), 'utf8')
     .split('\n').map((l) => l.trim()).filter((l) => l && !l.startsWith('!'));

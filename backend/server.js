@@ -260,4 +260,10 @@ server.listen(PORT, '0.0.0.0', () => {
   try {
     require('./src/services/mailService').checkMailSetup();
   } catch { /* the mail service must never stop the server from starting */ }
+  /* The trainer's puzzle pool is built here instead of on a child's first
+     request, so the deploy says out loud whether the academy has puzzles to
+     serve — and one slow install never lands on a student's screen. */
+  require('./src/services/puzzleTrainer').ensurePool()
+    .then((n) => console.log(`Puzzle trainer pool ready (${n} puzzles)`))
+    .catch((e) => console.warn('Puzzle trainer pool install failed:', e.message));
 });
