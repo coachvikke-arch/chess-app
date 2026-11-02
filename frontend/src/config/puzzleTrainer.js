@@ -1,15 +1,16 @@
 // Single source of truth for the puzzle trainer's device-local state.
 //
-// Three things live in localStorage and nowhere else:
+// Four things live in localStorage and nowhere else:
 //   - the band the student last trained in,
 //   - how many puzzles each band has been solved on this device,
-//   - the ids already shown, so the feed never repeats one back.
+//   - the ids already shown, so the feed never repeats one back,
+//   - the streak of clean solves in a row.
 //
 // The seen list is a ROLLING WINDOW (`SEEN_CAP`), sent to `GET /puzzles/next` as
 // `?seen=`. It is a guard against a repeat, not a record of everything ever
 // solved: the pool behind the trainer is 6.1M rows, so forgetting the oldest few
 // hundred ids costs nothing and keeps the request small forever. The solved
-// counts stay forever — they are five numbers.
+// counts and the streak stay forever — they are a handful of numbers.
 //
 // Storage and the per-user key mirror config/autoQueen.js and config/pieceDrag.js:
 // the trainer is per signed-in user on this device, and a guest gets its own slot.
@@ -98,6 +99,21 @@ export function countSolve(level) {
   next[level] += 1;
   write(storageKey('solved'), next);
   return next;
+}
+
+/**
+ * The run of consecutive solves with no wrong try in any of them. It is stored
+ * rather than kept in React state because a refresh used to zero it mid-run —
+ * the same reason the solved counts are stored, and the same device+user slot.
+ */
+export function readStreak() {
+  const n = Number(read(storageKey('streak'), 0));
+  return Number.isFinite(n) && n > 0 ? Math.floor(n) : 0;
+}
+
+export function writeStreak(n) {
+  const clean = Number(n);
+  write(storageKey('streak'), Number.isFinite(clean) && clean > 0 ? Math.floor(clean) : 0);
 }
 
 /** The ids this device has been shown, newest last. */

@@ -316,9 +316,13 @@
 
 .pt-msg > span {
   min-width: 0;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
+  /* Wraps instead of clipping. The single-line version truncated "…switched off
+     for your account" to "…for your accou" on a phone, and the truncated half
+     was the part telling the student what to do. `min-width: 0` still keeps the
+     Retry button on screen. */
+  white-space: normal;
+  overflow-wrap: anywhere;
+  line-height: 1.3;
 }
 
 /* The only button this page owns, kept at a comfortable tap size. */

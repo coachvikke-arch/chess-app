@@ -11,6 +11,7 @@ import {
   TRAINER_LEVELS,
   readLevel, writeLevel,
   readSolvedCounts, countSolve,
+  readStreak, writeStreak,
   readSeenIds, rememberSeenId,
 } from '../config/puzzleTrainer';
 import './puzzle-trainer.css';
@@ -23,6 +24,18 @@ const NEXT_DELAY_MS = 1100;
 /* The success FX overlay clears itself; this is that timer. */
 const FX_MS = 1800;
 
+/* What a failed load actually means, in the words the student can act on.
+   A missing permission switch, an empty band and a dead connection need three
+   different replies — one shared "check your connection" sends students at
+   their wifi for problems that are not theirs. */
+function describeLoadFailure(err) {
+  const status = err?.response?.status;
+  if (status === 403) return 'The Puzzle Trainer is switched off for your account. Ask your coach to enable it.';
+  if (status === 404) return 'No new puzzle left in this band. Pick another level.';
+  if (typeof status === 'number') return 'The puzzle service is having a moment. Try again.';
+  return 'Could not reach the academy. Check your connection.';
+}
+
 export default function PuzzleTrainer() {
   const [level, setLevel] = useState(readLevel);
   const [counts, setCounts] = useState(readSolvedCounts);
@@ -30,7 +43,7 @@ export default function PuzzleTrainer() {
   const [status, setStatus] = useState({ text: 'Loading a puzzle…', tone: '' });
   const [locked, setLocked] = useState(true);
   const [failed, setFailed] = useState(false);
-  const [streak, setStreak] = useState(0);
+  const [streak, setStreak] = useState(readStreak);
   const [sheet, setSheet] = useState(false);
   const [fx, setFx] = useState(null);
 
@@ -48,6 +61,17 @@ export default function PuzzleTrainer() {
   const fxTimerRef = useRef(null);
   const fxRevealCancelRef = useRef(null);
   const levelButtonRef = useRef(null);
+
+  /* The streak is written as it changes, so a refresh in the middle of a run
+     keeps the number the student earned instead of showing 0. The ref is what
+     the next solve reads — a functional state updater would have to do the
+     storage write inside itself, and StrictMode runs those twice. */
+  const streakRef = useRef(streak);
+  const setStreakRun = useCallback((next) => {
+    streakRef.current = next;
+    writeStreak(next);
+    setStreak(next);
+  }, []);
 
   /* Two-axis fit: the page is clipped to the viewport (see .pt-page in
      puzzle-trainer.css), so the board is solved against the stage's HEIGHT as
@@ -107,17 +131,21 @@ export default function PuzzleTrainer() {
          the band is still this one and it is not the line already on the board. */
       const pre = pendingRef.current;
       pendingRef.current = null;
-      let p = pre && pre.level === lv ? await pre.promise.catch(() => null) : null;
-      if (!p || p.id === puzzleRef.current?.id) p = await fetchPuzzle(lv).catch(() => null);
+      let p = pre && pre.level === lv ? await pre.promise : null;
+      let failure = null;
+      if (!p || p.id === puzzleRef.current?.id) {
+        p = await fetchPuzzle(lv).catch((e) => { failure = e; return null; });
+      }
       if (lv !== levelRef.current) return;
 
       if (!p) {
         setFailed(true);
-        setStatus({ text: 'Could not load a puzzle. Check your connection.', tone: 'bad' });
+        setStatus({ text: describeLoadFailure(failure), tone: 'bad' });
         return;
       }
       show(p);
-      /* Warm the one after this while the student is still thinking. */
+      /* Warm the one after this while the student is still thinking. The catch
+         is what lets loadPuzzle await this promise without a guard. */
       pendingRef.current = { level: lv, promise: fetchPuzzle(lv).catch(() => null) };
     } finally {
       loadingRef.current = false;
@@ -132,7 +160,7 @@ export default function PuzzleTrainer() {
     const lv = levelRef.current;
     const messy = mistakeRef.current;
     setCounts(countSolve(lv));
-    setStreak((s) => (messy ? 0 : s + 1));
+    setStreakRun(messy ? 0 : streakRef.current + 1);
     setLocked(true);
     setStatus({
       text: messy ? 'Solved — next one coming up.' : 'Correct! Next one coming up.',
@@ -164,15 +192,15 @@ export default function PuzzleTrainer() {
     }
 
     later(() => loadPuzzle(lv), NEXT_DELAY_MS);
-  }, [later, loadPuzzle, triggerFx]);
+  }, [later, loadPuzzle, setStreakRun, triggerFx]);
 
   const handleFailed = useCallback(() => {
     /* The board undoes the try itself and stays on the same position, so the only
        thing the page owns here is the wording and the streak. */
     mistakeRef.current = true;
-    setStreak(0);
+    setStreakRun(0);
     setStatus({ text: 'Not quite. Try another move.', tone: 'bad' });
-  }, []);
+  }, [setStreakRun]);
 
   const handleCorrectMove = useCallback((move) => {
     triggerFx({
@@ -189,9 +217,9 @@ export default function PuzzleTrainer() {
     clearTimers();            // a scheduled "load next" must not fire on the new band
     pendingRef.current = null;
     writeLevel(i);
-    setStreak(0);
+    setStreakRun(0);
     setLevel(i);
-  }, [clearTimers, level]);
+  }, [clearTimers, level, setStreakRun]);
 
   const active = TRAINER_LEVELS[level];
   const totalSolved = useMemo(() => counts.reduce((a, b) => a + b, 0), [counts]);

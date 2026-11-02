@@ -61,6 +61,7 @@
     "test:analysis": "npm run test:sigma && npm run test:parity",
     "test:sac": "node --test scripts/qxf6-sacrifice-regression.test.mjs",
     "test:tactics": "node --test scripts/tactics-data.test.mjs",
+    "test:puzzle-trainer": "node --test scripts/puzzle-trainer-store.test.mjs",
     "test:result-card": "node --test scripts/result-card-viewport.test.mjs",
     "test:result-popup": "node --test scripts/result-popup-redesign.test.mjs scripts/result-card-viewport.test.mjs scripts/rated-result.test.mjs scripts/arena-postgame.test.mjs",
     "test:rating-card": "node --test scripts/rating-card-latest-move.test.mjs",
