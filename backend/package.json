@@ -27,6 +27,8 @@
     "test:permissions-api": "node scripts/test-permissions-api.js",
     "test:live-class-dm": "node scripts/test-live-class-dm.js",
     "test:puzzle-drill": "node --test scripts/test-puzzle-drill.js",
+    "test:trainer-pool": "node --test scripts/trainer-pool.test.mjs",
+    "data:trainer-pool": "node scripts/exportTrainerPool.js",
     "test:game-finished": "node scripts/test-game-finished-notification.js",
     "test:chess-sync": "node --test scripts/test-chess-sync.js",
     "test:game-dates": "node --test scripts/test-game-dates.js",
