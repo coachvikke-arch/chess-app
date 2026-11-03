@@ -31,6 +31,8 @@ router.post('/games/:id/draw-respond', roleMiddleware('admin', 'student'), ctrl.
    The server re-checks that both callers are the two players of that game and
    that the game really is over, so a crafted request cannot open a board for
    somebody else's match. */
+/* The read side of the same offer — what the socket may have missed. */
+router.get('/rematch-pending', roleMiddleware('admin', 'student'), ctrl.listPendingRematches);
 router.post('/games/:id/rematch-request', roleMiddleware('admin', 'student'), ctrl.requestRematch);
 router.post('/games/:id/rematch-respond', roleMiddleware('admin', 'student'), ctrl.respondRematch);
 router.post('/games/:id/rematch-cancel', roleMiddleware('admin', 'student'), ctrl.cancelRematch);

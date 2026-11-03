@@ -48,12 +48,10 @@ const { studentRouter: homeworkStudentRoutes, adminRouter: homeworkAdminRoutes }
 
 const app = express();
 
-/* CLIENT_URL accepts a comma-separated list so a Vercel preview and the
-   production domain can both talk to the same API. */
-const clientOrigins = (process.env.CLIENT_URL || 'http://localhost:5173')
-  .split(',')
-  .map((origin) => origin.trim())
-  .filter(Boolean);
+/* One origin rule for the whole board — see src/config/cors.js. The Socket.IO
+   server in ../../server.js imports the same helper, so an origin that can call
+   the API can always open a socket too. */
+const { corsOrigin } = require('./config/cors');
 
 /* Railway/Vercel sit in front of the app, so every request carries
    X-Forwarded-For. One hop only: trusting it lets express-rate-limit key on the
@@ -62,7 +60,7 @@ const clientOrigins = (process.env.CLIENT_URL || 'http://localhost:5173')
 app.set('trust proxy', 1);
 
 app.use(helmet());
-app.use(cors({ origin: clientOrigins, credentials: true }));
+app.use(cors({ origin: corsOrigin, credentials: true }));
 app.use(express.json({ limit: '25mb' }));
 app.use(morgan('dev'));
 

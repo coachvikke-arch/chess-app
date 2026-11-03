@@ -96,6 +96,16 @@ export async function cancelRematch(id) {
   return (await api.post(`/online/games/${id}/rematch-cancel`, {}, { cache: false })).data;
 }
 
+/* Requests aimed at me that the socket may never have delivered. The offer
+   itself is stored on the finished match, so this is only a read of the same
+   rows — it is what makes a request survive a sleeping tab, a reconnect, or
+   simply being on another page when the other player tapped Rematch.
+   Resolves to an array of the usual scoped game payloads. */
+export async function fetchPendingRematches() {
+  const data = (await api.get('/online/rematch-pending', { cache: false })).data;
+  return Array.isArray(data?.games) ? data.games : [];
+}
+
 export async function sendMove(id, move) {
   return (await api.post(`/online/games/${id}/move`, move)).data;
 }

@@ -2556,7 +2556,15 @@ export default function AnalysisBoard() {
       }, REMATCH_WINDOW_MS);
       refreshOnlineMatches();
     } catch (e) {
-      setOnlineError(e.response?.data?.message || 'Could not ask for a rematch.');
+      const why = e.response?.data?.message || 'Could not ask for a rematch.';
+      setOnlineError(why);
+      /* The banner above the board is easy to miss the moment the popup is what
+         you are looking at, and a request that never left the device is exactly
+         the failure that needs to be impossible to overlook. */
+      showToast(why, {
+        tone: 'danger', title: '♞ Rematch', source: 'AnalysisBoard:rematch_send_failed',
+        dedupeKey: `rematch-send-fail-${game.id}`,
+      });
     } finally { setRematchBusy(false); }
   }
 

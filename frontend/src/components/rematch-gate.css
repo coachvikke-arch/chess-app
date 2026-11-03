@@ -1,0 +1,77 @@
+/* The app-wide rematch invite — the same compact white card, blue action, that
+   the Play Arena shows for the same request, parked at the bottom of whatever
+   page the player is standing on. Bottom-only because every popup in the app
+   already lives there, and the top of the screen belongs to the nav. */
+.rg-layer {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-modal);
+  pointer-events: none;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 14px;
+}
+
+.rg-card {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  width: min(460px, 100%);
+  padding: 13px 15px;
+  background: #fff;
+  color: #0f172a;
+  border: 1px solid #dbe4f0;
+  border-radius: 15px;
+  box-shadow: 0 16px 38px rgba(15, 23, 42, 0.18), 0 2px 8px rgba(15, 23, 42, 0.06);
+  font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  animation: rg-in 0.18s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes rg-in {
+  from { opacity: 0; transform: translateY(6px) scale(0.995); }
+  to { opacity: 1; transform: none; }
+}
+
+.rg-body {
+  flex: 1 1 200px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.rg-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
+.rg-sub {
+  margin: 0;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #64748b;
+  line-height: 1.35;
+}
+
+.rg-actions {
+  display: flex;
+  gap: 8px;
+  flex: 0 0 auto;
+  align-items: center;
+}
+
+/* Real tap targets at phone widths, not two squashed buttons under a sentence. */
+@media (max-width: 430px) {
+  .rg-actions { flex: 1 1 100%; }
+  .rg-actions > button { flex: 1 1 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rg-card { animation: none; }
+}

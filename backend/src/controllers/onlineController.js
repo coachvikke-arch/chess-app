@@ -1660,6 +1660,41 @@ async function closeRematchNotifications(io, gameId, status, readerId) {
   });
 }
 
+/* Everything a player can answer RIGHT NOW, wherever they happen to be standing.
+   The socket push is the fast path; this is the one that still works when it was
+   missed — a phone tab asleep, a reconnect, a player who was nowhere near the
+   arena when the request went out. Nothing new is stored: the offer already lives
+   on the finished match, so this reads those same rows back, limited to the
+   window the answering endpoint would still honour (a request older than that is
+   one the other side has already given up on, and answering it must stay as
+   impossible from here as it is inside `respondRematch`). */
+exports.listPendingRematches = async (req, res) => {
+  try {
+    const horizon = new Date(Date.now() - (REMATCH_WINDOW_MS + REMATCH_GRACE_MS));
+    const r = await db.query(
+      `SELECT g.*, au.name AS admin_name, su.name AS student_name,
+              au.profile_image AS admin_profile_image, au.avatar_config AS admin_avatar_config,
+              su.profile_image AS student_profile_image, su.avatar_config AS student_avatar_config
+       FROM online_games g
+       JOIN users au ON au.id = g.admin_id
+       JOIN users su ON su.id = g.student_id
+       WHERE g.rematch_requested_by IS NOT NULL
+         AND g.rematch_requested_by <> $1
+         AND (g.admin_id = $1 OR g.student_id = $1)
+         AND g.status = 'finished'
+         AND (g.result IS NULL OR g.result <> 'aborted')
+         AND (g.is_bot IS NOT TRUE)
+         AND g.class_id IS NULL
+         AND g.rematch_requested_at > $2
+       ORDER BY g.rematch_requested_at DESC`,
+      [req.user.id, horizon]
+    );
+    res.json({ games: r.rows.map((row) => payload(row, req.user.role, req.user.id)) });
+  } catch (err) {
+    res.status(500).json({ message: 'Failed to read the pending rematch requests', error: err.message });
+  }
+};
+
 exports.requestRematch = async (req, res) => {
   try {
     const row = await getGameRow(req.params.id);

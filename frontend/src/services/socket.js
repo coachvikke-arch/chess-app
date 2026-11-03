@@ -31,6 +31,12 @@ export function getSocket() {
   socket = io(SOCKET_URL, {
     path: '/socket.io',
     transports: ['websocket', 'polling'],
+    /* WebSocket first — it is the transport a mobile browser keeps when the page
+       is backgrounded and the one Railway serves without a CORS round trip — but
+       a network that blocks the upgrade must not end up with no realtime at all.
+       Without this, engine.io retries only the transport that last succeeded and
+       a killed socket never falls back to polling. */
+    tryAllTransports: true,
     auth: { token: desiredToken },
   });
   return socket;

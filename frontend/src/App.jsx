@@ -8,6 +8,7 @@ import SplashScreen from './components/SplashScreen';
 import ChessBackground from './components/ChessBackground';
 import MatchDeclineListener from './components/MatchDeclineListener';
 import MatchAcceptNavigator from './components/MatchAcceptNavigator';
+import RematchInviteGate from './components/RematchInviteGate';
 import ChatMessageToastListener from './components/ChatMessageToastListener';
 import LevelUpCelebration from './components/LevelUpCelebration';
 import MeetingReviewPopup from './components/MeetingReviewPopup';
@@ -259,6 +260,7 @@ export default function App() {
         <ChessBackground />
         <MatchDeclineListener />
         <MatchAcceptNavigator />
+        <RematchInviteGate />
         <ChatReactionListener />
         <ChatMessageToastListener />
         <TournamentReadyListener />

@@ -6,6 +6,11 @@ const { Server } = require('socket.io');
 const app = require('./src/app');
 const liveClassSocket = require('./src/socket/liveClassSocket');
 const specService = require('./src/services/specService');
+/* The same allow-list the HTTP API uses. A frontend origin missing here cannot
+   complete the socket.io handshake in a browser — the REST calls keep working
+   through the /api rewrite, so the realtime layer is the only thing that dies,
+   and it dies without a visible error. */
+const { corsOrigin } = require('./src/config/cors');
 
 /* Multer writes into these directories directly; a fresh volume or container
    starts empty, so create them before the first upload arrives. */
@@ -19,13 +24,7 @@ const server = http.createServer(app);
 
 const io = new Server(server, {
   path: '/socket.io',
-  cors: {
-    origin: (process.env.CLIENT_URL || 'http://localhost:5173')
-      .split(',')
-      .map((origin) => origin.trim())
-      .filter(Boolean),
-    credentials: true,
-  },
+  cors: { origin: corsOrigin, credentials: true },
 });
 
 /* Attach io to the express app so controllers can reach it via req.app.get('io') */
