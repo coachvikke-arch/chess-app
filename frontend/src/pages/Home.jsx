@@ -94,8 +94,11 @@ export default function Home() {
               </div>
             </Reveal>
           </div>
+          {/* One column on phones, so the board has to sit in the same 1rem gutter
+              the headline above it uses. No side margin: any `ml-*` here is added
+              to the centreing and makes the two gaps unequal. */}
           <Reveal delay={0.2}>
-            <div className="ml-2 md:ml-6 flex justify-center md:justify-end">
+            <div className="w-full flex justify-center md:justify-end">
               <AnimatedBoard size={420} />
             </div>
           </Reveal>

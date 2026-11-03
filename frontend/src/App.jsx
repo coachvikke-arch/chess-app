@@ -143,16 +143,8 @@ function PlayLayout({ children }) {
 
 function LandingHeader() {
   const { user } = useAuth();
-  const [mobileOpen, setMobileOpen] = useState(false);
-
-  useEffect(() => {
-    const onResize = () => setMobileOpen(false);
-    window.addEventListener('resize', onResize);
-    return () => window.removeEventListener('resize', onResize);
-  }, []);
 
   const dashLink = homeForRole(user?.role);
-  const dashLabel = user?.role === 'superadmin' ? 'Super Admin' : isAdminRole(user?.role) ? 'Coach Panel' : 'Dashboard';
 
   return (
     <header
@@ -161,21 +153,14 @@ function LandingHeader() {
     >
       <div className="max-w-7xl mx-auto flex items-center justify-between gap-2 px-2 sm:px-3 py-3 shrink-0">
         <div className="flex items-center gap-2 min-w-0 shrink-0">
-          {/* Same order as every in-app header: menu button first, then the brand. */}
-          {user && (
-            <nav className="md:hidden">
-              <button
-                className="text-slate-200 hover:text-white text-[26px] leading-none w-[44px] h-[44px] shrink-0 grid place-items-center rounded-lg hover:bg-white/10 transition"
-                onClick={() => setMobileOpen((o) => !o)}
-                aria-label={mobileOpen ? 'Close menu' : 'Open menu'}
-                aria-expanded={mobileOpen}
-                aria-controls="landing-nav"
-              >
-                {mobileOpen ? '✕' : '☰'}
-              </button>
-            </nav>
-          )}
-          <Logo height={44} className="shrink-0" />
+          {/* The brand is the way back in. It used to be followed by a drawer
+              holding a single "Dashboard" row, which put that word on the public
+              landing page next to Login — so the row is gone and the emblem
+              carries the navigation instead: home for a visitor, their portal
+              for a session. */}
+          <Link to={user ? dashLink : '/'} className="shrink-0" aria-label={user ? 'Go to your dashboard' : 'Mate Zone home'}>
+            <Logo height={44} />
+          </Link>
         </div>
 
         <div className="flex items-center gap-3">
@@ -203,22 +188,6 @@ function LandingHeader() {
             </span>
           )}
         </div>
-      </div>
-
-      <div
-        id="landing-nav"
-        aria-hidden={!mobileOpen}
-        className={`absolute left-0 right-0 top-full md:hidden overflow-hidden transition-all duration-300 ease-in-out ${mobileOpen ? 'max-h-[70vh] opacity-100 visible' : 'max-h-0 opacity-0 invisible'}`}
-      >
-        <nav className="bg-white/95 backdrop-blur-xl border-t border-ink-700/10 px-4 py-3 flex flex-col gap-1 shadow-[0_20px_44px_-10px_rgba(0,0,0,0.35)] max-h-[70vh] overflow-y-auto">
-          <Link
-            to={dashLink}
-            onClick={() => setMobileOpen(false)}
-            className="px-3 py-3 rounded-lg text-[0.95rem] font-semibold text-gold-600 hover:bg-gold-500/10 transition"
-          >
-            {dashLabel}
-          </Link>
-        </nav>
       </div>
     </header>
   );

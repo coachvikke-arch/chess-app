@@ -50,6 +50,7 @@ function ArenaBoard({
   reviewVerdictColor = null,
   moveBadge = null,
   animationDuration = 0.25,
+  maxMoveMs = null,
 }) {
   return (
     <ChessBoard
@@ -73,6 +74,7 @@ function ArenaBoard({
       moveBadge={moveBadge}
       moveEffectHostId={effectHostId}
       animationDuration={animationDuration}
+      maxMoveMs={maxMoveMs}
     />
   );
 }

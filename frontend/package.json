@@ -19,6 +19,8 @@
     "test:reviewengine": "node --test scripts/review-default-engine.test.mjs",
     "test:badge": "node --test scripts/badge-position.test.mjs",
     "test:movelist": "node --test scripts/movelist-layout.test.mjs",
+    "test:pm-strip": "node --test scripts/play-mode-move-strip.test.mjs",
+    "test:live": "node --test scripts/live-play-realtime.test.mjs",
     "test:gmlist": "node --test scripts/gm-list-highlight.test.mjs",
     "test:explainer": "node --test scripts/chess-move-explainer.test.mjs",
     "test:gmundo": "node --test scripts/gm-undo-import.test.mjs",

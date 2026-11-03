@@ -147,6 +147,12 @@ export default function AnimatedBoard({
   lockTouch = false,
   cursorForSquare = null,
   animationDuration = 0.25,
+  /* A ceiling on the glide, in milliseconds, for boards where waiting on the
+     saved Animation preference is wrong — a live online game, where a piece that
+     takes 450 ms to arrive is a piece that is visibly behind the opponent. The
+     preference still decides the STYLE (and whether to animate at all); this only
+     shortens it, so a player who chose "off" or a snappier preset keeps it. */
+  maxMoveMs = null,
   customPieces,
   customDarkSquareStyle,
   customLightSquareStyle,
@@ -176,7 +182,9 @@ export default function AnimatedBoard({
   const animationId = useBoardAnimationId();
   const preset = resolveBoardAnimation(animationId);
   const animate = preset.animate && animationDuration !== 0;
-  const durationMs = animate ? preset.duration : 0;
+  const durationMs = animate
+    ? (Number.isFinite(maxMoveMs) ? Math.min(preset.duration, maxMoveMs) : preset.duration)
+    : 0;
   const easing = animate ? preset.easing : 'linear';
 
   const parsedInitial = useMemo(() => parsePosition(position), []); // eslint-disable-line react-hooks/exhaustive-deps

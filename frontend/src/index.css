@@ -1136,6 +1136,7 @@ input[type='time'].chess-input::-webkit-calendar-picker-indicator:hover {
 
 .hero-board-scene {
   perspective: 1200px;
+  width: 100%;
 }
 .hero-board {
   position: relative;
@@ -1143,6 +1144,14 @@ input[type='time'].chess-input::-webkit-calendar-picker-indicator:hover {
   padding: 0.55rem;
   background: linear-gradient(160deg, #19bdf2, #19bdf2);
   box-shadow: none;
+  /* The frame padding is part of this box, and the box is capped by --hero-board-max
+     but can never exceed the column it stands in. Sizing it from the viewport instead
+     made it wider than its own container, so `justify-content: center` had nothing to
+     centre and the board sat flush against the right edge on phones. */
+  box-sizing: border-box;
+  width: min(100%, var(--hero-board-max, 420px));
+  aspect-ratio: 1 / 1;
+  margin: 0 auto;
 }
 .hero-board-grid {
   display: grid;
@@ -2759,9 +2768,6 @@ button.set-row:hover .set-row-chevron {
 .ab-move-verdict-inaccuracy { --verdict-tint: rgba(236,205,118,0.08); }
 .ab-move-verdict-mistake    { --verdict-tint: rgba(229,143,74,0.09); }
 .ab-move-verdict-blunder    { --verdict-tint: rgba(248,113,113,0.10); }
-.ab-move-btn:not(.active)[class*="ab-move-verdict-"] {
-  background: var(--verdict-tint, transparent);
-}
 
 .analysis-progress {
   width: 100%;
@@ -3565,27 +3571,111 @@ button.set-row:hover .set-row-chevron {
   margin: 0;
 }
 
-.play-mode-overlay[data-play-mode] .play-mode-moves {
-  width: 100%;
-  margin: 0;
+/* Play Mode moves — ONE sticky row at the foot of the panel.
+   ⏮ ◀ sit at the left, ▶ ⏭ at the right, and the chips scroll between them.
+   The row lives OUTSIDE .play-mode-panel-scroll, so it stays put while the
+   player rows above it scroll — that is the stickiness, without position:sticky
+   and the stacking it would have to fight inside an already-scrolling column.
+   48px tall with 40×40 buttons: a comfortable thumb target at 360px wide. */
+.play-mode-overlay[data-play-mode] .play-mode-movestrip {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  height: 48px;
+  margin-top: 0.5rem;
+  padding: 0.25rem;
+  box-sizing: border-box;
   background: var(--ink-900);
-  border-color: var(--surface-border);
-  scrollbar-width: thin;
+  border: 1px solid var(--surface-border);
+  border-radius: 0.7rem;
 }
-.play-mode-overlay[data-play-mode] .play-mode-moves .ab-move-list { max-height: none; }
-.play-mode-overlay[data-play-mode] .ab-moves-title   { color: var(--ivory-100); }
-.play-mode-overlay[data-play-mode] .ab-moves-counter { color: var(--ivory-500); }
-.play-mode-overlay[data-play-mode] .ab-moves-empty   { color: var(--ivory-500); }
-.play-mode-overlay[data-play-mode] .ab-move-num      { color: var(--ivory-500); }
-.play-mode-overlay[data-play-mode] .ab-move-btn      { color: var(--ivory-300); }
-.play-mode-overlay[data-play-mode] .ab-move-btn:hover:not(:disabled) {
+.play-mode-overlay[data-play-mode] .pm-strip-btn {
+  flex: none;
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border-radius: 0.55rem;
+  border: 1px solid var(--surface-border);
   background: var(--ink-800);
-  border-color: var(--surface-border);
+  color: var(--ivory-300);
+  font-size: 0.9rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
 }
-.play-mode-overlay[data-play-mode] .ab-move-btn.active {
-  background: var(--ink-800);
-  border-color: var(--surface-border);
+.play-mode-overlay[data-play-mode] .pm-strip-btn:hover:not(:disabled) {
+  background: var(--ink-900);
+  border-color: var(--surface-strong);
   color: var(--ivory-100);
+}
+.play-mode-overlay[data-play-mode] .pm-strip-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+
+/* The same markup the page strip renders. The overlay is portalled onto the
+   body, so the page-scoped `.ab-root …` rules in AnalysisBoard's <style> block
+   never reach it and it carries its own copy here — dark, scrollbar hidden, and
+   the only thing that can scroll: `overscroll-behavior-x` keeps a flick on the
+   chips from dragging the panel or the page along with it. */
+.play-mode-overlay[data-play-mode] .ab-movestrip {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 100%;
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 2px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  white-space: nowrap;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x proximity;
+  background: transparent;
+  border: 0;
+  padding: 0 2px;
+  scrollbar-width: none;
+}
+.play-mode-overlay[data-play-mode] .ab-movestrip::-webkit-scrollbar { display: none; }
+.play-mode-overlay[data-play-mode] .ab-mvpair {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+.play-mode-overlay[data-play-mode] .ab-mvnum {
+  flex: none;
+  margin-left: 8px;
+  font: 400 0.62rem ui-monospace, Menlo, monospace;
+  color: var(--ivory-500);
+}
+.play-mode-overlay[data-play-mode] .ab-mv {
+  flex: none;
+  height: 34px;
+  padding: 0 9px;
+  border: 0;
+  border-radius: 0.45rem;
+  background: transparent;
+  color: var(--ivory-300);
+  font: 600 0.78rem/1 ui-monospace, Menlo, monospace;
+  white-space: nowrap;
+  cursor: pointer;
+  scroll-snap-align: center;
+  transition: background 0.15s, color 0.15s;
+}
+.play-mode-overlay[data-play-mode] .ab-mv:hover:not(:disabled) {
+  background: var(--ink-800);
+  color: var(--ivory-100);
+}
+.play-mode-overlay[data-play-mode] .ab-mv:disabled { cursor: not-allowed; opacity: 0.5; }
+.play-mode-overlay[data-play-mode] .ab-mv.is-current {
+  background: #2563EB;
+  color: #fff;
+}
+.play-mode-overlay[data-play-mode] .ab-moves-empty {
+  color: var(--ivory-500);
+  font-size: 0.72rem;
+  padding: 0;
 }
 
 /* overlay-scoped: status chips + nav pill go light theme */
@@ -3813,65 +3903,8 @@ button.set-row:hover .set-row-chevron {
   border-radius: 999px;
 }
 
-/* move list */
-.ab-moves-card {
-  background: rgba(255,255,255,0.7);
-  border: 1px solid rgba(212,169,47,0.18);
-  border-radius: 0.75rem;
-  padding: 0.5rem 0.6rem;
-}
-.ab-moves-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 0.35rem;
-}
-.ab-moves-title   { font-size: 0.72rem; font-weight: 700; color: #525252; }
-.ab-moves-counter { font-size: 0.62rem; color: rgba(71,85,105,0.5); }
+/* the "no moves yet" line, shared by the moves strip and the review panel */
 .ab-moves-empty   { font-size: 0.68rem; color: rgba(71,85,105,0.4); padding: 0.3rem 0; }
-.ab-move-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0.1rem;
-  max-height: 7.5rem;
-  overflow-y: auto;
-}
-.ab-move-pair {
-  display: grid;
-  grid-template-columns: 1.4rem 1fr 1fr;
-  gap: 0.15rem;
-  align-items: center;
-}
-.ab-move-num {
-  font-size: 0.6rem;
-  color: rgba(71,85,105,0.45);
-  text-align: right;
-  padding-right: 0.2rem;
-}
-.ab-move-btn {
-  padding: 0.18rem 0.4rem;
-  border-radius: 0.35rem;
-  font-size: 0.72rem;
-  color: #171717;
-  background: transparent;
-  border: 1px solid transparent;
-  cursor: pointer;
-  text-align: left;
-  transition: background 0.15s, border-color 0.15s;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.ab-move-btn:hover:not(:disabled) {
-  background: rgba(212,169,47,0.1);
-  border-color: rgba(212,169,47,0.2);
-}
-.ab-move-btn.active {
-  background: rgba(212,169,47,0.16);
-  border-color: rgba(212,169,47,0.55);
-  color: #0fa7dd;
-}
-.ab-move-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
 /* ── side panel ── */
 .ab-side-panel {
@@ -4043,7 +4076,11 @@ details[open] .ab-section-head::after { transform: rotate(180deg); }
   will-change: transform, opacity;
 }
 .ab-reaction-main { position: relative; display: block; width: 96px; height: 96px; line-height: 1; }
-.ab-reaction-character { display: block; animation: ab-reaction-life 2.8s cubic-bezier(.2,.72,.25,1) both; transform-origin: center; will-change: transform, opacity; }
+/* 1.8 s, matching REACTION_LIFE_MS in AnalysisBoard: the emoji floats up and
+   fades out inside this window and the node is removed just after it ends. The
+   per-emoji loops below are all timed to finish before the bubble goes, so
+   nothing snaps mid-cycle. */
+.ab-reaction-character { display: block; animation: ab-reaction-life 1.8s cubic-bezier(.2,.72,.25,1) both; transform-origin: center; will-change: transform, opacity; }
 .ab-reaction-video-source { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
 .ab-reaction-video { display: block; width: 96px; height: 96px; max-width: none; object-fit: contain; background: transparent; }
 .ab-reaction-particles { position: absolute; inset: 0; }
@@ -4056,20 +4093,20 @@ details[open] .ab-section-head::after { transform: rotate(180deg); }
   animation: ab-reaction-particle .85s cubic-bezier(.15,.7,.2,1) both;
   will-change: transform, opacity;
 }
-.ab-reaction-laugh .ab-reaction-motion { animation: ab-reaction-shake .38s ease-in-out .4s 5; }
+.ab-reaction-laugh .ab-reaction-motion { animation: ab-reaction-shake .38s ease-in-out .3s 3; }
 .ab-reaction-thumbs_up .ab-reaction-motion,
-.ab-reaction-clap .ab-reaction-motion { animation: ab-reaction-bounce .62s ease-in-out .4s 4; }
-.ab-reaction-fire .ab-reaction-motion { animation: ab-reaction-fire-pulse .72s ease-in-out .35s 3; }
-.ab-reaction-wow .ab-reaction-motion { animation: ab-reaction-wow-pulse .9s ease-in-out .4s 2; }
+.ab-reaction-clap .ab-reaction-motion { animation: ab-reaction-bounce .62s ease-in-out .3s 2; }
+.ab-reaction-fire .ab-reaction-motion { animation: ab-reaction-fire-pulse .72s ease-in-out .3s 2; }
+.ab-reaction-wow .ab-reaction-motion { animation: ab-reaction-wow-pulse .75s ease-in-out .15s 2; }
 .ab-reaction-angry .ab-reaction-main { filter: drop-shadow(0 0 7px rgba(239, 68, 68, .72)); }
-.ab-reaction-angry .ab-reaction-motion { animation: ab-reaction-tremble .12s linear .4s 12; }
+.ab-reaction-angry .ab-reaction-motion { animation: ab-reaction-tremble .12s linear .35s 8; }
 .ab-reaction-handshake .ab-reaction-motion { animation: ab-reaction-slide-left .42s cubic-bezier(.16,1.3,.3,1) both; }
 .ab-reaction-gg .ab-reaction-motion { animation: ab-reaction-slide-right .42s cubic-bezier(.16,1.3,.3,1) both; }
 .ab-reaction-gg .ab-reaction-main { font-size: 23px; font-weight: 900; color: #2563EB; text-shadow: 0 1px 0 #fff, 0 2px 7px rgba(15, 23, 42, .2); }
 .ab-reaction-motion { display: block; }
 .ab-reaction-tears { position: absolute; left: 50%; top: 72%; display: flex; gap: 12px; }
-.ab-reaction-tears i { width: 5px; height: 8px; border-radius: 70% 20% 65% 60%; background: #60A5FA; opacity: 0; animation: ab-reaction-tear .65s ease-in .35s 3; }
-.ab-reaction-tears i:nth-child(2) { animation-delay: .55s; }
+.ab-reaction-tears i { width: 5px; height: 8px; border-radius: 70% 20% 65% 60%; background: #60A5FA; opacity: 0; animation: ab-reaction-tear .65s ease-in .3s 2; }
+.ab-reaction-tears i:nth-child(2) { animation-delay: .48s; }
 @keyframes ab-reaction-life {
   0% { transform: translateY(0) scale(0); opacity: 0; }
   12% { transform: translateY(0) scale(1.4); opacity: 1; }
@@ -4096,7 +4133,7 @@ details[open] .ab-section-head::after { transform: rotate(180deg); }
 @keyframes ab-reaction-tear { 0% { transform: translateY(0) scale(.7); opacity: 0; } 20% { opacity: 1; } 100% { transform: translateY(14px) scale(1); opacity: 0; } }
 @keyframes ab-reaction-ripple { from { transform: scale(.25); opacity: .8; } to { transform: scale(1.8); opacity: 0; } }
 @media (prefers-reduced-motion: reduce) {
-  .ab-reaction-bubble { animation: ab-reaction-reduced-fade 2.8s ease-out both; }
+  .ab-reaction-bubble { animation: ab-reaction-reduced-fade 1.8s ease-out both; }
   .ab-reaction-character { animation: none !important; }
   .ab-reaction-motion { animation: none !important; }
   .ab-reaction-particles, .ab-reaction-tears { display: none !important; }
@@ -19888,9 +19925,10 @@ body,
   }
 }
 @media (max-width: 639px) {
+  /* The toast stack stays anchored to the BOTTOM edge on phones (see item 9,
+     which already gives it the safe-area inset). Widened to the full gutter so
+     a two-button Accept/Decline card cannot run off the right edge. */
   .fixed.bottom-4.right-4 {
-    top: max(0.75rem, env(safe-area-inset-top, 0px));
-    bottom: auto;
     left: 0.75rem;
     right: 0.75rem;
   }

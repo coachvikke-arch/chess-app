@@ -55,6 +55,39 @@ export function onGameUpdate(callback) {
   return () => s.off('game-update', callback);
 }
 
+/* One ply, pushed the moment the server has written it — ahead of the full
+   `game-update` state that follows. See onlineController.js emitGameMove. */
+export function onGameMove(callback) {
+  const s = getSocket();
+  if (!s) return () => {};
+  s.on('game-move', callback);
+  return () => s.off('game-move', callback);
+}
+
+/* Connection state. A reconnect hands the socket a NEW id, and every server-side
+   room the old one had joined — `game:<id>` above all — is gone with it, because
+   nothing re-sends `join-game`. So a game screen has to listen for this and
+   re-join, or live moves quietly stop arriving for the rest of the session.
+   Socket.io's own ping is the heartbeat underneath these events. */
+export function onSocketConnect(callback) {
+  const s = getSocket();
+  if (!s) return () => {};
+  s.on('connect', callback);
+  return () => s.off('connect', callback);
+}
+
+export function onSocketDisconnect(callback) {
+  const s = getSocket();
+  if (!s) return () => {};
+  s.on('disconnect', callback);
+  return () => s.off('disconnect', callback);
+}
+
+export function isSocketConnected() {
+  const s = getSocket();
+  return Boolean(s?.connected);
+}
+
 /* Ephemeral in-game reactions use the existing authenticated game socket. */
 export function sendGameReaction(gameId, senderId, emoji) {
   const s = getSocket();

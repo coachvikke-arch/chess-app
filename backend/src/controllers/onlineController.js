@@ -53,6 +53,42 @@ function emitGameUpdate(req, gameId) {
   }).catch(() => {});
 }
 
+/* Incremental move push. Sent from the values the move handler already holds,
+   so it lands without waiting for the row to be read back. The opponent applies
+   this single ply immediately; `game-update` still follows and stays the
+   authority, so a push that was missed or that disagrees is corrected a moment
+   later rather than leaving the board wrong. */
+function emitGameMove(req, row, move) {
+  const io = req.app.get('io');
+  if (!io) return;
+  const at = Date.now();
+  const pushed = {
+    gameId: row.id,
+    ply: move.ply,
+    /* Full-move number (1,1,2,2,...) — what a spectator reads off the scoresheet.
+       `ply` is the half-move count and is what the clients compare against. */
+    moveNumber: Math.ceil(move.ply / 2),
+    from: move.from,
+    to: move.to,
+    promotion: move.promotion,
+    san: move.san,
+    color: move.color,
+    fen: move.fen,
+    status: move.status,
+    clock: {
+      whiteMs: move.whiteMs,
+      blackMs: move.blackMs,
+      /* The mover's clock stopped, so the opponent is now on the clock. */
+      turn: move.color === 'white' ? 'black' : 'white',
+    },
+    serverNow: at,
+    timestamp: at,
+  };
+  io.to(`game:${row.id}`).emit('game-move', pushed);
+  emitToUser(io, row.admin_id, 'game-move', pushed);
+  emitToUser(io, row.student_id, 'game-move', pushed);
+}
+
 const START_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
 const nowMs = () => Date.now();
 const rowMs = (v) => new Date(v).getTime();
@@ -1923,6 +1959,21 @@ exports.moveGame = async (req, res) => {
         row.id,
       ]
     );
+    /* Pushed before the row is read back: this is the fast path for the
+       opponent's board, and a extra roundtrip here is exactly the latency it is
+       trying to remove. */
+    emitGameMove(req, row, {
+      ply: g.history().length,
+      san: mv.san,
+      from: mv.from,
+      to: mv.to,
+      promotion: mv.promotion || null,
+      color: mv.color === 'w' ? 'white' : 'black',
+      fen: g.fen(),
+      whiteMs,
+      blackMs,
+      status,
+    });
     const updated = await getGameRow(row.id);
     if (status === 'finished') {
       await applyOnlineRating(updated, result);

@@ -13,7 +13,6 @@ import { framePalette, shade } from '../config/ornateTheme';
 import { searchBest, searchTopMoves, stopEngineSearch } from '../utils/engine';
 import { BOT_LEVELS, botLevelConfig, suggestedLevelForRating } from '../utils/botLevels';
 
-import { Card } from '../components/ui';
 import usePageTitle from '../hooks/usePageTitle';
 import { playSound, unlockAudio } from '../utils/sound';
 import { formatDateTime12 } from '../utils/time';
@@ -54,6 +53,10 @@ import {
   joinGameRoom,
   leaveGameRoom,
   onGameUpdate,
+  onGameMove,
+  onSocketConnect,
+  onSocketDisconnect,
+  isSocketConnected,
   on as onSocketEvent,
   sendGameReaction,
   onGameReaction,
@@ -81,6 +84,24 @@ import reactionThumbsUp from '../assets/mp4/thumbs-up.mp4';
 import reactionWow from '../assets/mp4/wow.mp4';
 
 /* ------------------------------- helpers ---------------------------------- */
+
+/* A reaction bubble's life, and the lock-out after sending one, both in ms.
+   The life is the same number as the `ab-reaction-life` keyframes in index.css:
+   the emoji floats up and fades out inside that window and the node is removed
+   just after it ends. Longer leaves an invisible bubble squatting in the slot;
+   shorter cuts the fade mid-flight. The cooldown was two seconds, which is what
+   made a reacted board feel deaf — the sender could not tell whether their tap
+   had registered. */
+const REACTION_LIFE_MS = 1800;
+const REACTION_COOLDOWN_MS = 1000;
+
+/* The ceiling on a piece's glide DURING A LIVE ONLINE MATCH. The saved Animation
+   preference still picks the style and whether to animate at all; this only
+   shortens it, because a piece that takes 450 ms to land is a piece that is
+   visibly behind the opponent's move — and two moves in a row then look like the
+   board has stalled. Kept inside the 120–200 ms band a fast game actually feels
+   responsive in. */
+const ONLINE_MOVE_MS = 200;
 
 function rebuildGame(init, movesList) {
   const g = new Chess(init === 'start' ? undefined : init);
@@ -657,7 +678,7 @@ export default function AnalysisBoard() {
      the themed frame out of it, following the saved `boardFrame` preference — so
      the fit below needs no frame arithmetic and the board is the same size with
      the frame on as off. */
-  const { showToast } = useToast();
+  const { showToast, claimToast } = useToast();
   const gameRef       = useRef(new Chess());
   const engineToken   = useRef(0);
   const computerToken = useRef(0);
@@ -695,8 +716,11 @@ export default function AnalysisBoard() {
   /* The flexible band the board sits in. Measured so the square board can be
      sized from the space it actually has (see the responsiveness effect). */
   const boardAreaRef    = useRef(null);
-  /* The single-row moves strip, so the move being viewed can be kept centred. */
+  /* The single-row moves strips, so the move being viewed can be kept centred.
+     The page stays mounted underneath Play Mode, so the overlay gets its own
+     ref rather than sharing the page's. */
   const stripRef        = useRef(null);
+  const pmStripRef      = useRef(null);
   const [panelOffset,   setPanelOffset]   = useState(0);
   /* Play Mode — fullscreen immersive overlay. Purely a VIEW switch: the page
      (and every game/time/connection state) stays mounted underneath. */
@@ -927,6 +951,24 @@ export default function AnalysisBoard() {
      match starting at ply 0 is not mistaken for a stale row. */
   const appliedRef        = useRef({ id: null, ply: 0, pgn: '' });
 
+  /* The challenge this page sent and is still waiting on. The same game is ALSO
+     on the board as a `pending` row, so this is a second marker for one match,
+     not a second match — and it is what the Cancel button acts on. It matters for
+     catch-up because a pending row is exactly the state the old poll refused to
+     look at (`status !== 'active'`), so a missed accept had no way to converge:
+     the spinner stayed up over a game that had already started. Every realtime
+     and catch-up path below tests this id alongside the current game. */
+  const onlineWaitingRef = useRef(null);
+
+  /* When this game last heard anything from the server. Catch-up fetches only
+     when the realtime channel has gone quiet, so a healthy match issues none. */
+  const lastContactRef = useRef(0);
+  /* Driven by the socket's own connect/disconnect: shows "Reconnecting…" and,
+     more importantly, tells catch-up that the quiet is expected rather than a
+     lost push. */
+  const [serverLinked, setServerLinked] = useState(true);
+  const catchUpInFlightRef = useRef(null);
+
   /* live-game spectating: sessions announced by other players' clients */
   const specKeyRef        = useRef(null);
   const [liveSessions,    setLiveSessions]    = useState([]);
@@ -951,7 +993,10 @@ export default function AnalysisBoard() {
   const [reviewMode,   setReviewMode]   = useState(false); // dismiss overlay, browse finished game
 
   /* reactions / analysis */
-  const [playerReactions, setPlayerReactions] = useState({ mine: null, opponent: null });
+  /* A LIST per side, not one slot: `playerReactions.opponent` used to hold a
+     single emoji, so a second reaction replaced the first and the shared timer
+     cancelled the animation still playing on screen. */
+  const [playerReactions, setPlayerReactions] = useState({ mine: [], opponent: [] });
   const [reactionCooling, setReactionCooling] = useState(false);
   const [pressedReaction, setPressedReaction] = useState('');
   const [showReactPicker, setShowReactPicker] = useState(false);
@@ -959,7 +1004,10 @@ export default function AnalysisBoard() {
   const [infoTab,         setInfoTab]         = useState('fen');
   const reactionId        = useRef(0);
   const reactionCooldownRef = useRef(0);
-  const reactionTimersRef = useRef({ mine: null, opponent: null, cooldown: null, pressed: null });
+  const reactionTimersRef = useRef({ cooldown: null, pressed: null });
+  /* One removal timer per bubble, so an old one finishing does not cancel a new
+     one and vice versa. */
+  const reactionItemTimers = useRef(new Map());
   const [gameAnalysis,    setGameAnalysis]    = useState(null);
   const [analyzing,       setAnalyzing]       = useState(false);
   const [showReviewPopup, setShowReviewPopup] = useState(false);
@@ -1023,15 +1071,14 @@ export default function AnalysisBoard() {
    * Done by writing the strip's OWN scrollLeft, not with scrollIntoView.
    * scrollIntoView walks every scrollable ancestor, so on a phone it could drag
    * the PAGE sideways/vertically to bring the chip into view — that was the page
-   * shake during a game. This only ever moves the strip. */
+   * shake during a game. This only ever moves the strip.
+   *
+   * Both strips are covered because Play Mode is an overlay on top of a page that
+   * stays mounted, and a new move or a step back has to re-centre whichever one
+   * the player is looking at. */
   useEffect(() => {
-    const strip = stripRef.current;
-    if (!strip) return;
-    const cur = strip.querySelector('.ab-mv.is-current');
-    if (!cur) return;
-    const target = cur.offsetLeft - (strip.clientWidth - cur.offsetWidth) / 2;
-    const max = strip.scrollWidth - strip.clientWidth;
-    strip.scrollTo({ left: Math.max(0, Math.min(max, target)), behavior: 'smooth' });
+    centreMoveStrip(stripRef.current);
+    centreMoveStrip(pmStripRef.current);
   }, [moveIndex, moves.length]);
 
   /* Side-panel alignment — keep the ♟/🤖/👁/⚙ cards level with the BOARD.
@@ -1349,9 +1396,7 @@ export default function AnalysisBoard() {
     activeGameIdRef.current = null;
     setOnlineMyColor('white');
     setOnlineTurn('white');
-    clearTimeout(reactionTimersRef.current.mine);
-    clearTimeout(reactionTimersRef.current.opponent);
-    setPlayerReactions({ mine: null, opponent: null });
+    clearReactionBubbles();
     setShowReactPicker(false);
     flagSentRef.current  = null;
     /* An offer belongs to ONE match. Without this it survives leaving the board
@@ -1596,8 +1641,8 @@ export default function AnalysisBoard() {
     engineToken.current += 1;
     analysisToken.current += 1;
     clearMateReveal();
-    Object.values(reactionTimersRef.current).forEach((timer) => clearTimeout(timer));
-    reactionTimersRef.current = { mine: null, opponent: null, cooldown: null, pressed: null };
+    clearReactionBubbles();
+    reactionTimersRef.current = { cooldown: null, pressed: null };
     window.clearTimeout(inviteBarTimer.current);
     window.clearTimeout(showOnlineNotice._t);
 
@@ -1630,7 +1675,7 @@ export default function AnalysisBoard() {
     setOnlineBusy(false); setOnlineSearching(false); setOnlineWaiting(null);
     setOnlineError(''); setOnlineNotice(''); setInviteBar(null); setDrawOffer(null);
     setPendingConfirm(null); setActivePopup(null);
-    setPlayerReactions({ mine: null, opponent: null }); setShowReactPicker(false);
+    setPlayerReactions({ mine: [], opponent: [] }); setShowReactPicker(false);
     setReactionCooling(false); setPressedReaction(''); reactionCooldownRef.current = 0;
     setSpectateSession(null); setLiveSessions([]); setLiveRefreshing(false);
     setGameAnalysis(null); setAnalyzing(false); setAnalyzeProgress(0);
@@ -2679,21 +2724,44 @@ export default function AnalysisBoard() {
   }, []);
 
   function showPlayerReaction(emoji, who) {
+    if (!emoji) return;
     const id = ++reactionId.current;
-    clearTimeout(reactionTimersRef.current[who]);
-    setPlayerReactions((prev) => ({ ...prev, [who]: { id, emoji } }));
-    reactionTimersRef.current[who] = setTimeout(() => {
-      setPlayerReactions((prev) => prev[who]?.id === id ? { ...prev, [who]: null } : prev);
-    }, 2800);
+    setPlayerReactions((prev) => {
+      const list = [...(prev[who] || []), { id, emoji }];
+      /* Three at a time, oldest dropped. A fourth emoji is a worse signal than the
+         one already floating, and an unbounded list turns the middle of the board
+         into a pile. */
+      return { ...prev, [who]: list.length > 3 ? list.slice(list.length - 3) : list };
+    });
+    reactionItemTimers.current.set(id, window.setTimeout(() => {
+      reactionItemTimers.current.delete(id);
+      /* Retired by id, never by slot: a newer reaction used to clear the timer of
+         the one already on screen, which is why rapid sending showed one bubble
+         rather than several. */
+      setPlayerReactions((prev) => ({
+        ...prev,
+        [who]: (prev[who] || []).filter((item) => item.id !== id),
+      }));
+    }, REACTION_LIFE_MS));
+  }
+
+  /* Every bubble off the board, and their timers first — so none of them can
+     fire against a list a different match is now using. */
+  function clearReactionBubbles() {
+    for (const timer of reactionItemTimers.current.values()) window.clearTimeout(timer);
+    reactionItemTimers.current.clear();
+    setPlayerReactions({ mine: [], opponent: [] });
   }
 
   function onReact(emoji) {
     if (!canReact || Date.now() < reactionCooldownRef.current) return;
     setShowReactPicker(false);
-    reactionCooldownRef.current = Date.now() + 2000;
+    /* One second, not two. The wait is what made a reacted board feel deaf —
+       the sender could not tell whether their tap had registered. */
+    reactionCooldownRef.current = Date.now() + REACTION_COOLDOWN_MS;
     setReactionCooling(true);
     clearTimeout(reactionTimersRef.current.cooldown);
-    reactionTimersRef.current.cooldown = setTimeout(() => setReactionCooling(false), 2000);
+    reactionTimersRef.current.cooldown = setTimeout(() => setReactionCooling(false), REACTION_COOLDOWN_MS);
     setPressedReaction(emoji);
     clearTimeout(reactionTimersRef.current.pressed);
     reactionTimersRef.current.pressed = setTimeout(() => setPressedReaction(''), 300);
@@ -2714,12 +2782,13 @@ export default function AnalysisBoard() {
       cleanup();
       if (reactionSocketCleanupRef.current === cleanup) reactionSocketCleanupRef.current = null;
     };
-    // The per-player timer replaces old reactions on the same card.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [inOnline, onlineGame?.id, user?.id]);
 
   useEffect(() => () => {
     Object.values(reactionTimersRef.current).forEach(clearTimeout);
+    for (const timer of reactionItemTimers.current.values()) clearTimeout(timer);
+    reactionItemTimers.current.clear();
   }, []);
 
   /* load users + matches on mount */
@@ -2767,21 +2836,15 @@ export default function AnalysisBoard() {
       const fromName = payload.from?.name || 'Someone';
       const msg = `${fromName} invited you to a game (${payload.timeLabel || '5+0'}).`;
       showOnlineNotice(msg);
-      // floating toast — top-right, stays 30s, with Accept + Decline buttons.
-      // Same dedupe key as the bell's match-request popup for this game:
-      // the backend emits both `game-invite` and a `notification` row for one
-      // request, so without a shared key the Play Arena stacks two popups.
-      showToast(msg, {
-        title: '♟ Online game request',
-        duration: 30000,
-        dedupeKey: matchRequestKey(payload.game?.id, user?.id),
-        source: 'AnalysisBoard:game_invite',
-        actions: [
-          { label: '✔ Accept', onClick: () => acceptOnline(payload.game) },
-          { label: '✕ Decline', onClick: () => declineOnline(payload.game) },
-        ],
-      });
-      // also keep the message at the bottom of the page, same 30s window
+      /* The invite bar at the bottom of this page IS the card for this request,
+         so claim the shared dedupe key instead of raising a second toast. The
+         backend also pushes a `match_request` notification row for the same
+         game, and the bell's app-wide popup would otherwise appear next to this
+         one — two Accept/Decline cards for one challenge. `game-invite` is
+         emitted before that row, so on this page the bar always wins the claim;
+         anywhere else nothing claims it and the bell pops instead. */
+      claimToast(matchRequestKey(payload.game?.id, user?.id));
+      // keep the bar on screen for the same window the popup used to have
       window.clearTimeout(inviteBarTimer.current);
       setInviteBar({ msg, game: payload.game });
       inviteBarTimer.current = window.setTimeout(() => setInviteBar(null), 30000);
@@ -2792,10 +2855,11 @@ export default function AnalysisBoard() {
       window.clearTimeout(inviteBarTimer.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [showToast]);
+  }, [claimToast]);
 
   /* keep onlineGameRef in sync for Socket.IO callback closure */
   useEffect(() => { onlineGameRef.current = onlineGame; }, [onlineGame]);
+  useEffect(() => { onlineWaitingRef.current = onlineWaiting; }, [onlineWaiting]);
 
   /* a request I SENT was just declined — the backend emits "match-declined" to
      me only; MatchDeclineListener toasts it and re-broadcasts it as a DOM event.
@@ -2840,6 +2904,133 @@ export default function AnalysisBoard() {
     if (appliedRef.current !== before || (row.status && row.status !== prevStatus)) {
       refreshOnlineMatches();
     }
+    /* A challenge this page sent is marked by `onlineWaiting` as well as by
+       `onlineGame`, and the marker is what keeps the "Challenge sent" card and
+       the Cancel button up. Once the row says the game is no longer pending the
+       wait is over, whichever way it ended. */
+    if (onlineWaitingRef.current && String(onlineWaitingRef.current.id) === String(row.id)
+      && row.status && row.status !== 'pending') {
+      setOnlineWaiting(null);
+      setOnlineSearching(false);
+    }
+  });
+
+  /* ── the fallback for an event that did not arrive ─────────────────────────
+     Fetch the ONE row this page should be holding, and only when the realtime
+     channel has demonstrably gone away or gone quiet: a reconnect, the tab
+     coming back to the foreground, or a challenge that is still un-answered
+     after the push that should have opened it has not turned up. It is not a
+     timer — a healthy match issues zero of these requests.
+
+     `catchUpInFlightRef` keeps it single-flight, because a reconnect fires
+     `connect`, `online` and `visibilitychange` inside the same tick and three
+     identical requests for one row is the behaviour the old 2.5 s poll had. */
+  const catchUpOnline = useStableCallback(async (gameIdArg) => {
+    const gameId = gameIdArg ?? onlineGameRef.current?.id ?? onlineWaitingRef.current?.id;
+    if (gameId == null) return;
+    if (catchUpInFlightRef.current === gameId) return;
+    catchUpInFlightRef.current = gameId;
+    try {
+      const fetched = await fetchGame(gameId);
+      /* Re-scope to this viewer — the endpoint answers for whichever side asked,
+         so a row that arrives after a game switch is somebody else's game. */
+      const row = fetched && fetched.meId === user?.id ? fetched : null;
+      if (!row) return;
+      lastContactRef.current = Date.now();
+      const stillWatched = String(onlineGameRef.current?.id ?? '') === String(row.id)
+        || String(onlineWaitingRef.current?.id ?? '') === String(row.id);
+      if (!stillWatched) return;
+      /* Still un-answered, and the board already says so: nothing was missed, and
+         re-applying the same pending row every pass would only churn the page. */
+      if (row.status === 'pending' && onlineGameRef.current?.status === 'pending') return;
+      if (row.status === 'declined' || row.status === 'aborted') {
+        if (onlineGameRef.current?.id === row.id) clearOnline(true);
+        setOnlineWaiting(null);
+        setOnlineSearching(false);
+        refreshOnlineMatches();
+        return;
+      }
+      applyOnlineRow(row);
+    } catch {
+      /* A transient failure is not a reason to blank the board; the next trigger
+         (or the next push) converges it. */
+    } finally {
+      catchUpInFlightRef.current = null;
+    }
+  });
+
+  /* ── the fast path for an opponent's move ──────────────────────────────────
+     The server pushes the move itself, so the board plays that one half-move
+     instead of rebuilding the entire game from PGN. It is strictly an
+     OPTIMISATION: `game-update` still follows and remains the authority, so
+     anything this path is not completely sure about — a ply that does not step
+     forward by exactly one, a move the local engine refuses, a FEN that does not
+     agree with the server's — is left alone for that row to settle. Guessing
+     here is how a piece moves twice.
+
+     `move_number` is the ply the server counted off the same PGN the board
+     holds, so a move at or below what is already on the board is a duplicate and
+     is dropped: the player's own move, an echoed push, or a late delivery. */
+  const applyIncomingMove = useStableCallback((p) => {
+    if (!p || p.gameId == null) return;
+    if (ignoredGameIdsRef.current.has(String(p.gameId))) return;
+    const cur = onlineGameRef.current;
+    if (!cur || String(cur.id) !== String(p.gameId)) return;
+    lastContactRef.current = Date.now();
+    if (p.status && p.status !== 'active') {
+      /* The move ended the game. The position and the result both live in the
+         row that follows, so ask for it rather than half-applying this. */
+      catchUpOnline(p.gameId);
+      return;
+    }
+    if (cur.status !== 'active') return;
+    const g = gameRef.current;
+    const played = g.history().length;
+    if (p.ply <= played || p.ply <= appliedRef.current.ply) return;
+    if (p.ply !== played + 1) {
+      /* A gap means moves were missed — a backgrounded tab or a brief
+         disconnect. Fetch the position instead of replaying a move that is not
+         the next one. */
+      catchUpOnline(p.gameId);
+      return;
+    }
+    let mv = null;
+    try { mv = g.move({ from: p.from, to: p.to, promotion: p.promotion || undefined }); }
+    catch { mv = null; }
+    if (!mv || g.fen() !== p.fen) return;   // the row behind this carries the truth
+    const { san, last } = getHistory(g);
+    /* Stamp the position as applied, including the PGN: the `game-update` that
+       immediately follows describes this exact position and must be recognised
+       as the duplicate it is. Without the PGN it would rebuild the board and
+       animate the same piece a second time. */
+    appliedRef.current = { id: p.gameId, ply: san.length, pgn: g.pgn() };
+    setMoves(san);
+    setMoveIndex(san.length);
+    setFen(g.fen());
+    setLastMove(last ? { from: last.from, to: last.to } : null);
+    setStatus(getStatus(g));
+    /* The hand-off happens here, not in the clock: the board must stop accepting
+       drags the moment the position says it is the other side's turn. */
+    setOnlineTurn(g.turn() === 'w' ? 'white' : 'black');
+    if (p.clock) {
+      setClock((c) => (c
+        ? {
+            ...c,
+            whiteMs: p.clock.whiteMs,
+            blackMs: p.clock.blackMs,
+            turn: p.clock.turn,
+            serverNow: p.serverNow || Date.now(),
+          }
+        : c));
+    }
+    if (g.isCheckmate() && String(onlineSeenActiveRef.current) === String(p.gameId)) {
+      waitForMateReveal(last?.to);
+    } else if (!g.isCheckmate()) {
+      clearMateReveal();
+    }
+    /* The list only needs re-reading when a game leaves the live pool; refetching
+       it every ply is the network cost this path exists to remove. */
+    if (p.result || p.status === 'finished' || p.status === 'aborted') refreshOnlineMatches();
   });
 
   /* ONE Socket.IO subscription for the whole page.
@@ -2869,20 +3060,42 @@ export default function AnalysisBoard() {
       }
       if (!row) return;
       if (ignoredGameIdsRef.current.has(String(row.id))) return;
-      /* An update about some OTHER match: keep the pending/active list in sync,
-         leave the board alone. */
-      if (!cur || row.id !== cur.id) {
+      /* This page follows TWO ids: the live board and the challenge it sent and
+         can still cancel. Normally they name the same game, but the board can be
+         put away (leaving Play Mode) while the challenge is still outstanding —
+         and then the accept arrives for a game with no board to update. Matching
+         on either id means that push still opens the match instead of being
+         brushed into a list refresh while the player waits on a spinner. */
+      const followed = cur?.id ?? onlineWaitingRef.current?.id ?? null;
+      if (followed == null || String(row.id) !== String(followed)) {
         refreshOnlineMatches();
         return;
       }
       // The other side closed a pending request (declined/aborted) — take it off
       // the board and refresh instead of popping an empty start-position game.
       if (row.status === 'declined' || row.status === 'aborted') {
-        clearOnline(true);
+        if (cur) clearOnline(true);
+        setOnlineWaiting(null);
+        setOnlineSearching(false);
+        refreshOnlineMatches();
+        return;
+      }
+      /* A challenge nobody has answered yet, with nothing on the board: the only
+         news is the list. Once a game IS on the board, `pending` is a state the
+         player acts on — the Accept button lives there — so it still applies. */
+      if (!cur && row.status === 'pending') {
         refreshOnlineMatches();
         return;
       }
       applyOnlineRow(row);
+    });
+
+    /* The opponent's move, pushed on its own so the board steps one ply instead
+       of rebuilding. Subscribed and disposed with this game, so exactly one
+       handler per match — the same stacking bug `game-update` used to have. */
+    const cleanupMove = onGameMove((p) => {
+      lastContactRef.current = Date.now();
+      applyIncomingMove(p);
     });
 
     let cleaned = false;
@@ -2890,6 +3103,7 @@ export default function AnalysisBoard() {
       if (cleaned) return;
       cleaned = true;
       cleanup();
+      cleanupMove();
       if (id) leaveGameRoom(id);
     };
     gameSocketCleanupRef.current = cleanGameSocket;
@@ -2900,34 +3114,76 @@ export default function AnalysisBoard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [onlineGame?.id, user?.id]);
 
-  /* Polling fallback for the active online game: if any Socket.IO push is missed
-     (connection blip, handshake delay, etc.) this converges the board to the latest
-     server position automatically — no page refresh needed. */
+  /* ─── the moments a push is actually lost ─────────────────────────────────
+     These replace the 2.5 s poll, which fired a request every 2500 ms for the
+     life of every match whether or not anything was missed — pure load on a
+     healthy connection, and still up to 2.5 s behind on a broken one. Each
+     trigger here is a real reason a delivery did not arrive, and converges by
+     fetching the ONE row it concerns:
+       · socket `connect`   — a reconnect gets a brand-new socket id, so the
+                              server-side room is empty. Re-joining first is the
+                              fix; without it every LATER move is also unheard.
+       · `visibilitychange` — a backgrounded tab drops the websocket silently.
+       · window `online`    — the network interface came back.
+     `disconnect` only flips the "Reconnecting…" flag: socket.io reconnects on
+     its own, and the `connect` handler above does the catch-up. */
   useEffect(() => {
     const id = onlineGame?.id;
-    if (!id || onlineGame?.status !== 'active') return;
-    let stopped = false;
-    let timer = null;
-
-    const poll = async () => {
-      try {
-        const row = await fetchGame(id);
-        if (stopped) return;
-        // Re-scope the returned payload to this viewer before applying.
-        const mine = row && row.meId === user?.id ? row : null;
-        if (mine) applyOnlineRow(mine);
-      } catch { /* ignore transient network errors */ }
+    if (!id) return undefined;
+    setServerLinked(isSocketConnected());
+    const onConnect = () => {
+      setServerLinked(true);
+      joinGameRoom(id);
+      catchUpOnline(id);
     };
-
-    poll();
-    timer = setInterval(poll, 2500);
-
+    const offConnect = onSocketConnect(onConnect);
+    const offDisconnect = onSocketDisconnect(() => setServerLinked(false));
+    const onVisible = () => {
+      if (document.visibilityState !== 'visible') return;
+      if (isSocketConnected()) catchUpOnline(id);
+      else joinGameRoom(id);
+    };
+    const onNetworkUp = () => {
+      if (isSocketConnected()) catchUpOnline(id);
+      else joinGameRoom(id);
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('online', onNetworkUp);
     return () => {
-      stopped = true;
-      if (timer) clearInterval(timer);
+      offConnect();
+      offDisconnect();
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('online', onNetworkUp);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [onlineGame?.id, onlineGame?.status]);
+  }, [onlineGame?.id, catchUpOnline]);
+
+  /* The one case no event can announce: an accept — or an opponent's move — the
+     server believes it pushed, over a socket that still claims to be connected.
+     Bounded instead of constant: it runs ONLY while this board is genuinely
+     waiting on somebody else (an un-answered challenge, or a live match whose
+     move is due from the other side), asks at most once every 45 s of silence,
+     and stops the moment the game starts, ends, or hands the turn back to me. */
+  useEffect(() => {
+    const boardId = onlineGame?.id ?? null;
+    const heldId = onlineWaiting?.id ?? null;
+    const id = boardId ?? heldId;
+    if (!id) return undefined;
+    const awaitingAccept = !boardId || onlineGame?.status === 'pending';
+    const awaitingMove = onlineGame?.status === 'active' && onlineTurn !== onlineMyColor;
+    if (!awaitingAccept && !awaitingMove) return undefined;
+
+    const openedAt = Date.now();
+    const timer = window.setInterval(() => {
+      if (awaitingAccept) { catchUpOnline(id); return; }
+      if (!serverLinked) return;
+      const lastHeard = Math.max(lastContactRef.current, openedAt);
+      if (Date.now() - lastHeard < 45000) return;
+      catchUpOnline(id);
+    }, 15000);
+    return () => window.clearInterval(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [onlineGame?.id, onlineGame?.status, onlineWaiting?.id, onlineTurn, onlineMyColor, serverLinked, catchUpOnline]);
 
   /* ─── derived values ─────────────────────────────────────── */
   const onlineFinished   = onlineGame && (onlineGame.status === 'finished' || onlineGame.status === 'aborted');
@@ -3486,7 +3742,7 @@ export default function AnalysisBoard() {
 
           {/* top player card (opponent / engine) */}
           <div className="ab-player-row ab-player-row-reactions">
-            {!playMode && <ReactionBubble reaction={playerReactions.opponent} boardRef={boardAreaRef} />}
+            {!playMode && <ReactionBubble reactions={playerReactions.opponent} boardRef={boardAreaRef} />}
             <span className={`ab-avatar ${topColor === 'black' ? 'ab-avatar-black' : 'ab-avatar-white'}`}>
               <PlayerAvatar player={topProfile} seed={topAvatarSeed} size={32} />
             </span>
@@ -3571,6 +3827,7 @@ export default function AnalysisBoard() {
                   /* Named, so an effect started by the page (a move-list click,
                      an undo/redo) lands on THIS board. */
                   effectHostId={pageBoardHostId}
+                  maxMoveMs={inOnline ? ONLINE_MOVE_MS : undefined}
                 />
               )}
               {waitingForOpponent && <WaitingOverlay />}
@@ -3644,6 +3901,17 @@ export default function AnalysisBoard() {
             </div>
           )}
 
+          {/* The socket itself reports it is not linked. Shown only while a match
+              is live, and deliberately outside the banner's suppression rule: the
+              board keeps its position, the reconnect path repairs it, and this is
+              here so the player is not dragging pieces into a void. */}
+          {inOnline && !serverLinked && (
+            <div className="ab-banner ab-banner-pending" role="status" aria-live="polite">
+              <span className="ab-banner-icon">📶</span>
+              <span className="ab-banner-text">Reconnecting… your board catches up on its own.</span>
+            </div>
+          )}
+
           {/* ── moves — ONE horizontal row (or the review panel while reviewing) ── */}
           {reviewMode ? (
             <ReviewPanel
@@ -3660,7 +3928,6 @@ export default function AnalysisBoard() {
             />
           ) : (
             <MoveList
-              variant="strip"
               moves={moves}
               moveIndex={moveIndex}
               verdicts={verdictList}
@@ -3673,7 +3940,7 @@ export default function AnalysisBoard() {
 
           {/* bottom player card (me) — under the moves strip */}
           <div className="ab-player-row ab-player-row-reactions">
-            {!playMode && <ReactionBubble reaction={playerReactions.mine} boardRef={boardAreaRef} />}
+            {!playMode && <ReactionBubble reactions={playerReactions.mine} boardRef={boardAreaRef} />}
             <span className={`ab-avatar ${orientation === 'black' ? 'ab-avatar-black' : 'ab-avatar-white'}`}>
               <PlayerAvatar player={bottomProfile} seed={bottomAvatarSeed} size={32} />
             </span>
@@ -4637,7 +4904,7 @@ export default function AnalysisBoard() {
           <div className="play-mode-panel-scroll">
             {/* top (opponent) player row */}
             <div className="play-mode-player play-mode-player-top ab-player-row-reactions">
-              <ReactionBubble reaction={playerReactions.opponent} boardRef={pmAreaRef} />
+              <ReactionBubble reactions={playerReactions.opponent} boardRef={pmAreaRef} />
               <span className="ab-player-name">{topLabel}</span>
               <CapturedTray
                 pieces={topCaptured}
@@ -4653,7 +4920,7 @@ export default function AnalysisBoard() {
 
             {/* bottom (you) player row */}
             <div className="play-mode-player play-mode-player-bot ab-player-row-reactions">
-              <ReactionBubble reaction={playerReactions.mine} boardRef={pmAreaRef} />
+              <ReactionBubble reactions={playerReactions.mine} boardRef={pmAreaRef} />
               <span className="ab-player-name">{bottomLabel}</span>
               {canReact && playMode && <EmojiReactControl open={showReactPicker} disabled={reactionCooling} pressed={pressedReaction} onToggle={() => setShowReactPicker((value) => !value)} onReact={onReact} onClose={() => setShowReactPicker(false)} />}
               <CapturedTray
@@ -4668,13 +4935,10 @@ export default function AnalysisBoard() {
               />
             </div>
 
-            {/* controls + status */}
+            {/* controls + status — the four move-nav buttons now live inside the
+                moves strip, so only the position-only actions remain here. */}
             <div className="play-mode-controls">
               <div className="ab-ctrl-group">
-                <Button onClick={() => goToMove(0)} disabled={navLocked || moveIndex === 0} variant="secondary" size="sm" className="!py-1 !px-2 text-xs" title="Start">⏮</Button>
-                <Button onClick={undoMove}           disabled={navLocked || moveIndex === 0} variant="secondary" size="sm" className="!py-1 !px-2 text-xs" title="Undo">◀</Button>
-                <Button onClick={redoMove}           disabled={navLocked || moveIndex >= moves.length} variant="secondary" size="sm" className="!py-1 !px-2 text-xs" title="Redo">▶</Button>
-                <Button onClick={() => goToMove(moves.length)} disabled={navLocked || moveIndex >= moves.length} variant="secondary" size="sm" className="!py-1 !px-2 text-xs" title="End">⏭</Button>
                 <Button onClick={reset}              disabled={navLocked} variant="secondary" size="sm" className="!py-1 !px-2 text-xs" title="Reset position">↺</Button>
                 <Button onClick={() => { setOrientation((o) => (o === 'white' ? 'black' : 'white')); if (soundOn) playSound('select'); }}
                   variant="secondary" size="sm" className="!py-1 !px-2 text-xs" title="Flip board">⇄</Button>
@@ -4701,23 +4965,31 @@ export default function AnalysisBoard() {
                 )}
               </div>
             </div>
+          </div>
 
-{/* move list - using Card component */}
-              <Card title="Moves" piece="♘" className="play-mode-moves-card">
-                <div className="ab-moves-header">
-                  <span className="ab-moves-title">♘ Moves</span>
-                  <span className="ab-moves-counter">{moveIndex} / {moves.length}</span>
-                </div>
-                <MoveList
-                  variant="list"
-                  moves={moves}
-                  moveIndex={moveIndex}
-                  verdicts={verdictList}
-                  navLocked={navLocked}
-                  goToMove={handleNavMove}
-                  emptyText="No moves yet — play on the board or load a game."
-                />
-              </Card>
+          {/* moves — ONE sticky row, pinned to the bottom of the panel so it never
+              scrolls away with the player rows above it. The four navigation
+              buttons sit at the ends and the chips scroll between them, which is
+              why the old ⏮ ◀ ▶ ⏭ row above is gone: the same four handlers, now
+              one set of buttons.
+
+              Same memoised MoveList as the page strip — same moves, same
+              moveIndex, same goToMove — so a tap only re-views a position and
+              can never play one. */}
+          <div className="play-mode-movestrip" role="group" aria-label="Move navigation">
+            <button type="button" onClick={() => goToMove(0)} disabled={navLocked || moveIndex === 0} className="pm-strip-btn" title="First move" aria-label="First move">⏮</button>
+            <button type="button" onClick={undoMove} disabled={navLocked || moveIndex === 0} className="pm-strip-btn" title="Previous move" aria-label="Previous move">◀</button>
+            <MoveList
+              moves={moves}
+              moveIndex={moveIndex}
+              verdicts={verdictList}
+              navLocked={navLocked}
+              goToMove={handleNavMove}
+              containerRef={pmStripRef}
+              emptyText="No moves yet"
+            />
+            <button type="button" onClick={redoMove} disabled={navLocked || moveIndex >= moves.length} className="pm-strip-btn" title="Next move" aria-label="Next move">▶</button>
+            <button type="button" onClick={() => goToMove(moves.length)} disabled={navLocked || moveIndex >= moves.length} className="pm-strip-btn" title="Last move" aria-label="Last move">⏭</button>
           </div>
         </div>
 
@@ -4746,6 +5018,7 @@ export default function AnalysisBoard() {
                effect must be addressed to it — not to the page board behind
                the overlay. */
             effectHostId={playModeBoardHostId}
+            maxMoveMs={inOnline ? ONLINE_MOVE_MS : undefined}
           />
 
           {waitingForOpponent && <WaitingOverlay />}
@@ -4838,21 +5111,44 @@ export default function AnalysisBoard() {
 
 /* ══════════════════════ sub-components ══════════════════════ */
 
-/* The move list, memoised.
+/* Scroll a moves strip so the chip for the move being viewed sits in the middle.
+ * Only the strip itself moves — see the effect that calls this.
  *
- * Both surfaces render one — the page's single scrolling strip and Play Mode's
- * boxed list — and they were two hand-copied blocks of markup that had already
- * started to drift. Worse, they sat inline in the page body, so ANY page state
- * change repainted every move button on the board.
+ * Measured with getBoundingClientRect rather than the chip's offsetLeft:
+ * offsetLeft is relative to the nearest POSITIONED ancestor, which for Play Mode
+ * is the fixed overlay — it would carry the row's own left offset (the whole
+ * board column, on desktop) into the scroll target and centre nothing. These two
+ * rects are both in viewport space, so their difference is the chip's position
+ * inside the row that is actually visible; adding the row's current scrollLeft
+ * turns that into a position in the scrolled content. */
+function centreMoveStrip(strip) {
+  if (!strip) return;
+  const cur = strip.querySelector('.ab-mv.is-current');
+  if (!cur) return;
+  const chip = cur.getBoundingClientRect();
+  const host = strip.getBoundingClientRect();
+  const target = strip.scrollLeft + (chip.left - host.left) - (host.width - chip.width) / 2;
+  const max = strip.scrollWidth - strip.clientWidth;
+  strip.scrollTo({ left: Math.max(0, Math.min(max, target)), behavior: 'smooth' });
+}
+
+/* The moves strip, memoised.
+ *
+ * Both surfaces render one — the page's row under the board and Play Mode's
+ * sticky row in the panel — and they used to be two hand-copied blocks of
+ * markup, one horizontal and one a vertical box, that had already started to
+ * drift. Worse, they sat inline in the page body, so ANY page state change
+ * repainted every move button on the board.
  *
  * Now the repaint is driven by the four things a move button actually depends
  * on: the SAN list, which ply is being viewed, the verdict badges, and whether
  * navigation is locked. Clocks, panels, toasts and reactions cannot touch it.
  *
- * `variant` picks the styling the two surfaces already had; the markup is shared.
+ * One row, standard notation — `1. e4 e5  2. Nf3 Nc6` — with the move number
+ * small and grey and every half-move its own tappable chip. A chip calls
+ * `goToMove`, so tapping re-VIEWS a position; it can never play one.
  */
 const MoveList = memo(function MoveList({
-  variant,
   moves,
   moveIndex,
   verdicts,
@@ -4862,24 +5158,15 @@ const MoveList = memo(function MoveList({
   emptyText,
 }) {
   if (moves.length === 0) {
-    return variant === 'strip'
-      ? <div className="ab-movestrip" ref={containerRef}><span className="ab-moves-empty">{emptyText}</span></div>
-      : <p className="ab-moves-empty">{emptyText}</p>;
+    return <div className="ab-movestrip" ref={containerRef}><span className="ab-moves-empty">{emptyText}</span></div>;
   }
 
-  const pairClass = variant === 'strip' ? 'ab-mvpair' : 'ab-move-pair';
-  const numClass = variant === 'strip' ? 'ab-mvnum' : 'ab-move-num';
-  const btnBase = variant === 'strip' ? 'ab-mv' : 'ab-move-btn';
-  const currentClass = variant === 'strip' ? 'is-current' : 'active';
-
   const rows = Array.from({ length: Math.ceil(moves.length / 2) }, (_, i) => (
-    <span key={i} className={pairClass}>
-      <span className={numClass}>{i + 1}.</span>
+    <span key={i} className="ab-mvpair">
+      <span className="ab-mvnum">{i + 1}.</span>
       {[0, 1].map((offset) => {
         const idx = i * 2 + offset;
-        if (idx >= moves.length) {
-          return variant === 'strip' ? null : <span key={offset} className={btnBase} />;
-        }
+        if (idx >= moves.length) return null;
         const v = verdicts ? verdicts[idx] : null;
         const vm = v ? VERDICT_META[v.verdict] : null;
         const current = idx + 1 === moveIndex;
@@ -4890,7 +5177,7 @@ const MoveList = memo(function MoveList({
             onClick={() => goToMove(idx + 1)}
             disabled={navLocked}
             title={vm ? `${vm.label}${v.loss > 0 ? ` (−${v.loss} pawns)` : ''}` : ''}
-            className={`${btnBase}${current ? ` ${currentClass}` : ''}${vm ? ` ab-move-verdict-${vm.tone}` : ''}`}
+            className={`ab-mv${current ? ' is-current' : ''}${vm ? ` ab-move-verdict-${vm.tone}` : ''}`}
           >
             {vm && <span className={`mv-badge mv-badge-${vm.tone}`} title={vm.label}>{vm.symbol}</span>}
             {moves[idx]}
@@ -4900,30 +5187,8 @@ const MoveList = memo(function MoveList({
     </span>
   ));
 
-  return variant === 'strip'
-    ? <div className="ab-movestrip" ref={containerRef}>{rows}</div>
-    : <PlayModeMoveList followKey={`${moveIndex}/${moves.length}`}>{rows}</PlayModeMoveList>;
+  return <div className="ab-movestrip" ref={containerRef}>{rows}</div>;
 });
-
-/* Play Mode's boxed list scrolls VERTICALLY inside itself. When the viewed ply
- * changes — a new move, or the reader stepping back — only THIS container is
- * moved. `scrollIntoView` is not used anywhere on this page: it walks every
- * scrollable ancestor and could drag the whole overlay/page along with it, which
- * is the page shake. */
-function PlayModeMoveList({ children, followKey }) {
-  const ref = useRef(null);
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const cur = el.querySelector('.ab-move-btn.active');
-    if (!cur) return;
-    const top = cur.offsetTop - (el.clientHeight - cur.offsetHeight) / 2;
-    const max = el.scrollHeight - el.clientHeight;
-    el.scrollTo({ top: Math.max(0, Math.min(max, top)), behavior: 'smooth' });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [followKey]);
-  return <div className="ab-move-list" ref={ref}>{children}</div>;
-}
 
 /* The board's "waiting" overlay: a circular spinner with the message under it,
  * sitting ON the board instead of the thin strip of text it replaced.
@@ -5165,8 +5430,18 @@ const REACTION_PARTICLES = [
   [-34, -24, -18], [-13, -34, 12], [16, -32, 24], [36, -10, -10],
   [30, 20, 18], [5, 34, -24], [-25, 26, 8], [-39, 2, -6],
 ];
+/* Where each concurrent bubble sits, indexed by AGE rather than by position in
+   the list — 0 is always the newest, so the one you just sent stays dead centre
+   and the older ones slide aside instead of jumping when a third arrives. */
+const REACTION_FAN = [[0, 0], [-46, 20], [46, 20]];
 
-function ReactionBubble({ reaction, boardRef }) {
+/* Two or three at once, spread around the middle of the board, and each one
+   removes itself. Before, a slot held exactly ONE reaction and a new emoji
+   cancelled the timer of the one already on screen — so rapid sending did not
+   show three, it showed whichever arrived last. The `key` on each bubble is the
+   per-send id, so React never re-uses a node and restarts an animation that is
+   already running. */
+function ReactionBubble({ reactions, boardRef }) {
   const anchorRef = useRef(null);
   const [point, setPoint] = useState(null);
   const [reducedMotion, setReducedMotion] = useState(() => (
@@ -5180,8 +5455,9 @@ function ReactionBubble({ reaction, boardRef }) {
     media.addEventListener?.('change', update);
     return () => media.removeEventListener?.('change', update);
   }, []);
+  const newestId = reactions[reactions.length - 1]?.id;
   useLayoutEffect(() => {
-    if (!reaction || !anchorRef.current) { setPoint(null); return undefined; }
+    if (!reactions.length || !anchorRef.current) { setPoint(null); return undefined; }
     const boardArea = boardRef?.current;
     if (!boardArea) return undefined;
     const update = () => {
@@ -5198,29 +5474,46 @@ function ReactionBubble({ reaction, boardRef }) {
       window.removeEventListener('scroll', update, true);
       observer?.disconnect();
     };
-  }, [reaction?.id, boardRef]);
-  if (!reaction) return null;
-  const item = GAME_REACTIONS.find((candidate) => candidate.key === reaction.emoji);
-  if (!item) return null;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [newestId, boardRef]);
+  if (!reactions.length) return null;
   return (
     <>
       <span ref={anchorRef} className="ab-reaction-anchor-point" aria-hidden="true" />
       {point && createPortal(
-        <div key={reaction.id} className={`ab-reaction-bubble ab-reaction-${item.key}`} style={{ left: point.left, top: point.top }} aria-hidden="true">
-          <span className="ab-reaction-main">
-            <span className="ab-reaction-character">
-              {reducedMotion
-                ? item.label
-                : <KeyedReactionVideo className="ab-reaction-motion" src={item.video} />}
-            </span>
-            {item.key === 'sad' && <span className="ab-reaction-tears"><i /><i /></span>}
-          </span>
-          <span className="ab-reaction-particles">
-            {REACTION_PARTICLES.map(([x, y, rotation], index) => (
-              <i key={index} style={{ '--rx': `${x}px`, '--ry': `${y}px`, '--rr': `${rotation}deg`, animationDelay: `${index * 18}ms` }}>{item.label}</i>
-            ))}
-          </span>
-        </div>,
+        reactions.map((reaction, index) => {
+          const item = GAME_REACTIONS.find((candidate) => candidate.key === reaction.emoji);
+          if (!item) return null;
+          /* A fan, not a stack: the newest sits centre, the two behind it lean out
+             and up so all three are readable at once. Fixed positioning means none
+             of this touches the page layout, and the newest is the LAST node in
+             the portal, so it paints over the older two without a second z-index
+             to keep in step with the toast and modal layers. */
+          const age = reactions.length - 1 - index;
+          const [dx, dy] = REACTION_FAN[age] || REACTION_FAN[REACTION_FAN.length - 1];
+          return (
+            <div
+              key={reaction.id}
+              className={`ab-reaction-bubble ab-reaction-${item.key}`}
+              style={{ left: point.left + dx, top: point.top + dy }}
+              aria-hidden="true"
+            >
+              <span className="ab-reaction-main">
+                <span className="ab-reaction-character">
+                  {reducedMotion
+                    ? item.label
+                    : <KeyedReactionVideo className="ab-reaction-motion" src={item.video} />}
+                </span>
+                {item.key === 'sad' && <span className="ab-reaction-tears"><i /><i /></span>}
+              </span>
+              <span className="ab-reaction-particles">
+                {REACTION_PARTICLES.map(([x, y, rotation], particleIndex) => (
+                  <i key={particleIndex} style={{ '--rx': `${x}px`, '--ry': `${y}px`, '--rr': `${rotation}deg`, animationDelay: `${particleIndex * 18}ms` }}>{item.label}</i>
+                ))}
+              </span>
+            </div>
+          );
+        }),
         document.body,
       )}
     </>

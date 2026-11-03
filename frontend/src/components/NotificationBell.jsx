@@ -107,6 +107,21 @@ function reqStatusLabel(status, isSender) {
   }
 }
 
+/** Milliseconds of a notification's `created_at`, or 0 when it is unreadable. */
+function createdAtMs(n) {
+  const t = Date.parse(n?.created_at);
+  return Number.isFinite(t) ? t : 0;
+}
+
+/* Per-user "newest notification the server already had when this tab started".
+ * Anything at or before it is pre-existing unread, not news. A module Map rather
+ * than a ref because the bell remounts on every navigation, and rather than
+ * sessionStorage because the user id is not known on the bell's first render
+ * after a hard refresh. A reload clears it, which is correct: reopening the app
+ * must not replay the old unread as popups either.
+ */
+const notificationBaselines = new Map();
+
 /** Tailwind classes for the status chip, coloured by request state. */
 function reqStatusChip(status) {
   switch (status) {
@@ -199,10 +214,42 @@ export default function NotificationBell() {
   }, [markRead, navigate, user]);
 
   /** Every fresh notification (socket or fetched) surfaces as a clickable
-   *  popup that marks it read and navigates to its page. */
+   *  popup that marks it read and navigates to its page.
+   *
+   *  "Fresh" has three tests, and the first two exist because the bell used to
+   *  treat every unread row in a refetch as news:
+   *    - nothing popped before this tab's baseline was set, so opening the app
+   *      or logging in (which itself writes a "Welcome back" row) replayed the
+   *      whole backlog as popups instead of only the bell count, and
+   *    - a refetch triggered by anything unrelated — saving a Settings value
+   *      changes the `user` identity, which rebuilds this callback, which used
+   *      to restart the unread poll immediately — popped rows that had simply
+   *      not been in the seen-set yet.
+   *  A row must also be absent from the seen-set, so it pops at most once. */
   const toastNew = useCallback((arr) => {
-    const fresh = arr.filter((n) => n?.id != null && !knownIds.current.has(String(n.id)));
+    const rows = (Array.isArray(arr) ? arr : [])
+      .filter((n) => n?.id != null && !n.is_read)
+      /* A chat reaction already has its own popup, raised straight off the
+         socket by ChatReactionListener with the sender's name and the emoji.
+         The `chat_reaction` notification row describes the same event, so
+         popping it too gave two cards for one reaction. */
+      .filter((n) => n.type !== 'chat_reaction');
+    const key = String(user?.id ?? 'anon');
+    const baseline = notificationBaselines.get(key);
+    if (baseline == null) {
+      // First read of this session: pre-existing unread is backlog, not news.
+      const newest = rows.reduce((best, n) => Math.max(best, createdAtMs(n)), 0) || Date.now();
+      notificationBaselines.set(key, newest);
+      rows.forEach((n) => knownIds.current.add(String(n.id)));
+      persistSeen();
+      return;
+    }
+
+    const fresh = rows.filter((n) =>
+      !knownIds.current.has(String(n.id)) && createdAtMs(n) > baseline);
     if (fresh.length === 0) return;
+    const newest = fresh.reduce((best, n) => Math.max(best, createdAtMs(n)), baseline);
+    notificationBaselines.set(key, newest);
     fresh.forEach((n) => knownIds.current.add(String(n.id)));
     persistSeen();
 
@@ -215,26 +262,24 @@ export default function NotificationBell() {
       showToast('Tap to see everything you missed.', {
         tone: 'info',
         title: `${fresh.length} new notifications`,
-        placement: 'notification',
         duration: 6000,
         source: 'NotificationBell:notif_summary',
         onClick: () => navigate(`${boardBase}/notifications`),
       });
       return;
     }
-    // Oldest → newest so the most recent notification lands at the bottom (by the edge).
+    // Oldest → newest so the most recent notification lands nearest the edge.
     fresh.slice().reverse().forEach((n) => {
       showToast(n.message || 'Tap to open the details.', {
         tone: notifTone(n.title),
         title: n.title,
-        placement: 'notification',
         duration: 6000,
         dedupeKey: `notif:${n.id}`,
         source: 'NotificationBell:notif_popup',
         onClick: () => openFromPopup(n),
       });
     });
-  }, [showToast, openFromPopup, navigate, boardBase]);
+  }, [showToast, openFromPopup, navigate, boardBase, user?.id]);
 
   /** Fetch the feed, update the list + badge, and surface fresh items as toasts. */
   const syncFeed = useCallback((markVisibleRead = false) => {
@@ -274,7 +319,15 @@ export default function NotificationBell() {
   // Refresh the unread badge periodically (and after open) so upcoming-meeting
   // reminders appear on the bell even if the student never visits the bell.
   // When the unread count climbs, fetch the list and surface the new items as toasts.
+  //
+  // The interval is deliberately mounted once and reads the current `toastNew`
+  // through a ref. Depending on the callback instead meant every change to it —
+  // and saving any Settings value replaces `user`, which rebuilds it — tore the
+  // effect down and ran `tick()` again straight away, so a settings write looked
+  // like a new notification.
   const unreadRef = useRef(0);
+  const toastNewRef = useRef(toastNew);
+  toastNewRef.current = toastNew;
   useEffect(() => {
     const tick = () => {
       api.get('/notifications/unread-count', { cache: false })
@@ -285,7 +338,7 @@ export default function NotificationBell() {
               const arr = Array.isArray(r.data) ? r.data : [];
               setItems(arr);
               setUnread(arr.filter((n) => !n.is_read).length);
-              toastNew(arr.filter((n) => !n.is_read));
+              toastNewRef.current(arr.filter((n) => !n.is_read));
             }).catch(() => { });
           } else {
             setUnread(openRef.current ? 0 : count);
@@ -298,14 +351,21 @@ export default function NotificationBell() {
     tick();
     const id = setInterval(tick, 30000);
     return () => clearInterval(id);
-  }, [toastNew]);
+    // toastNew is read through the ref above; re-running on its identity is the
+    // bug being fixed here, so the dependency list stays empty on purpose.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Real-time: new notifications (e.g. an incoming match request) arrive over
   // the socket and instantly refresh the badge + feed — no 30s polling wait.
+  const syncFeedRef = useRef(syncFeed);
+  syncFeedRef.current = syncFeed;
   useEffect(() => {
     if (!user) return undefined;
-    return onNotification(() => { syncFeed(); });
-  }, [user, syncFeed]);
+    return onNotification(() => { syncFeedRef.current(); });
+    // user?.id, not user: a Settings save gives `user` a new identity without
+    // changing who it is, and re-subscribing for it served nothing.
+  }, [user?.id]);
 
   // Live-classroom invites: a coach taps "Add students" and picks this student —
   // surface an instant "Join now" toast that drops straight into the room.
@@ -389,17 +449,23 @@ export default function NotificationBell() {
     if (!user) return undefined;
     return onNotification((n) => {
       if (n?.type !== 'match_request' || !n.related_id) return;
+      /* Only an outstanding challenge is worth a card. The backend writes an
+         `accepted` row for the acceptor AND the sender and a `cancelled` row on
+         an abort, all pushed live over the same channel — without this guard a
+         request the user had just accepted re-prompted them to accept it. */
+      if (n.request_status && n.request_status !== 'pending') return;
       if (openRef.current || notificationsPageRef.current) { claimSeen(n.id); return; }
       const isSender = n.sender_id === user.id;
       if (isSender) return;
       const fromName = n.sender_name || 'Someone';
-      /* Same dedupe key as the Play Arena's game-invite toast for this game:
-         whichever surface shows first wins; the other is suppressed, so one
-         match request can never stack two popups. */
+      /* Same dedupe key as the Play Arena's invite bar for this game, which
+         claims it as soon as `game-invite` arrives — the server pushes that
+         before this row. On the arena the bar is the card, so this popup is
+         suppressed and one match request never shows twice. */
       showToast(`${fromName} sent you a match request.`, {
         title: '♞ Match request',
         tone: 'info',
-        duration: 30000,
+        duration: 15000,
         dedupeKey: matchRequestKey(n.related_id, user.id),
         source: 'NotificationBell:match_request_popup',
         actions: [

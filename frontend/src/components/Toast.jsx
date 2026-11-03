@@ -117,7 +117,7 @@ export function ToastProvider({ children }) {
   const hasToast = useCallback((id) => id != null && ids.current.has(id), []);
 
   const showToast = useCallback(
-    (message, { tone = 'info', title = '', duration = 5000, action = null, actions = null, dedupeKey = null, dedupeWindowMs = DEDUPE_WINDOW_MS, source = null, placement = 'default', onClick = null } = {}) => {
+    (message, { tone = 'info', title = '', duration = 5000, action = null, actions = null, dedupeKey = null, dedupeWindowMs = DEDUPE_WINDOW_MS, source = null, onClick = null } = {}) => {
       const at = Date.now();
       /* Central dedupe: the same logical notification (same dedupeKey, e.g.
          type + gameId + userId) shown twice within a few seconds collapses to
@@ -128,12 +128,22 @@ export function ToastProvider({ children }) {
       if (suppressed) return null;
       const id = nextId++;
       ids.current.add(id);
-      setToasts((prev) => [...prev, { id, title, message, tone, action, actions, placement, onClick }]);
+      setToasts((prev) => [...prev, { id, title, message, tone, action, actions, onClick }]);
       timers.current.set(id, setTimeout(() => dismiss(id), duration));
       return id;
     },
     [dismiss]
   );
+
+  /* Mark a dedupe key as already surfaced, without raising a toast. For a
+   * caller that shows its own non-toast card for the same notification — the
+   * Play Arena's invite bar claims a match request the moment `game-invite`
+   * lands, so the bell's popup for the same game id is then suppressed and one
+   * request produces exactly one Accept/Decline card. */
+  const claimToast = useCallback((dedupeKey, dedupeWindowMs = DEDUPE_WINDOW_MS) => {
+    if (dedupeKey == null || dedupeKey === '') return false;
+    return !checkToastDedupe(dedupeSeen.current, dedupeKey, Date.now(), dedupeWindowMs).suppressed;
+  }, []);
 
   /* Rewrite a toast that is already on screen instead of stacking a new one.
    * Used where the same thing can fire repeatedly in a burst (a chatty
@@ -155,30 +165,19 @@ export function ToastProvider({ children }) {
   );
 
   return (
-    <ToastContext.Provider value={{ showToast, updateToast, hasToast, dismissToast: dismiss }}>
+    <ToastContext.Provider value={{ showToast, updateToast, hasToast, claimToast, dismissToast: dismiss }}>
       {children}
       <Portal>
-      <>
-      {/* Notification popups: on phones they dock just under the header so they
-          never cover the bottom nav or a game's controls; from `sm` up they
-          join the bottom-right stack below. */}
-      <div className="fixed inset-x-0 top-[4.25rem] z-[var(--z-notification)] flex flex-col gap-2 items-center px-3 pointer-events-none sm:hidden">
-        {toasts.filter((t) => t.placement === 'notification').map((t) => (
-          <ToastCard key={t.id} toast={t} onDismiss={dismiss} />
-        ))}
-      </div>
-      {/* Toast stack — fixed bottom-right, above everything */}
+      {/* One stack, always anchored to the bottom edge. A notification popup
+          that lands over the header covers the page title and, on the Play
+          Arena, the opponent's clock — and a match request arriving at the top
+          while its Accept/Decline card sits at the bottom reads as two separate
+          requests. `index.css` keeps this box bottom-anchored on phones too. */}
       <div className="fixed bottom-4 right-4 z-[var(--z-toast)] flex flex-col gap-2 items-end pointer-events-none">
-        {toasts.filter((t) => t.placement !== 'notification').map((t) => (
+        {toasts.map((t) => (
           <ToastCard key={t.id} toast={t} onDismiss={dismiss} />
         ))}
-        <div className="hidden sm:flex sm:flex-col sm:gap-2 sm:items-end">
-          {toasts.filter((t) => t.placement === 'notification').map((t) => (
-            <ToastCard key={t.id} toast={t} onDismiss={dismiss} />
-          ))}
-        </div>
       </div>
-      </>
       </Portal>
     </ToastContext.Provider>
   );

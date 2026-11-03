@@ -25,6 +25,9 @@ export default function ChatReactionListener() {
         tone: 'info',
         title: `${payload.emoji || '💬'} New reaction`,
         duration: 6000,
+        // One card per reaction, however many times the socket repeats it.
+        dedupeKey: `chat_reaction:${payload.scope ?? '?'}:${payload.messageId}:${payload.userId}:${payload.emoji}`,
+        source: 'ChatReactionListener',
         action: {
           label: 'Open chat',
           onClick: () => navigate(isStudent ? '/student/messages' : '/admin/messages'),

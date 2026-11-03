@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Chess } from 'chess.js';
 import { CBURNETT_SVGS } from './cburnettPieces';
-import useBoardWidth from '../hooks/useBoardWidth';
 
 const PGN = `[Event "Mikhail Tal's Greatest Queen Sacrifice! Best Chess Games | Moves, Strategy, Tricks & Ideas to Win: Chapter 1"]
 [Date "2020.12.13"]
@@ -49,9 +48,14 @@ function CburntPiece({ code, className }) {
 /** Replays Tal's queen-sacrifice game on the hero board, one move at a time.
     The moved piece glides from its origin to its target square while the rest
     of the position stays glued to its cells; loops forever. With `fixed` the
-    board container stops tilting and the scan sweep is hidden (used on Login). */
+    board container stops tilting and the scan sweep is hidden (used on Login).
+
+    `size` is a CEILING, not a width. The board itself is sized in CSS as
+    `min(100%, var(--hero-board-max))`, so it can never outgrow the column it
+    is dropped into — measuring it against `window.innerWidth` here made it
+    wider than its own container on phones, which is what pushed it flush
+    against the right edge. */
 export default function AnimatedBoard({ size = 340, fixed = false }) {
-  const boardW = useBoardWidth(size, 24);
   const moves = useMemo(() => {
     try {
       const g = new Chess();
@@ -92,7 +96,10 @@ export default function AnimatedBoard({ size = 340, fixed = false }) {
 
   return (
     <div className="hero-board-scene">
-      <div className={`hero-board ${fixed ? 'hero-board-fixed' : ''}`} style={{ width: boardW }}>
+      <div
+        className={`hero-board ${fixed ? 'hero-board-fixed' : ''}`}
+        style={{ '--hero-board-max': `${size}px` }}
+      >
         <div className="hero-board-grid">
           {pos.flatMap((row, r) =>
             row.map((piece, c) => {

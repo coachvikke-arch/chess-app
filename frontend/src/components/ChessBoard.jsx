@@ -185,6 +185,9 @@ export default function ChessBoard({
   frameless = null,              // null → follow the saved frame preference; true/false → force
   flat = false,                  // flat look only — the board's own 10px corner instead of 14px; says nothing about the frame
   animationDuration = 0.25,
+  /* Forwarded straight to the board: a ceiling on the move glide, used by live
+     online play so a piece cannot be still travelling when the next one lands. */
+  maxMoveMs = null,
   reviewVerdictColor = null,   // hex color tint for lastMove.to during review
   moveBadge = null,            // { square: 'e4', verdict: 'brilliant', ... } — overlay badge
   /* An EXPLICIT effect host id. A board normally identifies itself with a
@@ -1301,6 +1304,7 @@ export default function ChessBoard({
              * same board. The value is still normalised here (0 → no animation)
              * and the shared Animation preference owns the actual timing. */
             animationDuration={Number.isFinite(animationDuration) ? Math.max(0, Math.min(animationDuration, 1)) : 0.25}
+            maxMoveMs={maxMoveMs}
             customDarkSquareStyle={themeStyles.darkSquareStyle || { backgroundColor: boardTheme.darkSq }}
             customLightSquareStyle={themeStyles.lightSquareStyle || { backgroundColor: boardTheme.lightSq }}
             customBoardStyle={
