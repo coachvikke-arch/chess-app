@@ -74,6 +74,7 @@
     "db:move-grants": "node run_migration.js migrations/add_move_grants.sql",
     "db:board-colors": "node run_migration.js migrations/add_board_colors.sql",
     "test:board-prefs": "node --test scripts/board-prefs.test.mjs",
+    "test:profile": "node --test scripts/profile-mutation.test.mjs",
     "db:reviewed-games": "node run_migration.js migrations/add_reviewed_games.sql",
     "test:reviewed-games": "node --test scripts/test-reviewed-games.mjs",
     "test:offline-attendance": "node --test scripts/test-offline-attendance-markers.mjs scripts/test-offline-attendance-admin.mjs",

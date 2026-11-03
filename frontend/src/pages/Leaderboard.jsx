@@ -5,6 +5,7 @@ import StudentAvatar from '../components/StudentAvatar';
 import ChampionsPodium, { PlayerBadges } from '../components/ChampionsPodium';
 import Pagination, { PAGE_SIZE } from '../components/Pagination';
 import { usePagination } from '../hooks/usePagination';
+import { useProfileChanged } from '../hooks/useProfileChanged';
 import { useAuth } from '../context/AuthContext';
 import { WHITE } from 'chess.js';
 import Button from '../components/Button';
@@ -145,6 +146,14 @@ export default function Leaderboard() {
     };
   }, [tab, loadChamp]);
 
+  /* My own picture hangs out in these lists too, so a photo or avatar change made
+     on this device has to pull the ladder again. */
+  const [profileTick, setProfileTick] = useState(0);
+  useProfileChanged(() => {
+    setProfileTick((t) => t + 1);
+    loadChamp();
+  });
+
   useEffect(() => {
     let live = true;
     api.get(leaderboardEndpointFor(user?.role), { cache: false })
@@ -164,7 +173,7 @@ export default function Leaderboard() {
         );
       });
     return () => { live = false; };
-  }, [user?.role]);
+  }, [user?.role, profileTick]);
 
   const showNem = (e, row) => {
     const r = e.currentTarget.getBoundingClientRect();

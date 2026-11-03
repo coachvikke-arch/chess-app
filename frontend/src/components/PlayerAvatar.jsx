@@ -1,4 +1,5 @@
 import StudentAvatar from './StudentAvatar';
+import { profileImageFromUser } from '../utils/profileImage';
 
 /* One player picture: the uploaded photo when there is one, else the player's
    saved chess avatar, else ChessAvatar's deterministic default. Exactly one
@@ -10,7 +11,7 @@ export default function PlayerAvatar({ player, size = 40, seed }) {
   if (player?.profile_image) {
     return (
       <img
-        src={player.profile_image}
+        src={profileImageFromUser(player)}
         alt=""
         loading="lazy"
         className="online-pick-photo"

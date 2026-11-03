@@ -12,6 +12,7 @@ const { APP_NAME } = require('../config/brand');
 const mailService = require('../services/mailService');
 const { normalisePhone } = require('../utils/phone');
 const { ensureBoardPreferences } = require('../services/boardPreferenceService');
+const { fetchProfile } = require('../services/profileService');
 
 const USERNAME_RE = /^[a-zA-Z0-9_]{3,20}$/;
 
@@ -583,34 +584,14 @@ exports.resetPassword = async (req, res) => {
 
 exports.me = async (req, res) => {
   try {
-    /* The SELECT below names the board-preference columns, so on a database that
+    /* The SELECT above names the board-preference columns, so on a database that
        was never handed their migrations this call answers 500 and the app loses
        the signed-in user on every reload. Idempotent and memoised — one round
        trip ever, then a no-op. */
     await ensureBoardPreferences();
-    const result = await db.query(
-      `SELECT u.id, u.name, u.email, u.username, u.phone, u.country_code, u.role, u.profile_image, u.avatar_config, u.board_theme, u.board_light_color, u.board_dark_color, u.piece_set, u.board_frame, u.created_at,
-               u.must_change_password,
-               s.default_board_theme AS recommended_board_theme,
-               s.id AS student_id, s.group_id, s.active, s.nickname, s.birthdate, s.parent_name,
-               s.gender, s.preferred_language, g.name AS group_name,
-               COALESCE(cu.name, gc.name) AS coach_name,
-               COALESCE((
-                 SELECT jsonb_agg(jsonb_build_object('id', c.id, 'name', c.name)
-                                 ORDER BY (c.id = s.coach_id) DESC, c.name)
-                 FROM student_coaches sc JOIN users c ON c.id = sc.coach_id
-                 WHERE sc.student_id = s.id
-               ), '[]'::jsonb) AS coach_names
-        FROM users u
-        LEFT JOIN students s ON s.user_id = u.id
-        LEFT JOIN groups g ON g.id = s.group_id
-        LEFT JOIN users cu ON cu.id = s.coach_id
-        LEFT JOIN users gc ON gc.id = g.coach_id
-        WHERE u.id = $1`,
-      [req.user.id]
-    );
-    if (result.rows.length === 0) return res.status(404).json({ message: 'User not found' });
-    res.json({ user: result.rows[0] });
+    const user = await fetchProfile(req.user.id);
+    if (!user) return res.status(404).json({ message: 'User not found' });
+    res.json({ user });
   } catch (err) {
     res.status(500).json({ message: 'Failed to fetch profile', error: err.message });
   }
@@ -682,11 +663,14 @@ exports.updatePreferences = async (req, res) => {
     const result = await db.query(
       `UPDATE users SET ${fields.join(', ')}, updated_at = NOW()
        WHERE id = $1
-       RETURNING id, name, email, username, phone, role, profile_image, avatar_config, board_theme, board_light_color, board_dark_color, piece_set, board_frame, created_at`,
+       RETURNING id`,
       params
     );
     if (result.rows.length === 0) return res.status(404).json({ message: 'User not found' });
-    res.json({ user: result.rows[0] });
+    /* Answered with the shared profile read rather than the UPDATE's RETURNING,
+       so Settings saves refresh the cache with the same object /auth/me gives —
+       including the student fields the short list never had. */
+    res.json({ user: await fetchProfile(req.user.id) });
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: 'Failed to update preferences', error: err.message });
@@ -716,9 +700,7 @@ exports.uploadPhoto = async (req, res) => {
           SET profile_image = $1, avatar_config = NULL, updated_at = NOW()
          FROM previous
         WHERE users.id = $2
-        RETURNING users.id, users.name, users.email, users.username, users.phone, users.role,
-                  users.profile_image, users.avatar_config, users.board_theme, users.piece_set,
-                  users.board_frame, users.created_at, previous.profile_image AS previous_image`,
+        RETURNING users.id, previous.profile_image AS previous_image`,
       [publicUrl, req.user.id]
     );
     if (result.rows.length === 0) {
@@ -726,10 +708,12 @@ exports.uploadPhoto = async (req, res) => {
       return res.status(404).json({ message: 'User not found' });
     }
 
-    const { previous_image: previousImage, ...user } = result.rows[0];
+    const previousImage = result.rows[0].previous_image;
     if (previousImage && previousImage !== publicUrl) unlinkUploadedPhoto(previousImage);
 
-    res.json({ user, profile_image: publicUrl });
+    /* The whole profile travels back so the client can swap its auth cache in
+       one step — the new photo has to show everywhere without a reload. */
+    res.json({ user: await fetchProfile(req.user.id), profile_image: publicUrl });
   } catch (err) {
     if (req.file) { try { fs.unlinkSync(req.file.path); } catch {} }
     console.error(err);
@@ -752,7 +736,7 @@ exports.removePhoto = async (req, res) => {
     if (result.rows.length === 0) return res.status(404).json({ message: 'User not found' });
 
     unlinkUploadedPhoto(result.rows[0].previous_image);
-    res.json({ profile_image: null });
+    res.json({ user: await fetchProfile(req.user.id), profile_image: null });
   } catch (err) {
     res.status(500).json({ message: 'Failed to remove photo', error: err.message });
   }
@@ -793,7 +777,7 @@ exports.updateMyAvatar = async (req, res) => {
     if (result.rows.length === 0) return res.status(404).json({ message: 'User not found' });
 
     unlinkUploadedPhoto(result.rows[0].previous_image);
-    res.json({ avatar_config: clean });
+    res.json({ user: await fetchProfile(req.user.id), avatar_config: clean });
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: 'Failed to save avatar', error: err.message });
@@ -814,7 +798,7 @@ exports.resetMyAvatar = async (req, res) => {
     if (result.rows.length === 0) return res.status(404).json({ message: 'User not found' });
 
     unlinkUploadedPhoto(result.rows[0].previous_image);
-    res.json({ avatar_config: null });
+    res.json({ user: await fetchProfile(req.user.id), avatar_config: null });
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: 'Failed to remove avatar', error: err.message });

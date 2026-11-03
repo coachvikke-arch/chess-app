@@ -234,6 +234,24 @@ export function AuthProvider({ children }) {
     }
   };
 
+  /* Publish a profile mutation — photo upload/removal, avatar save/removal —
+     into the app. Every endpoint touched by those returns the whole user row, so
+     this is called with the server's own answer, never a locally patched copy.
+     Without it the new picture only appears after a reload or a re-login,
+     because nothing else ever writes the cached user. */
+  const applyUser = useCallback((nextUser) => {
+    if (!nextUser || nextUser.id === undefined) return;
+    try { localStorage.setItem('user', JSON.stringify(nextUser)); } catch { /* ignore */ }
+    /* Leaderboard, chat, the People list and the student lists paint avatars from
+       the server's own snapshots, cached per URL by services/api. A write to
+       /auth or /students/me cannot invalidate those, so drop the whole GET cache
+       and let every mounted panel refetch — that is what makes the new image show
+       up in them without navigating away. */
+    clearHttpCache();
+    setUser(nextUser);
+    window.dispatchEvent(new CustomEvent('profile:changed', { detail: nextUser }));
+  }, []);
+
   const selfCustomized = () => {
     try { return localStorage.getItem(PREF_KEY) === '1'; } catch { return true; }
   };
@@ -391,6 +409,7 @@ export function AuthProvider({ children }) {
         logout,
         logoutAll,
         refreshUser,
+        applyUser,
         updatePrefs,
       }}
     >

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useUrlTab } from '../hooks/useUrlTab';
+import { useProfileChanged } from '../hooks/useProfileChanged';
 import { Link } from 'react-router-dom';
 import api from '../services/api';
 import { Page, Card, Stat, Bar, Spinner, Chip } from '../components/ui';
@@ -200,6 +201,10 @@ export default function Ratings() {
   /* Which time-control pool the switcher is showing. Defaults to Rapid, the
      overall-champion ladder, which is the pool most students care about. */
   const [pool, setPool] = useUrlTab('pool', 'rapid');
+  /* My own photo and avatar live in these rows too, so a change made on this
+     device has to pull the page again instead of waiting for the next visit. */
+  const [profileTick, setProfileTick] = useState(0);
+  useProfileChanged(() => setProfileTick((t) => t + 1));
 
   useEffect(() => {
     let alive = true;
@@ -212,7 +217,7 @@ export default function Ratings() {
       .then(([analytics, profile]) => { if (alive) { setData(analytics); setMe(profile); } })
       .catch(() => alive && setErr('Could not load rating data.'));
     return () => { alive = false; };
-  }, []);
+  }, [profileTick]);
 
   if (err) {
     return (

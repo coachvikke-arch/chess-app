@@ -11,6 +11,7 @@ const mailService = require('../services/mailService');
 const { isRecentlyMailed, markMailed, buildLoginUrl } = mailService;
 const { generateRecoveryCode, hashRecoveryCode } = require('../services/recoveryCode');
 const { normalisePhone } = require('../utils/phone');
+const { fetchProfile } = require('../services/profileService');
 const bcrypt = require('bcryptjs');
 const fs = require('fs');
 const path = require('path');
@@ -532,7 +533,10 @@ exports.updateAvatar = async (req, res) => {
     if (saved.rows.length === 0) return res.status(404).json({ message: 'Student not found' });
 
     unlinkUploadedPhoto(saved.rows[0].previous_image);
-    res.json({ avatar_config: clean });
+    /* Same full profile the /auth/me avatar endpoint returns, so the student
+       editing their own avatar ('me' path) can refresh every picture in the app
+       from this one response. An admin editing someone else's student ignores it. */
+    res.json({ user: await fetchProfile(userId), avatar_config: clean });
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: 'Failed to save avatar', error: err.message });
@@ -564,7 +568,7 @@ exports.resetAvatar = async (req, res) => {
     if (result.rows.length === 0) return res.status(404).json({ message: 'Student not found' });
 
     unlinkUploadedPhoto(result.rows[0].previous_image);
-    res.json({ avatar_config: null });
+    res.json({ user: await fetchProfile(userId), avatar_config: null });
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: 'Failed to remove avatar', error: err.message });

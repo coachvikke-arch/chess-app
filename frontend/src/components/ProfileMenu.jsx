@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import StudentAvatar from './StudentAvatar';
+import { profileImageFromUser } from '../utils/profileImage';
 import { FeatureGate } from './FeatureGate';
 
 /**
@@ -157,7 +158,7 @@ export default function ProfileMenu({ basePath, roleLabel }) {
             <StudentAvatar config={user.avatar_config} seed={`user_${user.id || ''}`} size={36} className="ring-2 ring-gold-500/50" />
           ) : user?.profile_image ? (
             <img
-              src={user.profile_image}
+              src={profileImageFromUser(user)}
               alt=""
               className="w-9 h-9 rounded-full object-cover object-center ring-2 ring-gold-500/50"
             />

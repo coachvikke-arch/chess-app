@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useLiveClass } from '../../context/LiveClassContext';
 import { getClassLeaderboard } from '../../services/liveClassApi';
+import { useProfileChanged } from '../../hooks/useProfileChanged';
 import { on } from '../../services/socket';
 import StudentAvatar from '../StudentAvatar';
 
@@ -81,6 +82,9 @@ export default function ClassroomLeaderboard({ asMobilePanel = false }) {
     setLoaded(false);
     refresh();
   }, [classId, refresh]);
+
+  /* This student's own photo is one of the rows in here. */
+  useProfileChanged(refresh);
 
   /* Socket-driven refresh: this is the exact event that awards drill points, so
      a student sees their own score move the moment they finish rather than

@@ -11,6 +11,7 @@ import { coachListFrom } from '../utils/coachNames';
 import Button from '../components/Button';
 import PhoneInput from '../components/PhoneInput';
 import { formatPhoneDisplay, splitPhone, toE164 } from '../utils/phone';
+import { profileImageFromUser } from '../utils/profileImage';
 
 function fmtDate(d) {
   if (!d) return '—';
@@ -47,7 +48,7 @@ function Avatar({ user, className = '' }) {
     return (
       <span className={`profile-photo-frame ${className}`}>
         <img
-          src={user.profile_image}
+          src={profileImageFromUser(user)}
           alt=""
           style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center', display: 'block' }}
         />
@@ -77,7 +78,7 @@ const GENDERS = ['Male', 'Female', 'Non-binary', 'Prefer not to say'];
 const LANGUAGES = ['English', 'Hindi', 'Tamil', 'Telugu', 'Kannada', 'Malayalam', 'Marathi', 'Bengali', 'Gujarati', 'Other'];
 
 export default function Profile() {
-  const { user: authUser, refreshUser, logout } = useAuth();
+  const { user: authUser, refreshUser, applyUser, logout } = useAuth();
   const navigate = useNavigate();
   const { showToast } = useToast();
   const [profile, setProfile] = useState(null);
@@ -144,6 +145,15 @@ export default function Profile() {
     setCropSrc(cropUrlRef.current);
   };
 
+  /** Publish a profile mutation. The endpoints answer with the whole user row, so
+      this card and every avatar in the app take the server's own values — no
+      local patching, no reload, no re-login. */
+  const publishProfile = (nextUser) => {
+    if (!nextUser) return;
+    applyUser(nextUser);
+    setProfile(nextUser);
+  };
+
   /** Upload the square JPEG produced by the crop dialog. */
   const uploadCroppedPhoto = async (blob) => {
     setUploading(true);
@@ -151,10 +161,10 @@ export default function Profile() {
       const body = new FormData();
       body.append('photo', new File([blob], 'profile-photo.jpg', { type: 'image/jpeg' }));
       const res = await api.post('/auth/me/photo', body);
-      /* The server clears any custom avatar on upload; mirror that here so
-         the card and every other avatar in the app flip together. */
-      setProfile((p) => ({ ...p, profile_image: res.data.profile_image, avatar_config: null }));
-      refreshUser();
+      /* The server clears any custom avatar in the same statement; the row it
+         returns already shows the new photo and no avatar, so the card and every
+         other avatar in the app flip together on this one response. */
+      publishProfile(res.data.user);
       closeCropper();
       showToast('Profile photo updated.', { tone: 'success', title: 'Photo' });
     } catch (err) {
@@ -168,11 +178,10 @@ export default function Profile() {
   const saveAvatar = async (config) => {
     setSavingAvatar(true);
     try {
-      await api.patch('/students/me/avatar', { avatar_config: config });
-      /* Choosing an avatar removes the uploaded photo server-side, so both
-         fields change in one step. */
-      setProfile((p) => ({ ...p, avatar_config: config, profile_image: null }));
-      await refreshUser();
+      const res = await api.patch('/students/me/avatar', { avatar_config: config });
+      /* The server clears the uploaded photo in the same statement, so both
+         fields arrive already consistent — the mutuality rule stays in the DB. */
+      publishProfile(res.data.user);
       setAvatarOpen(false);
       showToast('Avatar saved — you look great! 🎉', { tone: 'success', title: 'Avatar' });
     } catch (err) {
@@ -185,9 +194,8 @@ export default function Profile() {
   const removePhoto = async () => {
     if (!window.confirm('Remove your profile photo?')) return;
     try {
-      await api.delete('/auth/me/photo');
-      setProfile((p) => ({ ...p, profile_image: null, avatar_config: null }));
-      refreshUser();
+      const res = await api.delete('/auth/me/photo');
+      publishProfile(res.data.user);
       showToast('Profile photo removed.', { tone: 'success', title: 'Photo' });
     } catch (err) {
       showToast(err.response?.data?.message || 'Could not remove photo.', { tone: 'error', title: 'Photo' });
@@ -197,9 +205,10 @@ export default function Profile() {
   const resetAvatar = async () => {
     if (!window.confirm('Remove your custom avatar? Your profile will show the default placeholder.')) return;
     try {
-      await api.delete('/students/me/avatar');
-      setProfile((p) => ({ ...p, avatar_config: null, profile_image: null }));
-      await refreshUser();
+      const res = await api.delete('/students/me/avatar');
+      /* Removing the avatar clears the photo too (one image per profile), and the
+         row coming back already reflects that. */
+      publishProfile(res.data.user);
       showToast('Avatar removed — back to the default.', { tone: 'success', title: 'Avatar' });
     } catch (err) {
       showToast(err.response?.data?.message || 'Could not remove avatar.', { tone: 'error', title: 'Avatar' });

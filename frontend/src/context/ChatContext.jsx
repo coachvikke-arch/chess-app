@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from './AuthContext';
 import api from '../services/api';
+import { useProfileChanged } from '../hooks/useProfileChanged';
 import { getSocket, on, emit } from '../services/socket';
 import {
   listContacts,
@@ -275,6 +276,15 @@ const offUnread = on('chat_unread_changed', (payload) => {
   const searchQueryRef = useRef(searchQuery);
   useEffect(() => { searchQueryRef.current = searchQuery; }, [searchQuery]);
   async function refreshConversations() { listConversations().then((d) => setConversations(d?.conversations || [])).catch(() => {}); }
+
+  /* A profile mutation on this device also changes the picture that hangs next
+     to my name in the People list and in the conversation rows, and neither of
+     those remounts when it happens. Both reads are already uncached, so this is
+     a plain refetch — `/auth` writes cannot invalidate the `/chat` scope. */
+  useProfileChanged(() => {
+    listContacts(searchQueryRef.current).then((d) => setContacts(d?.users || [])).catch(() => {});
+    refreshConversations();
+  });
   async function refreshGroups() { listGroups().then((d) => setGroups(d?.groups || [])).catch(() => {}); }
 
   /* Take one room out of every piece of state that could still name it: the
