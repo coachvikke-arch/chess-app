@@ -727,7 +727,7 @@ export default function ChatPanel({ asMobilePanel = false, panelVisible = true, 
             onClick={() => openTab('leaderboard')}
             title="Class leaderboard - points earned in this class"
           >
-            🏆 Standings
+            🏆 Leaderboard
           </button>
           {/* Also outside the isInstructor block: everyone can see who else is in
               the room. The count rides on the chip because the panel is only
@@ -740,7 +740,7 @@ export default function ChatPanel({ asMobilePanel = false, panelVisible = true, 
             onClick={() => openTab('participants')}
             title="Who is in the room"
           >
-            👥 {inRoom.length}
+            👥 Students {inRoom.length}
           </button>
           {isInstructor && (
             <>

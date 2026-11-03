@@ -1116,8 +1116,13 @@ export default function AnalysisBoard() {
   }, [boardOuter, orientation, playMode]);
 
   /* Play Mode — measure the overlay's board area so the board auto-fits the
-     available fullscreen space (bigger squares, comfortable on any screen). */
-  useEffect(() => {
+     available fullscreen space (bigger squares, comfortable on any screen).
+
+     A layout effect, not a plain one: the overlay's first paint uses the
+     fallback page-board size, and an effect that runs after paint resizes the
+     board in front of the user. Measuring before paint puts the board at its
+     final size on the very first frame. */
+  useLayoutEffect(() => {
     if (!playMode) return;
     const el = pmAreaRef.current;
     if (!el) return;
@@ -1129,9 +1134,18 @@ export default function AnalysisBoard() {
          Reading the resolved padding keeps the fit exact at both. */
       const cs = window.getComputedStyle(el);
       const px = (v) => (parseFloat(v) || 0);
-      const w = el.clientWidth - px(cs.paddingLeft) - px(cs.paddingRight);
-      const h = el.clientHeight - px(cs.paddingTop) - px(cs.paddingBottom);
-      setPmSize({ w: Math.floor(w), h: Math.floor(h) });
+      const w = Math.floor(el.clientWidth - px(cs.paddingLeft) - px(cs.paddingRight));
+      const h = Math.floor(el.clientHeight - px(cs.paddingTop) - px(cs.paddingBottom));
+      /* A collapsed reading is not a size. Accepting one would drop the board
+         back onto the page-board fallback and then re-fit it — one jump. */
+      if (w <= 0 || h <= 0) return;
+      /* Rebuilding the board is expensive, so a measurement has to be actually
+         different to count as one. Rounding inside the flex column can report a
+         1px change from frame to frame with nothing having moved, and each one
+         used to resize the board again — the jump seen on phones. */
+      setPmSize((prev) => (Math.abs(prev.w - w) <= 2 && Math.abs(prev.h - h) <= 2
+        ? prev
+        : { w, h }));
     };
     set();
     const ro = new ResizeObserver(set);

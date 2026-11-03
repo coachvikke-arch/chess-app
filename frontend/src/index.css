@@ -3423,9 +3423,15 @@ button.set-row:hover .set-row-chevron {
   animation: play-mode-in 0.28s cubic-bezier(0.22, 1, 0.36, 1) both;
   overflow: hidden;
 }
+/* Opacity only. The old `scale(0.965 -> 1)` grew the whole board on open, which
+   on a phone reads as the board shaking twice — once for the scale, once for the
+   fit that lands right after it. */
 @keyframes play-mode-in {
-  from { opacity: 0; transform: scale(0.965); }
-  to   { opacity: 1; transform: scale(1); }
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .play-mode-overlay { animation: none; }
 }
 
 .play-mode-exit {
@@ -3726,8 +3732,23 @@ button.set-row:hover .set-row-chevron {
     padding: 0.5rem 0.75rem 0.75rem;
     flex-shrink: 1;
   }
-  .play-mode-panel-scroll { max-height: 38vh; }
-  .play-mode-board-area { order: -1; flex: 1 1 auto; padding: 0.5rem 0.75rem 0.75rem; }
+  /* The panel's height is reserved, not content-driven. Its player rows wrap
+     when a captured-pieces tray grows and its status chips come and go, so with
+     `max-height` every one of those changes gave the board area a few more (or
+     fewer) pixels and forced a re-fit — the board jumped mid-game. */
+  .play-mode-panel-scroll {
+    flex: 0 0 auto;
+    height: 38vh;
+    height: 38dvh;
+    max-height: 38vh;
+    max-height: 38dvh;
+    overflow-y: auto;
+  }
+  /* `flex: 1 1 auto` made the board area's basis the board's own height, so the
+     area measured itself, sized the board, and the board then resized the area —
+     a loop that settles after two visible jumps. A zero basis pins the area to
+     the leftover viewport only. */
+  .play-mode-board-area { order: -1; flex: 1 1 0; min-height: 0; padding: 0.5rem 0.75rem 0.75rem; }
   .play-mode-top { display: none; }
 }
 
@@ -6695,10 +6716,11 @@ body {
 }
 .live-room-header-right { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; flex: none; }
 .live-room-count { font-size: 0.75rem; color: #1d4ed8; }
-/* The bar reads as one line: the connection text and the subtitle are the
-   first things to go when the window narrows, never the actions. */
+/* The room subtitle is the only thing that drops when the bar narrows. The
+   connection word used to go with it below 760px, which left the blue dot
+   floating there with no label at all — an unlabeled status light is not a
+   control, so the header wraps to a second line instead of silencing one. */
 @media (max-width: 1280px) { .live-room .live-room-subtitle { display: none; } }
-@media (max-width: 760px) { .live-room .live-conn-text { display: none; } }
 
 .live-btn-leave {
   background: #dc2626;
@@ -9975,7 +9997,12 @@ button.live-drill-move:hover { border-color: #93c5fd; }
     box-sizing: border-box;
   }
 
-  /* Chat panel header — stack title above modes, modes scroll horizontally on mobile */
+  /* Chat panel header — stack title above the tab row.
+     The tab row itself (scrolling strip, chip sizing, hidden scrollbar) is owned
+     by the `max-width: 1023px` block further down, which covers this width too.
+     It used to be restyled here as well, at `.live-room .live-chat-modes` — two
+     classes deep — which out-specified the single-class rule and kept winning on
+     gap, padding and a visible gold scrollbar over the tab labels. */
   .live-room .live-chat-head {
     flex-direction: column;
     align-items: stretch;
@@ -9983,36 +10010,6 @@ button.live-drill-move:hover { border-color: #93c5fd; }
     min-width: 0;
     padding: 8px 10px;
     box-sizing: border-box;
-  }
-  .live-room .live-chat-modes {
-    display: flex;
-    flex-wrap: nowrap;
-    overflow-x: auto;
-    gap: 4px;
-    padding: 2px 0 5px;
-    -webkit-overflow-scrolling: touch;
-    overscroll-behavior-x: contain;
-    scrollbar-width: thin;
-    width: 100%;
-    max-width: 100%;
-    min-width: 0;
-    box-sizing: border-box;
-  }
-  .live-room .live-chat-modes::-webkit-scrollbar {
-    height: 4px;
-  }
-  .live-room .live-chat-modes::-webkit-scrollbar-track {
-    background: transparent;
-  }
-  .live-room .live-chat-modes::-webkit-scrollbar-thumb {
-    background: rgba(201, 168, 31, 0.4);
-    border-radius: 2px;
-  }
-  .live-room .live-chat-panel .live-chip {
-    flex-shrink: 0;
-    white-space: nowrap;
-    font-size: 0.7rem;
-    padding: 6px 10px;
   }
   .live-room .live-chat-head > .live-chat-title {
     width: 100%;
@@ -13543,6 +13540,18 @@ button.live-drill-move:hover { border-color: #93c5fd; }
   color: #ffffff;
   box-shadow: 0 2px 8px rgba(37, 99, 235, 0.35);
 }
+/* A tile that carries a word is as wide as that word. The 48px square above is
+   what turned "Flip board" into "Flip bo…" on every width, mobile included.
+   Written against `.live-room` rather than the three containers so the instructor
+   rail's labelled tiles get the same release. */
+.live-room .live-icobtn.has-label {
+  width: auto;
+  min-width: 48px;
+  max-width: 100%;
+  height: auto;
+  min-height: 48px;
+  padding: 6px 8px;
+}
 .live-room .live-board-maincol {
   gap: 4px;
 }
@@ -13652,13 +13661,28 @@ button.live-drill-move:hover { border-color: #93c5fd; }
   color: #334155 !important;
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
 }
-.live-room .live-chat-panel .live-chip:hover { background: rgba(255, 255, 255, 0.95) !important; }
-.live-room .live-chat-panel .live-chip-on {
+/* The hover lift is for an INACTIVE chip only. It used to be unqualified, and
+   at four compound selectors it outranked `.live-chip-on`'s background while
+   leaving `color: #ffffff` standing — the tab you had just tapped went white ink
+   on a white pill. On a touch device the tapped chip keeps `:hover` stuck until
+   you tap elsewhere, so the label disappeared permanently, and because emoji are
+   drawn from a colour font that ignores `color`, only the word vanished. */
+.live-room .live-chat-panel .live-chip:not(.live-chip-on):hover { background: rgba(255, 255, 255, 0.95) !important; }
+/* One block for every state an active chip can be caught in — pointer, keyboard,
+   touch — so no state can repaint it away from blue-with-white-ink. Pressed goes
+   a shade darker for feedback; white on #1d4ed8 is ~6.5:1. */
+.live-room .live-chat-panel .live-chip-on,
+.live-room .live-chat-panel .live-chip-on:hover,
+.live-room .live-chat-panel .live-chip-on:focus,
+.live-room .live-chat-panel .live-chip-on:focus-visible,
+.live-room .live-chat-panel .live-chip-on:active {
   background: #2563eb !important;
   border-color: #1d4ed8 !important;
   color: #ffffff !important;
+  font-weight: 600;
   box-shadow: 0 2px 6px rgba(37, 99, 235, 0.17);
 }
+.live-room .live-chat-panel .live-chip-on:active { background: #1d4ed8 !important; }
 .live-room .live-chat-panel .live-msg {
   background: #ffffff !important;
   border: 1px solid rgba(15, 23, 42, 0.1);
@@ -19691,18 +19715,9 @@ body,
   min-width: 0;
 }
 
-/* ── 5. Chat tabs: equal widths on one row, scrollable only if overflowing ── */
+/* ── 5. Chat tabs: one scrolling row (rules in section 7 below) ── */
 @media (max-width: 1023px) {
   .live-chat-head { flex-wrap: wrap; }
-  .live-chat-modes { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; width: 100%; }
-  .live-chat-modes .live-chip {
-    min-width: 0;
-    justify-content: center;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    min-height: 44px;
-  }
   .live-chat-modebar { overflow-x: auto; max-width: 100%; }
 }
 
@@ -19909,15 +19924,27 @@ body,
    room respects the bottom safe area. */
 .live-room { padding-bottom: env(safe-area-inset-bottom, 0px); }
 @media (max-width: 1023px) {
+  /* Tab row: a scrolling strip of fixed-content pills. It used to be a
+     `grid-auto-columns: 1fr` row, which on a 360px phone gave every tab the
+     same ~85px and then ellipsised the label — an icon-only "🏆". Flex with
+     `flex: 0 0 auto` + `min-width: fit-content` means the row grows to whatever
+     the label needs and the strip scrolls sideways instead of eating words.
+     The scrollbar is hidden because a 3px bar inside a 44px control row reads as
+     a clipped label. */
   .live-chat-modes {
     display: flex;
     flex-wrap: nowrap;
+    gap: 8px;
     overflow-x: auto;
     width: 100%;
-    scrollbar-width: thin;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
   }
+  .live-chat-modes::-webkit-scrollbar { display: none; }
   .live-chat-modes .live-chip {
-    flex: none;
+    flex: 0 0 auto;
+    min-width: fit-content;
+    padding: 10px 14px;
     white-space: nowrap;
     min-height: 44px;
     overflow: visible;
@@ -20127,9 +20154,13 @@ body,
     font-weight: 700;
     line-height: 1.1;
     text-align: center;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    /* A tile that can't grow ellipsises its word away. Letting the label wrap to
+       a second line costs the tile a few pixels and keeps "Flip board" readable;
+       the tile is `height: auto` with a min-height, so it absorbs it. */
+    overflow: visible;
+    text-overflow: clip;
+    white-space: normal;
+    overflow-wrap: anywhere;
   }
   /* The instructor's On/Off + side pickers wrap instead of running wide. */
   .live-room .live-board-side .live-side-toggle {
@@ -20183,6 +20214,7 @@ body,
     align-items: center;
     justify-content: center;
     gap: 4px;
+    min-width: 44px;
     min-height: 40px;
     height: 40px;
     padding: 0 12px;
@@ -20197,6 +20229,14 @@ body,
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  /* The two real `Button`s in that row (Pair, Open Video) are not chips, so the
+     rule above never reached them. Same floor: a tap target that cannot shrink
+     to a glyph and a label that cannot wrap away. */
+  .live-room .live-room-header-right .app-btn {
+    flex: 0 0 auto;
+    min-width: 44px;
     white-space: nowrap;
   }
   /* Leave / End sits on its own full-width row, still a clean pill. */
@@ -23602,9 +23642,13 @@ html, body {
   font-weight: 700;
   line-height: 1.1;
   text-align: center;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  /* Never clip a word to fit a tile: the tile grows instead (see the
+     `.live-icobtn.has-label` width above), and a two-word label may take a
+     second line. */
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 .live-tool-group {
   grid-column: 1 / -1;
@@ -25230,6 +25274,24 @@ html, body {
   .live-chat-send, .live-dm-newpill, .live-unread-badge, .join-toast-avatar,
   .lcc-continue, .live-open-video) * {
   color: inherit !important;
+}
+
+/* The same trap, one level down: `.cp-ink-all` matches `span` and `button`
+   themselves, and a declaration on the child always beats a colour inherited
+   from the filled parent — however low its specificity. So every label that sits
+   INSIDE a solid-blue control had to be listed too, and these were missing:
+   `.live-chip-on` (the tab chips, the "···"/"»" header pills, the active
+   Expand/Board-tools tile) and the `.live-tool-label` / `.app-btn__label` spans
+   inside it. Without them an active tile was black ink on blue.
+   Filled `Button` variants are included for the same reason — button.css sets
+   their colour without `!important`, so the ink pass was winning. */
+.cp-ink-all .live-chip-on,
+.cp-ink-all .live-chip-on :is(span, .live-tool-label, .live-unread-badge),
+.cp-ink-all .app-btn--primary,
+.cp-ink-all .app-btn--danger,
+.cp-ink-all .app-btn--primary :is(span, .app-btn__label),
+.cp-ink-all .app-btn--danger :is(span, .app-btn__label) {
+  color: #ffffff !important;
 }
 
 /* ── Contact form (landing page + login card) ──────────────────────────────

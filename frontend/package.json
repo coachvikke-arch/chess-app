@@ -21,6 +21,7 @@
     "test:movelist": "node --test scripts/movelist-layout.test.mjs",
     "test:pm-strip": "node --test scripts/play-mode-move-strip.test.mjs",
     "test:live": "node --test scripts/live-play-realtime.test.mjs",
+    "test:mobile-labels": "node --test scripts/mobile-labels-static-board.test.mjs",
     "test:gmlist": "node --test scripts/gm-list-highlight.test.mjs",
     "test:explainer": "node --test scripts/chess-move-explainer.test.mjs",
     "test:gmundo": "node --test scripts/gm-undo-import.test.mjs",

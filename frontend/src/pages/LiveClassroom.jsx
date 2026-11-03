@@ -373,7 +373,7 @@ function ClassroomInner({ socketError }) {
             <span className="live-conn-text">{connLabel}</span>
           </span>
           <span className="live-meta-chip live-count-chip" title="People in the room">
-            👥 {inRoom.length}
+            👥 Students {inRoom.length}
           </span>
           {isInstructor && (
             <Button type="button" variant="secondary" size="sm" onClick={() => setPairingOpen(true)}>
@@ -399,10 +399,11 @@ function ClassroomInner({ socketError }) {
               className={`live-chip live-menu-btn ${menuOpen ? 'live-chip-on' : ''}`}
               aria-haspopup="true"
               aria-expanded={menuOpen}
+              aria-label="More classroom options"
               onClick={() => setMenuOpen((o) => !o)}
               title="More"
             >
-              ⋯
+              ⋯ More
             </button>
             {/* The menu itself renders via a portal at the end of this tree
                 (menuPortal), so it escapes the header's stacking context. */}
@@ -411,10 +412,11 @@ function ClassroomInner({ socketError }) {
             type="button"
             className={`live-chip live-rail-toggle ${railOpen ? 'live-chip-on' : ''} ${!railOpen && chatUnread ? 'live-chip-unread' : ''}`}
             onClick={() => setRailOpen((o) => !o)}
+            aria-label={railOpen ? 'Hide the side panel' : 'Show the side panel'}
             title={railOpen ? 'Hide the side panel' : `Show the side panel${chatUnread ? ` · ${chatUnread} unread` : ''}`}
             aria-pressed={railOpen}
           >
-            {railOpen ? '»' : '«'}
+            {railOpen ? '» Hide' : '« Panel'}
             {!railOpen && <UnreadBadge count={chatUnread} />}
           </button>
         </div>
