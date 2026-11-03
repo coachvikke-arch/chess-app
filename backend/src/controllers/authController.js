@@ -11,6 +11,7 @@ const { touchLoginStreak } = require('../services/streakService');
 const { APP_NAME } = require('../config/brand');
 const mailService = require('../services/mailService');
 const { normalisePhone } = require('../utils/phone');
+const { ensureBoardPreferences } = require('../services/boardPreferenceService');
 
 const USERNAME_RE = /^[a-zA-Z0-9_]{3,20}$/;
 
@@ -582,6 +583,11 @@ exports.resetPassword = async (req, res) => {
 
 exports.me = async (req, res) => {
   try {
+    /* The SELECT below names the board-preference columns, so on a database that
+       was never handed their migrations this call answers 500 and the app loses
+       the signed-in user on every reload. Idempotent and memoised — one round
+       trip ever, then a no-op. */
+    await ensureBoardPreferences();
     const result = await db.query(
       `SELECT u.id, u.name, u.email, u.username, u.phone, u.country_code, u.role, u.profile_image, u.avatar_config, u.board_theme, u.board_light_color, u.board_dark_color, u.piece_set, u.board_frame, u.created_at,
                u.must_change_password,
@@ -669,6 +675,10 @@ exports.updatePreferences = async (req, res) => {
 
     if (fields.length === 0) return res.status(400).json({ message: 'Nothing to update' });
 
+    /* Every save names those columns in its RETURNING list — a frame-only save
+       included — so the same missing column that breaks the read breaks all
+       three Settings rows. Validated input first, DDL second. */
+    await ensureBoardPreferences();
     const result = await db.query(
       `UPDATE users SET ${fields.join(', ')}, updated_at = NOW()
        WHERE id = $1

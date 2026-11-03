@@ -266,4 +266,13 @@ server.listen(PORT, '0.0.0.0', () => {
   require('./src/services/puzzleTrainer').ensurePool()
     .then((n) => console.log(`Puzzle trainer pool ready (${n} puzzles)`))
     .catch((e) => console.warn('Puzzle trainer pool install failed:', e.message));
+  /* Same reasoning for Settings: the board-preference columns are created by
+     migration files a given database may never have been handed, and a missing
+     one takes GET /auth/me down with it. Naming what was added here is what
+     tells us a production database was behind. */
+  require('./src/services/boardPreferenceService').ensureBoardPreferences()
+    .then((added) => console.log(added.length
+      ? `Board preferences: added ${added.join(', ')}`
+      : 'Board preferences ready'))
+    .catch((e) => console.warn('Board preference install failed:', e.message));
 });
