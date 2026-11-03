@@ -336,8 +336,9 @@ const PLAY_ARENA_UI_CSS = `
 .ab-root.ab-root .ab-clock-time{font-size:14px;font-weight:700;color:#0F172A}
 .ab-root.ab-root .ab-clock.ab-clock-active{background:#EAF1FF;border-color:#2563EB;box-shadow:none}
 .ab-root.ab-root .ab-clock.ab-clock-active .ab-clock-time{color:#2563EB}
-.ab-root.ab-root .ab-clock.ab-clock-low{border-color:#DC2626}
-.ab-root.ab-root .ab-clock.ab-clock-low .ab-clock-time{color:#DC2626}
+/* The low-time warning (under a minute, on the clock) lives once in index.css as
+   .ab-clock-low — it has to reach the Play Mode copy too, which is portalled out
+   of .ab-root. GameClock decides when the class is on. */
 
 /* board band — the square is sized from this box by the existing effect */
 .ab-root.ab-root .ab-boardarea{
@@ -3798,6 +3799,7 @@ export default function AnalysisBoard() {
               running={clockRunning}
               color={topColor}
               forceFloor={clock?.incMs === 0}
+              silent={playMode}
             />
           </div>
 
@@ -3997,6 +3999,7 @@ export default function AnalysisBoard() {
               running={clockRunning}
               color={orientation}
               forceFloor={clock?.incMs === 0}
+              silent={playMode}
             />
           </div>
 
@@ -4968,11 +4971,11 @@ export default function AnalysisBoard() {
                 pieces={bottomCaptured}
                 diff={captured[`${orientation}Value`] - captured[`${orientation === 'white' ? 'black' : 'white'}Value`]}
               />
-              <ClockBox
+              <GameClock
+                clock={clock}
+                running={clockRunning}
                 color={orientation}
-                time={clock ? fmtClock(liveRemaining(orientation), clock.incMs === 0) : null}
-                active={!!(clock && clock.turn === orientation)}
-                low={!!(clock && liveRemaining(orientation) < 10000 && clock.turn === orientation)}
+                forceFloor={clock?.incMs === 0}
               />
             </div>
 
@@ -5266,12 +5269,25 @@ function remainingMs(clock, running, color) {
   return Math.max(0, stored - Math.max(0, Date.now() - (clock.serverNow || Date.now())));
 }
 
+/* A clock under a minute reads as "bullet", not "think here", so the warning is
+   one minute — every time control in the arena, including 1+0, reaches it. */
+const LOW_TIME_MS = 60000;
+
 /* A ticking clock, isolated in its own component. The page used to hold a
    `clockTick` counter and repaint itself five times a second, so every tick
    re-rendered the board, the move list and both side panels — the single
    biggest reason a live game felt like it was hanging. Now only this subtree
-   sees the beat. */
-function GameClock({ clock, running, color, forceFloor }) {
+   sees the beat.
+
+   This is also the ONLY clock in the arena: the red-and-beat warning and its
+   tick-tock live here, so every mode that has a running clock (vs Computer,
+   online PvP, and the Play Mode copy of either) inherits them from one place.
+
+   `silent` marks a copy that is on screen only as a duplicate. Play Mode portals
+   a full-screen version of the arena while `.ab-layout` stays mounted behind it,
+   so both halves render the same side. Only the visible one may make noise. */
+function GameClock({ clock, running, color, forceFloor, silent = false }) {
+  const { soundOn, playSound } = useSound();
   const [, setBeat] = useState(0);
   const ticking = !!clock && running && clock.turn === color;
 
@@ -5282,12 +5298,25 @@ function GameClock({ clock, running, color, forceFloor }) {
   }, [ticking]);
 
   const left = remainingMs(clock, running, color);
+  const low = ticking && left > 0 && left < LOW_TIME_MS;
+
+  useEffect(() => {
+    if (!low || silent || !soundOn) return undefined;
+    /* The first beat lands with the warning, then once a second after it. The
+       deps are the only things that can stop it, so a move, a pause, a flag,
+       a resign, a new game, a rematch or leaving the page all arrive here as
+       `low` or `silent` flipping — and the cleanup kills the sound. */
+    playSound('tick');
+    const t = setInterval(() => playSound('tick'), 1000);
+    return () => clearInterval(t);
+  }, [low, silent, soundOn, playSound]);
+
   return (
     <ClockBox
       color={color}
       time={clock ? fmtClock(left, forceFloor) : null}
       active={!!(clock && clock.turn === color)}
-      low={!!(clock && left < 10000 && clock.turn === color)}
+      low={low}
     />
   );
 }

@@ -308,6 +308,7 @@ export const isSoundEnabled = () => enabled;
 const G = {
   select: 0.10, move: 0.60, capture: 0.55, castle: 0.50, promotion: 0.42, // original (volume scaling removed)
   check: 0.46, illegal: 0.36, good: 0.44, bad: 0.38, victory: 0.56, celebrate: 0.66,
+  tick: 0.26,
 };
 
 /* ── The per-move "piece on wood" sound ───────────────────────────────────
@@ -410,6 +411,14 @@ export function playSound(kind) {
     switch (kind) {
       case 'select':
         tone(820, 0.05, { type: 'triangle', gain: G.select });
+        break;
+      /* Low-time clock warning: one "tick-tock" per second while a clock under
+         a minute is running. There is no tick file in /sounds, so it is
+         synthesized — a bright knock with a lower follow-on, both finished
+         inside 140 ms so a beat cannot overlap the next one. */
+      case 'tick':
+        tone(1980, 0.022, { type: 'triangle', gain: G.tick });
+        tone(1460, 0.03, { type: 'triangle', gain: G.tick * 0.85, when: 0.1 });
         break;
       /* Recorded samples are tried first; if one is still loading (or failed to
          fetch/decode) we fall back to the synthesized cue so a move is never

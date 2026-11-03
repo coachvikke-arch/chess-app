@@ -3288,9 +3288,28 @@ button.set-row:hover .set-row-chevron {
   box-shadow: 0 0 16px rgba(212,169,47,0.28);
 }
 .ab-clock.ab-clock-active .ab-clock-time { color: #0369a1; }
-.ab-clock.ab-clock-low .ab-clock-time {
-  color: #d13247;
-  animation: clock-flash 1s ease-in-out infinite;
+/* Low-time warning — below a minute AND on the clock, from the shared GameClock.
+   Two selectors because the arena renders the same side twice in two different
+   subtrees: the page clocks sit under `.ab-root`, the Play Mode copy is portalled
+   to the body without it. One rule, both surfaces, and neither clock's box
+   changes size — the beat is scale + glow only, so the row layout is untouched.
+   The opaque light-red panel is what keeps red text readable over any board theme
+   and over Play Mode's dark card. */
+.ab-root.ab-root .ab-clock.ab-clock-low,
+.play-mode-overlay .ab-clock.ab-clock-low {
+  background: #FEF2F2;
+  border-color: #DC2626;
+  animation: ab-clock-beat 1s ease-in-out infinite;
+}
+.ab-root.ab-root .ab-clock.ab-clock-low .ab-clock-time,
+.play-mode-overlay .ab-clock.ab-clock-low .ab-clock-time { color: #DC2626; }
+@keyframes ab-clock-beat {
+  0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(220, 38, 38, 0); }
+  50%      { transform: scale(1.07); box-shadow: 0 0 0 5px rgba(220, 38, 38, .2); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ab-root.ab-root .ab-clock.ab-clock-low,
+  .play-mode-overlay .ab-clock.ab-clock-low { animation: none; }
 }
 /* static — no game running, dimmed placeholder */
 .ab-clock.ab-clock-static {
