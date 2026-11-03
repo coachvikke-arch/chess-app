@@ -19,10 +19,10 @@
 // the whole pool headlessly — no browser, no WASM, no 150s wait.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, writeFileSync, mkdtempSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdtempSync, copyFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { pathToFileURL, fileURLToPath } from 'node:url';
 import { transform } from 'esbuild';
 
 const POOL_SRC = new URL('../src/utils/stockfish.js', import.meta.url);
@@ -32,15 +32,20 @@ const POOL_SRC = new URL('../src/utils/stockfish.js', import.meta.url);
 const FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
 
 /** Import createPool with the engineConfig import dropped (it reads
- *  import.meta.env, which is Vite-only). */
+ *  import.meta.env, which is Vite-only). engineScore.js is dependency-free, so
+ *  it is copied next to the pool — without it the module graph does not resolve
+ *  in a temp directory and the whole file used to error out before one test ran. */
 async function loadPool() {
+  const dir = mkdtempSync(join(tmpdir(), 'pool-'));
+  copyFileSync(fileURLToPath(new URL('../src/utils/engineScore.js', import.meta.url)),
+    join(dir, 'engineScore.js'));
   let source = readFileSync(POOL_SRC, 'utf8');
   source = source.replace(
     /^import\s+\{[^}]*\}\s+from\s+['"]\.\/engineConfig\.js['"];?[ \t]*\r?\n/m,
     'const BASE_URL = "", ANALYSIS_ENGINE_POOL = 1, ANALYSIS_ENGINE_URL = "sf.js";',
   );
   const { code } = await transform(source, { loader: 'js', format: 'esm' });
-  const file = join(mkdtempSync(join(tmpdir(), 'pool-')), 'pool.mjs');
+  const file = join(dir, 'pool.mjs');
   writeFileSync(file, code);
   return import(pathToFileURL(file).href);
 }

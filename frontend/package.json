@@ -16,6 +16,7 @@
     "openings:blink": "node scripts/openings-blink-test.cjs",
     "test:gmanalysis": "node --test scripts/gm-analysis.test.mjs",
     "test:enginepool": "node --test scripts/engine-pool.test.mjs",
+    "test:wasmload": "node --test scripts/engine-wasm-load.test.mjs",
     "test:reviewengine": "node --test scripts/review-default-engine.test.mjs",
     "test:badge": "node --test scripts/badge-position.test.mjs",
     "test:movelist": "node --test scripts/movelist-layout.test.mjs",

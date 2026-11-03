@@ -63,6 +63,9 @@ export function createPool({ poolSize, workerUrl, name = 'stockfish', hashMb = 1
   let bootPromise = null;
   let bootReject = null;
   let bootTimer = null;
+  /* The in-flight boot, so a teardown can stop it from launching the next
+     worker onto a pool that has already been thrown away. */
+  let bootRun = null;
   let bootFailedAt = 0;
   let lastBootError = '';
   /* Boot attempts so the pool can give up loudly instead of retrying a broken
@@ -82,6 +85,7 @@ export function createPool({ poolSize, workerUrl, name = 'stockfish', hashMb = 1
 
   function failAll(err) {
     if (bootTimer) { clearTimeout(bootTimer); bootTimer = null; }
+    if (bootRun) { bootRun.cancelled = true; bootRun = null; }
     bootFailedAt = Date.now();
     poolState = 'failed';
     readySlots = 0;
@@ -123,13 +127,26 @@ export function createPool({ poolSize, workerUrl, name = 'stockfish', hashMb = 1
     bootAttempts += 1;
     poolState = 'booting';
     readySlots = 0;
+    const run = { cancelled: false, next: 0, ready: 0 };
+    bootRun = run;
     bootPromise = new Promise((resolve, reject) => {
       bootReject = reject;
       bootTimer = setTimeout(() => {
         failAll(new Error(`Stockfish engine ${name} failed to boot within ${BOOT_TIMEOUT_MS / 1000}s`));
       }, BOOT_TIMEOUT_MS);
-      let remaining = slots.length;
-      slots.forEach((slot, index) => {
+      /* Boot ONE worker at a time. Every review worker is its own 113 MB .wasm
+         download and compile, so a pool of N used to put N of those on the wire
+         simultaneously — and the connection that cannot carry them is the one
+         whose stream aborts mid-download. The bytes themselves are not fetched
+         N times: the browser caches the .wasm, so each later worker's load is a
+         revalidation that returns no body. Series therefore costs an extra
+         handshake per worker, not another 113 MB, and removes the concurrent
+         downloads that made the first load fail on phones. */
+      const launch = () => {
+        if (run.cancelled || run.next >= slots.length) return;
+        const slot = slots[run.next];
+        const index = run.next;
+        run.next += 1;
         let uciOk = false;
         try {
           slot.worker = new Worker(url);
@@ -160,13 +177,17 @@ export function createPool({ poolSize, workerUrl, name = 'stockfish', hashMb = 1
           }
           else if (line === 'readyok' && uciOk) {
             readySlots += 1;
-            if (--remaining === 0) {
+            run.ready += 1;
+            if (run.ready >= slots.length) {
               if (bootTimer) { clearTimeout(bootTimer); bootTimer = null; }
               poolState = 'ready';
               bootAttempts = 0;
               bootFailedAt = 0;
               lastBootError = '';
+              bootRun = null;
               resolve();
+            } else {
+              launch();
             }
           }
         };
@@ -174,7 +195,8 @@ export function createPool({ poolSize, workerUrl, name = 'stockfish', hashMb = 1
           failAll(new Error(ev && ev.message ? ev.message : `Stockfish worker ${name}[${index}] failed`));
         };
         postTo(slot, 'uci');
-      });
+      };
+      launch();
     });
     return bootPromise;
   }
@@ -244,6 +266,7 @@ export function createPool({ poolSize, workerUrl, name = 'stockfish', hashMb = 1
         no timeout. */
   function terminate() {
     if (bootTimer) { clearTimeout(bootTimer); bootTimer = null; }
+    if (bootRun) { bootRun.cancelled = true; bootRun = null; }
     bootFailedAt = 0;
     lastBootError = '';
     poolState = 'idle';
