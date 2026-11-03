@@ -1709,21 +1709,18 @@ export default function AnalysisBoard() {
     }, 350);
   }
 
-  /* Rematch — same mode/color/level/time, fresh board */
+  /* Rematch, from the review panel. The result card reaches the mode-correct
+     handler itself; this one has to pick the same two modes, because restarting
+     a finished online match as a practice board left the opponent's row attached
+     to the page — and that row's next push put the match that had just ended back
+     on the board.
+       finished player-vs-player → ask the opponent
+       computer                  → restart on the spot, colours swapped
+     A practice board has no opponent to rematch, so the panel shows no button for
+     it at all (`canRematch` below hands back the same two conditions). */
   function rematch() {
-    markCurrentResultSeen();
-    setReviewMode(false);
-    setClockOver(null);
-    setGameAnalysis(null);
-    setAnalyzing(false);
-    setResultPopup(null);
-    setResultDismiss(false);
-    if (computerOn || clockOver) {
-      // restart computer game with same settings
-      startComputerGame(computerColor);
-    } else {
-      startNewGame();
-    }
+    if (onlineRematchTarget(onlineGame)) { askRematchOnline(); return; }
+    if (computerOn || clockOver) rematchComputer();
   }
 
   /* Rematch versus the computer, from the result card. There is nobody to ask —
@@ -2614,6 +2611,12 @@ export default function AnalysisBoard() {
        and once from the socket push that also carries it to the other player.
        Already on that board means the second delivery is a no-op. */
     if (onlineGameRef.current && String(onlineGameRef.current.id) === String(row.id)) return;
+    /* The match being replaced, read before anything is cleared. It is finished
+       and already saved, so from this point its row is retired for the page:
+       every guard below (the ?game= loader, applyOnline, the room subscription,
+       the catch-up fetch) checks this set, and without it a reload, a Back, or a
+       late push can put the previous match back on the board. */
+    const replacedId = onlineGameRef.current?.id ?? activeGameIdRef.current;
     stopRematchTimers();
     setRematchAsk(null);
     setRematchInvite(null);
@@ -2622,7 +2625,23 @@ export default function AnalysisBoard() {
     setReviewMode(false);
     setResultPopup(null);
     setResultDismiss(false);
+    /* An offer that outlived its match belongs to no game at all, and a resign
+       or draw dialog left over from the old one must not be sitting over a board
+       that has not started yet. */
+    setDrawOffer(null);
+    setPendingConfirm(null);
+    setActivePopup(null);
+    if (replacedId != null) {
+      ignoredGameIdsRef.current.add(String(replacedId));
+      markCurrentResultSeen(replacedId);
+    }
     applyOnline(row);
+    /* The URL is the durable half of that retirement: `ignoredGameIdsRef` dies
+       with the page, so a stale `?game=<old id>` — which is how an accepted
+       challenge and a rematch notification both land here — would reload the
+       finished match on the next mount. Dropping the query leaves the mount
+       auto-attach, which follows the ACTIVE game, to do the right thing. */
+    if (location.search) navigate(location.pathname, { replace: true });
     refreshOnlineMatches();
     if (soundOn) playSound('select');
   });
@@ -3938,7 +3957,7 @@ export default function AnalysisBoard() {
               onExitReview={() => setReviewMode(false)}
               onRematch={rematch}
               onNewGame={fullReset}
-              canRematch={!inOnline && moves.length > 0}
+              canRematch={moves.length > 0 && (Boolean(onlineRematchTarget(onlineGame)) || computerOn || Boolean(clockOver))}
             />
           ) : (
             <MoveList

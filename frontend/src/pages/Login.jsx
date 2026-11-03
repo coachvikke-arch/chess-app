@@ -1,6 +1,6 @@
 import Portal from '../components/Portal';
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../components/Toast';
 import { AUTH_MESSAGE_KEY } from '../services/api';
@@ -13,10 +13,34 @@ import ContactForm from '../components/ContactForm';
 import usePageTitle from '../hooks/usePageTitle';
 import { APP_NAME } from '../config/brand';
 
+/* The pages a signed-in session has no business being sent back to. */
+const SIGN_IN_PAGES = new Set(['/login', '/register', '/reset-password', '/']);
+
+/**
+ * Where a finished sign-in should land, when the guard parked a destination.
+ *
+ * `ProtectedRoute` puts the blocked URL in router state when it bounces a
+ * visitor here, so signing in returns them to the page they actually wanted
+ * instead of dumping them on a dashboard and making them walk back.
+ *
+ * Only a plain in-app path is honoured. `from` is whatever URL the guard
+ * happened to see, so it must never send someone back to a sign-in page, to the
+ * landing page they just left, or off the app — a `//host` or `http://host`
+ * value is not a path, and taking it on trust would make this page an open
+ * redirect for anyone who could craft a link.
+ */
+function destinationFrom(state) {
+  const path = state?.from?.pathname;
+  if (typeof path !== 'string' || !path.startsWith('/') || path.startsWith('//')) return '';
+  if (SIGN_IN_PAGES.has(path)) return '';
+  return `${path}${state?.from?.search || ''}${state?.from?.hash || ''}`;
+}
+
 export default function Login() {
   usePageTitle('Login');
   const { login, user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const { showToast } = useToast();
   const [form, setForm] = useState({ identifier: '', password: '' });
   const [error, setError] = useState('');
@@ -64,9 +88,14 @@ export default function Login() {
             : 'Your classes, puzzles and progress are waiting.'),
         { tone: 'success', title: `Welcome back, ${user.name}! 👋` }
       );
-      /* Every role uses the shared helper so the post-login destination can
-         never drift from the wrong-role redirect in ProtectedRoute. */
-      navigate(homeForRole(user.role));
+      /* ProtectedRoute parked the page the visitor actually wanted in router
+         state when it bounced them here, so that is the page they get back.
+         Someone who came to /login on their own, from the landing button, has no
+         such state and falls through to their role dashboard.
+         `replace` for the same reason the guard used it coming here: a /login
+         entry left behind is one the Back button walks straight into, and this
+         page's own redirect would immediately bounce it again. */
+      navigate(destinationFrom(location.state) || homeForRole(user.role), { replace: true });
     } catch (err) {
       const msg = err.response?.data?.message || 'Login failed';
       setError(msg);

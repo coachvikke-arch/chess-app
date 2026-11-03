@@ -197,6 +197,27 @@ function LandingHeader() {
    navbar stands down for them. */
 const AUTH_ONLY_PAGES = new Set(['/login', '/register', '/reset-password']);
 
+/**
+ * The app's front door.
+ *
+ * A visitor gets the intro and the landing page — that is what "/" is for, and
+ * nothing here sends anyone to /login: the Login page is reached by the button on
+ * this page, or by ProtectedRoute when a visitor opens a portal page.
+ *
+ * A session that is already valid never stands on the front step. Opening "/",
+ * a bookmark, or the home-screen shortcut goes straight to that role's dashboard,
+ * because the landing page has nothing to offer somebody who is already signed
+ * in — and every portal route behind it is guarded anyway.
+ */
+function LandingRoute() {
+  const { user, loading } = useAuth();
+  /* Resolve the session before deciding. The first-load splash is still over the
+     page at this moment, so the one frame this costs nobody can see. */
+  if (loading) return <Spinner />;
+  if (user) return <Navigate to={homeForRole(user.role)} replace />;
+  return <Home />;
+}
+
 export default function App() {
   const location = useLocation();
   const { user } = useAuth();
@@ -262,7 +283,7 @@ export default function App() {
             {/* Standalone student report — opened in a new tab from the admin roster */}
             <Route path="/students/:studentId/report" element={<ProtectedRoute role="admin"><StudentReport /></ProtectedRoute>} />
             <Route path="/change-password" element={<ProtectedRoute><ChangePassword /></ProtectedRoute>} />
-            <Route path="/" element={<Home />} />
+            <Route path="/" element={<LandingRoute />} />
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Navigate to="/login" replace />} />
             <Route path="/reset-password" element={<ResetPassword />} />

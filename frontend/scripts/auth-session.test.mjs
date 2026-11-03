@@ -113,7 +113,9 @@ test('Login redirects an already-signed-in visitor away from the form', () => {
 test('Login still authenticates a signed-out visitor', () => {
   assert.match(login, /const user = await login\(form\.identifier, form\.password\)/,
     'the submit handler must still call login()');
-  assert.match(login, /navigate\(homeForRole\(user\.role\)\)/,
+  /* The role home is still the destination; the only thing ahead of it is the
+     page the guard parked for this visitor, which falls back here when absent. */
+  assert.match(login, /navigate\(destinationFrom\(location\.state\) \|\| homeForRole\(user\.role\)/,
     'the post-login destination must still be the role home');
 });
 
