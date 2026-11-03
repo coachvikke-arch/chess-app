@@ -122,15 +122,15 @@ test('the board is fitted on both axes, not width alone', () => {
   );
 });
 
-test('the fitter reads BOTH axes and subtracts the measured frame overhead', () => {
+test('the fitter reads BOTH axes and measures the decoration above the board', () => {
   assert.match(hook, /export function useFittedSquare/);
   /* Width AND height of the container must both feed the solve. */
   assert.match(hook, /availW\s*=/, 'available width is measured');
   assert.match(hook, /availH\s*=/, 'available height is measured');
-  assert.match(hook, /Math\.min\(availW,\s*Math\.max\(0,\s*availH\s*-\s*overhead\)\)/s,
-    'the solve must use both axes, with the overhead removed from the height');
+  assert.match(hook, /Math\.min\(wCap,\s*availH - overhead - FIT_SLACK_PX\)/s,
+    'the solve must use both axes, with the measured overhead removed from the height');
   /* The overhead has to be measured, not guessed from constants. */
-  assert.match(hook, /overhead/, 'frame overhead is accounted for');
+  assert.match(hook, /overhead/, 'the board wrapper\'s extra height is accounted for');
   /* Both measurement refs must actually be wired up in the page. */
   assert.match(code, /ref=\{areaRef\}/, 'areaRef is attached to the padded container');
   assert.match(code, /ref=\{fitRef\}/, 'fitRef is attached to the board-sized child');
@@ -155,19 +155,19 @@ test('the navbar stands down on the full-screen game route', () => {
   /* THE ACTUAL SCROLL CAUSE, and the reason a page-level `h-screen` fix was not
      enough on its own.
      
-     `App.jsx` decides whether to render the public <Navbar /> with:
-       isBare || isOpeningsModule ? null : isAdmin || isStudent ? null : <Navbar />
+     `App.jsx` folds the route into `hideStandaloneNavbar`, which is what decides
+     whether the public <Navbar /> renders.
      `isStudent` is true only for `/student*` and `/live-class*`, so `/play/bot/:id`
      matched NONE of the branches and fell through to the navbar. That header is
      `sticky` and IN FLOW (~65px), sitting above the route container that holds a
      100vh page - so the document became navbar + 100vh and scrolled, however
      correctly the page itself was sized. The board fitter sizes to 100vh, which
      is only right if nothing else claims height. */
-  assert.match(app, /const isFullScreenGame = location\.pathname\.startsWith\('\/play\/bot\/'\)/,
+  assert.match(app, /const isFullScreenGame = pathname\.startsWith\('\/play\/bot\/'\)/,
     'the full-screen game route must be detected');
   assert.match(
     app,
-    /isBare \|\| isOpeningsModule \|\| isFullScreenGame \? null/,
+    /const hideStandaloneNavbar = isAdmin \|\| isStudent \|\| isOpeningsModule \|\| isFullScreenGame/,
     'the navbar condition must stand the navbar down for it',
   );
 });
@@ -176,7 +176,7 @@ test('the navbar is kept on the bot catalogue, which is ordinary browsing', () =
   /* `/play/bots` must NOT be caught by the full-screen rule. The trailing slash is
      the only thing separating the two paths, so it is asserted directly rather
      than assumed - losing it would strip the navbar off the catalogue. */
-  const prefix = app.match(/const isFullScreenGame = location\.pathname\.startsWith\('([^']+)'\)/);
+  const prefix = app.match(/const isFullScreenGame = pathname\.startsWith\('([^']+)'\)/);
   assert.ok(prefix, 'the prefix literal must be readable');
   assert.equal(prefix[1], '/play/bot/', 'the prefix must keep its trailing slash');
 
@@ -187,14 +187,17 @@ test('the navbar is kept on the bot catalogue, which is ordinary browsing', () =
   assert.equal(starts('/play/bots/anything'), false, 'and any sub-path');
 });
 
-test('the width solve counts the frame, not just the bare square', () => {
-  /* The 360px-phone bug: the height solve fitted a 280px board, but ChessBoard
-     renders board PLUS its themed frame, so the framed board stuck out past the
-     viewport sideways. The width cap must solve board + frame against the
-     container width, and the final size is the smaller of the two solves. */
-  assert.match(hook, /framedWidth/, 'board + frame width is computed');
-  assert.match(hook, /framedWidth\(wCap\) > availW/, 'the cap walks down until it fits');
-  assert.match(hook, /Math\.min\(nextH,/s, 'height and width solves combine by taking the smaller');
+test('the width solve caps the OUTER box, the frame included', () => {
+  /* The 360px-phone bug was the framed board sticking out past the viewport
+     sideways, because the solve fitted the bare square and the frame then hung
+     outside it. That is fixed at the other end now: `size` is the outer box and
+     ChessBoard carves the frame out of it, so the width cap is a plain clamp with
+     no band arithmetic — and the same box holds with the frame on or off. */
+  assert.match(hook, /const wCap = Math\.max\(WIDTH_MIN, Math\.min\(max, availW - FIT_SLACK_PX\)\)/,
+    'the width cap is the container less slack, never the bare square plus a frame');
+  assert.doesNotMatch(hook, /framedWidth|frameBandFor|remC/,
+    'the hook must not keep its own copy of the frame arithmetic');
+  assert.match(code, /outerWidth=\{/, 'the page hands that box to ChessBoard as the outer box');
 });
 
 test('the board wrapper is content-sized, not bare-board width', () => {

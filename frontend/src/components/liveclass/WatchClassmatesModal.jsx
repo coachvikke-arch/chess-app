@@ -259,7 +259,7 @@ export default function WatchClassmatesModal({ onClose }) {
               <SpectatorBoard
                 key={selectedKey}
                 session={selected}
-                boardWidth={boardW}
+                outerWidth={boardW}
                 bare
                 defaultOrientation="white"
                 onClose={onClose}

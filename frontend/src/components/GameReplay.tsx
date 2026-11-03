@@ -660,13 +660,16 @@ export default function GameReplay({ gameId, onGameLoad, compact = false }: { ga
               orientation={orientation}
               height={boardWidth}
             />
+            {/* `outerWidth` is the box the board may occupy, frame included, so
+                the `boardWidth + 8 + EVAL_SLOT_PX` pinning above holds whether
+                or not the student's Board Frame is on — and no `frameless` here
+                means the saved preference is what decides. */}
             <ChessBoard
               fen={ply === 0 ? startFen : currentMove.fen}
               lastMove={currentMove?.lastMove}
               orientation={orientation}
               interactive={false}
-              boardWidth={boardWidth}
-              frameless
+              outerWidth={boardWidth}
               extraSquareStyles={squareStyles}
               moveBadge={moveBadge}
               animationDuration={MOVE_ANIM_S}

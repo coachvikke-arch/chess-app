@@ -1559,10 +1559,10 @@ export default function GameReview() {
                      see `rankedArrows`. Passed explicitly so the prop is not
                      accidentally reintroduced with the old three-arrow logic. */
                   lineBadges={rankedArrows}
-                  /* Raw board — no plinth/ornament frame. The review grid is
-                     dense, and the decorative band around the board ate space
-                     the position itself needs. */
-                  frameless
+                  /* No `frameless` here: the review board shows the saved Board
+                     Frame like every other board. It can no longer cost space —
+                     the frame is carved out of the box the sizer measured, so the
+                     column is the same width with the frame on as with it off. */
                 />
               </div>
             </div>

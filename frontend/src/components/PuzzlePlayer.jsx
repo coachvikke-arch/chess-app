@@ -37,7 +37,7 @@ import './puzzle/moveFeedback.css';
  */
 export default function PuzzlePlayer({
   fen, solution = [], onSolved, onFailed, onCorrectMove, fx, interactive = true,
-  boardWidth = 420, points = 10, showStatus = true, showMoveStrip = true,
+  outerWidth = 420, points = 10, showStatus = true, showMoveStrip = true,
 }) {
   const gameRef = useRef(null);
   if (!gameRef.current) gameRef.current = new Chess(fen);
@@ -246,7 +246,7 @@ if (result.status === 'solved') {
           orientation={orientation}
           interactive={interactive && status === 'playing' && !busy}
           showLegalMoves={status === 'playing' && !busy}
-          boardWidth={boardWidth}
+          outerWidth={outerWidth}
           animationDuration={MOVE_ANIM_SECONDS}
           fx={fx}
           extraSquareStyles={wrongSquares || undefined}

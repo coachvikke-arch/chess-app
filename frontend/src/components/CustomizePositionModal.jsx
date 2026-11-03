@@ -3,6 +3,8 @@ import { useOverlayHistory } from '../hooks/useOverlayHistory';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Chess } from 'chess.js';
 import AnimatedBoard from './board/AnimatedBoard';
+import BoardFrame, { boardSquaresFor, isRoyalFrame } from './BoardFrame';
+import { frameInsetFor } from '../utils/boardFrame';
 import { fenToGrid, gridToFen, validPosition, START_FEN } from './BoardSetup';
 import { GLYPHS, PIECE_THEMES, pieceGlyphStyle, getPieceTheme, buildCustomPieces } from '../config/pieceTheme';
 import { getBoardTheme, getBoardThemeStyles } from '../config/boardThemes';
@@ -85,7 +87,7 @@ function buildFen(grid, turn, castling) {
 
 export default function CustomizePositionModal({ initialFen, onApply, onClose }) {
   useOverlayHistory('CustomizePositionModal', true, onClose);
-  const { boardTheme: boardThemeId, pieceSet: pieceSetId } = useAuth();
+  const { boardTheme: boardThemeId, pieceSet: pieceSetId, boardFrame } = useAuth();
   const { soundOn, playSound } = useSound();
   const boardTheme = getBoardTheme(boardThemeId);
   const themeStyles = getBoardThemeStyles(boardTheme);
@@ -109,7 +111,14 @@ export default function CustomizePositionModal({ initialFen, onApply, onClose })
   const [dropTarget, setDropTarget] = useState(null);
   const [ghostLetter, setGhostLetter] = useState(null);
 
-  const width = Math.min(400, typeof window !== 'undefined' ? Math.min(window.innerWidth - 96, 400) : 400);
+  /* The board gets one box (`outer`) and the frame is carved out of it, so the
+     editor measures the same with the saved Board Frame on as off. This modal
+     draws its own rank/file gutters, so the frame's band stays label-free and
+     the gutters are pushed in by the chrome to line up with the squares. */
+  const framed = boardFrame !== false;
+  const outer = Math.min(400, typeof window !== 'undefined' ? Math.min(window.innerWidth - 96, 400) : 400);
+  const width = framed ? boardSquaresFor(outer) : outer;
+  const gutter = framed ? frameInsetFor(width) + 2 : 0;
 
   /* Esc closes the modal */
   useEffect(() => {
@@ -512,7 +521,7 @@ export default function CustomizePositionModal({ initialFen, onApply, onClose })
 
               <div className="order-2 lg:order-none">
                 <div className="flex gap-2 items-start">
-                  <div className="flex flex-col items-center justify-center gap-1 py-1" style={{ width: 16, paddingRight: 2 }}>
+                  <div className="flex flex-col items-center justify-center gap-1 py-1" style={{ width: 16, paddingRight: 2, marginTop: gutter }}>
                     {['8', '7', '6', '5', '4', '3', '2', '1'].map((n) => (
                       <span key={n} className="text-xs font-semibold" style={{ color: 'var(--ivory-500)', height: width / 8, display: 'grid', placeItems: 'center' }}>
                         {n}
@@ -524,7 +533,14 @@ export default function CustomizePositionModal({ initialFen, onApply, onClose })
                         Chessboard below is a pure renderer (its own clicks and
                         native DnD are off); every press lands on the overlay, so
                         taps and drags behave identically on mouse and touch. */}
-                    <div ref={boardBoxRef} style={{ position: 'relative', width, height: width, touchAction: 'none' }}>
+                    <BoardFrame
+                      outerWidth={outer}
+                      squares={width}
+                      boardTheme={boardTheme}
+                      showLabels={false}
+                      royalOrnate={isRoyalFrame(boardTheme)}
+                    >
+                      <div ref={boardBoxRef} style={{ position: 'relative', width, height: width, touchAction: 'none' }}>
                       <AnimatedBoard
                         position={position}
                         arePiecesDraggable={false}
@@ -581,8 +597,10 @@ export default function CustomizePositionModal({ initialFen, onApply, onClose })
                         })}
                       </div>
                     </div>
-                    {/* file letters a-h along the bottom */}
-                    <div className="flex" style={{ width, paddingTop: 2 }}>
+                    </BoardFrame>
+                    {/* file letters a-h along the bottom, lined up with the squares
+                        the frame sits around */}
+                    <div className="flex" style={{ width, marginLeft: gutter, paddingTop: 2 }}>
                       {['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'].map((f) => (
                         <span key={f} className="text-xs font-semibold text-center" style={{ color: 'var(--ivory-500)', width: width / 8 }}>
                           {f}

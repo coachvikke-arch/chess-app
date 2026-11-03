@@ -1,19 +1,18 @@
 /**
  * TacticBoard — a static, read-only tactic diagram.
  *
- * Both the pieces AND the squares come from the shared theme registries, so a
- * tactic card shows exactly the board the reader has chosen everywhere else.
- * The diagram used to keep its own grey square pair; that made it the one
- * surface in the app that ignored the Board Theme setting. Highlights and
- * arrows are overlaid above the pieces.
+ * The position itself is `StaticBoard`, so a tactic card shows exactly the board
+ * — theme, pieces AND frame — the reader has chosen everywhere else. The diagram
+ * used to keep its own grey square pair and no frame; that made it one of the
+ * surfaces that ignored the Settings. Highlights and the explanation arrows are
+ * overlaid above it, pinned to the play area inside the frame.
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import AnimatedBoard from '../../../components/board/AnimatedBoard';
+import StaticBoard from '../../../components/StaticBoard';
+import { boardSquaresFor } from '../../../components/BoardFrame';
 import { useAuth } from '../../../context/AuthContext';
-import { buildCustomPieces, getPieceTheme } from '../../../config/pieceTheme';
-import { getBoardTheme, getBoardThemeStyles } from '../../../config/boardThemes';
-import { ornateSquareStyles } from '../../../config/ornateTheme';
+import { frameInsetFor } from '../../../utils/boardFrame';
 
 /** Colour tokens for the highlight washes, keyed by the data file's names. */
 const HIGHLIGHT_FILL = {
@@ -85,32 +84,24 @@ export default function TacticBoard({
   highlights = null,
   className = '',
 }) {
-  const { boardTheme: boardThemeId, pieceSet, hasCustomBoardColors } = useAuth();
-  const boardTheme = getBoardTheme(boardThemeId);
-  const themeStyles = getBoardThemeStyles(boardTheme);
-  const customPieces = useMemo(
-    () => buildCustomPieces(getPieceTheme(pieceSet || 'cburnett')),
-    [pieceSet],
-  );
-  const ornateSquares = useMemo(() => ornateSquareStyles(boardTheme), [boardTheme, hasCustomBoardColors]);
+  const { boardFrame } = useAuth();
+  const framed = boardFrame !== false;
 
+  /* Only the highlight washes: StaticBoard lays these OVER the theme's own
+     squares, including the ornate marble, so a highlighted square cannot wipe
+     the theme out. */
   const squareStyles = useMemo(() => {
-    /* Ornate themes paint their marble through per-square styles, so the card's
-       own highlight wash is merged ON TOP of that base instead of replacing it. */
-    const styles = { ...(ornateSquares || {}) };
+    const styles = {};
     for (const highlight of highlights || []) {
       if (highlight?.square) {
-        styles[highlight.square] = {
-          ...(styles[highlight.square] || {}),
-          backgroundColor: HIGHLIGHT_FILL[highlight.color] || highlight.color,
-        };
+        styles[highlight.square] = { backgroundColor: HIGHLIGHT_FILL[highlight.color] || highlight.color };
       }
     }
-    return styles;
-  }, [highlights, ornateSquares]);
+    return Object.keys(styles).length ? styles : null;
+  }, [highlights]);
 
-  /* react-chessboard needs a pixel width, while the card column is fluid. Measure
-     the wrapper once it mounts and on resize, so the diagram always fills it. */
+  /* The card column is fluid while a board needs a pixel width, so measure the
+     wrapper once it mounts and on resize. */
   const wrapRef = useRef(null);
   const [width, setWidth] = useState(0);
   useEffect(() => {
@@ -124,6 +115,15 @@ export default function TacticBoard({
     return () => observer.disconnect();
   }, []);
 
+  /* The lane is the OUTER box: with the frame on it is carved out of it, with the
+     frame off the diagram uses all of it, so the card measures the same either
+     way and the Board Frame toggle cannot resize the page. */
+  const outer = width > 0 ? Math.round(width) : 0;
+  const squares = framed ? boardSquaresFor(outer) : outer;
+  /* Where the play area starts inside the framed box, so the arrow overlay lands
+     on the squares and not on the band. */
+  const inset = framed ? frameInsetFor(squares) + 2 : 0;
+
   return (
     <div
       ref={wrapRef}
@@ -132,38 +132,21 @@ export default function TacticBoard({
       aria-label="Tactic position"
       style={{ position: 'relative', width: '100%', aspectRatio: '1 / 1' }}
     >
-      {width > 0 && (
-        <AnimatedBoard
-          position={fen}
-          boardWidth={Math.round(width)}
-          boardOrientation="white"
-          arePiecesDraggable={false}
-          arePiecesAnimated={false}
-          animationDuration={0}
-          areArrowsAllowed={false}
-          showNotation
-          customPieces={customPieces}
-          customLightSquareStyle={themeStyles.lightSquareStyle || { backgroundColor: boardTheme.lightSq }}
-          customDarkSquareStyle={themeStyles.darkSquareStyle || { backgroundColor: boardTheme.darkSq }}
-          customSquareStyles={squareStyles}
-          customArrows={[]}
-          customBoardStyle={{
-            ...(themeStyles.boardStyle || {}),
-            width: '100%',
-            height: '100%',
-            borderRadius: '0.6rem',
-            overflow: 'hidden',
-          }}
-        />
+      {outer > 0 && (
+        <StaticBoard fen={fen} width={outer} squareStyles={squareStyles} />
       )}
-      {/* Original tactic arrows, drawn above the themed board. */}
+      {/* Original tactic arrows, drawn above the play area. */}
       <svg
         viewBox="0 0 8 8"
         aria-hidden="true"
         focusable="false"
         style={{
-          position: 'absolute', top: 0, left: 0,
-          width: '100%', height: '100%', pointerEvents: 'none',
+          position: 'absolute',
+          top: inset,
+          left: inset,
+          width: squares,
+          height: squares,
+          pointerEvents: 'none',
         }}
       >
         {(arrows || [])

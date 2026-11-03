@@ -1,28 +1,17 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-/** Slack allowed when solving for the square, in px.
+/** Slack allowed when solving for the board, in px.
  *
- *  Fractional layout, the theme frame's band width (`remC`, which is itself a
- *  function of the board width) and the notation row all land on sub-pixels, so
- *  a solve that is exactly on the boundary can still measure a pixel or two over
- *  and reintroduce the scrollbar it was meant to remove.
+ *  Fractional layout and the notation row land on sub-pixels, so a solve that is
+ *  exactly on the boundary can still measure a pixel or two over and reintroduce
+ *  the scrollbar it was meant to remove.
  */
 const FIT_SLACK_PX = 6;
 
-/* Absolute width floor. `min` above is the playability floor, but it only ever
-   counted the bare square: on a narrow phone 280px of board plus the themed
-   frame is wider than the viewport, so the floor itself caused the overflow.
-   The width solve below may go down to WIDTH_MIN to keep the framed board
-   inside the screen; below that the area's own scroll is the safety valve. */
+/* Absolute width floor. `min` above is the playability floor; the width solve may
+   go down to WIDTH_MIN to keep the board inside the screen, and below that the
+   area's own scroll is the safety valve. */
 const WIDTH_MIN = 160;
-
-/* Framed width of a board `bw` wide, mirroring ChessBoard's own arithmetic
-   (band = clamp(round(bw * 0.082), 20, 46) each side, plus 12px frame padding
-   each side). Deliberately duplicated rather than imported: the hook must stay
-   renderable in tests without the board component, and the formula is stable.
-   Exported so the paired-game card can size its player plates to the board's
-   real framed width — the single identity this same hook fits the board with. */
-export const framedWidth = (bw) => bw + 2 * Math.min(46, Math.max(20, Math.round(bw * 0.082))) + 24;
 
 const num = (v) => (Number.isFinite(v) ? v : 0);
 
@@ -41,29 +30,27 @@ export const CLASSROOM_BOARD_MAX = 806;
 export const PAIRED_BOARD_MAX = 560;
 
 /**
- * Largest square that fits its container on BOTH axes, for a page that must not
- * scroll.
+ * Largest board box that fits its container on BOTH axes, for a page that must
+ * not scroll.
  *
  * WHY THIS EXISTS
  *
  * `useBoardWidth` only ever looks at `window.innerWidth`. On a short window
- * (a 768px laptop, a half-height browser) a 530px board plus its own theme frame
- * and notation needs roughly 655px of height, so the page grew past the viewport
- * and scrolled - which is exactly what a fixed game screen must not do.
+ * (a 768px laptop, a half-height browser) a 530px board plus its notation row
+ * needs more height than the viewport has, so the page grew past it and scrolled -
+ * which is exactly what a fixed game screen must not do.
  *
  * WHY IT MEASURES INSTEAD OF COMPUTING
  *
- * The board's total height is NOT `boardWidth`. ChessBoard wraps the square in a
- * themed frame whose band width is `clamp(round(boardWidth * 0.082), 20, 46)` on
- * each side, plus frame padding and a notation row. Deriving that from constants
- * would be wrong the moment any of them changed, so the overhead is measured off
- * the DOM and subtracted. Same lesson as the replay's board sizer, which measures
- * its shell rather than trusting arithmetic.
+ * What is on screen is the board plus whatever the caller stacks with it
+ * (notation, badges). The extra height above the board box is read off the DOM and
+ * subtracted, so the solve stays correct when that decoration changes.
  *
- * The overhead depends on the width being solved for, so the solve iterates
- * (at most a few times, with no state involved, so it cannot loop through
- * renders). `remC` only varies between 20 and 46 across the whole size range, so
- * this converges immediately in practice and the cap keeps it bounded regardless.
+ * WHAT `size` MEANS
+ *
+ * The OUTER box — frame included. ChessBoard carves the frame out of it, so a
+ * board fits its space exactly and toggling the frame preference in Settings does
+ * not move or resize anything on the page.
  *
  * `min` is a floor, not a promise: below it the board would be too small to play,
  * so the caller is told to let that region scroll instead. Refusing to shrink
@@ -73,8 +60,8 @@ export const PAIRED_BOARD_MAX = 560;
  * Returns `{ areaRef, fitRef, size }`:
  *   - `areaRef` goes on the padded container whose free space is being fitted
  *   - `fitRef` goes on the child sized to `size`, so its extra height above
- *     `size` can be measured as the frame/notation overhead
- *   - `size` is the width to hand the board
+ *     `size` can be measured as the decoration around the board
+ *   - `size` is the `outerWidth` to hand the board
  */
 export function useFittedSquare({ max = 530, min = 280, widthOnly = false } = {}) {
   const nodeRef = useRef(null);
@@ -90,8 +77,8 @@ export function useFittedSquare({ max = 530, min = 280, widthOnly = false } = {}
     setBound(!!node);
   }, []);
   /* Start near the viewport width instead of at `max`: on a phone the first
-     paint would otherwise render a 530px board plus frame and flash a
-     horizontal scrollbar before the measured solve below corrects it. */
+     paint would otherwise render a 530px board and flash a horizontal scrollbar
+     before the measured solve below corrects it. */
   const [size, setSize] = useState(() =>
     typeof window === 'undefined' ? max : Math.max(min, Math.min(max, window.innerWidth - 40)),
   );
@@ -107,14 +94,9 @@ export function useFittedSquare({ max = 530, min = 280, widthOnly = false } = {}
       const availW =
         area.clientWidth - num(parseFloat(cs.paddingLeft)) - num(parseFloat(cs.paddingRight));
 
-      /* Width counterpart of the height solve below. `room` compares the BARE
-         board against the container, but ChessBoard renders board + frame, so
-         on a 360px phone a "fitting" 280px board still sticks out past the
-         viewport. Walk the cap down until board + frame fits; deterministic in
-         availW, so unlike a measured correction it cannot oscillate. */
-      let wCap = max;
-      while (wCap > WIDTH_MIN && framedWidth(wCap) > availW) wCap -= 2;
-      wCap = Math.max(WIDTH_MIN, wCap);
+      /* The width the board may occupy, in outer-box terms: no frame arithmetic,
+         because the frame now lives inside what we hand the board. */
+      const wCap = Math.max(WIDTH_MIN, Math.min(max, availW - FIT_SLACK_PX));
 
       /* Width-only mode: the caller's stage flows with the page (no fixed
          height), so there is no bounded height to fit against — the board is
@@ -122,7 +104,7 @@ export function useFittedSquare({ max = 530, min = 280, widthOnly = false } = {}
          game so its board lives in normal flow and the page scrolls instead of
          a fixed-height stage clipping it. */
       if (widthOnly) {
-        const next = Math.max(min, Math.min(max, wCap));
+        const next = Math.max(min, wCap);
         setSize((prev) => (Math.abs(prev - next) >= 1 ? Math.round(next) : prev));
         return;
       }
@@ -130,16 +112,13 @@ export function useFittedSquare({ max = 530, min = 280, widthOnly = false } = {}
       const availH =
         area.clientHeight - num(parseFloat(cs.paddingTop)) - num(parseFloat(cs.paddingBottom));
 
-      /* Height the themed frame + notation add on top of the bare square, read
-         from what is on screen right now. Defaults to 0 before first paint. */
+      /* Height the caller's decoration adds on top of the board box, read from
+         what is on screen right now. Defaults to 0 before first paint. */
       const fit = fitRef.current;
       const rendered = fit ? fit.getBoundingClientRect().height : 0;
       const overhead = Math.max(0, rendered - size);
 
-      const room = Math.min(availW, Math.max(0, availH - overhead));
-      const nextH = Math.max(min, Math.min(max, room - FIT_SLACK_PX));
-
-      const next = Math.min(nextH, Math.max(wCap, WIDTH_MIN));
+      const next = Math.max(min, Math.min(wCap, availH - overhead - FIT_SLACK_PX));
 
       /* Only commit a real change: re-rendering with the same size would
          re-run this effect through the ResizeObserver without ever settling. */
@@ -169,11 +148,6 @@ export function useFittedSquare({ max = 530, min = 280, widthOnly = false } = {}
 }
 
 /**
- * Fluid pixel width for fixed-ratio components (chess boards, animated boards):
- * `Math.min(max, viewportWidth - pad)`, recomputed on window resize.
- * Lets a board fill the column at any screen size without bursting the viewport.
- */
-/**
  * Board width that fits inside an element, measured off that element.
  *
  * WHY THIS EXISTS
@@ -184,14 +158,9 @@ export function useFittedSquare({ max = 530, min = 280, widthOnly = false } = {}
  * be - a number no viewport arithmetic can know, and the one that changes when
  * the column count changes.
  *
- * WHY THE SAME DIVISOR
- *
- * `.rem-outer` wraps the bare square in a themed frame worth ≈ 2·remC + 30px,
- * with remC ≈ 0.082·boardWidth, so solving `bw + 2·remC + 30 <= inner` gives
- * `(inner - 30) / 1.164`. That is the same identity `useFittedBoardWidth` uses;
- * only the source of `inner` differs (this element, not the window). The frame
- * padding is not re-derived here for the reason given on `useFittedSquare`:
- * measure it, do not trust constants that styling can change.
+ * The answer is the OUTER box: the caller hands it to ChessBoard as `outerWidth`
+ * and the frame is carved out of it, so a card with a 250px lane shows a board
+ * that is 250px wide with the frame on and 250px wide with it off.
  *
  * `min` is a floor, as elsewhere: below it the position is too small to read, so
  * the region is allowed to overflow rather than showing an unusable sliver.
@@ -204,8 +173,7 @@ export function useFittedWidthIn(ref, { max = 252, min = 120, slack = 4 } = {}) 
     if (!el) return undefined;
 
     const measure = () => {
-      const inner = el.clientWidth - slack;
-      const next = Math.max(min, Math.min(max, (inner - 30) / 1.164));
+      const next = Math.max(min, Math.min(max, el.clientWidth - slack));
       /* Same reasoning as useFittedSquare: only commit a real change, or the
          ResizeObserver re-runs this effect forever without settling. */
       setWidth((prev) => (Math.abs(prev - next) >= 1 ? Math.round(next) : prev));
@@ -246,19 +214,19 @@ export default function useBoardWidth(max = 460, pad = 24) {
 }
 
 /**
- * Width for a ChessBoard rendered inside its responsive themed frame
- * (`.rem-outer` adds ≈ 2·remC + 30px around the play area). Solving
- * `bw + 2·remC + 30 ≤ column width` with `remC ≈ 0.082·bw` keeps the whole
- * framed board inside the layout. The Student shell shows its 240px sidebar
- * from md (768px) up, so that's subtracted there. Desktop stays at `max`.
+ * Width for a ChessBoard rendered inside its responsive themed frame. The result
+ * is the OUTER box — `.rem-outer` included — so the framed board fills the column
+ * instead of bursting it, and the same number works with the frame switched off.
+ * The Student shell shows its 240px sidebar from md (768px) up, so that is
+ * subtracted there. Desktop stays at `max`.
  */
 export function useFittedBoardWidth(max = 460) {
   const compute = () => {
     if (typeof window === 'undefined') return max;
     const iw = window.innerWidth;
     const shell = iw >= 768 ? 288 : 24; // 240px sidebar + gap + page pad, vs page pad only
-    const pad = iw >= 768 ? 36 : 70;    // phones get extra breathing room around the frame
-    return Math.max(200, Math.min(max, (iw - shell - pad) / 1.164));
+    const pad = iw >= 768 ? 36 : 20;    // a little breathing room either side of the board
+    return Math.max(200, Math.min(max, iw - shell - pad));
   };
   const [w, setW] = useState(compute);
 

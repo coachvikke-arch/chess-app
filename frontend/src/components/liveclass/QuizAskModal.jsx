@@ -73,7 +73,7 @@ export default function QuizPuzzleModal({ puzzle, classId, onClose, onStarted })
 
         <div className="live-drill-preview">
           {fen ? (
-            <ChessBoard key={fen} fen={fen} interactive={false} showLegalMoves={false} boardWidth={200} />
+            <ChessBoard key={fen} fen={fen} interactive={false} showLegalMoves={false} outerWidth={200} />
           ) : (
             <div className="live-drill-none">No position.</div>
           )}

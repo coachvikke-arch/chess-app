@@ -13,8 +13,8 @@ import ChessBoard from './ChessBoard';
  * So the board is rendered here, once, and the surfaces pass what actually
  * differs:
  *
- *   boardWidth   how big the square is (the page fits its column, Play Mode
- *                fits the full-screen area)
+ *   outerWidth   the box the board may occupy, themed frame included (the page
+ *                fits its column, Play Mode fits the full-screen area)
  *   effectHostId which board a move effect belongs to — both surfaces share one
  *                Chess instance, and only one of them is mounted at a time, so
  *                an effect has to be addressed to the board the user is looking at
@@ -33,7 +33,7 @@ import ChessBoard from './ChessBoard';
 function ArenaBoard({
   game,
   orientation = 'white',
-  boardWidth = 420,
+  outerWidth = 420,
   effectHostId = null,
   onPositionChange = null,
   onMove = null,
@@ -50,14 +50,13 @@ function ArenaBoard({
   reviewVerdictColor = null,
   moveBadge = null,
   animationDuration = 0.25,
-  flat = false,
 }) {
   return (
     <ChessBoard
       game={game}
       mode="analysis"
       orientation={orientation}
-      boardWidth={boardWidth}
+      outerWidth={outerWidth}
       onPositionChange={onPositionChange}
       onMove={onMove}
       interactive={interactive}
@@ -74,7 +73,6 @@ function ArenaBoard({
       moveBadge={moveBadge}
       moveEffectHostId={effectHostId}
       animationDuration={animationDuration}
-      flat={flat}
     />
   );
 }

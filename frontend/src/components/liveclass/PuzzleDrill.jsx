@@ -161,7 +161,7 @@ function MiniDrillBoard({ fen, moves }) {
   if (!fen) return null;
   return (
     <div className="live-drill-card-board" ref={boardRef}>
-      <ChessBoard game={game} interactive={false} showLegalMoves={false} boardWidth={width} />
+      <ChessBoard game={game} interactive={false} showLegalMoves={false} outerWidth={width} />
     </div>
   );
 }

@@ -371,7 +371,7 @@ export default function OpeningPracticeTab({ opening, variationParam, onLineSele
           <ChessBoard
             game={gameRef.current}
             fen={fen}
-            boardWidth={boardWidth}
+            outerWidth={boardWidth}
             orientation={orientation}
             draggableColor={draggableColor}
             interactive={!ended && learnerToMove}

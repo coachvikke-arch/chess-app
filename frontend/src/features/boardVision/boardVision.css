@@ -66,7 +66,8 @@
   display: grid; grid-template-columns: repeat(8, 1fr);
   width: 100%; aspect-ratio: 1 / 1;
   border-radius: 0.9rem; overflow: hidden;
-  border: 3px solid rgba(37, 99, 235, 0.5);
+  /* No border of its own: the app's Board Frame setting decides whether this
+     grid sits inside the shared frame, and a frame-off board must show none. */
   box-shadow: none;
   touch-action: manipulation;
 }
@@ -77,8 +78,10 @@
   display: grid; place-items: center; min-width: 0; min-height: 0;
 }
 .bv-sq:focus-visible { outline: 3px solid #2563eb; outline-offset: -3px; z-index: 2; }
-.bv-sq-light { background: #ecdcb9; }
-.bv-sq-dark { background: #a5714f; }
+/* The saved board theme paints these through inline styles; the root colour
+   variables are the fallback so this grid never carries a palette of its own. */
+.bv-sq-light { background: var(--board-light, #ecdcb9); }
+.bv-sq-dark { background: var(--board-dark, #a5714f); }
 .bv-hc .bv-sq-light { background: #ffffff; }
 .bv-hc .bv-sq-dark { background: #1a1a1a; }
 .bv-hc .bv-piece-w { color: #000; text-shadow: 0 0 3px #fff, 0 0 3px #fff; }

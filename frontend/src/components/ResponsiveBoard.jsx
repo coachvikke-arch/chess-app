@@ -1,56 +1,43 @@
 import { useLayoutEffect, useRef, useState } from 'react';
 import ChessBoard from './ChessBoard';
-import { useAuth } from '../context/AuthContext';
+import { MIN_SQUARES, squaresForOuter } from '../utils/boardFrame';
 
 /* ──────────────────────────────────────────────────────────────────────────
  * ONE responsive board sizer, shared by the Game Review page and the imported
  * game (Chess.com) review card.
  *
  * ChessBoard draws fixed-pixel squares, so "fill the container" has to be
- * solved in JS: measure the space the board actually has, subtract the themed
- * frame that ChessBoard wraps around those squares, and hand the result back as
- * `boardWidth`. The measurement is repeated by a ResizeObserver, so rotation,
- * a sidebar/panel opening, a tab switch or a window resize all re-fit the
- * board instead of leaving it stuck at whatever the first paint happened to be.
+ * solved in JS. The number this hands back is the OUTER box — themed frame
+ * included — and ChessBoard carves the frame out of it, which is what makes a
+ * board the same size with the frame on as with it off: the space is decided by
+ * the layout, never by the decoration sitting inside it. The measurement is
+ * repeated by a ResizeObserver, so rotation, a sidebar/panel opening, a tab
+ * switch or a window resize all re-fit the board instead of leaving it stuck at
+ * whatever the first paint happened to be.
  * ────────────────────────────────────────────────────────────────────────── */
 
-export const MIN_BOARD = 160;
+/* Both bounds describe the outer box. */
+export const MIN_BOARD = 200;
 export const MAX_BOARD = 400;
 
-/* Mirrors ChessBoard's own band arithmetic and the frame's padding/borders.
-   `frameRemC` is the marble band on each side of the squares. */
-export const frameRemC = (bw) => Math.min(46, Math.max(20, Math.round(bw * 0.082)));
-
-/* Total width the themed frame adds around a `bw`-wide square area. The +31 is
-   the frame's real chrome: rem-content band padding (2 × remC), the frame's
-   12px padding (24), and the frame/rem-outer borders (~7). Three pixels of
-   slack keep fractional layout from producing a horizontal scrollbar. */
-export const frameOf = (bw) => 2 * frameRemC(bw) + 34;
-
-/** Outer width of a framed board whose play area is `bw` wide. */
-export const framedOuterWidth = (bw) => bw + 2 * frameRemC(bw) + 31;
-
 /**
- * Largest play-area width that fits `available` (and optionally `maxHeight`)
- * once ChessBoard's frame is added. The frame's band size is itself derived
- * from the board width, so this solves by a few converging passes.
+ * Width of the box a board may occupy inside `available` (and optionally
+ * `maxHeight`).
+ *
+ * Historically this returned the play-area width and every caller then let the
+ * frame hang outside it, so the same board measured ~90px wider with the frame on
+ * than off. It now returns the outer box; `squaresForOuter` is what ChessBoard
+ * applies to it, and is exported below for callers that lay something out
+ * against the squares (overlays, plates).
  */
-export function fitBoardWidth(available, { max = MAX_BOARD, maxHeight = Infinity, frameless = false } = {}) {
+export function fitBoardWidth(available, { max = MAX_BOARD, maxHeight = Infinity } = {}) {
   if (!(available > 0)) return 0;
-  const widthCap = Math.min(available, max);
-  if (frameless) {
-    return Math.floor(Math.max(MIN_BOARD, Math.min(widthCap, maxHeight)));
-  }
-  let bw = Math.min(widthCap, maxHeight);
-  for (let i = 0; i < 6; i += 1) {
-    /* The frame must fit INSIDE the available width and height too, otherwise
-       a framed board can render wider than its wrapper (clipped or spilling). */
-    const next = Math.min(widthCap, maxHeight) - frameOf(bw);
-    if (Math.abs(next - bw) < 1) { bw = next; break; }
-    bw = next;
-  }
-  return Math.floor(Math.max(MIN_BOARD, bw));
+  return Math.floor(Math.max(MIN_BOARD, Math.min(max, available, maxHeight)));
 }
+
+/** Play area a board gets inside the box returned above, framed or bare. */
+export const boardSquaresFor = (outer, { framed = true } = {}) =>
+  (framed ? squaresForOuter(outer) : Math.max(MIN_SQUARES, Math.floor(outer)));
 
 /**
  * Board that fills its container.
@@ -71,13 +58,8 @@ export default function ResponsiveBoard({
   frameless = null,
   ...boardProps
 }) {
-  const { boardFrame } = useAuth();
-  /* The sizer has to subtract the frame the board will actually draw: measuring
-     for a framed board that is not drawn shrinks it, and measuring for a bare
-     one that is drawn spills it out of the wrapper. */
-  const framed = frameless === null ? boardFrame !== false : !frameless;
   const boxRef = useRef(null);
-  const [width, setWidth] = useState(0);
+  const [outer, setOuter] = useState(0);
 
   useLayoutEffect(() => {
     const box = boxRef.current;
@@ -87,10 +69,10 @@ export default function ResponsiveBoard({
     const measure = () => {
       const available = box.clientWidth;
       if (available <= 0) return;
-      const next = fitBoardWidth(available, { max: maxWidth, maxHeight, frameless: !framed });
+      const next = fitBoardWidth(available, { max: maxWidth, maxHeight });
       if (next === last) return;
       last = next;
-      setWidth(next);
+      setOuter(next);
     };
 
     measure();
@@ -107,7 +89,7 @@ export default function ResponsiveBoard({
       window.removeEventListener('resize', measure);
       window.removeEventListener('orientationchange', measure);
     };
-  }, [maxWidth, maxHeight, frameless, framed]);
+  }, [maxWidth, maxHeight]);
 
   return (
     <div
@@ -115,8 +97,8 @@ export default function ResponsiveBoard({
       className={`responsive-board${className ? ` ${className}` : ''}`}
       style={{ width: '100%', maxWidth: Number.isFinite(maxWidth) ? maxWidth : undefined }}
     >
-      {width > 0
-        ? <ChessBoard {...boardProps} frameless={frameless} boardWidth={width} />
+      {outer > 0
+        ? <ChessBoard {...boardProps} frameless={frameless} outerWidth={outer} />
         : <div className="responsive-board-placeholder" aria-hidden="true" />}
     </div>
   );

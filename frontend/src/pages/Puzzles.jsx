@@ -5,7 +5,7 @@ import api from '../services/api';
 import PuzzlePlayer from '../components/PuzzlePlayer';
 import { pieceGlyph } from '../components/puzzle/PuzzlePopups';
 import { Page, Chip, ConfirmDialog, Spinner } from '../components/ui';
-import { useFittedBoardWidth, useFittedSquare, framedWidth } from '../hooks/useBoardWidth';
+import { useFittedBoardWidth, useFittedSquare } from '../hooks/useBoardWidth';
 import useMediaQuery from '../hooks/useMediaQuery';
 import { createTransitionGuard } from '../lib/puzzleTransition';
 import { revealAfterCheckmate } from '../effects/moveEffect';
@@ -856,7 +856,7 @@ export default function Puzzles() {
                       onFailed={handleFailed}
                       onCorrectMove={handleCorrectMove}
                       fx={fx}
-                      boardWidth={hwBoardWidth}
+                      outerWidth={hwBoardWidth}
                       interactive={!puzzleLocked}
                       points={current?.points ?? 10}
                       showStatus={false}
@@ -888,7 +888,7 @@ export default function Puzzles() {
               <div className="hw-col-right">
                 <div
                   className={`hw-panel ${(homeworkResult === 'solved' || homeworkAllDone === 'all' || homeworkAllDone === 'last') ? 'hw-panel--completed' : ''}`}
-                  style={{ '--hw-panel-h': `${framedWidth(hwBoardWidth)}px` }}
+                  style={{ '--hw-panel-h': `${hwBoardWidth}px` }}
                 >
                   <div className="hw-panel-top">
                     <div className="hw-panel-meta">
@@ -1104,7 +1104,7 @@ export default function Puzzles() {
                     onFailed={handleFailed}
                     onCorrectMove={handleCorrectMove}
                     fx={fx}
-                    boardWidth={boardWidth}
+                    outerWidth={boardWidth}
                     interactive={!puzzleLocked}
                     points={current?.points ?? 10}
                   />

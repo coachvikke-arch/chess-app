@@ -20,6 +20,7 @@ import { playEffectForMove } from '../effects/moveEffect/playForMove';
 
 import MoveBadge from './MoveBadge';
 import CelebrationFX from './CelebrationFX';
+import BoardFrame from './BoardFrame';
 
 /* Accessible names for the engine's ranked candidate lines, shown as small
  * numbered chips on the board instead of the old "Best / Great / Good" words. */
@@ -32,10 +33,10 @@ import {
   ornateSquareStyles,
   ORNATE_NOTATION_STYLE,
   ROYAL_NOTATION_STYLE,
-  framePalette,
 } from '../config/ornateTheme';
 import { useAuth } from '../context/AuthContext';
 import { squareFromPoint, squareCenter } from '../utils/boardGeometry';
+import { framePadFor, squaresForOuter } from '../utils/boardFrame';
 import { prefersReducedMotion } from '../config/boardAnimation';
 import { useAutoQueen } from '../config/autoQueen';
 import { sanitizeFen } from '../utils/fen';
@@ -150,7 +151,14 @@ export default function ChessBoard({
   onPositionChange,
   onIllegalMove = null,
   orientation = 'white',
-  boardWidth = 420,
+  /* Play-area width of the squares. Callers that only know the space they have
+     should pass `outerWidth` instead — see below. */
+  boardWidth: boardWidthProp = 420,
+  /* Total box the board may occupy, frame included. When set, it is authoritative:
+     the frame is carved out of it, so the board measures exactly this whether the
+     frame is on or off and toggling it never resizes anything. `boardWidth` is
+     then ignored. */
+  outerWidth = null,
   interactive = true,
   showLegalMoves = false,
   draggableColor = null,   // restrict moves to this side's pieces (opponent side stays locked)
@@ -175,7 +183,7 @@ export default function ChessBoard({
   highlightLastMove = true,
   engineOn = false,
   frameless = null,              // null → follow the saved frame preference; true/false → force
-  flat = false,                  // Play Arena page board: flat look (10px radius, light ring), never the decorative frame
+  flat = false,                  // flat look only — the board's own 10px corner instead of 14px; says nothing about the frame
   animationDuration = 0.25,
   reviewVerdictColor = null,   // hex color tint for lastMove.to during review
   moveBadge = null,            // { square: 'e4', verdict: 'brilliant', ... } — overlay badge
@@ -274,15 +282,19 @@ export default function ChessBoard({
   const boardTheme = getBoardTheme(boardThemeId || savedThemeId);
   const ornate = Boolean(boardTheme.ornate);
   const royalOrnate = ornate && boardTheme.variant === 'royal';
-  /* Frame visibility: the Settings toggle is the default, but a caller can still
-     force it. `frameless` stays null when unspecified so "no prop" and "prop
-     set to false" remain distinguishable — GameReview forces a bare board. */
-  const showFrame = flat ? false : (frameless === null ? boardFrame : !frameless);
-  /* decorative frame band thickness (px) */
-  const remC = showFrame ? Math.min(46, Math.max(20, Math.round(boardWidth * 0.082))) : 0;
-  const framePad = showFrame ? 12 : 0;
-  /* theme-tinted frame palette (marble, gold trim, labels, plinth) */
-  const pal = framePalette(boardTheme);
+  /* Frame visibility is the Settings toggle and nothing else — `flat` used to
+     veto it here, which made the Play Arena page the one board in the app that
+     ignored a student's choice. `frameless` stays null when unspecified so "no
+     prop" and "prop set to false" remain distinguishable; only a caller that
+     truly must draw a bare board (a thumbnail inside a card) may force it. */
+  const showFrame = frameless === null ? boardFrame : !frameless;
+  /* With `outerWidth` the frame is carved out of the space the caller has, so the
+     box on the page is identical with the frame on and with it off. */
+  const boardWidth = outerWidth === null
+    ? boardWidthProp
+    : (showFrame ? squaresForOuter(outerWidth) : outerWidth);
+  /* the frame's own inner padding, which follows the squares like the band */
+  const framePad = showFrame ? framePadFor(boardWidth) : 0;
   const themeStyles = getBoardThemeStyles(boardTheme);
   /* The overlay clips to the playing surface, rounded corners included. */
   const boardRadius = themeStyles.boardStyle?.borderRadius || (flat ? '10px' : '14px');
@@ -1231,39 +1243,11 @@ export default function ChessBoard({
   const dragPreviewing = dragFrom && dragTo && dragTo !== dragFrom && (dragButton === 2 || dragButton === DRAG_BUTTON_LONG_PRESS || arrowTool);
   const showOverlay = normalizedArrows.length > 0 || dragPreviewing;
 
-  /* ── Themed frame: coordinate labels on the marble band, aligned to the real
-   squares. Squares start `remC` (band) + 13 (frame border 1 + padding 12)
-   from the outer edge; each label is centred on its square. ── */
-  const remCoords = [];
-  {
-    const sq = boardWidth / 8;
-    const origin = remC + 13;
-    const sqC = (i) => origin + i * sq + sq / 2;
-    const bandY = remC + 26 + boardWidth + remC * 0.5;
-    const files = 'abcdefgh'.split('');
-    for (let i = 0; i < 8; i++) {
-      const f = orientation === 'white' ? i : 7 - i;
-      remCoords.push(
-        <span key={`rem-f${i}t`} className="rem-lab" style={{ left: sqC(i), top: remC * 0.5 }}>{files[f]}</span>,
-        <span key={`rem-f${i}b`} className="rem-lab" style={{ left: sqC(i), top: bandY }}>{files[f]}</span>,
-      );
-    }
-    for (let j = 0; j < 8; j++) {
-      const r = orientation === 'white' ? 8 - j : 1 + j;
-      const y = sqC(j);
-      remCoords.push(
-        <span key={`rem-r${j}l`} className="rem-lab" style={{ left: remC * 0.5, top: y }}>{r}</span>,
-        <span key={`rem-r${j}rr`} className="rem-lab" style={{ left: remC + 26 + boardWidth + remC * 0.5, top: y }}>{r}</span>,
-      );
-    }
-  }
-
-  /* ── Themed frame: build once (clean marble band) ── */
-
-  const frameClass =
-    'chess-board-frame ' +
-    (royalOrnate ? 'royal-ornate-frame' : 'themed-frame') +
-    (engineOn ? ' engine-on' : '');
+  /* ── Themed frame: the band, its coordinate labels and the inner frame are
+     BoardFrame's markup — the same wrapper every board in the app that draws
+     its own squares is wrapped in, so the frame cannot exist on some pages and
+     not on others. ── */
+  const frameClass = engineOn ? 'engine-on' : '';
 
   const boardInner = (
     <>
@@ -1451,22 +1435,14 @@ export default function ChessBoard({
   }
 
   return (
-    <div style={{ position: 'relative', display: 'inline-block' }}>
-      <div
-        className="rem-outer"
-        style={{
-          ['--rem-c']: `${remC}px`,
-          ['--rem-gold']: pal.gold,
-          ['--rem-label']: pal.label,
-          ['--rem-plinth-a']: pal.plinthA,
-          ['--rem-plinth-b']: pal.plinthB,
-        }}
-      >
-        {remCoords}
-        <div className="rem-content">
-          <div className={frameClass}>{boardInner}</div>
-        </div>
-      </div>
-    </div>
+    <BoardFrame
+      squares={boardWidth}
+      boardTheme={boardTheme}
+      orientation={orientation}
+      royalOrnate={royalOrnate}
+      className={frameClass}
+    >
+      {boardInner}
+    </BoardFrame>
   );
 }

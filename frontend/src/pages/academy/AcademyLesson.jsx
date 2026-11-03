@@ -127,7 +127,7 @@ function MoveExercise({ exercise, onAnswered, initialHinted = 0 }) {
         <div key={boardKey} className="chess-reveal w-full max-w-full flex flex-col items-center">
           <ChessBoard
             game={game}
-            boardWidth={boardWidth}
+            outerWidth={boardWidth}
             interactive={result === null}
             showLegalMoves={false}
             clickToMove

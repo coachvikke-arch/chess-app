@@ -272,10 +272,6 @@ function writeBoolPref(key, value) {
 
 /* ================================ component ================================ */
 
-/* The Play Arena page board uses the flat look (no decorative frame). Set to
-   false to bring the old framed board back. Play Mode is unaffected. */
-const PAGE_BOARD_FLAT = true;
-
 const PLAY_ARENA_UI_CSS = `
 /* ===== Play Arena UI refresh (CSS only, no logic changes) ===== */
 .ab-root.ab-root{
@@ -656,12 +652,11 @@ export default function AnalysisBoard() {
 
   const location      = useLocation();
   const navigate      = useNavigate();
-  const { user, boardTheme: savedBoardTheme, pieceSet, boardFrame, updatePrefs } = useAuth();
-  /* Play Arena renders its board WITHOUT a `frameless` prop, so ChessBoard falls
-     back to this saved preference (ChessBoard.jsx: `frameless === null ?
-     boardFrame : !frameless`). The board-fit maths below must reserve room for
-     that frame, or the band pushes the bottom of the board out of the overlay. */
-  const showPmFrame = !!boardFrame;
+  const { user, boardTheme: savedBoardTheme, pieceSet, updatePrefs } = useAuth();
+  /* Both boards are handed the OUTER box they may occupy and ChessBoard carves
+     the themed frame out of it, following the saved `boardFrame` preference — so
+     the fit below needs no frame arithmetic and the board is the same size with
+     the frame on as off. */
   const { showToast } = useToast();
   const gameRef       = useRef(new Chess());
   const engineToken   = useRef(0);
@@ -688,7 +683,7 @@ export default function AnalysisBoard() {
   const onlineSeenActiveRef = useRef(null);
 
   const [orientation,   setOrientation]   = useState('white');
-  const [boardWidth,    setBoardWidth]    = useState(440);
+  const [boardOuter,    setBoardOuter]    = useState(440);
   const boardColRef     = useRef(null);          // measured so the board fills its column proportionally
   /* Side-panel alignment: the board column stacks [top player row] → [toolbar]
      → [board], but the side panel is a grid sibling with `align-items: start`,
@@ -990,16 +985,13 @@ export default function AnalysisBoard() {
   const [ratingResult, setRatingResult] = useState(null);
 
   /* ─── responsiveness ─────────────────────────────────────── */
-  /* The board is now the flexible band of the left column, so its square is
-     sized from the SPACE IT HAS rather than from the viewport/column width —
-     that is what keeps the whole page inside the viewport with no page scroll.
+  /* The board is the flexible band of the left column, so it is sized from the
+     SPACE IT HAS rather than from the viewport/column width — that is what keeps
+     the whole page inside the viewport with no page scroll.
 
-     The themed frame around the board is not a fixed ratio: ChessBoard sizes
-     its band as `remC = clamp(boardWidth * 0.082, 20, 46)` plus a 13px frame
-     pad on each side, so the outer width is `boardWidth + 2*remC + 26`. remC
-     depends on boardWidth, so the fit is a fixed-point solve (guess, measure
-     the implied outer size, correct) — the same one the Play Mode board uses.
-     It converges because remC is monotonic in boardWidth. */
+     What is solved for is the OUTER box, themed frame included: ChessBoard takes
+     that number and carves the frame out of it, so switching the Board Frame
+     setting on or off neither grows nor shrinks anything on this page. */
   useEffect(() => {
     const area = boardAreaRef.current;
     const solve = () => {
@@ -1012,29 +1004,19 @@ export default function AnalysisBoard() {
       const raw = stacked
         ? Math.min(availW || vw, Math.round(window.innerHeight * 0.46))
         : Math.min(availW || vw, availH || vw);
+      /* A 4px shave keeps the board's edge from sitting flush against the band,
+         where sub-pixel rounding can clip a border. */
       const budget = Math.max(160, raw - 4);
-      const cap = vw < 640 ? 340 : vw < 1024 ? 420 : 620;
+      const cap = vw < 640 ? 420 : vw < 1024 ? 480 : 620;
 
-      if (!showPmFrame || PAGE_BOARD_FLAT) {
-        setBoardWidth(Math.round(Math.max(160, Math.min(cap, budget))));
-        return;
-      }
-      const remC = (w) => Math.min(46, Math.max(20, Math.round(w * 0.082)));
-      let w = Math.min(cap, budget);
-      for (let i = 0; i < 8; i += 1) {
-        const outer = w + 2 * remC(w) + 26;
-        const next = budget - (outer - w);
-        if (Math.abs(next - w) < 1) { w = next; break; }
-        w = next;
-      }
-      setBoardWidth(Math.round(Math.max(160, Math.min(cap, w))));
+      setBoardOuter(Math.round(Math.max(160, Math.min(cap, budget))));
     };
     solve();
     const ro = (typeof ResizeObserver !== 'undefined' && area) ? new ResizeObserver(solve) : null;
     if (ro) ro.observe(area);
     window.addEventListener('resize', solve);
     return () => { if (ro) ro.disconnect(); window.removeEventListener('resize', solve); };
-  }, [showPmFrame, orientation, playMode]);
+  }, [orientation, playMode]);
 
   /* Moves strip — keep the move being viewed centred in its single row.
    *
@@ -1084,7 +1066,7 @@ export default function AnalysisBoard() {
     ro.observe(layout);
     window.addEventListener('resize', measure);
     return () => { ro.disconnect(); window.removeEventListener('resize', measure); };
-  }, [boardWidth, orientation, playMode]);
+  }, [boardOuter, orientation, playMode]);
 
   /* Play Mode — measure the overlay's board area so the board auto-fits the
      available fullscreen space (bigger squares, comfortable on any screen). */
@@ -1120,56 +1102,30 @@ export default function AnalysisBoard() {
 
   const captured = useMemo(() => computeCaptured(initialFen, moves), [initialFen, moves]);
 
-  /* Play Mode — board size derived from the measured board area, clamped so it
-     can never overflow; falls back to the normal board before the first measure.
+  /* Play Mode — the outer box the board gets inside the measured overlay area,
+     clamped so it can never overflow; falls back to the page board before the
+     first measure.
 
-     The themed frame around the board is NOT a fixed ratio: ChessBoard sizes its
-     band as `remC = clamp(boardWidth * 0.082, 20, 46)` plus a 13px frame pad on
-     each side, so the outer width is `boardWidth + 2*remC + 26`. An older version
-     approximated that as `/1.164`, which under-sizes a large board (at 560px the
-     real frame adds 118px, not 87px). The overlay area is the other half of the
-     same trap: measuring its PADDED box, or budgeting no frame at all, overflows
-     it and `overflow: hidden` cuts the bottom off the board.
+     The overlay area is the trap: measuring its PADDED box, or budgeting nothing
+     for the board's decoration, overflows it and `overflow: hidden` cuts the bottom
+     off the board. The measuring effect above already hands us the CONTENT box,
+     and the frame now sits inside the number below, so the fit is a plain clamp.
 
-     Both are handled below. The frame is deliberately NOT disabled here — with
-     `frameless`, ChessBoard returns early and never renders its a-h / 1-8
-     coordinate labels (ChessBoard.jsx), so the band is what carries them. */
-  const pmBoardWidth = (() => {
+     The frame is deliberately NOT disabled here — with `frameless`, ChessBoard
+     returns early and never renders its a-h / 1-8 coordinate labels
+     (ChessBoard.jsx), so the band is what carries them. */
+  const pmBoardOuter = (() => {
     /* pmSize is already the CONTENT box of .play-mode-board-area: the measuring
        effect above subtracts the resolved padding, which differs per breakpoint.
        So the whole area is available here. */
     const availW = pmSize.w;
     const availH = pmSize.h;
-    if (availW <= 0 || availH <= 0) return boardWidth;
+    if (availW <= 0 || availH <= 0) return boardOuter;
 
-    /* ChessBoard is rendered here WITHOUT a `frameless` prop, so it follows the
-       user's saved frame preference (useAuth boardFrame). When that frame is on,
-       the rendered element is `boardWidth + 2*remC + 26` across — the marble
-       band (remC, 20..46px a side) plus 13px of frame padding a side. Sizing to
-       the raw area therefore overflowed and the bottom of the board was cut off
-       by the overlay's `overflow: hidden`.
-
-       So the fit has to budget for the frame the board will actually draw. The
-       same fixed-point solve as the main board is correct here: remC depends on
-       boardWidth, so guess, measure the implied outer width, and correct. It
-       converges because remC is monotonic in boardWidth. */
     const budget = Math.min(availW, availH);
-    if (!showPmFrame) {
-      /* No frame: the board IS the full square. A 4px shave keeps its edge from
-         sitting flush against the viewport where sub-pixel rounding can clip a
-         border. */
-      return Math.round(Math.max(160, budget - 4));
-    }
-
-    const remC = (w) => Math.min(46, Math.max(20, Math.round(w * 0.082)));
-    let w = budget;
-    for (let i = 0; i < 8; i += 1) {
-      const outer = w + 2 * remC(w) + 26;
-      const next = budget - (outer - w);
-      if (Math.abs(next - w) < 1) { w = next; break; }
-      w = next;
-    }
-    return Math.round(Math.max(160, w));
+    /* A 4px shave keeps the board's edge from sitting flush against the viewport
+       where sub-pixel rounding can clip a border. */
+    return Math.round(Math.max(160, budget - 4));
   })();
 
   /* Sound no longer needs pushing into the module here: `useSound()` writes
@@ -3552,7 +3508,7 @@ export default function AnalysisBoard() {
 
           {/* Play Mode trigger — its own row above the board, matched to the
               board's width so it lines up with the board's right edge. */}
-          <div className="ab-board-toolbar" style={{ ...pmCss, width: boardWidth }}>
+          <div className="ab-board-toolbar" style={{ ...pmCss, width: boardOuter }}>
             {inOnline && !onlineFinished && (
               <ResignDrawMenu
                 busy={onlineBusy}
@@ -3597,7 +3553,7 @@ export default function AnalysisBoard() {
                   key={boardResetKey}
                   game={gameRef.current}
                   orientation={orientation}
-                  boardWidth={boardWidth}
+                  outerWidth={boardOuter}
                   onPositionChange={handlePositionChange}
                   onMove={handleBoardMove}
                   interactive={boardLive}
@@ -3615,7 +3571,6 @@ export default function AnalysisBoard() {
                   /* Named, so an effect started by the page (a move-list click,
                      an undo/redo) lands on THIS board. */
                   effectHostId={pageBoardHostId}
-                  flat={PAGE_BOARD_FLAT}
                 />
               )}
               {waitingForOpponent && <WaitingOverlay />}
@@ -4772,7 +4727,7 @@ export default function AnalysisBoard() {
             key={boardResetKey}
             game={gameRef.current}
             orientation={orientation}
-            boardWidth={pmBoardWidth}
+            outerWidth={pmBoardOuter}
             onPositionChange={handlePositionChange}
             onMove={handleBoardMove}
             interactive={boardLive}

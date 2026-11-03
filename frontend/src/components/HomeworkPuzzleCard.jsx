@@ -1,35 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Chess } from 'chess.js';
-import AnimatedBoard from './board/AnimatedBoard';
+import StaticBoard from './StaticBoard';
 import { Chip, Spinner } from './ui';
-import { getPieceTheme, buildCustomPieces } from '../config/pieceTheme';
-import { getBoardTheme, getBoardThemeStyles } from '../config/boardThemes';
-import { ornateSquareStyles } from '../config/ornateTheme';
-import { useAuth } from '../context/AuthContext';
 
-/* Static board preview using the user's board prefs (mirrors PuzzleCard). */
+/* Static board preview using the user's board prefs and board frame — the same
+   component the puzzle library cards use, so a homework card and the puzzle it
+   opens cannot look different. */
 function MiniBoard({ fen, width }) {
-  const { boardTheme: boardThemeId, pieceSet } = useAuth();
-  const boardTheme = getBoardTheme(boardThemeId);
-  const customPieces = useMemo(() => buildCustomPieces(getPieceTheme(pieceSet || 'cburnett')), [pieceSet]);
-  const themeStyles = getBoardThemeStyles(boardTheme);
-
-  return (
-    <AnimatedBoard
-      position={fen}
-      boardWidth={Math.max(120, Math.round(width))}
-      boardOrientation="white"
-      arePiecesDraggable={false}
-      arePiecesAnimated={false}
-      animationDuration={0}
-      showNotation
-      customPieces={customPieces}
-      customDarkSquareStyle={themeStyles.darkSquareStyle || { backgroundColor: boardTheme.darkSq }}
-      customLightSquareStyle={themeStyles.lightSquareStyle || { backgroundColor: boardTheme.lightSq }}
-      customSquareStyles={ornateSquareStyles(boardTheme) || undefined}
-      customBoardStyle={themeStyles.boardStyle || { borderRadius: '10px', overflow: 'hidden' }}
-    />
-  );
+  return <StaticBoard fen={fen} width={width} />;
 }
 
 function MoveNav({ moveCount, index, onChange }) {

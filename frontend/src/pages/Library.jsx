@@ -297,16 +297,14 @@ function useBoardWidth() {
 
 export { useBoardWidth };
 
-/* The themed frame adds a marble band + border around the inner squares, so a
-   board sized to the full column width overflows it. On narrow screens the
-   inner board is fitted to the frame-overhead rule used by the live boards
-   (outer ≈ inner·1.164 + 30, or inner + 70 for small boards), within the
-   document width minus the page/card chrome. Wide layouts keep the 460 cap. */
+/* The board is given its OUTER box and ChessBoard carves the themed frame out of
+   that box, so the component is never wider than the lane it sits in and the
+   frame costs no space. On narrow screens the lane is the document minus the
+   page/card chrome; wide layouts keep the 460 cap. */
 function fitBoardToViewport(raw, docW) {
   const capped = Math.max(240, Math.min(raw, 460));
   if (!docW || docW > 900) return capped;
-  const budget = Math.max(200, docW - 56);
-  return Math.max(200, Math.min(capped, Math.floor(Math.min((budget - 30) / 1.164, budget - 70))));
+  return Math.max(200, Math.min(capped, docW - 56));
 }
 
 /* ── modal primitives ────────────────────────────────────────────────────── */
@@ -1143,7 +1141,7 @@ export default function Library() {
   const uploadInputRef = useRef(null);
 
   const { showToast } = useToast();
-  const [listRef, boardWidth] = useBoardWidth();
+  const [listRef, boardLane] = useBoardWidth();
 
   /* ── server-backed library ───────────────────────────────────────────────
      One shared library for every admin and the superadmin. Mutations go to the
@@ -2001,7 +1999,7 @@ export default function Library() {
                     showLegalMoves={false}
                     clickToMove={false}
                     orientation="white"
-                    boardWidth={fitBoardToViewport(boardWidth, typeof document !== 'undefined' ? document.documentElement.clientWidth : 0)}
+                    outerWidth={fitBoardToViewport(boardLane, typeof document !== 'undefined' ? document.documentElement.clientWidth : 0)}
                     lastMove={view?.lastMove}
                   />
                 </div>

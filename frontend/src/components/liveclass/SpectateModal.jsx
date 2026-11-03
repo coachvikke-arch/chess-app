@@ -191,8 +191,8 @@ export default function SpectateModal({ onClose }) {
   }, [selectedKey, selected]);
 
   if (!isInstructor) return null;
-  /* The board's frame is part of its width, so the fit subtracts the frame and
-     caps the whole board (frame included) at 55% of the viewport height. */
+  /* The board is fitted to the space it has, frame included: the box below is the
+     board's outer width, capped at 55% of the viewport height. */
   const boardW = viewW > 0
     ? fitBoardWidth(
       Math.min(viewW, (typeof window !== 'undefined' ? window.innerWidth * 0.92 : viewW)),
@@ -278,7 +278,7 @@ export default function SpectateModal({ onClose }) {
               <SpectatorBoard
                 key={selectedKey}
                 session={selected}
-                boardWidth={boardW}
+                outerWidth={boardW}
                 bare
                 defaultOrientation={viewerSideFor(selected)}
                 onClose={onClose}

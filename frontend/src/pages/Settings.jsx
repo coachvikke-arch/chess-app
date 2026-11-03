@@ -145,6 +145,12 @@ export default function Settings() {
   const demoStepRef = useRef(0);
   const [, setTick] = useState(0);
 
+  /* The card's board is the preview surface for the square-colour picker, which
+     paints it by writing --board-light/--board-dark on this element (see
+     BoardColorSettings). A ref rather than state: a drag would otherwise
+     re-render this page — and the board — once per pointer event. */
+  const previewHostRef = useRef(null);
+
   /* The automatic demo (see runDemo below): one action handed to the preview
      board at a time, and the token that retires a script still in flight. */
   const [demoAction, setDemoAction] = useState(null);
@@ -414,16 +420,17 @@ export default function Settings() {
   /* The card is a 440px column until the desktop breakpoint turns it into a wide
      two-panel one (the min-width: 1000px block in index.css — this flag has to
      match it), so the board follows that layout: on a phone it is capped by the
-     card it sits in, on a desktop by the stage column it owns. The 1.35 divisor
-     is the frame variant's own band, and the height budget is what is left for
-     the badge, the board's well and the demo bar — which the pinned stage can
-     never be taller than. */
+     card it sits in, on a desktop by the stage column it owns. This is the
+     board's OUTER box — the frame is carved out of it, so the preview is the
+     same size with the frame on as with it off — and the height term is what is
+     left for the badge, the board's well and the demo bar, which the pinned
+     stage can never be taller than. */
   const desktop = viewportWidth >= 1000;
   const previewWidth = Math.round(Math.max(
     176,
     desktop
-      ? Math.min(360, viewportWidth * 0.42 - 100, (viewportHeight - 250) / 1.35)
-      : Math.min(272, viewportWidth - 150, (viewportHeight - 314) / 1.35)
+      ? Math.min(360, viewportWidth * 0.42 - 100, viewportHeight - 250)
+      : Math.min(272, viewportWidth - 150, viewportHeight - 314)
   ));
 
   const status = savedMsg && (
@@ -510,7 +517,7 @@ export default function Settings() {
                 Live preview · applies instantly
               </p>
 
-              <div className="set-preview">
+              <div className="set-preview" ref={previewHostRef}>
                 <ChessBoard
                   key={popup}
                   game={gameRef.current}
@@ -518,7 +525,7 @@ export default function Settings() {
                   interactive
                   showLegalMoves
                   orientation="white"
-                  boardWidth={previewWidth}
+                  outerWidth={previewWidth}
                   allowNativeArrows={false}
                   demoAction={demoAction}
                 />
@@ -578,6 +585,8 @@ export default function Settings() {
                 <BoardColorSettings
                   colors={boardColors}
                   hasCustom={hasCustomBoardColors}
+                  themeColors={getThemeSquares(activeThemeId)}
+                  previewRef={previewHostRef}
                   onApply={(light, dark) => updatePrefs({ boardLightColor: light, boardDarkColor: dark })}
                 />
               </div>
@@ -856,6 +865,13 @@ const BOARD_COLOR_THEMES = [
   { name: 'Sand', light: '#F2E6C9', dark: '#C9A96B' },
 ];
 
+/** The pair a theme paints. This is what the board wears once a custom pair is
+ *  cleared, so the picker can show it instead of a stale hex. */
+const getThemeSquares = (id) => {
+  const theme = getBoardTheme(id);
+  return { light: theme.lightSq, dark: theme.darkSq };
+};
+
 function hexToHsv(hex) {
   const value = hex.replace('#', '');
   const r = parseInt(value.slice(0, 2), 16) / 255;
@@ -883,15 +899,24 @@ function hsvToHex(h, s, v) {
 /** The custom-square section of the Board & Pieces card — panel content only.
  *  The card owns the title, the close button and the playable board, so the
  *  wheel, the two square colours and the quick palettes are all that live here.
- *  Nothing repaints the board until Apply, because the colours a user is
- *  composing are not applied colours yet. */
-function BoardColorSettings({ colors, onApply, hasCustom }) {
+ *
+ *  The picker paints the card's board as the user composes, through
+ *  `previewRef`: the preview's squares read --board-light/--board-dark, so
+ *  writing those two properties on the preview element recolours it without this
+ *  page re-rendering. Releasing the pointer stores the pair, which is what
+ *  carries the colours onto every real board in the app. */
+function BoardColorSettings({ colors, onApply, hasCustom, themeColors, previewRef }) {
   const { showToast } = useToast();
   const [draft, setDraft] = useState(colors || BOARD_COLOR_DEFAULTS);
   const [activeSquare, setActiveSquare] = useState('light');
   const [hexInput, setHexInput] = useState((colors || BOARD_COLOR_DEFAULTS).light);
   const [saving, setSaving] = useState(false);
   const wheelRef = useRef(null);
+  /* True between pointerdown and pointerup while the wheel is being dragged. */
+  const draggingRef = useRef(false);
+  /* One colour write per animation frame, whatever the pointer rate is. */
+  const paintFrameRef = useRef(0);
+  const pendingPaintRef = useRef(null);
   const currentHex = draft[activeSquare];
   const hsv = useMemo(() => hexToHsv(currentHex), [currentHex]);
   const sameSquares = draft.light.toUpperCase() === draft.dark.toUpperCase();
@@ -902,6 +927,32 @@ function BoardColorSettings({ colors, onApply, hasCustom }) {
   };
 
   useEffect(() => setHexInput(draft[activeSquare]), [draft, activeSquare]);
+
+  const paintPreview = (light, dark) => {
+    const host = previewRef?.current;
+    if (!host) return;
+    pendingPaintRef.current = { light, dark };
+    if (paintFrameRef.current) return;
+    paintFrameRef.current = requestAnimationFrame(() => {
+      paintFrameRef.current = 0;
+      const next = pendingPaintRef.current;
+      if (!next) return;
+      host.style.setProperty('--board-light', next.light);
+      host.style.setProperty('--board-dark', next.dark);
+    });
+  };
+  /* Every path that changes the pair — dragging the wheel, the brightness
+     slider, a hex typed, a quick theme — repaints the card's board. */
+  useEffect(() => { paintPreview(draft.light, draft.dark); }, [draft.light, draft.dark]);
+  useEffect(() => () => {
+    if (paintFrameRef.current) cancelAnimationFrame(paintFrameRef.current);
+  }, []);
+  /* When what is applied changes underneath — a different theme picked, a save
+     landing, the custom pair cleared — the picker follows the board instead of
+     holding a stale hex. */
+  useEffect(() => {
+    if (colors) setDraft(colors);
+  }, [colors?.light, colors?.dark]);
 
   useEffect(() => {
     const canvas = wheelRef.current;
@@ -958,18 +1009,43 @@ function BoardColorSettings({ colors, onApply, hasCustom }) {
     changeActiveColor(hsvToHex(h, s, hsv.v));
   };
 
-  const apply = async (light, dark, reset = false) => {
+  /* Store a pair. `null` for both clears the custom pair, which puts the theme's
+     own squares back on the board, so `shown` says what the panel should display
+     afterwards. `notify` is off for a drag release, where the recoloured board is
+     the confirmation and a toast per drag would be noise. */
+  const persist = async (light, dark, { reset = false, notify = true, shown } = {}) => {
     setSaving(true);
     try {
       await onApply(light, dark);
-      setDraft({ light, dark });
-      showToast(reset ? 'Board color reset successfully' : 'Board color applied successfully', { tone: 'success', title: 'Board Color' });
     } catch {
       // updatePrefs keeps the optimistic color on this device when the API is
       // unavailable, so the visible board has still been updated successfully.
-      setDraft({ light, dark });
-      showToast(reset ? 'Board color reset successfully' : 'Board color applied successfully', { tone: 'success', title: 'Board Color' });
-    } finally { setSaving(false); }
+    } finally {
+      setDraft(shown || { light, dark });
+      setSaving(false);
+    }
+    if (!notify) return;
+    showToast(
+      reset ? 'Custom squares cleared — the theme is on the board again' : 'Board color applied successfully',
+      { tone: 'success', title: 'Board Color' },
+    );
+  };
+
+  /* Releasing the pointer is the commit. The preview has been following the
+     finger since pointerdown, so this only has to store the value — for the
+     boards on every other page and for the next launch. Doing it on pointermove
+     would put a request on screen for every pixel travelled. */
+  const endDrag = (event) => {
+    if (!draggingRef.current) return;
+    draggingRef.current = false;
+    if (event.currentTarget.hasPointerCapture?.(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+    const light = draft.light.toUpperCase();
+    const dark = draft.dark.toUpperCase();
+    if (light === dark) return;
+    if (colors && colors.light === draft.light && colors.dark === draft.dark) return;
+    persist(draft.light, draft.dark, { notify: false });
   };
 
   const sliderFill = hsvToHex(hsv.h, hsv.s, 1);
@@ -986,13 +1062,23 @@ function BoardColorSettings({ colors, onApply, hasCustom }) {
             aria-valuemin={0}
             aria-valuemax={360}
             tabIndex={0}
-            onPointerDown={(event) => { event.currentTarget.setPointerCapture(event.pointerId); pickWheel(event); }}
-            onPointerMove={(event) => { if (event.buttons || event.pressure > 0) pickWheel(event); }}
+            onPointerDown={(event) => {
+              event.currentTarget.setPointerCapture(event.pointerId);
+              draggingRef.current = true;
+              pickWheel(event);
+            }}
+            onPointerMove={(event) => { if (draggingRef.current) pickWheel(event); }}
+            onPointerUp={endDrag}
+            onPointerCancel={() => { draggingRef.current = false; }}
             onKeyDown={handleWheelKey}
           />
-          <span className="board-color-wheel-pin" style={pinStyle} aria-hidden />
+          {/* The marker carries the colour it stands for, so the finger never
+              covers the only swatch while the thumb is being dragged. */}
+          <span className="board-color-wheel-pin" style={{ ...pinStyle, backgroundColor: currentHex }} aria-hidden />
         </div>
-        <p className="board-color-wheel-help">Drag to choose hue and saturation</p>
+        <p className="board-color-wheel-help">
+          Drag to choose hue and saturation · {activeSquare} {currentHex}
+        </p>
       </div>
       <div className="board-color-controls">
         <div className="board-color-tabs" role="group" aria-label="Choose square color">
@@ -1046,17 +1132,16 @@ function BoardColorSettings({ colors, onApply, hasCustom }) {
       </div>
       {sameSquares && <p className="board-color-error" role="alert">Light and dark squares need different colors</p>}
       <div className="board-color-actions">
-        <Button type="button" variant="primary" size="sm" disabled={saving || sameSquares} loading={saving} onClick={() => apply(draft.light, draft.dark)}>Apply</Button>
-        <Button type="button" variant="secondary" size="sm" disabled={saving} onClick={() => {
+        <Button type="button" variant="primary" size="sm" disabled={saving || sameSquares} loading={saving} onClick={() => persist(draft.light, draft.dark)}>Save as default</Button>
+        <Button type="button" variant="secondary" size="sm" disabled={saving || !hasCustom} onClick={() => {
           setActiveSquare('light');
-          setDraft(BOARD_COLOR_DEFAULTS);
-          apply(BOARD_COLOR_DEFAULTS.light, BOARD_COLOR_DEFAULTS.dark, true);
+          persist(null, null, { reset: true, shown: themeColors });
         }}>Reset to default</Button>
       </div>
       <p className="set-note">
         {hasCustom
-          ? 'Custom squares are applied — they are what the board above is wearing.'
-          : 'A theme is applied. Press Apply to put your own squares on the board above.'}
+          ? 'Your own squares are applied — the board above is what every board in the app now looks like. Letting go of the wheel keeps the colour; Reset puts the theme back.'
+          : 'The theme is applied. The board above follows the wheel as you drag, and letting go saves what you dragged to.'}
       </p>
     </div>
   );

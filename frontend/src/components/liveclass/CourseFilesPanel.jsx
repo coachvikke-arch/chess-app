@@ -95,7 +95,7 @@ function useCardsWidth() {
    here instead of re-rendering every mounted board. `onSelect` is a single
    stable callback that takes the id — never an inline arrow per card, which
    would defeat the memo on every parent render. */
-const CourseItemCard = memo(function CourseItemCard({ item, active, boardWidth, onSelect, onLoad, onAsk }) {
+const CourseItemCard = memo(function CourseItemCard({ item, active, outerWidth, onSelect, onLoad, onAsk }) {
   const [index, setIndex] = useState(0);
   const view = useMemo(() => buildReplay(item, index), [item, index]);
   const moves = view?.moves || [];
@@ -144,14 +144,13 @@ const CourseItemCard = memo(function CourseItemCard({ item, active, boardWidth, 
         {item.title}
       </h3>
 
-      <div className="live-course-mini-board" style={{ maxWidth: boardWidth }}>
+      <div className="live-course-mini-board" style={{ maxWidth: outerWidth }}>
         <ChessBoard
           game={view?.game}
           interactive={false}
           showLegalMoves={false}
           orientation="white"
-          boardWidth={boardWidth}
-          frameless
+          outerWidth={outerWidth}
         />
       </div>
 
@@ -577,7 +576,7 @@ export default function CourseFilesPanel({ asMobilePanel = false, onBackToChat, 
                     key={it.id}
                     item={it}
                     active={selectedItemId === it.id}
-                    boardWidth={miniWidth}
+                    outerWidth={miniWidth}
                     onSelect={selectItem}
                     onLoad={permissions.canControlBoard ? loadFen : null}
                     onAsk={permissions.canControlBoard ? openQuizAsk : null}
@@ -619,8 +618,8 @@ export default function CourseFilesPanel({ asMobilePanel = false, onBackToChat, 
           </div>
 
           {/* The selected puzzle gets the SAME card treatment as the items in the list
-              above: identical `p-2` + border chrome, the same plain
-              (frameless) board, and the same width rule — the board takes the
+              above: identical `p-2` + border chrome, the same themed board (frame
+              and all), and the same width rule — the board takes the
               card's content width. Because the wrapper and padding match the
               item cards exactly, the two boards land on the same size instead
               of the selected one looking bigger. */}
@@ -631,9 +630,8 @@ export default function CourseFilesPanel({ asMobilePanel = false, onBackToChat, 
                 interactive={false}
                 showLegalMoves={false}
                 orientation="white"
-                boardWidth={detailBoardWidth}
+                outerWidth={detailBoardWidth}
                 lastMove={view?.lastMove}
-                frameless
               />
             </div>
           </div>

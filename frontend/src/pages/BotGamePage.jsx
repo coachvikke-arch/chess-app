@@ -439,7 +439,7 @@ function Game({ bot, timeControl, colorChoice, navigate }) {
             game={game.game}
             fen={game.fen}
             orientation={boardSide}
-            boardWidth={boardWidth}
+            outerWidth={boardWidth}
             interactive={game.humanTurn}
             draggableColor={playerColor === 'white' ? 'w' : 'b'}
             selfColor={playerColor === 'white' ? 'w' : 'b'}

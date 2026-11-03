@@ -250,7 +250,7 @@ export default function PuzzleTrainer() {
                 onFailed={handleFailed}
                 onCorrectMove={handleCorrectMove}
                 fx={fx}
-                boardWidth={boardWidth}
+                outerWidth={boardWidth}
                 interactive={!locked}
                 points={0}
                 showStatus={false}

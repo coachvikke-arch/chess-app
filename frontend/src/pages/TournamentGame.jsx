@@ -248,7 +248,7 @@ export default function TournamentGame() {
               orientation={orientation}
               interactive={!!myTurn && !busy}
               onMove={onMove}
-              boardWidth={boardSize}
+              outerWidth={boardSize}
               engineOn={false}
               highlightLastMove
               selfColor={myColor === 'white' ? 'w' : myColor === 'black' ? 'b' : null}

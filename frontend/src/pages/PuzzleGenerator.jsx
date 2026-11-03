@@ -181,7 +181,7 @@ export default function PuzzleGenerator() {
   const [saveMessage, setSaveMessage] = useState('');
   const [saveError, setSaveError] = useState('');
 
-  const [boardWidth, setBoardWidth] = useState(320);
+  const [boardOuter, setBoardOuter] = useState(320);
   const stripRef = useRef(null);
   const numberRefs = useRef([]);
   const boardObserverRef = useRef(null);
@@ -199,10 +199,10 @@ export default function PuzzleGenerator() {
   );
 
   /* ── board sizing ──
-     The board renders its decorative frame around the measured surface, so the
-     component is ~1.17× the `boardWidth` it is given (plus the label band).
-     Sizing against the card's own width — not the viewport — is what keeps the
-     page from scrolling sideways on a narrow phone. */
+     The board is handed the OUTER box it may occupy; ChessBoard carves the
+     decorative frame out of that box, so the component is never wider than the
+     lane it sits in. Sizing against the card's own width — not the viewport — is
+     what keeps the page from scrolling sideways on a narrow phone. */
   const boardHostRef = useCallback((el) => {
     if (boardObserverRef.current) {
       boardObserverRef.current.disconnect();
@@ -212,13 +212,7 @@ export default function PuzzleGenerator() {
     const measure = () => {
       const width = el.clientWidth;
       if (!width) return;
-      /* The frame adds 2 × band (band is 20–46px, 8.2% of the board) and 28px
-         of padding/border, so the component is ~1.164× boardWidth + 28. Below
-         a 244px board the band is pinned at its 20px minimum, which makes the
-         whole component boardWidth + 68 instead. */
-      const fit = Math.floor((width - 30) / 1.164);
-      const board = fit < 244 ? Math.min(fit, width - 72) : fit;
-      setBoardWidth(Math.max(160, Math.min(320, board)));
+      setBoardOuter(Math.max(160, Math.min(320, width)));
     };
     measure();
     const observer = new ResizeObserver(measure);
@@ -633,7 +627,7 @@ export default function PuzzleGenerator() {
                 showLegalMoves={false}
                 lastMove={preview.lastMove}
                 orientation={current.solverColor === 'b' ? 'black' : 'white'}
-                boardWidth={boardWidth}
+                outerWidth={boardOuter}
               />
             </div>
             <p className="pg-turn">

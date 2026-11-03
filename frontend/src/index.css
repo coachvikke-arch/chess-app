@@ -683,8 +683,13 @@ input[type='time'].chess-input::-webkit-calendar-picker-indicator:hover {
 
 .chess-board-frame {
   position: relative;
-  padding: 12px;
-  border-radius: 1.4rem;
+  /* --frame-pad comes from ChessBoard and follows the size of the squares, so a
+     thumbnail keeps most of its box for the play area. Unset (any board built
+     without the var) keeps the 12px the full-size frames have always used.
+     Every radius/inset below is min(historic, pad × factor) so the ratios hold
+     at 12px exactly and only shrink for small boards. */
+  padding: var(--frame-pad, 12px);
+  border-radius: min(1.4rem, calc(var(--frame-pad, 12px) * 1.9));
   background: linear-gradient(160deg, #343b3d, #2b3134);
   border: 1px solid rgba(25, 189, 242, 0.5);
   box-shadow: none;
@@ -693,8 +698,8 @@ input[type='time'].chess-input::-webkit-calendar-picker-indicator:hover {
 .chess-board-frame::before {
   content: '';
   position: absolute;
-  inset: 6px;
-  border-radius: 1.05rem;
+  inset: min(6px, calc(var(--frame-pad, 12px) * 0.5));
+  border-radius: min(1.05rem, calc(var(--frame-pad, 12px) * 1.4));
   border: 1px solid rgba(25, 189, 242, 0.22);
   pointer-events: none;
 }
@@ -707,9 +712,9 @@ input[type='time'].chess-input::-webkit-calendar-picker-indicator:hover {
   box-shadow: none;
 }
 .chess-board-frame.ornate-frame::before {
-  inset: 5px;
+  inset: min(5px, calc(var(--frame-pad, 12px) * 0.42));
   border: 1.5px solid rgba(117, 223, 255, 0.6);
-  border-radius: 1.1rem;
+  border-radius: min(1.1rem, calc(var(--frame-pad, 12px) * 1.47));
 }
 
 /* Royal Jade · Premium — deep charcoal-to-emerald "stone" frame with a warm
@@ -722,9 +727,9 @@ input[type='time'].chess-input::-webkit-calendar-picker-indicator:hover {
   box-shadow: none;
 }
 .chess-board-frame.royal-ornate-frame::before {
-  inset: 5px;
+  inset: min(5px, calc(var(--frame-pad, 12px) * 0.42));
   border: 1.5px solid rgba(25, 189, 242, 0.55);
-  border-radius: 1.1rem;
+  border-radius: min(1.1rem, calc(var(--frame-pad, 12px) * 1.47));
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -736,7 +741,7 @@ input[type='time'].chess-input::-webkit-calendar-picker-indicator:hover {
 .rem-outer {
   position: relative;
   display: inline-block;
-  border-radius: 24px;
+  border-radius: min(24px, calc(var(--rem-c, 34px) * 1.2));
   background: var(--rem-plinth-a, #0f2a43);
   border: 2px solid var(--rem-gold, #bff1ff);
   box-shadow: none;
@@ -747,7 +752,7 @@ input[type='time'].chess-input::-webkit-calendar-picker-indicator:hover {
   content: '';
   position: absolute;
   inset: var(--rem-c, 34px);
-  border-radius: 14px;
+  border-radius: min(14px, calc(var(--rem-c, 34px) * 0.7));
   border: 1.5px solid color-mix(in srgb, var(--rem-gold, #bff1ff) 70%, transparent);
   pointer-events: none;
   z-index: 2;
@@ -792,9 +797,9 @@ input[type='time'].chess-input::-webkit-calendar-picker-indicator:hover {
   box-shadow: none;
 }
 .chess-board-frame.themed-frame::before {
-  inset: 6px;
+  inset: min(6px, calc(var(--frame-pad, 12px) * 0.5));
   border: 1px solid color-mix(in srgb, var(--rem-gold, #bff1ff) 55%, transparent);
-  border-radius: 0.9rem;
+  border-radius: min(0.9rem, calc(var(--frame-pad, 12px) * 1.2));
 }
 
 /* -------------------------------- reveal anim ------------------------------- */
@@ -2123,9 +2128,13 @@ button.set-row:hover .set-row-chevron {
 
 /* The playable board, sitting in the app's soft panel so it reads as an inset
    preview surface rather than as a hole cut in the card. It is centred because
-   the card is wider than the board at every size, and the frame variant grows
-   the board itself — this box never needs to know which of the two it is
-   holding. */
+   the card is wider than the board at every size, and the frame sits inside the
+   box the board is handed — so this box never needs to know which of the two it
+   is holding.
+   This element is also the live custom-colour paint host: Settings writes
+   --board-light/--board-dark straight onto it while the wheel is being dragged,
+   and the squares below read those variables, so it must stay an ancestor of the
+   board and never be replaced by a wrapper around it. */
 .set-preview {
   display: flex;
   justify-content: center;
@@ -5491,8 +5500,9 @@ body {
   position: relative;
   display: flex;
   justify-content: center;
-  border-radius: 0.5rem;
-  overflow: hidden;
+  /* The card board carries the themed frame, and that frame rounds and clips
+     itself — clipping it to 0.5rem here would shave its corners off. */
+  overflow: visible;
 }
 .gr-sigma-card-sig {
   position: absolute;
@@ -11692,9 +11702,11 @@ button.live-drill-move:hover { border-color: #93c5fd; }
 .live-course-files-scroll .live-course-board {
   flex: none;
 }
-/* Mini board inside a course card: the plain (frameless) board, sized by the
-   measured card width, filling the card edge to edge. Pointer events stay off
-   so a tap anywhere on the card selects it; corners follow the card radius. */
+/* Mini board inside a course card: sized by the measured card width, centred in
+   the card. Pointer events stay off so a tap anywhere on the card selects it.
+   The board may carry the themed frame now, and that frame rounds and clips
+   itself, so this box must not clip it — an `overflow: hidden` here would shave
+   the frame's corners off. */
 .live-course-mini-board {
   width: 100%;
   aspect-ratio: 1 / 1;
@@ -11702,8 +11714,6 @@ button.live-drill-move:hover { border-color: #93c5fd; }
   display: flex;
   justify-content: center;
   align-items: center;
-  overflow: hidden;
-  border-radius: 0.5rem;
   pointer-events: none;
   line-height: 0;
 }
@@ -24103,11 +24113,11 @@ html, body {
     flex: 1 1 0;
     min-height: 0;
     overflow: hidden;
-    /* Gutter so the measured solve and the real frame agree. `framedWidth()`
-       models the frame as 2·remC + 24, while the themed frame on screen is
-       board + 2·remC + 30 (its 12px band, 1px hairline and 2px plinth border),
-       so without this the board overflows its slot by a few pixels and gets
-       clipped. Padding is subtracted from the measured space, not added to it. */
+    /* A few px of slack so the measured solve and what actually paints agree.
+       The frame is carved out of the box the board is handed, so this gutter is
+       not reserving a band — it only absorbs the sub-pixel rounding that would
+       otherwise let the board spill its slot and get clipped. Padding is
+       subtracted from the measured space, not added to it. */
     padding: 0 4px;
   }
   .hw-nav-row {

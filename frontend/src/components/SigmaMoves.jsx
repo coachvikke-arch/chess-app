@@ -277,10 +277,8 @@ export default function SigmaMoves({ user, userId, canPickUser = false, onOpenGa
                     {cardBoard ? (
                       <ChessBoard
                         fen={cardBoard.fen}
-                        boardWidth={196}
+                        outerWidth={196}
                         interactive={false}
-                        showNotation={false}
-                        frameless
                         soundOn={false}
                         orientation={playedColor(m)}
                         lastMove={{ from: cardBoard.from, to: cardBoard.to }}

@@ -546,7 +546,6 @@ export default function GameViewerCard({ game = null,   gameRef = null,   resolv
                 <ResponsiveBoard
                   className="cp-board-responsive"
                   maxWidth={560}
-                  frameless={isMobileBoard}
                   game={board.current}
                   mode="analysis"
                   orientation={orientation}

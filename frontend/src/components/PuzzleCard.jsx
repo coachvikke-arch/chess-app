@@ -1,49 +1,17 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Chess } from 'chess.js';
-import AnimatedBoard from './board/AnimatedBoard';
+import StaticBoard from './StaticBoard';
 import { Chip } from './ui';
-import { getPieceTheme, buildCustomPieces } from '../config/pieceTheme';
-import { getBoardTheme, getBoardThemeStyles } from '../config/boardThemes';
-import { ornateSquareStyles } from '../config/ornateTheme';
-import { useAuth } from '../context/AuthContext';
 
-/* Static, non-interactive board preview using the user's board prefs.
-   Exported so other puzzle surfaces (e.g. the assignment review navigator)
-   render the exact same mini board as the library cards.
+/* Static, non-interactive board preview using the user's board prefs AND board
+   frame. Exported so other puzzle surfaces (e.g. the assignment review
+   navigator) render the exact same mini board as the library cards.
 
-   `squareStyles` is an optional per-square style map (e.g. { e4: {…} }) merged
-   OVER the theme's own square styling, which is how the admin review drawer
-   paints the square a replayed move landed on. */
+   `width` is the OUTER box the card has; `squareStyles` is an optional per-square
+   style map (e.g. { e4: {…} }) merged OVER the theme's own square styling, which
+   is how the admin review drawer paints the square a replayed move landed on. */
 export function MiniBoard({ fen, width, squareStyles }) {
-  const { boardTheme: boardThemeId, pieceSet } = useAuth();
-  const boardTheme = getBoardTheme(boardThemeId);
-  const customPieces = useMemo(() => buildCustomPieces(getPieceTheme(pieceSet || 'cburnett')), [pieceSet]);
-  const themeStyles = getBoardThemeStyles(boardTheme);
-  const ornate = ornateSquareStyles(boardTheme);
-
-  const merged = useMemo(() => {
-    if (!ornate && !squareStyles) return undefined;
-    return { ...(ornate || {}), ...(squareStyles || {}) };
-  }, [ornate, squareStyles]);
-
-  return (
-    <AnimatedBoard
-      position={fen}
-      boardWidth={Math.max(120, Math.round(width))}
-      boardOrientation="white"
-      arePiecesDraggable={false}
-      arePiecesAnimated={false}
-      animationDuration={0}
-      showNotation
-      customPieces={customPieces}
-      customDarkSquareStyle={themeStyles.darkSquareStyle || { backgroundColor: boardTheme.darkSq }}
-      customLightSquareStyle={themeStyles.lightSquareStyle || { backgroundColor: boardTheme.lightSq }}
-      /* Ornate themes are a marble texture, not two flat colours — without this
-         the card would show a plainer board than the puzzle it opens. */
-      customSquareStyles={merged}
-      customBoardStyle={themeStyles.boardStyle || { borderRadius: '10px', overflow: 'hidden' }}
-    />
-  );
+  return <StaticBoard fen={fen} width={width} squareStyles={squareStyles} />;
 }
 
 /**

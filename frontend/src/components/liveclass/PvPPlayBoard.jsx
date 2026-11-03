@@ -5,7 +5,7 @@ import ChessBoard from '../ChessBoard';
 import StudentAvatar from '../StudentAvatar';
 import { useAuth } from '../../context/AuthContext';
 import { useLiveClass } from '../../context/LiveClassContext';
-import { useFittedSquare, CLASSROOM_BOARD_MIN, PAIRED_BOARD_MAX, framedWidth } from '../../hooks/useBoardWidth';
+import { useFittedSquare, CLASSROOM_BOARD_MIN, PAIRED_BOARD_MAX } from '../../hooks/useBoardWidth';
 import { listLiveSessions, fetchGame, sendMove, resignGame, abortGame, offerDraw, respondDraw } from '../../utils/online';
 import { onGameUpdate, on } from '../../services/socket';
 import { searchBest, warmEngine } from '../../utils/engine';
@@ -64,41 +64,37 @@ const CAPTURE_GLYPH = {
 const CAPTURE_VALUE = { p: 1, n: 3, b: 3, r: 5, q: 9, k: 0 };
 const WHITE_GLYPHS = new Set(['♔', '♙', '♘', '♗', '♖', '♕']);
 
-/* Big-board size for the focus overlay: the board sits in its own card next
-   to a ~340px details card on wide screens (stacked below it on narrow
+/* Outer box for the focus overlay's big board: the board sits in its own card
+   next to a ~340px details card on wide screens (stacked below it on narrow
    ones), so the width budget subtracts the side card there. Re-measured on
    resize; floored so tiny landscape phones still get a playable board with
-   the overlay's own scroll as fallback. */
+   the overlay's own scroll as fallback. The themed frame lives INSIDE this
+   number, so the board is the same size whether the frame is on or off. */
 function useFocusBoardSize(active) {
   const calc = () => {
-    if (typeof window === 'undefined') return { size: 320, frameless: false };
+    if (typeof window === 'undefined') return 320;
     const w = window.innerWidth;
     const h = window.innerHeight;
-    const sideBySide = w > 900;
-    /* Phones (and phone-width tablets, which get the same full-screen view)
-       drop the decorative frame entirely: its band + notation is ~70px around
-       the square, which is most of what kept the board small. Frameless it can
-       grow to nearly the full screen width. */
-    const frameless = w <= 768;
     const availH = h * 0.9 - 110;
     let availW;
-    if (sideBySide) {
-      /* Wide screens: the board card sits beside a ~360px details card. */
-      availW = w * 0.9 - 360;
-    } else if (frameless) {
-      /* Bare board: backdrop (8) + focus-card (10) padding each side + slack. */
-      availW = w - 2 * 8 - 2 * 10 - 6;
+    if (w > 900) {
+      /* Wide screens: board card beside a ~360px details card, minus the wrap
+         gap and the card's own padding/border. */
+      availW = w * 0.9 - 360 - 14 - 2 * 18 - 2;
+    } else if (w <= 768) {
+      /* The phone full-screen view: backdrop has no padding and the board card
+         is edge-to-edge with 10px side padding (see index.css). */
+      availW = w - 2 * 10 - 6;
     } else {
-      /* Framed (tablets 640–900): subtract the themed frame band — the same
-         (inner - 30) / 1.164 identity the classroom boards use. */
-      availW = (w - 2 * 16 - 2 * 18 - 30 - 6) / 1.164;
+      /* Tablet stacked view: backdrop 16 + card 18 each side. */
+      availW = w - 2 * 16 - 2 * 18 - 2 - 6;
     }
-    return { size: Math.max(200, Math.floor(Math.min(availW, availH))), frameless };
+    return Math.max(200, Math.floor(Math.min(availW, availH)));
   };
-  const [state, setState] = useState(calc);
+  const [size, setSize] = useState(calc);
   useEffect(() => {
     if (!active) return undefined;
-    const update = () => setState(calc());
+    const update = () => setSize(calc());
     update();
     window.addEventListener('resize', update);
     window.addEventListener('orientationchange', update);
@@ -107,7 +103,7 @@ function useFocusBoardSize(active) {
       window.removeEventListener('orientationchange', update);
     };
   }, [active]);
-  return state;
+  return size;
 }
 
 /**
@@ -205,7 +201,7 @@ export default function PvPPlayBoard({ classId, fallback, onOpened, onEnded, ins
      re-rendering or a polling update can never reopen it. A NEW pairing (new
      id) opens again. */
   const autoFullscreenGameRef = useRef(null);
-  const { size: focusSize, frameless: focusFrameless } = useFocusBoardSize(expanded);
+  const focusSize = useFocusBoardSize(expanded);
 
   const openExpand = useCallback(() => {
     if (closeTimerRef.current) {
@@ -762,11 +758,12 @@ export default function PvPPlayBoard({ classId, fallback, onOpened, onEnded, ins
   /* Top edge of the board is the side you are not playing; bottom is yours. */
   const topColor = myColor === 'white' ? 'black' : 'white';
   const bottomColor = myColor;
-  /* Player plates are pinned to the board's own framed width so opponent /
+  /* Player plates are pinned to the board's own footprint so opponent /
      board / you read as one aligned column rather than full-width bars beside a
-     narrower board. `boardSize` is always a positive number after the first
-     measure; the guard just avoids a zero-width flash on the very first paint. */
-  const seatStyle = boardSize > 0 ? { width: framedWidth(boardSize) } : undefined;
+     narrower board. `boardSize` IS that footprint (frame included), and is
+     always a positive number after the first measure; the guard just avoids a
+     zero-width flash on the very first paint. */
+  const seatStyle = boardSize > 0 ? { width: boardSize } : undefined;
 
   return (
     <div className="pvp-play" ref={cardRef}>
@@ -809,7 +806,7 @@ export default function PvPPlayBoard({ classId, fallback, onOpened, onEnded, ins
                 orientation={myColor}
                 interactive={myTurn}
                 onMove={onMove}
-                boardWidth={boardSize}
+                outerWidth={boardSize}
                 engineOn={false}
                 highlightLastMove
                 /* Tells the board which side is "me", so the opponent's move arriving
@@ -902,8 +899,7 @@ export default function PvPPlayBoard({ classId, fallback, onOpened, onEnded, ins
                 orientation={myColor}
                 interactive={myTurn}
                 onMove={onMove}
-                boardWidth={focusSize}
-                frameless={focusFrameless}
+                outerWidth={focusSize}
                 engineOn={false}
                 highlightLastMove
                 selfColor={myColor}

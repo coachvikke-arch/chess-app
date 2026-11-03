@@ -261,7 +261,7 @@ export default function AcademyOpening() {
           <div>
             <ChessBoard
               game={gameRef.current}
-              boardWidth={boardWidth}
+              outerWidth={boardWidth}
               interactive={phase === 'user'}
               showLegalMoves={false}
               clickToMove

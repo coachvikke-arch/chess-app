@@ -481,7 +481,7 @@ export default function OpeningPractice() {
             game={gameRef.current}
             fen={fen}
             /* Fluid, so the framed board fits narrow viewports too. */
-            boardWidth={boardWidth}
+            outerWidth={boardWidth}
             orientation={opening.side === 'white' ? 'white' : 'black'}
             /* Lock the opponent's pieces so only the learner's side is draggable. */
             draggableColor={opening.side}

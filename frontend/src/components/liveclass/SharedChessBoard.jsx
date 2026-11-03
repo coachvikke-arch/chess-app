@@ -43,10 +43,10 @@ const MAX_BOARD = 2400;
    viewport height, so the frame's lowest rank/file labels never touch the
    bottom edge of the screen. */
 const BOARD_BOTTOM_GAP = 24;
-/* Frame arithmetic mirrors ChessBoard's own framedWidth — duplicated here so the
-   width walk-down is deterministic and cannot oscillate through re-renders. */
+/* Slack kept off the measured stage so sub-pixel layout cannot reintroduce a
+   scrollbar. The frame is carved out of the box ChessBoard is handed, so there
+   is no band arithmetic left to do here. */
 const FIT_SLACK = 6;
-const framedWidth = (bw) => bw + 2 * Math.min(46, Math.max(20, Math.round(bw * 0.082))) + 24;
 
 /**
  * The one shared board every viewer in the room looks at — and, when a drill is
@@ -119,22 +119,19 @@ export default function SharedChessBoard({ drill = null, drillStatus = null, onD
 
   /* The themed frame IS the user's Board Frame preference: this board passes no
      `frameless` prop, so ChessBoard follows that preference (its `showFrame =
-     boardFrame`). The fit below must know whether the frame is really drawn —
-     framed, the frame's band is reserved out of the bound; frameless, the bare
-     square is free to use the WHOLE bound (that is the fix for the "without
-     frame" board being stuck small). Read it here, ABOVE the effect, so the
-     effect can name it without hitting its temporal dead zone. */
-  const { user, boardFrame } = useAuth();
-  const framedBoard = boardFrame !== false;
+     boardFrame`). The size below deliberately does NOT read it — ChessBoard
+     carves the frame out of the box it is handed, so the board occupies the same
+     footprint whether the frame is on or off and toggling it never resizes the
+     classroom. */
+  const { user } = useAuth();
 
-  /* Fit the board to the stage: capped by the available WIDTH, the available
-     HEIGHT (viewport left below the board's top edge), and — only when the frame
-     is actually shown — its band, so the full board fits on screen instead of
-     hanging below the fold. The board is a square in normal flow, so it never
-     depends on the stage's height. The frame's extra size is measured off the
-     DOM arithmetic and the cap is walked down deterministically, so it cannot
-     oscillate through renders. A dragged size overrides this until it is
-     double-clicked away.
+  /* Fit the board to the stage: capped by the available WIDTH and the available
+     HEIGHT (viewport left below the board's top edge), taking the SMALLER so the
+     board stays a square and fits on screen instead of hanging below the fold.
+     The board is a square in normal flow, so it never depends on the stage's
+     height. The result is the OUTER box — frame included — so no band
+     reservation is needed and the solve cannot oscillate through re-renders.
+     A dragged size overrides this until it is double-clicked away.
 
      `infoCardWidth` is subtracted because the drill info card is a sibling of
      the board INSIDE the stage, so the stage's own width still counts it. Left
@@ -159,14 +156,7 @@ export default function SharedChessBoard({ drill = null, drillStatus = null, onD
       const stageTop = area.getBoundingClientRect().top + (window.scrollY || window.pageYOffset || 0);
       const heightLimit = stageTop < vh ? (vh - stageTop - BOARD_BOTTOM_GAP - FIT_SLACK) : Infinity;
       const bound = Math.min(widthLimit, heightLimit);
-      /* Reserve the frame's band ONLY when the frame is drawn. Frameless the
-         board's footprint is the bare square, so it may use the whole bound;
-         reserving the band unconditionally is what capped the frameless board
-         ~2·band smaller than its space and stopped the resize handle growing it. */
-      const footprint = (bw) => (framedBoard ? framedWidth(bw) : bw);
-      let cap = Math.min(MAX_BOARD, bound);
-      while (cap > MIN_BOARD && footprint(cap) > bound) cap -= 2;
-      cap = Math.max(MIN_BOARD, cap);
+      const cap = Math.max(MIN_BOARD, Math.min(MAX_BOARD, bound));
       /* Expose the real measured ceiling to the drag handler (below). */
       maxFitRef.current = cap;
       const next = manualSize !== null ? Math.min(manualSize, cap) : cap;
@@ -185,7 +175,7 @@ export default function SharedChessBoard({ drill = null, drillStatus = null, onD
       window.removeEventListener('resize', compute);
       window.removeEventListener('orientationchange', compute);
     };
-  }, [manualSize, infoCardWidth, framedBoard]);
+  }, [manualSize, infoCardWidth]);
 
   const resizePointerDown = useCallback((e) => {
     e.preventDefault();
@@ -1432,7 +1422,7 @@ const DRAWN_ARROW_COLOR = 'rgba(0, 255, 0, 0.7)';
                     onMove={reviewing ? undefined : handleBoardMove}
                     onIllegalMove={illegalMovesOn ? () => flash('Illegal move') : undefined}
                     orientation={orientation}
-                    boardWidth={boardSize}
+                    outerWidth={boardSize}
                     animationDuration={MOVE_ANIM_SECONDS}
                     soundOn={reviewing ? false : classroomSound}
                     showNotation={showCoordinates}

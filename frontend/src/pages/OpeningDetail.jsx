@@ -259,7 +259,7 @@ export default function OpeningDetail() {
             <div className="w-full min-w-0 flex justify-center">
               <ChessBoard
                 fen={current?.fen}
-                boardWidth={boardWidth}
+                outerWidth={boardWidth}
                 orientation={opening.side === 'white' ? 'white' : 'black'}
                 interactive={false}
                 showNotation

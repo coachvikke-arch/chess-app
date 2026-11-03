@@ -2,7 +2,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Button from '../components/Button';
 import { Chess } from 'chess.js';
 import ChessBoard from './ChessBoard';
-import { framedOuterWidth, frameRemC, fitBoardWidth } from './ResponsiveBoard';
+import { fitBoardWidth } from './ResponsiveBoard';
+import { frameInsetFor, squaresForOuter } from '../utils/boardFrame';
+import { useAuth } from '../context/AuthContext';
 import { buildScoreRows, gameStartsBlack } from '../lib/scoreSheet';
 import { useBoardWidth } from '../pages/Library';
 import {
@@ -70,7 +72,8 @@ function resultLabel(status, result, reason, whiteName, blackName) {
  * Renders a read-only board, both clocks, the SAN move list and the result;
  * live-updates arrive over the socket.
  */
-export default function SpectatorBoard({ session, boardWidth = 380, onClose, onBack, embedded = false, bare = false, boardCap = 460, lockBlackTop = false, compact = false, defaultOrientation = 'white', autoFlip = true }) {
+export default function SpectatorBoard({ session, outerWidth = 380, onClose, onBack, embedded = false, bare = false, boardCap = 460, lockBlackTop = false, compact = false, defaultOrientation = 'white', autoFlip = true }) {
+  const { boardFrame } = useAuth();
   const [snap, setSnap] = useState(() => seed(session));
   const [boardRef, fittedWidth] = useBoardWidth();
   const gameRef = useRef(null);
@@ -85,12 +88,13 @@ export default function SpectatorBoard({ session, boardWidth = 380, onClose, onB
   const isOnline = session.type === 'online';
   /* Embedded grid cards fill their column: the measured width (capped by
      boardCap) instead of the old fixed 340, so the desktop card reads big.
-     Compact row boards are a small square fitted to their cell — a fixed 300px
-     square plus the themed frame was wider than the cell and overflowed it. */
+     Compact row boards are a small square fitted to their cell. All three are
+     the OUTER box — the themed frame sits inside it, so the box never moves when
+     the Board Frame setting changes. */
   const compactCell = typeof window !== 'undefined' ? Math.min(340, window.innerWidth * 0.88) : 340;
   const boardW = compact
     ? fitBoardWidth(compactCell, { max: 300 })
-    : embedded ? Math.max(340, Math.min(fittedWidth, boardCap)) : boardWidth;
+    : embedded ? Math.max(340, Math.min(fittedWidth, boardCap)) : outerWidth;
 
   /* controlled Chess instance rebuilding as new snapshots arrive */
   useEffect(() => {
@@ -262,12 +266,20 @@ export default function SpectatorBoard({ session, boardWidth = 380, onClose, onB
 
   /* coordinate labels: ranks at each edge square's top-left, files at the
      bottom-right of the bottom rank. They live over the play area, not the
-     frame, so they can never collide with a piece. */
-  const sq = boardW / 8;
-  const framePad = frameRemC(boardW) + 16; // band + frame padding/borders
+     frame, so they can never collide with a piece.
+
+     `boardW` is the outer box; the play area inside it — and therefore the offset
+     these labels need — depends on whether ChessBoard draws its frame here, which
+     it does whenever the saved preference says so. */
+  const framedBoard = !!boardFrame;
+  const squares = framedBoard ? squaresForOuter(boardW) : boardW;
+  const sq = squares / 8;
+  /* band + frame padding + the frame's 1.5px border, plus the 2px `.rem-outer`
+     border these labels sit outside of. */
+  const framePad = framedBoard ? frameInsetFor(squares) + 2 : 0;
   const fileLetters = orientation === 'white' ? 'abcdefgh' : 'hgfedcba';
   const rankNumbers = orientation === 'white' ? [8, 7, 6, 5, 4, 3, 2, 1] : [1, 2, 3, 4, 5, 6, 7, 8];
-  const boardOuter = framedOuterWidth(boardW);
+  const boardOuter = boardW;
 
   return (
     <div className={`${embedded ? 'spec-embed' : bare ? 'spec-bare' : 'spec-overlay'}${compact ? ' spec-compact' : ''}`} role="dialog" aria-modal={embedded || bare ? 'false' : 'true'} aria-label="Spectate game">
@@ -304,7 +316,7 @@ export default function SpectatorBoard({ session, boardWidth = 380, onClose, onB
                 game={gameRef.current || undefined}
                 fen={fen}
                 orientation={orientation}
-                boardWidth={boardW}
+                outerWidth={boardW}
                 interactive={false}
                 engineOn={false}
                 lastMove={last ? { from: last.from, to: last.to } : null}
@@ -316,7 +328,7 @@ export default function SpectatorBoard({ session, boardWidth = 380, onClose, onB
               <div
                 className="spec-coords"
                 aria-hidden="true"
-                style={{ left: framePad, top: framePad, width: boardW, height: boardW }}
+                style={{ left: framePad, top: framePad, width: squares, height: squares }}
               >
                 {rankNumbers.map((rank, j) => (
                   <span key={`r${rank}`} className="spec-coord" style={{ top: j * sq + 2, left: 2 }}>{rank}</span>

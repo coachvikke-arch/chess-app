@@ -46,7 +46,7 @@ export default function AcademyBoard({
   caption,
   onSolved,
   onAttempt,
-  boardWidth = 420,
+  outerWidth = 420,
 }) {
   const fen = practice?.fen || boardData?.fen || '';
   const captionText = caption ?? practice?.prompt ?? boardData?.caption ?? '';
@@ -123,14 +123,13 @@ export default function AcademyBoard({
         <div className="mx-auto lg:mx-0">
           <ChessBoard
             game={game}
-            boardWidth={boardWidth}
+            outerWidth={outerWidth}
             /* In 'demo' the coach is reading, not playing, so the board is
                explicitly non-interactive — otherwise every static illustration
                would quietly be a puzzle. */
             interactive={mode !== 'demo'}
             draggableColor={mode === 'solve' ? sideToMove : null}
             soundOn={false}
-            frameless
             customArrows={arrows}
             lastMove={lastMove}
             extraSquareStyles={highlightStyles(boardData, {
