@@ -85,7 +85,8 @@
     "test:assignment": "node --test scripts/puzzle-transition.test.mjs scripts/assignment-flow.test.mjs",
     "test:gamecolour": "node --test scripts/game-colour.test.mjs",
     "test:legal-moves": "node --test scripts/legal-moves-toggle.test.mjs",
-    "test:moveeffect": "node --test scripts/move-effect-timeline.test.mjs scripts/move-effect-integration.test.mjs scripts/move-effect-completion.test.mjs scripts/move-effect-containment.test.mjs scripts/move-effect-lifecycle.test.mjs scripts/move-effect-controller.test.mjs scripts/review-keyboard.test.mjs scripts/completion-once.test.mjs"
+    "test:moveeffect": "node --test scripts/move-effect-timeline.test.mjs scripts/move-effect-integration.test.mjs scripts/move-effect-completion.test.mjs scripts/move-effect-containment.test.mjs scripts/move-effect-lifecycle.test.mjs scripts/move-effect-controller.test.mjs scripts/review-keyboard.test.mjs scripts/completion-once.test.mjs",
+    "test:boardframe": "node --test scripts/board-frame-preference.test.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

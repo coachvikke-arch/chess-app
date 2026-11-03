@@ -22,6 +22,16 @@
  * launch.
  */
 const CACHE_VERSION = 'mate-zone-v1';
+const OFFLINE_MESSAGE = 'MATE ZONE is offline. Check your connection and reload.';
+
+/* respondWith accepts only a Response the browser can actually hand out — never
+   undefined, never a rejected promise, and never a network-error object. All
+   three show up in the console as "Failed to convert value to 'Response'", and
+   the page gets nothing. */
+const offlineStub = (status) => new Response(OFFLINE_MESSAGE, {
+  status,
+  headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+});
 const SHELL_URLS = [
   '/',
   '/manifest.webmanifest',
@@ -88,7 +98,8 @@ self.addEventListener('fetch', (event) => {
           caches.open(CACHE_VERSION).then((cache) => put(cache, '/', copy));
           return response;
         })
-        .catch(() => caches.match('/').then((cached) => cached || Response.error()))
+        /* Offline launch with nothing cached: say so rather than throwing. */
+        .catch(() => caches.match('/').then((cached) => cached || offlineStub(503)))
     );
     return;
   }
@@ -100,13 +111,15 @@ self.addEventListener('fetch', (event) => {
     event.respondWith(
       caches.match(request).then((cached) => {
         if (cached) return cached;
+        /* A bundle this worker has never seen and the network will not give is
+           a real failure — answer it, instead of letting the rejection through. */
         return fetch(request).then((response) => {
           if (response && response.ok) {
             const copy = response.clone();
             caches.open(CACHE_VERSION).then((cache) => put(cache, request, copy));
           }
           return response;
-        });
+        }).catch(() => offlineStub(504));
       })
     );
     return;
@@ -124,7 +137,7 @@ self.addEventListener('fetch', (event) => {
           }
           return response;
         })
-        .catch(() => cached);
+        .catch(() => cached || offlineStub(504));
       return cached || network;
     })
   );

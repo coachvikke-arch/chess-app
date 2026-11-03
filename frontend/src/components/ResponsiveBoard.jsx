@@ -1,5 +1,6 @@
 import { useLayoutEffect, useRef, useState } from 'react';
 import ChessBoard from './ChessBoard';
+import { useAuth } from '../context/AuthContext';
 
 /* ──────────────────────────────────────────────────────────────────────────
  * ONE responsive board sizer, shared by the Game Review page and the imported
@@ -62,9 +63,19 @@ export default function ResponsiveBoard({
   className = '',
   maxWidth = MAX_BOARD,
   maxHeight = Infinity,
-  frameless = false,
+  /* null means "no opinion", which is how ChessBoard distinguishes a caller that
+     says nothing from one that forces a bare board. `false` used to be the
+     default, and ChessBoard reads that as "frame forced ON" (`!frameless`) — so
+     this component overrode the saved Board Frame preference for every page that
+     did not pass the prop, Game Review among them. */
+  frameless = null,
   ...boardProps
 }) {
+  const { boardFrame } = useAuth();
+  /* The sizer has to subtract the frame the board will actually draw: measuring
+     for a framed board that is not drawn shrinks it, and measuring for a bare
+     one that is drawn spills it out of the wrapper. */
+  const framed = frameless === null ? boardFrame !== false : !frameless;
   const boxRef = useRef(null);
   const [width, setWidth] = useState(0);
 
@@ -76,7 +87,7 @@ export default function ResponsiveBoard({
     const measure = () => {
       const available = box.clientWidth;
       if (available <= 0) return;
-      const next = fitBoardWidth(available, { max: maxWidth, maxHeight, frameless });
+      const next = fitBoardWidth(available, { max: maxWidth, maxHeight, frameless: !framed });
       if (next === last) return;
       last = next;
       setWidth(next);
@@ -96,7 +107,7 @@ export default function ResponsiveBoard({
       window.removeEventListener('resize', measure);
       window.removeEventListener('orientationchange', measure);
     };
-  }, [maxWidth, maxHeight, frameless]);
+  }, [maxWidth, maxHeight, frameless, framed]);
 
   return (
     <div
