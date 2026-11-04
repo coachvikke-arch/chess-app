@@ -17,6 +17,7 @@ router.get('/games/:id', ctrl.getGame);
 router.get('/games/:id/spectate', ctrl.spectateGame);
 router.post('/games/:id/accept', roleMiddleware('admin', 'student'), ctrl.acceptGame);
 router.post('/games/:id/decline', roleMiddleware('admin', 'student'), ctrl.declineGame);
+router.post('/games/:id/cancel-request', roleMiddleware('admin', 'student'), ctrl.cancelGameRequest);
 router.post('/games/:id/abort', ctrl.abortGame);
 router.post('/games/:id/resign', roleMiddleware('admin', 'student'), ctrl.resignGame);
 /* A clock ran out. Separate from resign so the recorded reason is genuinely

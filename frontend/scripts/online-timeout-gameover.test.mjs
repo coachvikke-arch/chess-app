@@ -225,7 +225,8 @@ test('a timeout stays a timeout for the saved game and the reviewer', () => {
 test('nothing is playable in a game that already has a result', () => {
   assert.match(boardLock, /const gameOver = onlineFinished \|\| Boolean\(clockOver\) \|\| \(status\.over && moves\.length > 0\);/,
     'each mode ends its own way and all of them lock');
-  assert.match(boardLock, /const boardInteractive = reviewMode \? false/, 'review never plays moves');
+  assert.match(boardLock, /const boardInteractive = reviewMode \|\| liveReviewing \? false/,
+    'review — recorded or live — never plays moves');
   assert.match(boardLock, /gameOver \? false/);
   assert.match(boardLock, /const boardLive = boardInteractive && !waitingForOpponent;/,
     'the same flag feeds the board mount, so pieces cannot be dragged under a finished game');

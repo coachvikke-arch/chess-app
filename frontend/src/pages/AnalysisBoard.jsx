@@ -39,6 +39,7 @@ import {
   acceptGame,
   declineGame,
   abortGame,
+  cancelGameRequest,
   resignGame,
   timeoutGame,
   sendMove,
@@ -293,9 +294,16 @@ const ARENA_TILES = [
   { id: 'computer', icon: '🤖', label: 'vs Computer',  desc: 'Practise against the engine at a level that suits your rating.' },
   { id: 'live',     icon: '👁', label: 'Live games',   desc: 'Watch games other players are playing right now.' },
   { id: 'annotate', icon: '✎', label: 'Annotate & Save', desc: 'Write notes on the position and save it to this device.' },
-  { id: 'saved',    icon: '⚑', label: 'Saved',         desc: 'Reopen or delete an analysis you saved earlier.' },
-  { id: 'settings', icon: '⚙', label: 'Settings',      desc: 'Board look and how the board behaves. Changes apply immediately.' },
 ];
+
+function ColorCards({ value, onChange }) {
+  return <div className="arena-color-grid">{[['white','♔','White','You move first'],['black','♚','Black','Opponent moves first']].map(([id,piece,label,help]) => <button type="button" key={id} className={`arena-color-card${value === id ? ' selected' : ''}`} onClick={() => onChange(id)}><span className="arena-check">✓</span><span className={`arena-piece ${id}`}>{piece}</span><b>{label}</b><small>{help}</small></button>)}<button type="button" className={`arena-color-random${value === 'random' ? ' selected' : ''}`} onClick={() => onChange('random')}><span className="arena-check">✓</span>🎲 Random</button></div>;
+}
+
+function TimeStep({ timeSel, setTimeSel, customTime, setCustomTime, timePicked, setTimePicked, presets }) {
+  const time = (h, m) => h * 60 + m;
+  return <div className="arena-time-groups">{presets.map((group, i) => <section key={i}><h4>{group[0][0]}</h4><div className="arena-time-grid">{group.map(([family,label,minutes,inc]) => <button type="button" key={label} className={`arena-time-card${!customTime && timeSel.hours === 0 && timeSel.base === minutes && timeSel.inc === inc ? ' selected' : ''}`} onClick={() => { setCustomTime(false); setTimePicked(true); setTimeSel({ hours: 0, base: minutes, inc }); }}><span className="arena-check">✓</span><b>{label}</b><small>{minutes} min</small></button>)}</div></section>)}<button type="button" className={`arena-custom-card${customTime ? ' selected' : ''}`} onClick={() => { setCustomTime(true); setTimePicked(true); }}><span className="arena-check">✓</span><b>Custom time</b><small>{timeSel.hours ? `${timeSel.hours}h ` : ''}{timeSel.base}m + {timeSel.inc}s</small></button>{customTime && <div className="arena-custom-fields">{[['Hours','hours',[0,1,2,3,4,5],(n)=>`${n}h`],['Minutes','base',[0,1,2,3,4,5,10,15,20,30,45,60],(n)=>`${n}m`],['Extra seconds after each move','inc',[0,1,2,3,5,10,15,20,30],(n)=>`+${n}s`]].map(([label,key,options,format]) => <label key={key}><span>{label}</span><select className="chess-input arena-select" value={timeSel[key]} onChange={(e) => { setTimePicked(true); setTimeSel((t) => ({ ...t, [key]: Number(e.target.value) })); }}>{options.map((n)=><option key={n} value={n}>{format(n)}</option>)}</select></label>)}{time(timeSel.hours,timeSel.base) === 0 && <p className="arena-time-warning">Pick at least 1 minute to continue</p>}</div>}</div>;
+}
 
 const ARENA_NOTATION_KEY = 'knightpath-play-arena-notation';
 const ARENA_HIGHLIGHT_KEY = 'knightpath-play-arena-highlight';
@@ -536,7 +544,8 @@ const PLAY_ARENA_UI_CSS = `
 .ab-root.ab-root .ab-mvnum{margin-left:10px;font:400 12px ui-monospace,Menlo,monospace;color:#64748B}
 .ab-root.ab-root .ab-mv{flex:none;font-weight:600;font-size:14px;padding:3px 9px;border-radius:6px;cursor:pointer;color:#0F172A;background:transparent;border:0;line-height:1.3}
 .ab-root.ab-root .ab-mv:hover{background:#EEF2F7}
-.ab-root.ab-root .ab-mv.is-current{background:#2563EB;color:#fff}
+.ab-root.ab-root .ab-mv.is-current{background:#DBEAFE;color:#111}
+.ab-root.ab-root .ab-mv.is-latest:not(.is-current){background:#F1F5F9;box-shadow:inset 0 0 0 1px #CBD5E1}
 .ab-root.ab-root .ab-moves-empty{font-size:13px;color:#64748B;white-space:nowrap}
 .ab-root.ab-root .ab-note{flex:0 0 auto;margin:0;font-size:11px;color:#64748B;text-align:center}
 
@@ -713,6 +722,7 @@ export default function AnalysisBoard() {
      the frame on as off. */
   const { showToast, claimToast } = useToast();
   const gameRef       = useRef(new Chess());
+  const liveReviewGameRef = useRef(null);
   const engineToken   = useRef(0);
   const computerToken = useRef(0);
   const analysisToken = useRef(0);
@@ -783,16 +793,21 @@ export default function AnalysisBoard() {
   const [highlightLast, setHighlightLast] = useState(() => readBoolPref(ARENA_HIGHLIGHT_KEY, true));
   const [confirmMove,   setConfirmMoveState] = useState(() => readBoolPref(ARENA_CONFIRM_MOVE_KEY, false));
   const [computerHints, setComputerHintsState] = useState(() => readBoolPref(ARENA_HINTS_KEY, false));
-  const [computerTakeback, setComputerTakebackState] = useState(() => readBoolPref(ARENA_TAKEBACK_KEY, true));
+  const [computerTakeback, setComputerTakebackState] = useState(() => readBoolPref(ARENA_TAKEBACK_KEY, false));
   /* One state value drives all six popups: null | online | computer | live |
      annotate | saved | settings. The Modal instance below reads it. */
   const [activePopup, setActivePopup] = useState(null);
+  const [setupStep, setSetupStep] = useState(1);
+  const [customTime, setCustomTime] = useState(false);
+  const [timePicked, setTimePicked] = useState(false);
   const popupTriggerRef = useRef(null);
-  const [computerColorChoice, setComputerColorChoice] = useState('black');
+  const [computerColorChoice, setComputerColorChoice] = useState('');
   const [onlineOpponentType, setOnlineOpponentType] = useState('player');
   const [onlineSearching, setOnlineSearching] = useState(false);
   const onlineSearchToken = useRef(0);
   const [onlineWaiting, setOnlineWaiting] = useState(null);
+  const onlineWaitingTimer = useRef(null);
+  const onlineCancelLock = useRef(false);
   const [saveTags, setSaveTags] = useState('');
   const [saveVisibility, setSaveVisibility] = useState('private');
   const [annotationError, setAnnotationError] = useState('');
@@ -800,6 +815,7 @@ export default function AnalysisBoard() {
   const annotationBaseline = useRef(null);
   const [savedQuery, setSavedQuery] = useState('');
   const [savedDeleteId, setSavedDeleteId] = useState(null);
+  const [savedMessage, setSavedMessage] = useState('');
   const [pendingConfirm, setPendingConfirm] = useState(null);
   /* Derived from the saved preference rather than copied into state: the copy
      needed an effect to stay in sync and could still paint one stale frame
@@ -831,6 +847,7 @@ export default function AnalysisBoard() {
   function openPopup(id, trigger) {
     popupTriggerRef.current = trigger || null;
     setActivePopup(id);
+    if (id === 'online' || id === 'computer') { setSetupStep(1); setCustomTime(false); setTimePicked(false); }
     setDiscardConfirm(false);
     setAnnotationError('');
     if (id === 'annotate') {
@@ -863,6 +880,8 @@ export default function AnalysisBoard() {
   }
 
   function requestClosePopup() {
+    if (activePopup === 'online' && onlineWaiting) return;
+    if (activePopup === 'online' && onlineSearching) { cancelOnlineSearch(); return; }
     if (activePopup === 'annotate' && annotationDirty()) {
       setDiscardConfirm(true);
       return;
@@ -923,7 +942,7 @@ export default function AnalysisBoard() {
   const [onlineGame,      setOnlineGame]      = useState(null);
   const [onlineMyColor,   setOnlineMyColor]   = useState('white');
   const [onlineTurn,      setOnlineTurn]      = useState('white');
-  const [onlineColorSel,  setOnlineColorSel]  = useState('white');
+  const [onlineColorSel,  setOnlineColorSel]  = useState('');
   const [timeSel,         setTimeSel]         = useState({ hours: 0, base: 5, inc: 0 });
   const [onlineBusy,      setOnlineBusy]      = useState(false);
   const [onlineError,     setOnlineError]     = useState('');
@@ -1258,10 +1277,22 @@ export default function AnalysisBoard() {
   function sync() {
     const g = gameRef.current;
     const { san, last } = getHistory(g);
-    setFen(g.fen());
+    const reviewingLive = (onlineGame || computerOn) && moveIndex < moves.length;
     setMoves(san);
-    setMoveIndex(san.length);
-    setLastMove(last ? { from: last.from, to: last.to } : null);
+    if (reviewingLive) {
+      const ply = Math.min(moveIndex, san.length);
+      const reviewed = rebuildGame(initialFen, san.slice(0, ply));
+      liveReviewGameRef.current = reviewed;
+      setMoveIndex(ply);
+      setFen(reviewed.fen());
+      const reviewedLast = getHistory(reviewed).last;
+      setLastMove(reviewedLast ? { from: reviewedLast.from, to: reviewedLast.to } : null);
+    } else {
+      liveReviewGameRef.current = null;
+      setFen(g.fen());
+      setMoveIndex(san.length);
+      setLastMove(last ? { from: last.from, to: last.to } : null);
+    }
     setStatus(getStatus(g));
 
     if (g.isCheckmate()) waitForMateReveal(last?.to);
@@ -1382,6 +1413,7 @@ export default function AnalysisBoard() {
 
   /* ─── game setters ───────────────────────────────────────── */
   function setGame(g, init, movesList) {
+    liveReviewGameRef.current = null;
     gameRef.current = g;
     setInitialFen(init);
     setMoves(movesList);
@@ -1397,6 +1429,7 @@ export default function AnalysisBoard() {
   function loadFen(f, silent) {
     try {
       const g = new Chess(f);
+      liveReviewGameRef.current = null;
       /* A new position is not the move the previous effect belonged to. */
       clearMoveEffects('load-fen');
       const hist = getHistory(g);
@@ -1422,6 +1455,7 @@ export default function AnalysisBoard() {
       /* Loading a PGN lands somewhere other than the effect's move. */
       clearMoveEffects('load-pgn');
       const hist = getHistory(g);
+      liveReviewGameRef.current = null;
       gameRef.current = g;
       setMoves(hist.san);
       setMoveIndex(hist.san.length);
@@ -1457,6 +1491,14 @@ export default function AnalysisBoard() {
     setRematchAsk(null);
     setRematchInvite(null);
     if (clocks) { setClock(null); setClockRunning(false); }
+  }
+
+  function resetAfterPendingRequest() {
+    clearOnline(true);
+    const g = new Chess();
+    gameRef.current = g;
+    setInitialFen('start'); setMoves([]); setMoveIndex(0); setFen(g.fen());
+    setLastMove(null); setStatus(getStatus(g)); setClockOver(null); setReviewMode(false);
   }
 
   function onBoardPositionChange() {
@@ -1555,6 +1597,23 @@ export default function AnalysisBoard() {
   function goToMove(idx) {
     const target = Math.max(0, Math.min(moves.length, idx));
     const g = rebuildGame(initialFen, moves.slice(0, target));
+    if (onlineGame || computerOn) {
+      if (target < moves.length) {
+        liveReviewGameRef.current = g;
+        setMoveIndex(target);
+        setFen(g.fen());
+        const hist = getHistory(g);
+        setLastMove(hist.last ? { from: hist.last.from, to: hist.last.to } : null);
+      } else {
+        liveReviewGameRef.current = null;
+        setMoveIndex(moves.length);
+        setFen(gameRef.current.fen());
+        const hist = getHistory(gameRef.current);
+        setLastMove(hist.last ? { from: hist.last.from, to: hist.last.to } : null);
+      }
+      if (soundOn) playSound('select');
+      return;
+    }
     gameRef.current = g;
     setMoveIndex(target);
     setFen(g.fen());
@@ -1594,6 +1653,16 @@ export default function AnalysisBoard() {
        the game destroyed. goToMove rebuilds from the full `moves` array and
        never rewrites it, so redo is non-destructive. */
     goToMove(moveIndex + 1);
+  }
+
+  function returnToLive() {
+    if (!onlineGame && !computerOn) return;
+    liveReviewGameRef.current = null;
+    const g = gameRef.current;
+    const hist = getHistory(g);
+    setMoveIndex(hist.san.length);
+    setFen(g.fen());
+    setLastMove(hist.last ? { from: hist.last.from, to: hist.last.to } : null);
   }
 
   function reset() {
@@ -1718,7 +1787,7 @@ export default function AnalysisBoard() {
     setTimeSel({ hours: 0, base: 5, inc: 0 });
     setOnlineGame(null); setOnlineMyColor('white'); setOnlineTurn('white');
     setOnlineSelId(''); setOnlineSelName(''); onlineSelStudent.current = null;
-    setOnlineColorSel('white'); setOnlineOpponentType('player');
+    setOnlineColorSel(''); setOnlineOpponentType('player');
     setOnlineBusy(false); setOnlineSearching(false); setOnlineWaiting(null);
     setOnlineError(''); setOnlineNotice(''); setInviteBar(null); setDrawOffer(null);
     setPendingConfirm(null); setActivePopup(null);
@@ -1828,39 +1897,72 @@ export default function AnalysisBoard() {
   /* ─── save / share ───────────────────────────────────────── */
   function saveAnalysis() {
     const title = saveName.trim();
-    if (!title) {
-      setAnnotationError('Give this analysis a title before saving.');
-      return;
-    }
     setAnnotationError('');
-    const list = JSON.parse(localStorage.getItem('kpa_analyses') || '[]');
     const tags = saveTags.split(',').map((t) => t.trim()).filter(Boolean);
+    const savedAt = new Date().toISOString();
+    const pgn = gameRef.current.pgn();
     const item = {
       id:    `a_${Date.now()}`,
-      name:  title,
-      fen, pgn: gameRef.current.pgn(), notes,
+      userId: user?.id ?? null,
+      name:  title || 'Untitled',
+      fen, initialFen, pgn, notes,
       tags,
       visibility: saveVisibility,
-      at: formatDateTime12(new Date()),
+      at: formatDateTime12(new Date(savedAt)),
+      savedAt,
+      players: onlineGame ? `${onlineGame.myName || user?.name || 'You'} vs ${onlineGame.opponentName || 'Opponent'}` : computerOn ? `${user?.name || 'You'} vs Computer` : '',
+      color: onlineGame ? onlineMyColor : computerOn ? computerColor : '',
+      result: status.over ? status.label : '',
+      moveCount: moves.length,
     };
-    list.unshift(item);
-    localStorage.setItem('kpa_analyses', JSON.stringify(list));
+    try {
+      const list = JSON.parse(localStorage.getItem(savedStorageKey) || '[]');
+      localStorage.setItem(savedStorageKey, JSON.stringify([item, ...list]));
+    } catch {
+      setAnnotationError('Could not save this item on this device. Check available storage and try again.');
+      return;
+    }
     setSaveName('');
     setSaveTags('');
     setSaveVisibility('private');
     annotationBaseline.current = null;
     setDiscardConfirm(false);
     refreshSaved();
-    setActivePopup(null);
+    setSavedMessage('Saved successfully. It is now in your Saved list below.');
     if (soundOn) playSound('good');
-    showToast('Analysis saved to this device.', { tone: 'success', title: 'Saved' });
+    showToast('Your game or position and notes were saved.', { tone: 'success', title: 'Saved' });
   }
 
   function deleteSaved(id) {
-    const list = JSON.parse(localStorage.getItem('kpa_analyses') || '[]').filter((s) => s.id !== id);
-    localStorage.setItem('kpa_analyses', JSON.stringify(list));
+    const list = JSON.parse(localStorage.getItem(savedStorageKey) || '[]').filter((s) => s.id !== id);
+    localStorage.setItem(savedStorageKey, JSON.stringify(list));
     setSavedDeleteId(null);
     refreshSaved();
+  }
+
+  function openSavedAnalysis(item) {
+    try {
+      const start = item.initialFen && item.initialFen !== 'start' ? item.initialFen : undefined;
+      const g = new Chess(start);
+      if (item.pgn) g.loadPgn(item.pgn, { strict: false });
+      else if (item.fen) g.load(item.fen);
+      clearMoveEffects('load-saved-analysis');
+      const hist = getHistory(g);
+      gameRef.current = g;
+      setInitialFen(item.initialFen || item.fen || 'start');
+      setMoves(hist.san); setMoveIndex(hist.san.length); setFen(g.fen());
+      setLastMove(hist.last ? { from: hist.last.from, to: hist.last.to } : null);
+      setStatus(getStatus(g)); setNotes(item.notes || ''); setSaveName(item.name === 'Untitled' ? '' : item.name);
+      setSaveTags(Array.isArray(item.tags) ? item.tags.join(', ') : '');
+      setSaveVisibility(item.visibility || 'private');
+      if (item.color === 'white' || item.color === 'black') setOrientation(item.color);
+      setActivePopup(null); setOnlineWaiting(null); setClock(null); setClockRunning(false);
+      setComputerOn(false); setOnlineGame(null); onlineGameRef.current = null;
+      refreshEngine();
+      showToast(`Opened ${item.name || 'saved position'} with its notes.`, { tone: 'success', title: 'Saved item opened' });
+    } catch {
+      showToast('This saved item could not be opened.', { tone: 'error', title: 'Could not open' });
+    }
   }
 
   async function share() {
@@ -2327,6 +2429,7 @@ export default function AnalysisBoard() {
     const g = new Chess();
     try { g.loadPgn(row.pgn || '', { strict: false }); } catch { /* start pos */ }
     const { san, last } = getHistory(g);
+    const onlineInitialFen = g.header().FEN || 'start';
 
     /* ── dedupe: one position is applied exactly once ──────────────────────
        Three paths hand this function a row — the socket push, the 2.5 s poll, and
@@ -2341,17 +2444,31 @@ export default function AnalysisBoard() {
     const prev = appliedRef.current;
     const pgn = row.pgn || '';
     const sameGame = prev.id === row.id;
+    const reviewingLive = sameGame && moveIndex < moves.length;
     if (sameGame && san.length < prev.ply) return;
     applyOnlineMeta(row);
     if (sameGame && san.length === prev.ply && pgn === prev.pgn) return;
     appliedRef.current = { id: row.id, ply: san.length, pgn };
 
     gameRef.current = g;
+    setInitialFen(onlineInitialFen);
     setOnlineTurn(san.length % 2 === 0 ? 'white' : 'black');
     setOrientation(row.myColor || 'white');
-    setMoves(san); setMoveIndex(san.length);
-    setFen(g.fen());
-    setLastMove(last ? { from: last.from, to: last.to } : null);
+    setMoves(san);
+    if (reviewingLive) {
+      const ply = Math.min(moveIndex, san.length);
+      const reviewed = rebuildGame(onlineInitialFen, san.slice(0, ply));
+      liveReviewGameRef.current = reviewed;
+      setMoveIndex(ply);
+      setFen(reviewed.fen());
+      const reviewedLast = getHistory(reviewed).last;
+      setLastMove(reviewedLast ? { from: reviewedLast.from, to: reviewedLast.to } : null);
+    } else {
+      liveReviewGameRef.current = null;
+      setMoveIndex(san.length);
+      setFen(g.fen());
+      setLastMove(last ? { from: last.from, to: last.to } : null);
+    }
     setStatus(getStatus(g));
     if (g.isCheckmate() && onlineSeenActiveRef.current === row.id) waitForMateReveal(last?.to);
     else if (!g.isCheckmate()) clearMateReveal();
@@ -2452,17 +2569,16 @@ export default function AnalysisBoard() {
         return;
       }
 
-      if (onlineOpponentType === 'random') {
-        /* Keep the modal open so Cancel can still withdraw the challenge. */
-        setOnlineWaiting({ id: row.id, name: onlineSelName || 'your opponent' });
-        setOnlineSearching(false);
-        showOnlineNotice(`Match request sent to ${onlineSelName || 'your opponent'} — waiting for them to accept.`);
-        return;
-      }
-
-      showOnlineNotice('Invite sent — waiting for your opponent to accept.');
+      const waiting = {
+        id: row.id,
+        name: onlineSelName || row.opponentName || 'your opponent',
+        createdAt: row.createdAt || row.updatedAt || new Date().toISOString(),
+      };
+      try { sessionStorage.setItem('mz-pending-match-request', JSON.stringify(waiting)); } catch { /* optional */ }
+      setOnlineWaiting(waiting);
       setOnlineSearching(false);
-      setActivePopup(null);
+      setActivePopup('online');
+      showOnlineNotice(`Invite sent — waiting for ${waiting.name} to accept.`);
     } catch (e) {
       setOnlineError(e.response?.data?.message || 'Could not start the match.');
       setOnlineSearching(false);
@@ -2473,21 +2589,46 @@ export default function AnalysisBoard() {
 
   async function cancelOnlineSearch() {
     onlineSearchToken.current += 1;
-    setOnlineSearching(false);
-    setOnlineBusy(false);
-
     const id = onlineWaiting?.id;
-    setOnlineWaiting(null);
-    if (!id) return;
-
-    try {
-      const row = await abortGame(id);
-      if (row && onlineGame && row.id === onlineGame.id) clearOnline(true);
-    } catch {
-      /* the challenge may already have been accepted or declined */
+    if (!id) {
+      if (onlineBusy) return;
+      setOnlineSearching(false);
+      setOnlineBusy(false);
+      return;
     }
-    refreshOnlineMatches();
-    showOnlineNotice('Match request cancelled.');
+    if (onlineCancelLock.current) return;
+    onlineCancelLock.current = true;
+    setOnlineBusy(true);
+    try {
+      const row = await cancelGameRequest(id);
+      try { sessionStorage.removeItem('mz-pending-match-request'); } catch { /* optional */ }
+      if (row.status === 'active' || row.cancelIgnored) {
+        setOnlineWaiting(null); setOnlineSearching(false); setActivePopup(null);
+        applyOnline(row);
+        showOnlineNotice('Your opponent accepted — the game has started.');
+      } else {
+        setOnlineWaiting(null); setOnlineSearching(false); setSetupStep(1); setActivePopup('online');
+        resetAfterPendingRequest(); refreshOnlineMatches();
+        showOnlineNotice(row.status === 'declined' ? 'Opponent declined.' : row.status === 'aborted' && onlineWaiting?.expiryRetry ? 'No response — the request expired.' : 'Match request cancelled.');
+      }
+    } catch (e) {
+      const latest = await fetchGame(id).catch(() => null);
+      if (latest?.status === 'active') {
+        try { sessionStorage.removeItem('mz-pending-match-request'); } catch { /* optional */ }
+        setOnlineWaiting(null); setOnlineSearching(false); setActivePopup(null); applyOnline(latest);
+        showOnlineNotice('Your opponent accepted — the game has started.');
+      } else if (latest?.status === 'aborted' || latest?.status === 'declined') {
+        try { sessionStorage.removeItem('mz-pending-match-request'); } catch { /* optional */ }
+        setOnlineWaiting(null); setOnlineSearching(false); setSetupStep(1); setActivePopup('online');
+        resetAfterPendingRequest(); refreshOnlineMatches();
+        showOnlineNotice(latest.status === 'declined' ? 'Opponent declined.' : 'Match request cancelled.');
+      } else {
+        setOnlineError(e.response?.data?.message || 'Could not cancel yet. Your request is still waiting.');
+      }
+    } finally {
+      onlineCancelLock.current = false;
+      setOnlineBusy(false);
+    }
   }
 
   function showOnlineNotice(msg) {
@@ -2942,27 +3083,73 @@ export default function AnalysisBoard() {
         if (resetVersion !== arenaResetVersionRef.current) return;
         const visibleGames = gs.filter((m) => !ignoredGameIdsRef.current.has(String(m.id)));
         setOnlineMatches(visibleGames);
+        let rememberedRequest = null;
+        try { rememberedRequest = JSON.parse(sessionStorage.getItem('mz-pending-match-request') || 'null'); } catch { /* optional */ }
+        const rememberedRow = rememberedRequest && visibleGames.find((m) => String(m.id) === String(rememberedRequest.id));
+        if (rememberedRow && rememberedRow.status !== 'pending') {
+          try { sessionStorage.removeItem('mz-pending-match-request'); } catch { /* optional */ }
+          if (rememberedRow.status === 'declined' || rememberedRow.resultReason === 'expired' || rememberedRow.resultReason === 'cancelled') {
+            setSetupStep(1); setActivePopup('online');
+            showOnlineNotice(rememberedRow.status === 'declined' ? 'Opponent declined.' : rememberedRow.resultReason === 'expired' ? 'No response — the request expired.' : 'Match request cancelled.');
+          }
+        }
         const target = visibleGames.find((m) => m.status === 'active')
-          || visibleGames.find((m) => m.status === 'pending' && !m.canAccept);
-        if (target) applyOnline(target);
+          || visibleGames.find((m) => m.status === 'pending' && m.canAbort);
+        if (target) {
+          applyOnline(target);
+          if (target.status === 'active') {
+            try { sessionStorage.removeItem('mz-pending-match-request'); } catch { /* optional */ }
+          }
+          if (target.status === 'pending' && target.canAbort) {
+            const key = 'mz-pending-match-request';
+            const waiting = { id: target.id, name: target.opponentName || 'your opponent', createdAt: target.createdAt || target.updatedAt };
+            try { sessionStorage.setItem(key, JSON.stringify(waiting)); } catch { /* storage is optional */ }
+            setOnlineWaiting(waiting); setSetupStep(3); setActivePopup('online');
+          }
+        }
       })
       .catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  /* A random challenge created from the modal: close the modal the moment the
-     opponent accepts, and drop the pending marker once it can no longer be
-     cancelled. */
+  /* Keep a pending request recoverable across refresh and expire it after one
+     minute. Server-side expiry is authoritative; this timer updates the current
+     screen promptly and also cleans up older requests after reload. */
+  useEffect(() => {
+    if (!onlineWaiting?.id) { window.clearTimeout(onlineWaitingTimer.current); return undefined; }
+    const age = Math.max(0, Date.now() - (Date.parse(onlineWaiting.createdAt) || Date.now()));
+    const left = Math.max(0, 60000 - age);
+    window.clearTimeout(onlineWaitingTimer.current);
+    onlineWaitingTimer.current = window.setTimeout(async () => {
+      if (String(onlineWaitingRef.current?.id) !== String(onlineWaiting.id)) return;
+      try {
+        const row = await cancelGameRequest(onlineWaiting.id);
+        if (row.status === 'active') { setOnlineWaiting(null); applyOnline(row); return; }
+        if (row.status === 'aborted') {
+          try { sessionStorage.removeItem('mz-pending-match-request'); } catch { /* optional */ }
+          setOnlineWaiting(null); setSetupStep(1); resetAfterPendingRequest();
+          showOnlineNotice('No response — the request expired.');
+        }
+      } catch {
+        setOnlineWaiting((current) => current?.id === onlineWaiting.id ? { ...current, expiryRetry: true } : current);
+      }
+    }, left);
+    return () => window.clearTimeout(onlineWaitingTimer.current);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [onlineWaiting?.id, onlineWaiting?.createdAt]);
+
   useEffect(() => {
     if (activePopup !== 'online' || !onlineWaiting) return;
     if (onlineGame?.status === 'active') {
       setOnlineWaiting(null);
       setOnlineSearching(false);
+      try { sessionStorage.removeItem('mz-pending-match-request'); } catch { /* optional */ }
       setActivePopup(null);
       showOnlineNotice('Opponent accepted — game on!');
     } else if (onlineGame?.status === 'aborted' || onlineGame?.status === 'finished') {
       setOnlineWaiting(null);
       setOnlineSearching(false);
+      try { sessionStorage.removeItem('mz-pending-match-request'); } catch { /* optional */ }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [onlineGame?.status, activePopup, onlineWaiting]);
@@ -2999,6 +3186,18 @@ export default function AnalysisBoard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [claimToast]);
 
+  useEffect(() => {
+    const closeInvite = (payload) => {
+      if (!payload?.gameId || String(inviteBar?.game?.id) !== String(payload.gameId)) return;
+      window.clearTimeout(inviteBarTimer.current);
+      setInviteBar(null);
+      refreshOnlineMatches();
+    };
+    const offCancel = onSocketEvent('match-request-cancelled', closeInvite);
+    const offExpiry = onSocketEvent('match-request-expired', closeInvite);
+    return () => { offCancel(); offExpiry(); };
+  }, [inviteBar?.game?.id]);
+
   /* keep onlineGameRef in sync for Socket.IO callback closure */
   useEffect(() => { onlineGameRef.current = onlineGame; }, [onlineGame]);
   useEffect(() => { onlineWaitingRef.current = onlineWaiting; }, [onlineWaiting]);
@@ -3013,8 +3212,11 @@ export default function AnalysisBoard() {
       window.clearTimeout(inviteBarTimer.current);
       setInviteBar(null);
       if (p.gameId && onlineGameRef.current && onlineGameRef.current.id === p.gameId) {
-        clearOnline(true);
+        resetAfterPendingRequest();
       }
+      setOnlineWaiting(null); setOnlineSearching(false); setSetupStep(1); setActivePopup('online');
+      try { sessionStorage.removeItem('mz-pending-match-request'); } catch { /* optional */ }
+      showOnlineNotice('Opponent declined.');
       refreshOnlineMatches();
       if (soundOn) playSound('select');
     };
@@ -3054,6 +3256,15 @@ export default function AnalysisBoard() {
       && row.status && row.status !== 'pending') {
       setOnlineWaiting(null);
       setOnlineSearching(false);
+      try { sessionStorage.removeItem('mz-pending-match-request'); } catch { /* optional */ }
+      if (row.status === 'active') {
+        setActivePopup(null);
+        showOnlineNotice('Opponent accepted — game on!');
+      } else if (row.status === 'declined') {
+        setSetupStep(1); resetAfterPendingRequest(); showOnlineNotice('Opponent declined.');
+      } else if (row.status === 'aborted') {
+        setSetupStep(1); resetAfterPendingRequest();
+      }
     }
   });
 
@@ -3086,9 +3297,15 @@ export default function AnalysisBoard() {
          re-applying the same pending row every pass would only churn the page. */
       if (row.status === 'pending' && onlineGameRef.current?.status === 'pending') return;
       if (row.status === 'declined' || row.status === 'aborted') {
-        if (onlineGameRef.current?.id === row.id) clearOnline(true);
+        const wasWaiting = String(onlineWaitingRef.current?.id ?? '') === String(row.id);
+        if (onlineGameRef.current?.id === row.id || wasWaiting) resetAfterPendingRequest();
         setOnlineWaiting(null);
         setOnlineSearching(false);
+        if (wasWaiting) {
+          try { sessionStorage.removeItem('mz-pending-match-request'); } catch { /* optional */ }
+          setSetupStep(1); setActivePopup('online');
+          showOnlineNotice(row.status === 'declined' ? 'Opponent declined.' : row.resultReason === 'expired' ? 'No response — the request expired.' : 'Match request cancelled.');
+        }
         refreshOnlineMatches();
         return;
       }
@@ -3147,9 +3364,20 @@ export default function AnalysisBoard() {
        animate the same piece a second time. */
     appliedRef.current = { id: p.gameId, ply: san.length, pgn: g.pgn() };
     setMoves(san);
-    setMoveIndex(san.length);
-    setFen(g.fen());
-    setLastMove(last ? { from: last.from, to: last.to } : null);
+    if ((inOnline || computerOn) && moveIndex < moves.length) {
+      const ply = Math.min(moveIndex, san.length);
+      const reviewed = rebuildGame(initialFen, san.slice(0, ply));
+      liveReviewGameRef.current = reviewed;
+      setMoveIndex(ply);
+      setFen(reviewed.fen());
+      const reviewedLast = getHistory(reviewed).last;
+      setLastMove(reviewedLast ? { from: reviewedLast.from, to: reviewedLast.to } : null);
+    } else {
+      liveReviewGameRef.current = null;
+      setMoveIndex(san.length);
+      setFen(g.fen());
+      setLastMove(last ? { from: last.from, to: last.to } : null);
+    }
     setStatus(getStatus(g));
     /* The hand-off happens here, not in the clock: the board must stop accepting
        drags the moment the position says it is the other side's turn. */
@@ -3216,9 +3444,15 @@ export default function AnalysisBoard() {
       // The other side closed a pending request (declined/aborted) — take it off
       // the board and refresh instead of popping an empty start-position game.
       if (row.status === 'declined' || row.status === 'aborted') {
-        if (cur) clearOnline(true);
+        const wasWaiting = onlineWaitingRef.current && String(onlineWaitingRef.current.id) === String(row.id);
+        if (cur || wasWaiting) resetAfterPendingRequest();
         setOnlineWaiting(null);
         setOnlineSearching(false);
+        if (wasWaiting) {
+          try { sessionStorage.removeItem('mz-pending-match-request'); } catch { /* optional */ }
+          setSetupStep(1); setActivePopup('online');
+          showOnlineNotice(row.status === 'declined' ? 'Opponent declined.' : row.resultReason === 'expired' ? 'No response — the request expired.' : 'Match request cancelled.');
+        }
         refreshOnlineMatches();
         return;
       }
@@ -3333,7 +3567,11 @@ export default function AnalysisBoard() {
 
   // locked for board interaction; undo/redo/reset are always allowed in computer mode
   const boardLocked = inOnline;
-  const navLocked   = inOnline; // only live online blocks navigation; review mode is always free
+  const liveReviewing = Boolean((onlineGame || computerOn) && moveIndex < moves.length);
+  const navLocked   = Boolean(onlineGame?.status === 'pending');
+  const boardGame = liveReviewing
+    ? (liveReviewGameRef.current || rebuildGame(initialFen, moves.slice(0, moveIndex)))
+    : gameRef.current;
 
   /* verdict color for the current move position (used during review) */
   const reviewVerdictColor = reviewMode && gameAnalysis && moveIndex > 0
@@ -3370,13 +3608,13 @@ export default function AnalysisBoard() {
      review. `bestFen` guards against showing an arrow computed for the previous
      position. */
   const hintArrows = useMemo(() => {
-    if (!computerOn || !computerHints || reviewMode || status.over) return [];
+    if (!computerOn || !computerHints || reviewMode || liveReviewing || status.over) return [];
     if (!best?.from || !best?.to || bestFen !== fen) return [];
     const humanTurn = computerColor === 'white'
       ? gameRef.current.turn() === 'w'
       : gameRef.current.turn() === 'b';
     return humanTurn ? [{ from: best.from, to: best.to, color: '#19c9c3' }] : [];
-  }, [computerOn, computerHints, reviewMode, status.over, best, bestFen, fen, computerColor]);
+  }, [computerOn, computerHints, reviewMode, liveReviewing, status.over, best, bestFen, fen, computerColor]);
 
   /* The arrows array has to be identity-stable or the memoized board re-renders
      on every parent render — and `reviewArrows` above is a fresh literal each
@@ -3388,7 +3626,8 @@ export default function AnalysisBoard() {
   );
 
 
-  const { list: savedList, refresh: refreshSaved } = useSavedAnalyses();
+  const savedStorageKey = `kpa_analyses:${user?.id ?? 'guest'}`;
+  const { list: savedList, loading: savedLoading, refresh: refreshSaved } = useSavedAnalyses(savedStorageKey);
 
   /* Search across the title, notes and tags shown in the Saved modal. */
   const filteredSaved = useMemo(() => {
@@ -3424,7 +3663,7 @@ export default function AnalysisBoard() {
      legal move still has replies in it, so the board stayed draggable underneath
      a finished game. */
   const gameOver = onlineFinished || Boolean(clockOver) || (status.over && moves.length > 0);
-  const boardInteractive = reviewMode ? false  // review: navigate only, no new moves
+  const boardInteractive = reviewMode || liveReviewing ? false  // review: navigate only, no new moves
     : gameOver ? false
     : inOnline
       ? onlineMyColor === onlineTurn
@@ -3868,8 +4107,8 @@ export default function AnalysisBoard() {
             <span className="ab-rematch-sub">Rematch sent. Same clock, colours swapped.</span>
           </span>
           <span className="ab-rematch-actions">
-            <Button type="button" variant="secondary" size="sm"
-              onClick={cancelRematchAsk} className="!py-1.5 !px-3 text-xs">
+            <Button type="button" variant="danger" size="sm"
+              onClick={cancelRematchAsk} disabled={rematchBusy} className="!min-h-[48px] !py-2 !px-4 text-sm font-bold">
               Cancel
             </Button>
           </span>
@@ -3997,7 +4236,7 @@ export default function AnalysisBoard() {
               {!playMode && (
                 <ArenaBoard
                   key={boardResetKey}
-                  game={gameRef.current}
+                  game={boardGame}
                   orientation={orientation}
                   outerWidth={boardOuter}
                   onPositionChange={handlePositionChange}
@@ -4128,6 +4367,7 @@ export default function AnalysisBoard() {
               resultToken={moveResultToken}
             />
           )}
+          {liveReviewing && <LiveReviewBar moveIndex={moveIndex} total={moves.length} onReturn={returnToLive} />}
 
           {/* bottom player card (me) — under the moves strip */}
           <div className="ab-player-row ab-player-row-reactions">
@@ -4262,427 +4502,30 @@ export default function AnalysisBoard() {
         icon={popupMeta?.icon}
         id="play-arena-modal"
         size={activePopup === 'live' ? 'lg' : 'md'}
+        modalClass={activePopup === 'online' || activePopup === 'computer' ? 'arena-flow-modal' : ''}
         returnFocusRef={popupTriggerRef}
         busy={onlineSearching}
-        footer={(
-          <>
-            {activePopup === 'online' && (
-              (onlineSearching || onlineWaiting) ? (
-                <Button variant="danger" size="md" onClick={cancelOnlineSearch}>
-                  {onlineSearching ? 'Cancel search' : 'Cancel request'}
-                </Button>
-              ) : (
-                <>
-                  <Button variant="secondary" size="md" onClick={requestClosePopup}>Cancel</Button>
-                  <Button variant="primary" size="md" onClick={startOnlineMatch} disabled={onlineBusy || !isTimeControlValid(timeSel)}>
-                    {onlineBusy
-                      ? 'Starting…'
-                      : onlineOpponentType === 'random'
-                        ? 'Find Match'
-                        : onlineOpponentType === 'link'
-                          ? 'Create invite link'
-                          : 'Send Challenge'}
-                  </Button>
-                </>
-              )
-            )}
-
-            {activePopup === 'computer' && (
-              computerOn ? (
-                <>
-                  <Button variant="secondary" size="md" onClick={requestClosePopup}>Close</Button>
-                  <Button variant="danger" size="md" onClick={exitComputer}>Exit game</Button>
-                </>
-              ) : (
-                <>
-                  <Button variant="secondary" size="md" onClick={requestClosePopup}>Cancel</Button>
-                  <Button
-                    variant="primary" size="md"
-                    onClick={() => startComputerGame(
-                      computerColorChoice === 'random'
-                        ? (Math.random() < 0.5 ? 'white' : 'black')
-                        : computerColorChoice
-                    )}
-                  >
-                    Start Game
-                  </Button>
-                </>
-              )
-            )}
-
-            {activePopup === 'live' && (
-              <>
-                <Button variant="secondary" size="md" onClick={refreshLive} disabled={liveRefreshing}>
-                  {liveRefreshing ? 'Refreshing…' : 'Refresh'}
-                </Button>
-                <Button variant="primary" size="md" onClick={requestClosePopup}>Close</Button>
-              </>
-            )}
-
-            {activePopup === 'annotate' && (
-              <>
-                <Button variant="secondary" size="md" onClick={requestClosePopup}>Cancel</Button>
-                <Button variant="primary" size="md" onClick={saveAnalysis}>Save</Button>
-              </>
-            )}
-
-            {activePopup === 'saved' && (
-              <Button variant="primary" size="md" onClick={requestClosePopup}>Close</Button>
-            )}
-
-            {activePopup === 'settings' && (
-              <>
-                <Button variant="secondary" size="md" onClick={requestClosePopup}>Close</Button>
-                <Button
-                  variant="primary" size="md"
-                  onClick={() => {
-                    closePopup();
-                    showToast('Your board settings are applied.', { tone: 'success', title: 'Settings' });
-                  }}
-                >
-                  Apply
-                </Button>
-              </>
-            )}
-          </>
-        )}
+        footer={activePopup === 'online' && (onlineSearching || onlineWaiting) ? <button type="button" className="arena-cancel-request" onClick={cancelOnlineSearch} disabled={onlineBusy || onlineCancelLock.current}>{onlineBusy ? 'Cancelling…' : 'Cancel'}</button> : activePopup === 'online' ? <button type="button" className="arena-step-primary" onClick={() => setupStep < 3 ? setSetupStep((s) => s + 1) : startOnlineMatch()} disabled={onlineBusy || (setupStep === 1 && !onlineSelId) || (setupStep === 2 && !onlineColorSel) || (setupStep === 3 && (!timePicked || !isTimeControlValid(timeSel)))}>{onlineBusy ? 'Starting…' : setupStep === 3 ? 'Start Game' : 'Next'}</button> : activePopup === 'computer' && !computerOn ? <button type="button" className="arena-step-primary" onClick={() => setupStep < 3 ? setSetupStep((s) => s + 1) : startComputerGame(computerColorChoice === 'random' ? (Math.random() < 0.5 ? 'white' : 'black') : computerColorChoice)} disabled={(setupStep === 1 && !computerColorChoice) || (setupStep === 3 && (!timePicked || !isTimeControlValid(timeSel)))}>{setupStep === 3 ? 'Start Game' : 'Next'}</button> : activePopup === 'computer' && computerOn ? <><Button variant="secondary" size="md" onClick={requestClosePopup}>Close</Button><Button variant="danger" size="md" onClick={exitComputer}>Exit game</Button></> : activePopup === 'live' ? <><Button variant="secondary" size="md" onClick={refreshLive} disabled={liveRefreshing}>{liveRefreshing ? 'Refreshing…' : 'Refresh'}</Button><Button variant="primary" size="md" onClick={requestClosePopup}>Close</Button></> : activePopup === 'annotate' ? <><Button variant="secondary" size="md" onClick={requestClosePopup}>Cancel</Button><Button variant="primary" size="md" onClick={saveAnalysis}>Save</Button></> : null}
       >
-        {/* ── Online Match ─────────────────────────────────────────────── */}
-        {activePopup === 'online' && (
-          <>
-            {onlineError && <div className="chess-error !mb-2 !py-1.5 text-xs" role="alert">{onlineError}</div>}
-            {onlineNotice && <div className="chess-chip chess-chip-gold !mb-2 !py-1.5 text-xs">{onlineNotice}</div>}
-
-            {onlineSearching ? (
-              <div className="py-6 text-center" aria-live="polite">
-                <div className="mx-auto grid h-12 w-12 place-items-center rounded-full border border-cyan-300/60 bg-cyan-50 text-xl animate-pulse">♞</div>
-                <p className="mt-3 text-sm font-bold text-ivory-200">Searching for an opponent…</p>
-                <p className="mt-1 text-xs text-ivory-500">Matching you with a player who is online right now.</p>
-              </div>
-            ) : onlineWaiting ? (
-              <div className="py-6 text-center" aria-live="polite">
-                <div className="mx-auto grid h-12 w-12 place-items-center rounded-full border border-cyan-300/60 bg-cyan-50 text-xl">♟</div>
-                <p className="mt-3 text-sm font-bold text-ivory-200">Challenge sent to {onlineWaiting.name}</p>
-                <p className="mt-1 text-xs text-ivory-500">Waiting for them to accept. You can cancel while it is still pending.</p>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                <div>
-                  <span className="text-xs font-semibold text-ivory-300">Opponent</span>
-                  <div className="mt-1 mz-chip-row">
-                    {[
-                      ['player', 'Friend / student'],
-                      ['random', '🎲 Random'],
-                      ['link', '🔗 Invite link'],
-                    ].map(([value, label]) => (
-                      <button
-                        key={value}
-                        type="button"
-                        onClick={() => { setOnlineOpponentType(value); setOnlineError(''); }}
-                        className={`flex-1 chess-chip text-xs ${onlineOpponentType === value ? 'chess-chip-gold' : ''}`}
-                        aria-pressed={onlineOpponentType === value}
-                      >
-                        {label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {(onlineOpponentType === 'player' || onlineOpponentType === 'link') && (
-                  <div>
-                    <input
-                      type="search"
-                      className="chess-input !text-xs !py-1.5 w-full online-pick-search"
-                      placeholder="Search players by name…"
-                      aria-label="Search players"
-                      value={onlineSearch}
-                      onChange={(e) => setOnlineSearch(e.target.value)}
-                      disabled={onlineUsersLoading}
-                    />
-
-                    {onlineUsersError ? (
-                      <div className="online-pick-state online-pick-error" role="alert">
-                        <span>{onlineUsersError}</span>
-                        <Button type="button" variant="secondary" size="sm" onClick={loadOnlineUsers}>
-                          Retry
-                        </Button>
-                      </div>
-                    ) : onlineUsersLoading && onlineUsers.length === 0 ? (
-                      <div className="online-pick-state" aria-live="polite">Loading players…</div>
-                    ) : visibleOnlinePlayers.length === 0 ? (
-                      <div className="online-pick-state" aria-live="polite">
-                        {onlineSearch.trim()
-                          ? `No players match “${onlineSearch.trim()}”.`
-                          : 'No other players are available yet.'}
-                      </div>
-                    ) : (
-                      <div className="online-pick-grid" role="listbox" aria-label="Players">
-                        {visibleOnlinePlayers.map((u) => (
-                          <OnlinePlayerCard
-                            key={u.id}
-                            player={u}
-                            timeClass={onlineTimeClass}
-                            selected={String(u.id) === String(onlineSelId)}
-                            onSelect={(p) => {
-                              onlineSelStudent.current = String(p.id);
-                              setOnlineSelId(String(p.id));
-                              setOnlineSelName(p.name);
-                              setOnlineError('');
-                            }}
-                          />
-                        ))}
-                      </div>
-                    )}
-
-                    {onlineSelectedPlayer && (
-                      <div className="online-pick-selected" aria-live="polite">
-                        <PlayerAvatar player={onlineSelectedPlayer} size={32} />
-                        <span className="online-pick-selected-body">
-                          <span className="online-pick-selected-label">
-                            {onlineOpponentType === 'link' ? 'Invite link for' : 'Challenging'}
-                          </span>
-                          <span className="online-pick-selected-name">{onlineSelectedPlayer.name}</span>
-                        </span>
-                        <span className="online-pick-selected-rating">
-                          {(() => {
-                            const r = ratingForPlayer(onlineSelectedPlayer, onlineTimeClass);
-                            return r != null ? `${r} ${ratingPoolLabel(onlineTimeClass)}` : 'Unrated';
-                          })()}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {onlineOpponentType === 'random' && (
-                  <p className="text-[11px] leading-snug text-ivory-500">
-                    We&apos;ll pick a player who is online and send them the challenge.
-                  </p>
-                )}
-                {onlineOpponentType === 'link' && (
-                  <p className="text-[11px] leading-snug text-ivory-500">
-                    Choose the player, then we&apos;ll copy a direct link to the challenge for them.
-                  </p>
-                )}
-
-                <div>
-                  <span className="text-xs font-semibold text-ivory-300">Play as</span>
-                  <div className="mt-1 mz-chip-row">
-                    {[
-                      ['white', '⚪ White'],
-                      ['black', '⚫ Black'],
-                      ['random', '🎲 Random'],
-                    ].map(([value, label]) => (
-                      <button
-                        key={value}
-                        type="button"
-                        onClick={() => setOnlineColorSel(value)}
-                        className={`flex-1 chess-chip text-xs ${onlineColorSel === value ? 'chess-chip-gold' : ''}`}
-                        aria-pressed={onlineColorSel === value}
-                      >
-                        {label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div>
-                  <span className="text-xs font-semibold text-ivory-300">Time control</span>
-                  <div className="mt-1">
-                    <TimeControlPicker
-                      value={timeSel}
-                      onChange={setTimeSel}
-                      disabled={onlineBusy || onlineSearching}
-                    />
-                  </div>
-                  {!isTimeControlValid(timeSel) && (
-                    <p className="mt-1 text-[11px] font-semibold text-amber-600">
-                      Pick at least 1 minute for the starting clock.
-                    </p>
-                  )}
-                </div>
-
-                <div>
-                  <span className="text-xs font-semibold text-ivory-300">Game type</span>
-                  <div className="mt-1">
-                    <span className="chess-chip chess-chip-gold inline-block text-xs">✓ Rated</span>
-                  </div>
-                  <p className="mt-1 text-[11px] leading-snug text-ivory-500">
-                    Rated games update academy ratings. Games hosted by a coach are always practice.
-                  </p>
-                </div>
-
-                {/* Live matches only (pending invite / active game) */}
-                {(() => {
-                  const live = onlineMatches.filter((m) => m.status === 'pending' || m.status === 'active');
-                  if (live.length === 0) return null;
-                  return (
-                    <div>
-                      <span className="text-xs font-semibold text-ivory-300">Open matches</span>
-                      <div className="ab-match-list">
-                        {live.map((m) => (
-                          <div key={m.id} className="ab-match-item">
-                            <div className="ab-match-top">
-                              <span className="text-xs text-ivory-300 truncate">{m.myName} vs {m.opponentName}</span>
-                              <span className={`chess-chip text-[0.6rem] ${m.status === 'active' ? 'chess-chip-gold' : ''}`}>{m.status}</span>
-                            </div>
-                            <div className="ab-match-bot">
-                              <span className="text-[0.65rem] text-ivory-500">
-                                {m.status === 'active'
-                                  ? `${m.myColor === 'white' ? '⚪' : '⚫'} ${m.myColor}`
-                                  : 'Challenge sent…'}
-                              </span>
-                              <div className="flex gap-1">
-                                {m.status === 'pending' && m.canAccept && (
-                                  <>
-                                    <Button type="button" variant="primary" size="sm" onClick={() => acceptOnline(m)} disabled={onlineBusy}>Accept</Button>
-                                    <Button type="button" variant="danger" size="sm" onClick={() => declineOnline(m)} disabled={onlineBusy}>Decline</Button>
-                                  </>
-                                )}
-                                {m.status === 'pending' && m.canAbort && (
-                                  <Button type="button" variant="danger" size="sm" onClick={() => abortOnline(m)} disabled={onlineBusy}>Abort</Button>
-                                )}
-                                <Button
-                                  type="button" variant="secondary" size="sm"
-                                  onClick={() => { openOnline(m); setActivePopup(null); }}
-                                >
-                                  Open
-                                </Button>
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  );
-                })()}
-              </div>
-            )}
-          </>
-        )}
-
-        {/* ── vs Computer ─────────────────────────────────────────────── */}
-        {activePopup === 'computer' && (
-          computerOn ? (
-            <div className="space-y-3">
-              <div className="rounded-xl border border-cyan-300/50 bg-cyan-50/60 p-3">
-                <p className="text-sm font-bold text-ivory-200">Game in progress</p>
-                <p className="mt-1 text-xs text-ivory-300">
-                  You: <b>{computerColor === 'white' ? '⚪ White' : '⚫ Black'}</b>
-                  {' · '}Skill {computerLevel} · {skillLabel(computerLevel)}
-                </p>
-                <p className="mt-0.5 text-xs text-ivory-500">
-                  {computerThinking
-                    ? '🤖 Thinking…'
-                    : gameRef.current.turn() === (computerColor === 'white' ? 'w' : 'b')
-                      ? 'Your move!'
-                      : 'Machine thinking…'}
-                </p>
-                {computerTakeback && (
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    size="sm"
-                    className="mt-2"
-                    onClick={takebackComputerMove}
-                    disabled={computerThinking || gameRef.current.turn() !== (computerColor === 'white' ? 'w' : 'b')}
-                  >
-                    ↶ Take back
-                  </Button>
-                )}
-              </div>
-              <p className="text-xs text-ivory-500">
-                Exit the game to set up a new one. Hints and takeback can be changed below at any time.
-              </p>
-              <div className="space-y-0.5">
-                <label className="chess-toggle !py-1.5">
-                  <span className="text-xs text-ivory-300">Hints (engine arrow on your turn)</span>
-                  <input type="checkbox" checked={computerHints} onChange={(e) => setComputerHints(e.target.checked)} />
-                </label>
-                <label className="chess-toggle !py-1.5">
-                  <span className="text-xs text-ivory-300">Allow takeback</span>
-                  <input type="checkbox" checked={computerTakeback} onChange={(e) => setComputerTakeback(e.target.checked)} />
-                </label>
-              </div>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              <div>
-                <span className="text-xs font-semibold text-ivory-300">Play as</span>
-                <div className="mt-1 mz-chip-row">
-                  {[
-                    ['white', '⚪ White'],
-                    ['black', '⚫ Black'],
-                    ['random', '🎲 Random'],
-                  ].map(([value, label]) => (
-                    <button
-                      key={value}
-                      type="button"
-                      onClick={() => setComputerColorChoice(value)}
-                      className={`flex-1 chess-chip text-xs ${computerColorChoice === value ? 'chess-chip-gold' : ''}`}
-                      aria-pressed={computerColorChoice === value}
-                    >
-                      {label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <span className="text-xs font-semibold text-ivory-300">Difficulty</span>
-                <select
-                  className="chess-input mt-1 !text-xs !py-1.5"
-                  value={computerLevel}
-                  onChange={(e) => setComputerLevel(Number(e.target.value))}
-                  aria-label="Difficulty"
-                >
-                  {BOT_LEVELS.map((lvl) => (
-                    <option key={lvl.level} value={lvl.level}>
-                      Lv{lvl.level} · {lvl.label} ({lvl.ratingMax >= 9999 ? lvl.ratingMin + '+' : lvl.ratingMin + '-' + lvl.ratingMax})
-                    </option>
-                  ))}
-                </select>
-                {recommendedLevel && (
-                  <p className="mt-1 text-[11px] leading-snug text-gold-500">
-                    🎯 Suggested for your rating: Level {recommendedLevel} ({skillLabel(recommendedLevel)})
-                  </p>
-                )}
-              </div>
-
-              <div>
-                <span className="text-xs font-semibold text-ivory-300">Time control</span>
-                <div className="mt-1">
-                  <TimePresetRow selected={timeSel} onSelect={(p) => setTimeSel({ hours: p.hours, base: p.base, inc: p.inc })} />
-                </div>
-                <div className="flex gap-1.5">
-                  <select className="chess-input !text-xs !py-1.5" value={timeSel.hours}
-                    onChange={(e) => setTimeSel((t) => ({ ...t, hours: Number(e.target.value) }))} aria-label="Hours">
-                    {[0,1,2,3,4,5].map((h) => <option key={h} value={h}>{h}h</option>)}
-                  </select>
-                  <select className="chess-input !text-xs !py-1.5" value={timeSel.base}
-                    onChange={(e) => setTimeSel((t) => ({ ...t, base: Number(e.target.value) }))} aria-label="Minutes">
-                    {[0,1,2,3,4,5,10,15,20,30,45,60].map((m) => <option key={m} value={m}>{m}m</option>)}
-                  </select>
-                  <select className="chess-input !text-xs !py-1.5" value={timeSel.inc}
-                    onChange={(e) => setTimeSel((t) => ({ ...t, inc: Number(e.target.value) }))} aria-label="Increment">
-                    {[0,1,2,3,5,10,15,20,30].map((s) => <option key={s} value={s}>+{s}s</option>)}
-                  </select>
-                </div>
-              </div>
-
-              <div className="space-y-0.5">
-                <label className="chess-toggle !py-1.5">
-                  <span className="text-xs text-ivory-300">Hints (engine arrow on your turn)</span>
-                  <input type="checkbox" checked={computerHints} onChange={(e) => setComputerHints(e.target.checked)} />
-                </label>
-                <label className="chess-toggle !py-1.5">
-                  <span className="text-xs text-ivory-300">Allow takeback</span>
-                  <input type="checkbox" checked={computerTakeback} onChange={(e) => setComputerTakeback(e.target.checked)} />
-                </label>
-              </div>
-            </div>
-          )
-        )}
+        {activePopup === 'online' && <>
+          {onlineError && <div className="chess-error !mb-2 !py-1.5 text-xs" role="alert">{onlineError}</div>}
+          {onlineSearching ? <div className="py-6 text-center" aria-live="polite"><p>Finding an opponent…</p></div> : onlineWaiting ? <div className="arena-waiting" role="status" aria-live="polite"><button type="button" className="arena-close" aria-label="Cancel online match request" onClick={cancelOnlineSearch} disabled={onlineBusy}>×</button><span className="arena-waiting-spinner" aria-hidden="true" /><h3>Waiting for {onlineWaiting.name}…</h3><p>Your request will expire if there is no response in 60 seconds.</p>{onlineError && <p className="arena-waiting-error" role="alert">{onlineError}</p>}</div> : <div className="arena-setup">
+            <div className="arena-setup-head"><button type="button" className="arena-back" aria-label={setupStep === 1 ? 'Close setup' : 'Previous step'} onClick={() => setupStep === 1 ? requestClosePopup() : setSetupStep((s) => s - 1)}>←</button><strong>Online Match</strong><button type="button" className="arena-close" aria-label="Close Online Match setup" onClick={() => onlineWaiting || onlineSearching ? cancelOnlineSearch() : requestClosePopup()} disabled={onlineBusy}>×</button></div>
+            <div className="arena-progress" aria-label={`Step ${setupStep} of 3`}>{[1,2,3].map((n) => <span key={n} className={n <= setupStep ? 'filled' : ''} />)}</div>
+            <h3 className="arena-question">{['Who do you want to play?','Pick your colour','How much time?'][setupStep - 1]}</h3>
+            {setupStep === 1 && (onlineUsersError ? <div className="online-pick-state online-pick-error" role="alert">{onlineUsersError}<Button variant="secondary" size="sm" onClick={loadOnlineUsers}>Retry</Button></div> : onlineUsersLoading && onlineUsers.length === 0 ? <div className="online-pick-state">Loading players…</div> : visibleOnlinePlayers.length === 0 ? <div className="online-pick-state">No other players are available yet.</div> : <div className="arena-player-grid" role="listbox" aria-label="Players">{visibleOnlinePlayers.map((u) => <button type="button" key={u.id} role="option" aria-selected={String(u.id) === String(onlineSelId)} className={`arena-player-card${String(u.id) === String(onlineSelId) ? ' selected' : ''}`} onClick={() => { onlineSelStudent.current = String(u.id); setOnlineSelId(String(u.id)); setOnlineSelName(u.name); }}><span className="arena-check">✓</span><PlayerAvatar player={u} size={62} /><b>{u.name}</b><small>{(() => { const r = ratingForPlayer(u, onlineTimeClass); return r != null ? `${r} ${ratingPoolLabel(onlineTimeClass)}` : (u.role === 'coach' ? 'Coach' : u.role === 'student' ? 'Academy' : 'Unrated'); })()}</small>{u.online && <i className="arena-live">LIVE</i>}</button>)}</div>)}
+            {setupStep === 2 && <ColorCards value={onlineColorSel} onChange={setOnlineColorSel} />}
+            {setupStep === 3 && <TimeStep timeSel={timeSel} setTimeSel={setTimeSel} customTime={customTime} setCustomTime={setCustomTime} timePicked={timePicked} setTimePicked={setTimePicked} presets={[[['Bullet','1+0',1,0]],[['Blitz','3+0',3,0],['Blitz','3+2',3,2],['Blitz','5+0',5,0]],[['Rapid','10+0',10,0],['Rapid','10+3',10,3],['Rapid','30+0',30,0]]]} />}
+          </div>}
+        </>}
+        {activePopup === 'computer' && (computerOn ? <div className="space-y-3"><p>Game in progress</p><p>You: {computerColor} · Skill {computerLevel} · {skillLabel(computerLevel)}</p>{computerThinking ? '🤖 Thinking…' : 'Your move!'}{computerTakeback && <Button type="button" variant="secondary" size="sm" onClick={takebackComputerMove} disabled={computerThinking}>↶ Take back</Button>}</div> : <div className="arena-setup">
+          <div className="arena-setup-head"><button type="button" className="arena-back" aria-label={setupStep === 1 ? 'Close setup' : 'Previous step'} onClick={() => setupStep === 1 ? requestClosePopup() : setSetupStep((s) => s - 1)}>←</button><strong>vs Computer</strong><button type="button" className="arena-close" aria-label="Close vs Computer setup" onClick={requestClosePopup}>×</button></div>
+          <div className="arena-progress" aria-label={`Step ${setupStep} of 3`}>{[1,2,3].map((n) => <span key={n} className={n <= setupStep ? 'filled' : ''} />)}</div>
+          <h3 className="arena-question">{['Pick your colour','Choose robot level','How much time?'][setupStep - 1]}</h3>
+          {setupStep === 1 && <ColorCards value={computerColorChoice} onChange={setComputerColorChoice} />}
+          {setupStep === 2 && <div className="arena-level-list">{BOT_LEVELS.map((lvl) => <button type="button" key={lvl.level} className={`arena-level${computerLevel === lvl.level ? ' selected' : ''}`} onClick={() => setComputerLevel(lvl.level)}><span className="arena-level-number">{lvl.level}</span><span><b>Lv{lvl.level} {lvl.label}</b><small>{lvl.ratingMax >= 9999 ? `${lvl.ratingMin}+` : `${lvl.ratingMin}-${lvl.ratingMax}`}</small></span>{lvl.level === recommendedLevel && <i>Suggested</i>}<span className="arena-check">✓</span></button>)}</div>}
+          {setupStep === 3 && <TimeStep timeSel={timeSel} setTimeSel={setTimeSel} customTime={customTime} setCustomTime={setCustomTime} timePicked={timePicked} setTimePicked={setTimePicked} presets={[[['Bullet','1+0',1,0]],[['Blitz','3+0',3,0],['Blitz','3+2',3,2]],[['Rapid','10+0',10,0],['Rapid','15+10',15,10],['Rapid','30+0',30,0]]]} />}
+        </div>)}
 
         {/* ── Live games ──────────────────────────────────────────────── */}
         {activePopup === 'live' && (
@@ -4730,13 +4573,13 @@ export default function AnalysisBoard() {
           <div className="space-y-3">
             <div>
               <label htmlFor="ab-note-title" className="text-xs font-semibold text-ivory-300">
-                Title <span className="text-red-500">*</span>
+                Title <span className="text-ivory-500">(optional)</span>
               </label>
               <input
                 id="ab-note-title"
                 value={saveName}
                 onChange={(e) => { setSaveName(e.target.value); setAnnotationError(''); }}
-                placeholder="e.g. Sicilian Najdorf — key ideas"
+                placeholder="e.g. Sicilian Najdorf — key ideas (or leave blank)"
                 className="chess-input mt-1 w-full !text-xs !py-1.5"
                 aria-invalid={!!annotationError}
                 aria-describedby={annotationError ? 'ab-note-title-error' : undefined}
@@ -4745,6 +4588,7 @@ export default function AnalysisBoard() {
                 <p id="ab-note-title-error" className="mt-1 text-[11px] text-red-600" role="alert">{annotationError}</p>
               )}
             </div>
+            {savedMessage && <p className="arena-saved-success" role="status">✓ {savedMessage}</p>}
 
             <div>
               <label htmlFor="ab-note-body" className="text-xs font-semibold text-ivory-300">Notes / annotation</label>
@@ -4804,6 +4648,18 @@ export default function AnalysisBoard() {
             </div>
             {shareMsg && <p className="text-[11px] text-emerald-600" role="status">{shareMsg}</p>}
 
+            <section className="arena-saved-section" aria-labelledby="arena-saved-title">
+              <div className="arena-saved-heading"><h3 id="arena-saved-title">Saved</h3><span>{savedList.length}</span></div>
+              <input type="search" className="chess-input w-full !text-xs !py-2" placeholder="Search saved items…" aria-label="Search saved items" value={savedQuery} onChange={(e) => setSavedQuery(e.target.value)} />
+              {savedLoading ? <p className="arena-saved-state" role="status">Loading saved items…</p> : savedList.length === 0 ? <p className="arena-saved-state">Nothing saved yet. Save a game or position to see it here.</p> : filteredSaved.length === 0 ? <p className="arena-saved-state">No saved items match that search.</p> : <div className="arena-saved-list">{filteredSaved.map((item) => <article key={item.id} className="arena-saved-card">
+                <div className="arena-saved-card-top"><div><h4>{item.name || 'Untitled'}</h4><time>{item.at || (item.savedAt ? formatDateTime12(new Date(item.savedAt)) : '')}</time></div>{item.color && <span className="arena-saved-chip">{item.color}</span>}</div>
+                {item.players && <p className="arena-saved-meta">{item.players}</p>}
+                <p className="arena-saved-meta">{item.result || 'Position saved'} · {item.moveCount ?? (item.pgn ? item.pgn.trim().split(/\s+/).filter((token) => /^\d+\.(\.\.)?$/.test(token)).length : 0)} moves</p>
+                {item.notes && <p className="arena-saved-notes">{item.notes}</p>}
+                <div className="arena-saved-actions">{savedDeleteId === item.id ? <><span className="arena-delete-prompt">Delete this saved item?</span><Button type="button" variant="danger" size="sm" onClick={() => deleteSaved(item.id)}>Confirm delete</Button><Button type="button" variant="secondary" size="sm" onClick={() => setSavedDeleteId(null)}>Keep</Button></> : <><Button type="button" variant="primary" size="sm" className="arena-tap-button" onClick={() => openSavedAnalysis(item)}>Open</Button><Button type="button" variant="danger" size="sm" className="arena-tap-button" onClick={() => setSavedDeleteId(item.id)}>Delete</Button></>}</div>
+              </article>)}</div>}
+            </section>
+
             {discardConfirm && (
               <div className="mz-discard" role="alertdialog" aria-label="Discard unsaved changes">
                 <p>Discard your unsaved changes?</p>
@@ -4814,192 +4670,6 @@ export default function AnalysisBoard() {
           </div>
         )}
 
-        {/* ── Saved analyses ──────────────────────────────────────────── */}
-        {activePopup === 'saved' && (
-          <div className="space-y-3">
-            <input
-              type="search"
-              value={savedQuery}
-              onChange={(e) => setSavedQuery(e.target.value)}
-              placeholder="Search by title, notes or tag…"
-              className="chess-input w-full !text-xs !py-1.5"
-              aria-label="Search saved analyses"
-            />
-
-            {savedList.length === 0 ? (
-              <div className="py-6 text-center">
-                <p className="text-sm font-bold text-ivory-200">No saved analyses yet</p>
-                <p className="mt-1 text-xs text-ivory-500">Save the current position from Annotate &amp; Save.</p>
-                <Button
-                  type="button"
-                  variant="primary"
-                  size="sm"
-                  className="mt-3"
-                  onClick={() => openPopup('annotate', popupTriggerRef.current)}
-                >
-                  Annotate &amp; Save
-                </Button>
-              </div>
-            ) : filteredSaved.length === 0 ? (
-              <p className="py-4 text-center text-xs text-ivory-500">
-                No analyses match “{savedQuery}”.
-              </p>
-            ) : (
-              <div className="space-y-2">
-                {filteredSaved.map((s) => (
-                  <div key={s.id} className="ab-saved-item">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0">
-                        <p className="text-sm font-semibold text-ivory-100 truncate">{s.name}</p>
-                        <p className="text-[0.62rem] text-ivory-500">{s.at}</p>
-                      </div>
-                      <span className={`chess-chip shrink-0 text-[0.55rem] ${s.visibility === 'shared' ? 'chess-chip-gold' : ''}`}>
-                        {s.visibility === 'shared' ? 'Shared' : 'Private'}
-                      </span>
-                    </div>
-                    {s.notes && <p className="mt-1 text-[0.65rem] text-ivory-500 line-clamp-2">{s.notes}</p>}
-                    {Array.isArray(s.tags) && s.tags.length > 0 && (
-                      <div className="mt-1 flex flex-wrap gap-1">
-                        {s.tags.map((tag) => (
-                          <span key={tag} className="chess-chip text-[0.55rem]">{tag}</span>
-                        ))}
-                      </div>
-                    )}
-
-                    {savedDeleteId === s.id ? (
-                      <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[11px] text-red-700">
-                        <span className="flex-1">Delete “{s.name}”?</span>
-                        <Button type="button" variant="danger" size="sm" onClick={() => deleteSaved(s.id)}>Delete</Button>
-                        <Button type="button" variant="secondary" size="sm" onClick={() => setSavedDeleteId(null)}>Cancel</Button>
-                      </div>
-                    ) : (
-                      <div className="mt-2 flex gap-1">
-                        <Button
-                          type="button"
-                          variant="primary"
-                          size="sm"
-                          onClick={() => {
-                            loadFen(s.fen, false);
-                            setNotes(s.notes || '');
-                            setActivePopup(null);
-                            showToast(`Opened “${s.name}”.`, { tone: 'success', title: 'Saved analysis' });
-                          }}
-                        >
-                          Load
-                        </Button>
-                        <Button type="button" variant="secondary" size="sm" onClick={() => setSavedDeleteId(s.id)}>Delete</Button>
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* ── Settings ────────────────────────────────────────────────── */}
-        {activePopup === 'settings' && (
-          <div className="space-y-1">
-            {[
-              /* "everywhere" because the preference is app-wide: this switch
-                 governs every board in the academy, puzzles, live classes and
-                 tournaments, not just the arena. */
-              ['Sound effects (everywhere)', soundOn, setSoundOn],
-              ['Show legal moves', showLegal, setShowLegalMoves],
-              ['Coordinates', showNotation, setNotationPref],
-              ['Highlight last move', highlightLast, setHighlightPref],
-              ['Auto-queen promotion', autoQueen, setAutoQueen],
-              ['Confirm move', confirmMove, setConfirmMovePref],
-            ].map(([label, val, setter]) => (
-              <label key={label} className="chess-toggle !py-1.5">
-                <span className="text-xs text-ivory-300">{label}</span>
-                <input type="checkbox" checked={val} onChange={(e) => setter(e.target.checked)} />
-              </label>
-            ))}
-            <p className="!mt-0 pb-1 text-[11px] leading-snug text-ivory-500">
-              Confirm move asks before every move in online and computer games.
-            </p>
-
-            {/* Volume — directly under Sound effects because it only means
-                anything when sound is on. */}
-            <div className={`pt-1 ${soundOn ? '' : 'opacity-40'}`}>
-              <div className="flex items-center justify-between">
-                <label htmlFor="ab-volume" className="text-xs text-ivory-300">Volume</label>
-                <span className="text-xs text-ivory-500 tabular-nums">{Math.round(volume * 100)}%</span>
-              </div>
-              <input
-                id="ab-volume"
-                type="range"
-                className="chess-range mt-1"
-                min="0" max="2" step="0.05"
-                value={volume}
-                disabled={!soundOn}
-                onChange={(e) => setVolume(Number(e.target.value))}
-                aria-label="Sound volume"
-              />
-              <div className="mt-1 flex items-center justify-between gap-2">
-                <p className="text-[10px] leading-snug text-ivory-500">100% = as designed. Up to 200%.</p>
-                <Button
-                  type="button"
-                  onClick={() => { unlockAudio(); playSound('move'); }}
-                  disabled={!soundOn}
-                  variant="secondary" size="md" className="!py-1 !px-2 text-[10px] shrink-0"
-                >
-                  🔊 Test
-                </Button>
-              </div>
-            </div>
-
-            <div className="pt-1.5">
-              <label htmlFor="ab-settings-board" className="text-xs font-semibold text-ivory-300">Board theme</label>
-              <select
-                id="ab-settings-board"
-                value={getBoardTheme(savedBoardTheme).id}
-                onChange={(e) => {
-                  updatePrefs({ boardTheme: e.target.value }).catch(() =>
-                    showToast('Could not save board theme — try again.', { tone: 'error', title: 'Board theme' })
-                  );
-                }}
-                className="chess-input mt-1 !text-xs !py-1.5"
-              >
-                {BOARD_THEMES.filter((t) => !BOARD_THEMES_HIDDEN_IN_SETTINGS.has(t.id)).map((t) => (
-                  <option key={t.id} value={t.id}>{t.name}</option>
-                ))}
-              </select>
-            </div>
-
-            <div className="pt-1.5">
-              <label htmlFor="ab-settings-pieces" className="text-xs font-semibold text-ivory-300">Piece set</label>
-              <select
-                id="ab-settings-pieces"
-                value={PIECE_THEMES[pieceSel] ? pieceSel : 'cburnett'}
-                onChange={(e) => {
-                  updatePrefs({ pieceSet: e.target.value }).catch(() =>
-                    showToast('Could not save piece theme — try again.', { tone: 'error', title: 'Piece theme' })
-                  );
-                }}
-                className="chess-input mt-1 !text-xs !py-1.5"
-              >
-                {Object.values(PIECE_THEMES).map((p) => (
-                  <option key={p.id} value={p.id}>{p.name}</option>
-                ))}
-              </select>
-            </div>
-
-            <div className="pt-1.5">
-              <label htmlFor="ab-settings-orientation" className="text-xs font-semibold text-ivory-300">Orientation</label>
-              <select
-                id="ab-settings-orientation"
-                value={orientation}
-                onChange={(e) => setOrientation(e.target.value)}
-                className="chess-input mt-1 !text-xs !py-1.5"
-              >
-                <option value="white">White (bottom)</option>
-                <option value="black">Black (bottom)</option>
-              </select>
-            </div>
-          </div>
-        )}
       </Modal>
 
       {/* ── online game request — bottom-of-page notice bar ── */}
@@ -5184,13 +4854,14 @@ export default function AnalysisBoard() {
             <button type="button" onClick={redoMove} disabled={navLocked || moveIndex >= moves.length} className="pm-strip-btn" title="Next move" aria-label="Next move">▶</button>
             <button type="button" onClick={() => goToMove(moves.length)} disabled={navLocked || moveIndex >= moves.length} className="pm-strip-btn" title="Last move" aria-label="Last move">⏭</button>
           </div>
+          {liveReviewing && <LiveReviewBar moveIndex={moveIndex} total={moves.length} onReturn={returnToLive} />}
         </div>
 
         {/* board — the star: fills every free pixel, side details stay in the panel */}
         <div className="play-mode-board-area" ref={pmAreaRef}>
           <ArenaBoard
             key={boardResetKey}
-            game={gameRef.current}
+            game={boardGame}
             orientation={orientation}
             outerWidth={pmBoardOuter}
             onPositionChange={handlePositionChange}
@@ -5378,7 +5049,7 @@ const MoveList = memo(function MoveList({
             onClick={() => goToMove(idx + 1)}
             disabled={navLocked}
             title={vm ? `${vm.label}${v.loss > 0 ? ` (−${v.loss} pawns)` : ''}` : ''}
-            className={`ab-mv${current ? ' is-current' : ''}${vm ? ` ab-move-verdict-${vm.tone}` : ''}`}
+            className={`ab-mv${current ? ' is-current' : ''}${idx + 1 === moves.length ? ' is-latest' : ''}${vm ? ` ab-move-verdict-${vm.tone}` : ''}`}
           >
             {vm && <span className={`mv-badge mv-badge-${vm.tone}`} title={vm.label}>{vm.symbol}</span>}
             {moves[idx]}
@@ -5395,6 +5066,15 @@ const MoveList = memo(function MoveList({
     </div>
   );
 });
+
+function LiveReviewBar({ moveIndex, total, onReturn }) {
+  return (
+    <div className="ab-live-review-bar" role="status" aria-live="polite">
+      <span>Reviewing move {moveIndex} / {total}</span>
+      <button type="button" onClick={onReturn}>Return to Live</button>
+    </div>
+  );
+}
 
 /* The board's "waiting" overlay: a circular spinner with the message under it,
  * sitting ON the board instead of the thin strip of text it replaced.
@@ -5934,13 +5614,43 @@ function CapturedTray({ pieces, diff, vertical }) {
   );
 }
 
-function useSavedAnalyses() {
-  const [tick, setTick] = useState(0);
+function useSavedAnalyses(storageKey) {
   const [list, setList] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const refresh = useCallback(() => {
+    setLoading(true);
+    try {
+      const raw = localStorage.getItem(storageKey);
+      if (raw == null) {
+        /* Import the old device-wide list once for the first signed-in account.
+           Keep the legacy key as a backup, while new saves stay user-scoped. */
+        const legacy = localStorage.getItem('kpa_analyses');
+        const migrationKey = 'kpa_analyses_migrated_to_user';
+        const isGuest = storageKey.endsWith(':guest');
+        if (legacy != null && !isGuest && !localStorage.getItem(migrationKey)) {
+          localStorage.setItem(storageKey, legacy);
+          localStorage.setItem(migrationKey, storageKey);
+        }
+      }
+      const rows = JSON.parse(localStorage.getItem(storageKey) || '[]');
+      setList((Array.isArray(rows) ? rows : []).sort((a, b) => {
+        const ta = Date.parse(a.savedAt || a.at || '') || 0;
+        const tb = Date.parse(b.savedAt || b.at || '') || 0;
+        return tb - ta;
+      }));
+    } catch {
+      setList([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [storageKey]);
   useEffect(() => {
-    setList(JSON.parse(localStorage.getItem('kpa_analyses') || '[]'));
-  }, [tick]);
-  return { list, refresh: () => setTick((t) => t + 1) };
+    refresh();
+    const onStorage = (event) => { if (event.key === storageKey || event.key === 'kpa_analyses') refresh(); };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, [refresh, storageKey]);
+  return { list, loading, refresh };
 }
 
 /* ── review-complete party popup ────────────────────────── */

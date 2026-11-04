@@ -52,6 +52,10 @@ export async function abortGame(id) {
   return (await api.post(`/online/games/${id}/abort`)).data;
 }
 
+export async function cancelGameRequest(id) {
+  return (await api.post(`/online/games/${id}/cancel-request`, {}, { cache: false })).data;
+}
+
 export async function resignGame(id) {
   return (await api.post(`/online/games/${id}/resign`)).data;
 }

@@ -101,6 +101,7 @@ function reqStatusLabel(status, isSender) {
     case 'accepted': return '✓ Accepted';
     case 'declined': return '✕ Declined';
     case 'cancelled': return '— Cancelled';
+    case 'expired': return '⌛ No response';
     case 'pending':
     default:
       return isSender ? '⏳ Request sent • Pending' : 'Waiting for a decision';
@@ -128,6 +129,7 @@ function reqStatusChip(status) {
     case 'accepted': return 'bg-emerald-500/15 text-emerald-700 border-emerald-400/30';
     case 'declined': return 'bg-red-500/15 text-red-600 border-red-400/30';
     case 'cancelled': return 'bg-ivory-500/10 text-ivory-500 border-ivory-500/20';
+    case 'expired': return 'bg-amber-500/10 text-amber-700 border-amber-400/25';
     default: return 'bg-gold-500/15 text-gold-400 border-gold-400/30';
   }
 }
@@ -137,12 +139,13 @@ export default function NotificationBell() {
   const openRef = useRef(false);
   openRef.current = open;
   const [items, setItems] = useState([]);
+  const requestToastIds = useRef(new Map());
   const [unread, setUnread] = useState(0);
   const ref = useRef(null);
   const panelRef = useRef(null);
   const lastFetched = useRef(0);
   const { user } = useAuth();
-  const { showToast } = useToast();
+  const { showToast, dismissToast } = useToast();
   const navigate = useNavigate();
   const location = useLocation();
   const notificationsPageRef = useRef(false);
@@ -449,11 +452,24 @@ export default function NotificationBell() {
     if (!user) return undefined;
     return onNotification((n) => {
       if (n?.type !== 'match_request' || !n.related_id) return;
+      const requestId = String(n.related_id);
+      if (n.request_status && n.request_status !== 'pending') {
+        const toastId = requestToastIds.current.get(requestId);
+        if (toastId != null) dismissToast(toastId);
+        requestToastIds.current.delete(requestId);
+        if (n.request_status === 'cancelled' || n.request_status === 'expired') {
+          const isRequester = Number(n.sender_id) === Number(user.id);
+          if (!isRequester) showToast(n.request_status === 'expired' ? 'No response — the request expired.' : 'Request cancelled.', {
+            tone: 'info', title: n.request_status === 'expired' ? 'Request expired' : 'Request cancelled', duration: 3500,
+            dedupeKey: `match-request-closed:${requestId}:${user.id}`,
+          });
+        }
+        return;
+      }
       /* Only an outstanding challenge is worth a card. The backend writes an
          `accepted` row for the acceptor AND the sender and a `cancelled` row on
          an abort, all pushed live over the same channel — without this guard a
          request the user had just accepted re-prompted them to accept it. */
-      if (n.request_status && n.request_status !== 'pending') return;
       if (openRef.current || notificationsPageRef.current) { claimSeen(n.id); return; }
       const isSender = n.sender_id === user.id;
       if (isSender) return;
@@ -462,7 +478,7 @@ export default function NotificationBell() {
          claims it as soon as `game-invite` arrives — the server pushes that
          before this row. On the arena the bar is the card, so this popup is
          suppressed and one match request never shows twice. */
-      showToast(`${fromName} sent you a match request.`, {
+      const toastId = showToast(`${fromName} sent you a match request.`, {
         title: '♞ Match request',
         tone: 'info',
         duration: 15000,
@@ -473,11 +489,12 @@ export default function NotificationBell() {
           { label: '✕ Decline', onClick: () => actOnRequest(n, 'decline') },
         ],
       });
+      if (toastId != null) requestToastIds.current.set(requestId, toastId);
       /* Surfaced (or suppressed as already-surfaced): either way the feed sync
          must not plain-toast this row a second time. */
       claimSeen(n.id);
     });
-  }, [user, showToast, actOnRequest, claimSeen]);
+  }, [user, showToast, dismissToast, actOnRequest, claimSeen]);
 
   const markAll = () => {
     api.put('/notifications/read-all', {});

@@ -512,6 +512,7 @@ function payload(row, viewerRole, viewerId) {
   const clock = clockState(row);
   return {
     id: row.id,
+    createdAt: row.created_at,
     classId: row.class_id ?? null,
     status: row.status,
     result: row.result,
@@ -642,6 +643,57 @@ async function ownClassGameFinished(classId, userId) {
   return r.rows.every((row) => row.status === 'finished');
 }
 
+const MATCH_REQUEST_WINDOW_MS = 60000;
+const pendingRequestTimers = new Map();
+
+async function finishPendingRequest(io, gameId, requestStatus = 'expired') {
+  const updated = await db.query(
+    `UPDATE online_games SET status = 'aborted', result = 'aborted', result_reason = $2, updated_at = NOW()
+     WHERE id = $1 AND status = 'pending' AND class_id IS NULL
+     RETURNING id, admin_id, student_id`,
+    [gameId, requestStatus]
+  );
+  if (!updated.rowCount) return false;
+  const row = await getGameRow(gameId);
+  if (!row) return false;
+  const cancelled = requestStatus === 'cancelled';
+  const msg = cancelled ? `${row.admin_name} cancelled the match request` : 'The match request expired because there was no response';
+  const creatorRows = await notif.setRequestStatus({ relatedId: row.id, userId: row.admin_id, requestStatus, message: cancelled ? null : 'No response — request expired', isRead: true });
+  creatorRows.forEach((n) => notif.emitToUser(io, row.admin_id, 'notification', n));
+  const receiverRows = await notif.setRequestStatus({ relatedId: row.id, userId: row.student_id, requestStatus, message: msg, isRead: false });
+  receiverRows.forEach((n) => notif.emitToUser(io, row.student_id, 'notification', n));
+  emitGameUpdateIo(io, row.id);
+  notif.emitToUser(io, row.student_id, cancelled ? 'match-request-cancelled' : 'match-request-expired', { gameId: row.id, message: cancelled ? 'Request cancelled' : 'No response' });
+  notif.emitToUser(io, row.admin_id, cancelled ? 'match-request-cancelled' : 'match-request-expired', { gameId: row.id, message: cancelled ? 'Request cancelled' : 'No response' });
+  return true;
+}
+
+function schedulePendingRequestExpiry(io, gameId, createdAt) {
+  clearTimeout(pendingRequestTimers.get(String(gameId)));
+  const created = Date.parse(createdAt) || Date.now();
+  const delay = Math.max(0, MATCH_REQUEST_WINDOW_MS - (Date.now() - created));
+  const timer = setTimeout(() => {
+    pendingRequestTimers.delete(String(gameId));
+    finishPendingRequest(io, gameId, 'expired').catch((err) => console.warn('[online request expiry]', err.message));
+  }, delay);
+  timer.unref?.();
+  pendingRequestTimers.set(String(gameId), timer);
+}
+
+async function expireOldPendingRequests(io, userId) {
+  const found = await db.query(
+    `SELECT id, created_at FROM online_games
+     WHERE (admin_id = $1 OR student_id = $1) AND status = 'pending' AND class_id IS NULL
+       AND created_at <= NOW() - INTERVAL '60 seconds'`,
+    [userId]
+  );
+  for (const row of found.rows) {
+    clearTimeout(pendingRequestTimers.get(String(row.id)));
+    pendingRequestTimers.delete(String(row.id));
+    await finishPendingRequest(io, row.id, 'expired');
+  }
+}
+
 async function listFor(userId) {
   const r = await db.query(
     `SELECT g.*, au.name AS admin_name, su.name AS student_name
@@ -707,6 +759,7 @@ exports.listUsers = async (req, res) => {
 // List matches I'm part of.
 exports.listGames = async (req, res) => {
   try {
+    await expireOldPendingRequests(req.app.get('io'), req.user.id);
     const rows = await listFor(req.user.id);
     res.json(rows.map((row) => payload(row, req.user.role, req.user.id)));
   } catch (err) {
@@ -906,6 +959,7 @@ exports.createGame = async (req, res) => {
     );
     if (pendingInvite.rows[0]) {
       const existing = await getGameRow(pendingInvite.rows[0].id);
+      schedulePendingRequestExpiry(req.app.get('io'), existing.id, existing.created_at);
       return res.status(200).json(payload(existing, req.user.role, req.user.id));
     }
 
@@ -923,6 +977,7 @@ exports.createGame = async (req, res) => {
       [req.user.id, studentId, color, START_FEN, baseMin, incSec, startMs]
     );
     const row = await getGameRow(result.rows[0].id);
+    schedulePendingRequestExpiry(req.app.get('io'), row.id, row.created_at);
 
     /* Starting a new match settles any rematch request this player still has
        outstanding — the popup on the other side can no longer lead anywhere. */
@@ -1399,12 +1454,26 @@ exports.acceptGame = async (req, res) => {
     const row = await getGameRow(req.params.id);
     if (!row) return res.status(404).json({ message: 'Match not found' });
     if (row.student_id !== req.user.id) return res.status(403).json({ message: 'This challenge is not for you' });
-    const wasPending = row.status === 'pending';
+    await expireOldPendingRequests(req.app.get('io'), req.user.id);
+    const current = await getGameRow(row.id);
+    if (current?.status === 'active') return res.json(payload(current, req.user.role, req.user.id));
+    if (current?.status !== 'pending') return res.status(409).json({ message: 'This match request has already been resolved' });
+    const claimed = await db.query(
+      `UPDATE online_games SET status = 'active', updated_at = NOW()
+       WHERE id = $1 AND student_id = $2 AND status = 'pending'
+         AND created_at > NOW() - INTERVAL '60 seconds' RETURNING id`,
+      [row.id, req.user.id]
+    );
+    if (!claimed.rowCount) {
+      const latest = await getGameRow(row.id);
+      if (latest?.status === 'active') return res.json(payload(latest, req.user.role, req.user.id));
+      if (latest?.status === 'pending') await finishPendingRequest(req.app.get('io'), row.id, 'expired');
+      return res.status(409).json({ message: 'This match request has expired or was cancelled' });
+    }
+    const accepted = await getGameRow(row.id);
+    Object.assign(row, accepted);
+    const wasPending = true;
     if (wasPending) {
-      await db.query(
-        "UPDATE online_games SET status = 'active', updated_at = NOW() WHERE id = $1",
-        [row.id]
-      );
       row.status = 'active';
     }
     if (wasPending) {
@@ -1434,11 +1503,14 @@ exports.declineGame = async (req, res) => {
     const row = await getGameRow(req.params.id);
     if (!row) return res.status(404).json({ message: 'Match not found' });
     if (row.student_id !== req.user.id) return res.status(403).json({ message: 'This challenge is not for you' });
-    if (row.status !== 'pending') return res.status(409).json({ message: 'This match request has already been resolved' });
-    await db.query(
-      "UPDATE online_games SET status = 'declined', updated_at = NOW() WHERE id = $1",
-      [row.id]
+    await expireOldPendingRequests(req.app.get('io'), req.user.id);
+    const claimed = await db.query(
+      `UPDATE online_games SET status = 'declined', updated_at = NOW()
+       WHERE id = $1 AND student_id = $2 AND status = 'pending'
+         AND created_at > NOW() - INTERVAL '60 seconds' RETURNING id`,
+      [row.id, req.user.id]
     );
+    if (!claimed.rowCount) return res.status(409).json({ message: 'This match request has already been resolved' });
     row.status = 'declined';
 
     // Receiver's card flips to "Declined" (buttons replaced by the label).
@@ -1465,6 +1537,25 @@ exports.declineGame = async (req, res) => {
     res.json(payload(row, req.user.role, req.user.id));
   } catch (err) {
     res.status(500).json({ message: 'Failed to decline match', error: err.message });
+  }
+};
+
+/* Strict pending-only cancellation used by the requester. The conditional
+   update is the race arbiter: whichever of accept and cancel changes `pending`
+   first wins; a cancellation can never abort an already-started game. */
+exports.cancelGameRequest = async (req, res) => {
+  try {
+    const row = await getGameRow(req.params.id);
+    if (!row) return res.status(404).json({ message: 'Match not found' });
+    if (row.admin_id !== req.user.id) return res.status(403).json({ message: 'Only the requester can cancel this request' });
+    clearTimeout(pendingRequestTimers.get(String(row.id)));
+    pendingRequestTimers.delete(String(row.id));
+    const cancelled = await finishPendingRequest(req.app.get('io'), row.id, 'cancelled');
+    const latest = await getGameRow(row.id);
+    if (!latest) return res.status(404).json({ message: 'Match not found' });
+    res.json({ ...payload(latest, req.user.role, req.user.id), cancelIgnored: !cancelled && latest.status === 'active' });
+  } catch (err) {
+    res.status(500).json({ message: 'Failed to cancel match request', error: err.message });
   }
 };
 

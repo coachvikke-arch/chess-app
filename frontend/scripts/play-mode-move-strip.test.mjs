@@ -147,7 +147,7 @@ test('the strip geometry the phone needs', () => {
   assert.match(css, /\.play-mode-overlay\[data-play-mode\] \.ab-movestrip::-webkit-scrollbar\s*\{\s*display:\s*none/,
     'and no scrollbar gutter on WebKit');
 
-  assert.match(ruleBody('.ab-mv.is-current'), /background:\s*#2563EB/, 'the current chip is blue');
+  assert.match(ruleBody('.ab-mv.is-current'), /background:\s*#DBEAFE/, 'the current chip has the subtle selected background');
   assert.match(ruleBody('.ab-mvnum'), /font:\s*400 0\.62rem/, 'the move number is smaller');
   assert.match(ruleBody('.ab-mvnum'), /color:\s*var\(--ivory-500\)/, 'and grey');
 });

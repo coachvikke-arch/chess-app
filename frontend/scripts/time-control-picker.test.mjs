@@ -86,17 +86,24 @@ test('the picker uses three real dropdowns, one option per value', () => {
 });
 
 test('online and Computer Play offer the same clock options', () => {
-  const start = board.indexOf('aria-label="Hours"');
-  const computerPanel = board.slice(start, board.indexOf('<div className="space-y-0.5">', start));
-  assert.ok(start > -1, 'Computer Play still has its own Hours select');
-  assert.match(computerPanel, /\[0, ?1, ?2, ?3, ?4, ?5\]/, 'same hour list');
-  assert.match(computerPanel, /\[0, ?1, ?2, ?3, ?4, ?5, ?10, ?15, ?20, ?30, ?45, ?60\]/, 'same minute list');
-  assert.match(computerPanel, /\[0, ?1, ?2, ?3, ?5, ?10, ?15, ?20, ?30\]/, 'same increment list');
+  /* Both cards mount the ONE <TimeStep>, so the three lists are written once and
+     cannot drift apart between online and Computer Play. */
+  const start = board.indexOf('function TimeStep(');
+  const step = board.slice(start, board.indexOf('\n}\n', start));
+  assert.ok(start > -1, 'the shared time step still exists');
+  assert.match(step, /\['Hours','hours',\[0, ?1, ?2, ?3, ?4, ?5\]/, 'same hour list');
+  assert.match(step, /\['Minutes','base',\[0, ?1, ?2, ?3, ?4, ?5, ?10, ?15, ?20, ?30, ?45, ?60\]/, 'same minute list');
+  assert.match(step, /\['Extra seconds after each move','inc',\[0, ?1, ?2, ?3, ?5, ?10, ?15, ?20, ?30\]/, 'same increment list');
+  assert.equal((board.match(/<TimeStep timeSel=\{timeSel\}/g) || []).length, 2,
+    'online and Computer Play each render that one step');
 });
 
 test('the online card has the picker and no Casual button', () => {
-  assert.match(board, /<TimeControlPicker[\s\S]{0,160}value=\{timeSel\}/,
-    'the online popup must use the shared picker');
+  const onlineCard = board.slice(board.indexOf('<strong>Online Match</strong>'),
+    board.indexOf('setupStep === 1 && <ColorCards value={computerColorChoice}'));
+  assert.ok(onlineCard.length > 0, 'the online popup is still built in steps');
+  assert.match(onlineCard, /<TimeStep timeSel=\{timeSel\}/,
+    'the online popup must use the shared time step');
   assert.ok(!/Casual/.test(board), 'the Casual option was removed');
   assert.ok(!/ONLINE_TC_CATEGORIES|onlineTcCategory|onlineRated/.test(board),
     'the old category chips and dead rated state are gone');
@@ -112,10 +119,12 @@ test('the displayed clock is the one sent to the API', () => {
 });
 
 test('a zero starting clock cannot create a match', () => {
-  assert.match(board, /disabled=\{onlineBusy \|\| !isTimeControlValid\(timeSel\)\}/,
-    'the create button is disabled while the clock is 0h + 0m');
-  assert.match(board, /Pick at least 1 minute for the starting clock/,
-    'the modal explains why the button is disabled');
+  /* Both cards gate their own Start button, because both pick the clock from the
+     same step. */
+  assert.equal((board.match(/\(setupStep === 3 \&& \(!timePicked \|\| !isTimeControlValid\(timeSel\)\)/g) || []).length, 2,
+    'the start button is disabled while the clock is 0h + 0m');
+  assert.match(board, /Pick at least 1 minute to continue/,
+    'the step explains why the button is disabled');
 });
 
 test('0h + 10m + 5s is a 10+5 match', () => {

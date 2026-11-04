@@ -251,3 +251,18 @@ test('pre-existing unread rows never pop after a login', () => {
     'only rows created after the claimed baseline may pop');
   assert.match(bell, /notificationBaselines\.set\(key, newest\)/, 'the baseline advances with the feed');
 });
+
+test('live-game move review uses a replay board and preserves the authoritative game', () => {
+  assert.match(board, /const liveReviewGameRef = useRef\(null\)/, 'the historical position has its own engine instance');
+  const navigation = board.slice(board.indexOf('function goToMove('), board.indexOf('const handleNavMove'));
+  assert.match(navigation, /if \(onlineGame \|\| computerOn\)/, 'live game navigation takes the read-only path');
+  const livePath = navigation.slice(navigation.indexOf('if (onlineGame || computerOn)'), navigation.indexOf('gameRef.current = g;'));
+  assert.doesNotMatch(livePath, /gameRef\.current\s*=/, 'reviewing a ply never replaces the real game');
+  assert.match(board, /const reviewingLive = sameGame && moveIndex < moves\.length/, 'full PGN updates retain the selected historical ply');
+  assert.match(board, /if \(\(inOnline \|\| computerOn\) && moveIndex < moves\.length\)/, 'incremental opponent moves retain the review board');
+  assert.match(board, /game=\{boardGame\}/, 'the board renders the review instance while a ply is selected');
+  assert.match(board, /reviewMode \|\| liveReviewing \? false/, 'review positions cannot accept piece moves');
+  assert.match(board, /Reviewing move \{moveIndex\} \/ \{total\}/, 'the selected ply is identified');
+  assert.match(board, /Return to Live/, 'the latest actual position can be restored');
+  assert.match(board, /className=\{`ab-mv\$\{current \? ' is-current'/, 'the selected move receives a highlight');
+});

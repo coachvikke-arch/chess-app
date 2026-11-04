@@ -91,44 +91,51 @@ test('one image per opponent: photo, else saved avatar, else default', () => {
     'default avatar is deterministic per player, with an explicit seed for the engine/side placeholders');
 });
 
-test('the card highlights the selection and proves online status', () => {
-  assert.match(board, /online-pick-card-on/, 'selected card gets the highlight class');
-  assert.match(board, /online-pick-check/, 'selected card shows a checkmark');
-  assert.match(board, /aria-selected=\{selected\}/, 'listbox semantics carry the selection');
-  assert.match(board, /player\.online === true &&/, 'online badge only when the server says so');
-  assert.ok(!/offline/i.test(board.slice(board.indexOf('function OnlinePlayerCard'), board.indexOf('TIME_PRESETS'))),
-    'no offline label is invented');
+test('the three-column directory highlights a selected player and marks online players', () => {
+  assert.match(board, /className=\{`arena-player-card\$\{String\(u\.id\) === String\(onlineSelId\) \? ' selected' : ''\}`\}/);
+  assert.match(board, /aria-selected=\{String\(u\.id\) === String\(onlineSelId\)\}/);
+  assert.match(board, /u\.online && <i className="arena-live">LIVE<\/i>/);
+  assert.match(board, /<PlayerAvatar player=\{u\} size=\{62\}/);
 });
 
-test('the directory has search plus loading, empty and error states', () => {
-  assert.match(board, /placeholder="Search players by name…"/, 'search input');
-  assert.match(board, /aria-label="Search players"/);
+test('the player step retains loading, empty and error states', () => {
   assert.match(board, /Loading players…/, 'loading state');
   assert.match(board, /No other players are available yet\./, 'empty state');
-  assert.match(board, /No players match “/, 'empty search state');
   assert.match(board, /online-pick-error" role="alert"/, 'API errors are announced');
-  assert.match(board, /onClick=\{loadOnlineUsers\}>\s*Retry/, 'errors can be retried');
+  assert.match(board, /onClick=\{loadOnlineUsers\}>Retry/);
 });
 
 test('the rating follows the time control and selection drives the invite', () => {
   assert.match(board, /RATING_CLASS_BY_FAMILY\[timeControlFamily\(timeSel\)\]/, 'pool comes from the picked clock');
-  assert.match(board, /online-pick-selected[\s\S]{0,400}Challenging/,
-    'confirmation area names the opponent being challenged');
-  assert.match(board, /onlineSelStudent\.current = String\(p\.id\)/,
+  assert.match(board, /Who do you want to play\?/,
+    'the player list occupies the first setup step');
+  assert.match(board, /onlineSelStudent\.current = String\(u\.id\)/,
     'clicking a card sets the id the API call uses');
-  assert.match(board, /setOnlineSelId\(String\(p\.id\)\)/, 'clicking a card updates the highlight');
-  assert.match(board, /setOnlineSelName\(p\.name\)/, 'clicking a card confirms the name');
+  assert.match(board, /setOnlineSelId\(String\(u\.id\)\)/, 'clicking a card updates the highlight');
+  assert.match(board, /setOnlineSelName\(u\.name\)/, 'clicking a card confirms the name');
   assert.match(board, /studentId: Number\(sid\)/, 'the existing createGame payload is unchanged');
   assert.ok(!/onlinePlayerOpen|online-player-row/.test(board), 'the old dropdown popup is gone');
 });
 
 test('the card grid never scrolls sideways', () => {
-  const grid = css.slice(css.indexOf('.online-pick-grid {'), css.indexOf('.online-pick-card {'));
-  assert.match(grid, /repeat\(2, minmax\(0, 1fr\)\)/, 'two columns on desktop');
-  assert.match(grid, /max-height: 206px/, 'the grid scrolls instead of growing the modal');
-  assert.match(grid, /overflow-y: auto/);
-  assert.match(css, /@media \(max-width: 420px\) \{\s*\.online-pick-grid \{ grid-template-columns: minmax\(0, 1fr\);/,
-    'one column on narrow phones');
-  assert.match(css, /\.online-pick-name \{[^}]*text-overflow: ellipsis/, 'long names truncate instead of overlapping');
-  assert.match(css, /\.online-pick-card \{[^}]*min-width: 0/, 'cards can shrink inside the grid');
+  const grid = css.slice(css.indexOf('.arena-player-grid,.arena-time-grid'), css.indexOf('.arena-player-card,.arena-color-card'));
+  assert.match(grid, /repeat\(3,minmax\(0,1fr\)\)/, 'three columns on desktop');
+  assert.match(grid, /max-height:min\(54dvh, 470px\)/, 'the player grid scrolls inside the card');
+  assert.match(grid, /overflow-y:auto/);
+  assert.match(css, /\.arena-player-grid \{ max-height:calc\(100dvh - 340px\); min-height:180px;/,
+    'the list remains scrollable on narrow phones');
+});
+
+test('cancel and saved details are connected to Play Arena storage and endpoints', () => {
+  const router = readFileSync(join(ROOT, '..', 'backend', 'src', 'routes', 'onlineRoutes.js'), 'utf8');
+  assert.match(router, /games\/:id\/cancel-request/);
+  assert.match(backend, /status = 'pending' AND class_id IS NULL/);
+  assert.match(board, /60000 - age/);
+  assert.match(board, /className="arena-cancel-request"/);
+  assert.match(board, /localStorage\.setItem\(savedStorageKey/);
+  assert.match(board, /kpa_analyses:\$\{user\?\.id \?\? 'guest'\}/);
+  assert.match(board, /id="arena-saved-title">Saved/);
+  assert.match(board, /Nothing saved yet/);
+  assert.match(board, /onClick=\{\(\) => openSavedAnalysis\(item\)\}/);
+  assert.match(board, /Confirm delete/);
 });
