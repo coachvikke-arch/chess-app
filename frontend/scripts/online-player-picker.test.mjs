@@ -95,7 +95,7 @@ test('the three-column directory highlights a selected player and marks online p
   assert.match(board, /className=\{`arena-player-card\$\{String\(u\.id\) === String\(onlineSelId\) \? ' selected' : ''\}`\}/);
   assert.match(board, /aria-selected=\{String\(u\.id\) === String\(onlineSelId\)\}/);
   assert.match(board, /u\.online && <i className="arena-live">LIVE<\/i>/);
-  assert.match(board, /<PlayerAvatar player=\{u\} size=\{62\}/);
+  assert.match(board, /<PlayerAvatar player=\{u\} size=\{48\}/);
 });
 
 test('the player step retains loading, empty and error states', () => {

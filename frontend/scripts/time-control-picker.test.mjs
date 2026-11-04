@@ -98,6 +98,27 @@ test('online and Computer Play offer the same clock options', () => {
     'online and Computer Play each render that one step');
 });
 
+test('Online and Computer setup each use one Next step and one combined color/time step', () => {
+  const onlineStart = board.indexOf('<strong>Online Match</strong>');
+  const computerStart = board.indexOf('<strong>vs Computer</strong>');
+  const online = board.slice(onlineStart, computerStart);
+  const computer = board.slice(computerStart, board.indexOf('/* ── Live games', computerStart));
+  assert.match(online, /Who do you want to play\?/);
+  assert.match(online, /Step \$\{setupStep\} of 2/);
+  assert.match(online, /setupStep === 2 && <div className="arena-setup-combined"><ColorCards[\s\S]*?<TimeStep/,
+    'the online color and time controls share the final setup step');
+  assert.match(computer, /Choose robot level/);
+  assert.ok(computer.includes('Choose robot level') && !computer.includes("'Pick your colour'"),
+    'computer level is the first step and color is part of the combined second step');
+  assert.match(computer, /Step \$\{setupStep\} of 2/);
+  assert.match(computer, /setupStep === 2 && <div className="arena-setup-combined"><ColorCards[\s\S]*?<TimeStep/,
+    'the computer color and time controls share the final setup step');
+  assert.match(board, /setupStep === 1 \? setSetupStep\(2\) : startOnlineMatch\(\)/,
+    'the single online Next advances once; the final action starts the game');
+  assert.match(board, /setupStep === 1 \? setSetupStep\(2\) : startComputerGame\(/,
+    'the single computer Next advances once; the final action starts the game');
+});
+
 test('the online card has the picker and no Casual button', () => {
   const onlineCard = board.slice(board.indexOf('<strong>Online Match</strong>'),
     board.indexOf('setupStep === 1 && <ColorCards value={computerColorChoice}'));
@@ -119,10 +140,10 @@ test('the displayed clock is the one sent to the API', () => {
 });
 
 test('a zero starting clock cannot create a match', () => {
-  /* Both cards gate their own Start button, because both pick the clock from the
-     same step. */
-  assert.equal((board.match(/\(setupStep === 3 \&& \(!timePicked \|\| !isTimeControlValid\(timeSel\)\)/g) || []).length, 2,
-    'the start button is disabled while the clock is 0h + 0m');
+  assert.match(board, /setupStep === 2 && \(!onlineColorSel \|\| !timePicked \|\| !isTimeControlValid\(timeSel\)\)/,
+    'online Start is disabled while the clock is 0h + 0m or color is missing');
+  assert.match(board, /setupStep === 2 && \(!computerColorChoice \|\| !timePicked \|\| !isTimeControlValid\(timeSel\)\)/,
+    'computer Start is disabled while the clock is 0h + 0m or color is missing');
   assert.match(board, /Pick at least 1 minute to continue/,
     'the step explains why the button is disabled');
 });
