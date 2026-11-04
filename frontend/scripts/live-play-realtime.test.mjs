@@ -266,3 +266,10 @@ test('live-game move review uses a replay board and preserves the authoritative 
   assert.match(board, /Return to Live/, 'the latest actual position can be restored');
   assert.match(board, /className=\{`ab-mv\$\{current \? ' is-current'/, 'the selected move receives a highlight');
 });
+
+test('an unanswered online game keeps the board visible without the blocking wait animation', () => {
+  assert.doesNotMatch(board, /WaitingOverlay|ab-waiting/, 'the board is never covered by the waiting spinner or message');
+  assert.match(board, /const boardLive = boardInteractive && !waitingForOpponent/,
+    'the board is still read-only until the opponent joins');
+  assert.match(board, /onlineBanner && \(/, 'the match status remains visible above the board');
+});

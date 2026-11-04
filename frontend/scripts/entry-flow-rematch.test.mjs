@@ -176,7 +176,9 @@ test('a rematch button exists in the two modes only, and cannot be double-tapped
   const actionsStart = board.indexOf('const secondary = [];');
   const actionsEnd = board.indexOf("secondary.push({ label: 'New game'", actionsStart);
   const actions = board.slice(actionsStart, actionsEnd);
-  assert.match(actions, /if \(onlineRematchTarget\(onlineGame\) && moves\.length > 0\) \{/);
+  assert.match(actions, /if \(onlineRematchTarget\(onlineGame\)\) \{/);
+  assert.doesNotMatch(actions, /onlineRematchTarget\(onlineGame\)[^\n]*moves\.length/,
+    'a resignation before the first move still offers a rematch');
   assert.match(actions, /onClick: askRematchOnline/);
   assert.match(actions, /else if \(vsComputer && !onlineGame && moves\.length > 0\) \{/);
   assert.match(actions, /onClick: rematchComputer/);

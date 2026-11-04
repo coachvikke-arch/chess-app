@@ -461,31 +461,6 @@ const PLAY_ARENA_UI_CSS = `
    overlay itself and cover the whole screen. */
 .play-mode-board-area{position:relative}
 /* …and in the overlay's own palette, so the spinner reads on the dark surface. */
-.play-mode-overlay .ab-waiting{background:rgba(15,23,42,.55)}
-.play-mode-overlay .ab-waiting-text{color:var(--ivory-100)}
-.play-mode-overlay .ab-waiting-spinner{border-color:rgba(236,205,118,.22);border-top-color:#ECD186}
-
-/* ── "Waiting for opponent" — a spinner over the board, not a strip of text ──
-   pointer-events:none so the overlay itself never swallows a tap; interaction is
-   switched off separately by the board's own interactive prop. Unscoped for
-   the same reason as the ⋮ menu: it also sits over the Play Mode portal board. */
-.ab-waiting{
-  position:absolute;inset:0;z-index:40;pointer-events:none;
-  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;
-  background:rgba(255,255,255,.62);
-  -webkit-backdrop-filter:blur(2px);backdrop-filter:blur(2px);
-  border-radius:inherit;
-}
-.ab-waiting-spinner{
-  width:52px;height:52px;border-radius:50%;
-  border:4px solid #DBE4F0;border-top-color:#2563EB;
-  animation:ab-spin .8s linear infinite;
-}
-.ab-waiting-text{font-size:14px;font-weight:600;color:#334155}
-@keyframes ab-spin{to{transform:rotate(360deg)}}
-@media (prefers-reduced-motion:reduce){
-  .ab-waiting-spinner{animation-duration:2.4s}
-}
 
 /* ── Rematch card ─────────────────────────────────────────────────────────
    Both halves of one offer, in the slot the result card just vacated:
@@ -3671,17 +3646,8 @@ export default function AnalysisBoard() {
         ? humanIsComputerTurn && !computerThinking
         : true;
 
-  /* "Waiting for opponent" — a spinner over the board, not a strip of text.
-   *
-   * It covers the stretch before the opponent is really IN the game: a challenge
-   * they have not accepted, or a match that is live but has not seen their first
-   * move. Mid-game "it is their turn to think" is deliberately NOT waiting —
-   * blanking the board on every one of their moves would hide the very position
-   * you are watching.
-   *
-   * The moment the opponent joins (their accept lands, or their first move
-   * arrives) one of these conditions stops holding and the overlay is gone; there
-   * is no timer and nothing to dismiss. */
+  /* Keep the setup/accept status in the banner, but never cover the board with a
+     waiting animation. */
   const waitingForOpponent = Boolean(onlineGame) && !onlineFinished && (
     onlineGame.status === 'pending'
       ? !onlineGame.canAccept
@@ -3692,10 +3658,6 @@ export default function AnalysisBoard() {
      used to carry the message is replaced by it — except when it still has a
      button the player needs (Accept / Abort). */
   const boardLive = boardInteractive && !waitingForOpponent;
-  const hideWaitingBanner = waitingForOpponent
-    && onlineGame?.status === 'pending'
-    && !onlineGame?.canAccept;
-
   /* online banner */
   let onlineBanner = null;
   if (inOnline) {
@@ -4020,7 +3982,7 @@ export default function AnalysisBoard() {
 
        A live board, Annotate & Save, a Saved position and Settings have no
        finished game to replay against an opponent, so they get no button. */
-    if (onlineRematchTarget(onlineGame) && moves.length > 0) {
+    if (onlineRematchTarget(onlineGame)) {
       secondary.push({ label: 'Rematch', onClick: askRematchOnline, primary: true });
     } else if (vsComputer && !onlineGame && moves.length > 0) {
       secondary.push({ label: 'Rematch', onClick: rematchComputer, primary: true });
@@ -4259,7 +4221,6 @@ export default function AnalysisBoard() {
                   maxMoveMs={inOnline ? ONLINE_MOVE_MS : undefined}
                 />
               )}
-              {waitingForOpponent && <WaitingOverlay />}
             </div>
 
             {/* Confirm move — held back until the player accepts the move. */}
@@ -4293,11 +4254,9 @@ export default function AnalysisBoard() {
           </div>
           </div>{/* end board area */}
 
-          {/* online banner — suppressed while the board is showing its own
-              "Waiting for opponent" spinner, so the message is not stated twice.
-              It stays when it still carries a button the player needs (Accept /
-              Abort a challenge they sent YOU). */}
-          {onlineBanner && !hideWaitingBanner && (
+          {/* Match status stays above the board while the board remains visible
+              during an unanswered challenge. */}
+          {onlineBanner && (
             <div className={`ab-banner ${
               onlineBanner.actions === 'active'   ? 'ab-banner-active'   :
               onlineBanner.actions === 'finished' ? 'ab-banner-finished' : 'ab-banner-pending'
@@ -4885,7 +4844,6 @@ export default function AnalysisBoard() {
             maxMoveMs={inOnline ? ONLINE_MOVE_MS : undefined}
           />
 
-          {waitingForOpponent && <WaitingOverlay />}
 
           {pendingConfirm && (
             <div className="ab-move-confirm" role="alertdialog" aria-label="Confirm move" aria-live="assertive">
@@ -5082,15 +5040,6 @@ function LiveReviewBar({ moveIndex, total, onReturn }) {
  * Purely presentational and `pointer-events:none` — it never eats a tap. The
  * board itself is switched off by `interactive`, which is why a waiting player
  * cannot pick up a piece while this is up. */
-function WaitingOverlay() {
-  return (
-    <div className="ab-waiting" role="status" aria-live="polite">
-      <span className="ab-waiting-spinner" aria-hidden="true" />
-      <span className="ab-waiting-text">Waiting for opponent</span>
-    </div>
-  );
-}
-
 function ClockBox({ color, time, active, low, flagged }) {
   return (
     <div className={`ab-clock${active ? ' ab-clock-active' : ''}${low ? ' ab-clock-low' : ''}${flagged ? ' ab-clock-flagged' : ''}${!time ? ' ab-clock-static' : ''}`}>
