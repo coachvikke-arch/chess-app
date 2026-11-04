@@ -252,6 +252,13 @@ server.listen(PORT, '0.0.0.0', () => {
   try {
     require('./src/services/roundProgressionService').startWorker(io);
   } catch (e) { console.warn('tournament progression worker failed to start:', e.message); }
+  /* Online clocks. A match whose side-to-move has run out is ended by the server
+     rather than by whichever browser happened to still be in the foreground, so a
+     player who closed the app cannot leave their opponent staring at a
+     "Waiting for opponent" board over a game that is already lost. */
+  try {
+    require('./src/controllers/onlineController').startOnlineClockWorker(io);
+  } catch (e) { console.warn('online clock worker failed to start:', e.message); }
   /* The mail setup is checked ONCE, at start-up, where the warning is actually
      seen: a missing SMTP block, the dummy transport (which prints instead of
      sending) and a From address the provider will refuse are all worth saying

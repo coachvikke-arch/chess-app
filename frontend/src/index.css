@@ -3311,6 +3311,20 @@ button.set-row:hover .set-row-chevron {
   .ab-root.ab-root .ab-clock.ab-clock-low,
   .play-mode-overlay .ab-clock.ab-clock-low { animation: none; }
 }
+/* Flagged — the clock that ran out, still red once the game has stopped.
+   The low-time warning above needs a RUNNING clock (a finished game must go
+   quiet, no beat and no tick), so without this the loser's box would drop back
+   to plain grey the moment the result arrived and nothing on the board would
+   say who lost on time. Same light-red panel and red text as the warning, so
+   the two read as one state carried on from the other, and the same pair of
+   selectors so the page clock and the portalled Play Mode copy cannot drift. */
+.ab-root.ab-root .ab-clock.ab-clock-flagged,
+.play-mode-overlay .ab-clock.ab-clock-flagged {
+  background: #FEF2F2;
+  border-color: #DC2626;
+}
+.ab-root.ab-root .ab-clock.ab-clock-flagged .ab-clock-time,
+.play-mode-overlay .ab-clock.ab-clock-flagged .ab-clock-time { color: #DC2626; }
 /* static — no game running, dimmed placeholder */
 .ab-clock.ab-clock-static {
   border-color: rgba(212,169,47,0.15);
@@ -3701,6 +3715,31 @@ button.set-row:hover .set-row-chevron {
   color: var(--ivory-500);
   font-size: 0.72rem;
   padding: 0;
+}
+/* The result a finished game closes the scoresheet with — "0-1 · Timeout".
+   A move chip is something you navigate to; this is a record, so it borrows the
+   move number's monospace and gets no hover, no border radius of a button and no
+   tap target. It sits at the END of a row that scrolls sideways, so a long label
+   can never stretch the strip or push the board — the same behaviour on the page
+   and on Play Mode, each themed for its own background like every other element
+   in this row. */
+.ab-root.ab-root .ab-mv-result {
+  flex: none;
+  margin-left: 8px;
+  padding: 2px 8px;
+  border: 1px solid #E3E8F0;
+  border-radius: 6px;
+  background: #F1F5F9;
+  color: #475569;
+  font: 700 12px ui-monospace, Menlo, monospace;
+  white-space: nowrap;
+}
+.play-mode-overlay[data-play-mode] .ab-mv-result {
+  flex: none;
+  margin-left: 8px;
+  color: var(--ivory-300);
+  font: 600 0.72rem/1 ui-monospace, Menlo, monospace;
+  white-space: nowrap;
 }
 
 /* overlay-scoped: status chips + nav pill go light theme */

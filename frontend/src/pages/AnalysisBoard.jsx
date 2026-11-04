@@ -122,6 +122,13 @@ function getHistory(g) {
    accept its way into a game the other side gave up on. */
 const REMATCH_WINDOW_MS = 30000;
 
+/* A timeout claim that the server refuses is not the end of the story: the
+   refusal means the server's own clock had not crossed zero yet, so the claim
+   has to be made again shortly. This is the floor between attempts — the flag
+   check itself runs four times a second, and without a floor a refused claim
+   would become a request every 250 ms. */
+const FLAG_RETRY_MS = 2000;
+
 /* Only a finished PLAYER-vs-PLAYER match can be rematched. A bot game needs no
    consent and restarts on the spot; a classroom board is paired by the coach; an
    aborted match was never played, so there is nothing to redo. The server
@@ -144,6 +151,31 @@ function getStatus(g) {
   if (g.isDrawByFiftyMoves())    return { label: 'Draw by fifty-move rule',       tone: 'amber', over: true,  winner: null };
   if (g.inCheck())               return { label: 'Check!',                        tone: 'gold',  over: false, winner: null };
   return { label: 'In Progress', tone: '', over: false, winner: null };
+}
+
+/* Can this side still deliver mate? FIDE 6.9: a player who runs out of time
+   only LOSES if the opponent has material to mate with, so a flag against a bare
+   king — or against a king with a lone bishop or knight — is a draw. Anything
+   that cannot mate is impossible to promote out of, so the rule is decided by the
+   pieces alone, not by whether a win is actually reachable. The server applies
+   the same test to online clocks; this copy decides the bot game, where there is
+   no server clock to ask. */
+function sideHasMatingMaterial(g, color) {
+  if (!g) return true;
+  const mine = color === 'white' ? 'w' : 'b';
+  let bishops = 0;
+  let knights = 0;
+  for (const row of g.board()) {
+    for (const sq of row) {
+      if (!sq || sq.color !== mine) continue;
+      if (sq.type === 'p' || sq.type === 'r' || sq.type === 'q') return true;
+      if (sq.type === 'b') bishops += 1;
+      if (sq.type === 'n') knights += 1;
+    }
+  }
+  /* Two bishops, or bishop plus knight, mate with the help of the enemy king;
+     three knights can too. One minor piece on its own never can. */
+  return bishops >= 2 || (bishops === 1 && knights >= 1) || knights >= 3;
 }
 
 /* Human label for a persisted online termination reason. Unknown/absent reasons
@@ -942,7 +974,7 @@ export default function AnalysisBoard() {
   const ignoredGameIdsRef = useRef(new Set());
   const gameSocketCleanupRef = useRef(null);
   const reactionSocketCleanupRef = useRef(null);
-  const flagSentRef       = useRef(null);
+  const flagClaimRef      = useRef(null);
 
   /* The last position this board actually RENDERED, as `{ id, ply, pgn }`.
      Every inbound update — the socket push, the 2.5 s poll, and the reply to
@@ -1413,7 +1445,7 @@ export default function AnalysisBoard() {
     setOnlineTurn('white');
     clearReactionBubbles();
     setShowReactPicker(false);
-    flagSentRef.current  = null;
+    flagClaimRef.current  = null;
     /* An offer belongs to ONE match. Without this it survives leaving the board
        and the next game opens showing "X offers a draw" for a game nobody is
        playing. */
@@ -1700,7 +1732,8 @@ export default function AnalysisBoard() {
     setShowReviewPopup(false);
     setInfoTab('fen');
     appliedRef.current = { id: null, ply: 0, pgn: '' };
-    flagSentRef.current = oldGameId ?? null; savedGameRef.current = null;
+    flagClaimRef.current = oldGameId ? { gameId: oldGameId, settled: true, attemptedAt: 0 } : null;
+    savedGameRef.current = null;
     gameSessionIdRef.current = `local-${Date.now()}-${Math.random().toString(36).slice(2)}`;
     refreshOnlineMatches();
 
@@ -1903,6 +1936,35 @@ export default function AnalysisBoard() {
   /* ← / → keyboard move navigation (matches the ⏮ ◀ ▶ ⏭ buttons) */
   useArrowKeys(undoMove, redoMove, { enabled: !inOnline });
 
+  /* Pin the clock that fell at 0:00. Each side's stored time is a snapshot taken
+     on its previous move and only decays while it is on the clock, so the moment
+     the game stops, a flagged clock would jump back up to that stale snapshot —
+     the loser showing 0:03 on the very turn it reached 0:00. Writing the zero
+     into the state is also what makes the box read as "flagged" rather than
+     merely stopped, and keeps the number the saved game is built from. */
+  function zeroFlaggedClock(color) {
+    setClock((c) => (c
+      ? { ...c, [color === 'white' ? 'whiteMs' : 'blackMs']: 0 }
+      : c));
+  }
+
+  /* The other half of FIDE 6.9 for the bot game: flagging only LOSES when the
+     side still holding time can mate. A human who "wins on time" with nothing but
+     a king — or with a lone bishop or knight — is handed a draw instead, exactly
+     as the server rules an online clock that falls against bare material.
+     Returns the fields that override a win, so the branches below still name the
+     winner they saw first and this is the one place the ruling is revised. */
+  function drawOnFlag(winnerColor) {
+    if (sideHasMatingMaterial(rebuildGame(initialFen, moves), winnerColor)) return {};
+    return {
+      winner: null,
+      humanWon: null,
+      draw: true,
+      title: 'Drawn',
+      sub: 'No material to mate with.',
+    };
+  }
+
   /* computer flag-fall */
   useEffect(() => {
     if (!computerOn || !clockRunning || !clock || inOnline) return;
@@ -1917,19 +1979,21 @@ export default function AnalysisBoard() {
       if (clock?.turn === bot && liveRemaining(bot) <= 0) {
         clearInterval(t);
         setClockRunning(false);
+        zeroFlaggedClock(bot);
         setComputerThinking(false);
         setComputerOn(false);
         computerToken.current++;
-        setClockOver({ winner: human, humanWon: true, title: 'You won on time', sub: `${skillLabel(computerLevel)} ran out of time.` });
+        setClockOver({ winner: human, humanWon: true, title: 'You won on time', sub: `${skillLabel(computerLevel)} ran out of time.`, ...drawOnFlag(human) });
         return;
       }
       if (clock?.turn === human && liveRemaining(human) <= 0) {
         clearInterval(t);
         setClockRunning(false);
+        zeroFlaggedClock(human);
         setComputerThinking(false);
         setComputerOn(false);
         computerToken.current++;
-        setClockOver({ winner: bot, humanWon: false, title: 'You lost on time', sub: 'Better luck next time!' });
+        setClockOver({ winner: bot, humanWon: false, title: 'You lost on time', sub: 'Better luck next time!', ...drawOnFlag(bot) });
       }
     }, 250);
     return () => clearInterval(t);
@@ -1941,22 +2005,40 @@ export default function AnalysisBoard() {
    * This used to ride on the page-wide 200 ms `clockTick`, which is exactly why
    * the tick existed. That counter is gone (see GameClock) so this effect owns
    * its own interval, and only the two colours' remaining time is read through
-   * the pure helper rather than a closure over the render. */
+   * the pure helper rather than a closure over the render.
+   *
+   * Whichever side is ON the clock at zero triggers the claim — not only my own.
+   * The opponent is the one who needs the result: they sit looking at a board
+   * whose last move has no answer coming, and they are owed the win. The server
+   * works out who actually flagged from its own clocks and never takes the
+   * caller's word for it, so a claim from the wrong end of the board cannot give
+   * anybody a result they did not earn.
+   *
+   * A claim is remembered per game and retried until the server agrees. Once
+   * latched to the game id (the old behaviour) a single failed request — the tab
+   * losing the network for a second, a 409 from a clock the server still reads as
+   * fractionally short of zero — left the match active forever with nobody ever
+   * asking again. */
   useEffect(() => {
     if (!inOnline || !clockRunning || !clock) return undefined;
     const check = () => {
-      if (clock.turn !== onlineMyColor) return;
-      if (remainingMs(clock, true, onlineMyColor) > 0) return;
-      if (flagSentRef.current !== onlineGame.id) {
-        flagSentRef.current = onlineGame.id;
-        flagOnlineCurrent();
-      }
+      const color = clock.turn;
+      if (remainingMs(clock, true, color) > 0) return;
+      const claim = flagClaimRef.current;
+      if (claim && String(claim.gameId) === String(onlineGame.id)
+        && (claim.settled || Date.now() - claim.attemptedAt < FLAG_RETRY_MS)) return;
+      const gid = onlineGame.id;
+      flagClaimRef.current = { gameId: gid, settled: false, attemptedAt: Date.now() };
+      flagOnlineCurrent(gid).then((settled) => {
+        const claim = flagClaimRef.current;
+        if (settled && claim && String(claim.gameId) === String(gid)) claim.settled = true;
+      });
     };
     check();
     const t = setInterval(check, 250);
     return () => clearInterval(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [inOnline, clockRunning, clock, onlineMyColor]);
+  }, [inOnline, clockRunning, clock]);
 
   /* ─── computer mode ──────────────────────────────────────── */
   /* ─── live-game spectating helpers ─────────────────────── */
@@ -2065,7 +2147,7 @@ export default function AnalysisBoard() {
          has to go, or every flagged game is broadcast to spectators with the
          result flipped. */
       result: clockOver
-        ? clockOver.winner
+        ? (clockOver.winner || 'draw')
         : (status.winner ? (status.winner === 'White' ? 'white' : 'black') : 'draw'),
     });
     const k = key;
@@ -2466,17 +2548,35 @@ export default function AnalysisBoard() {
     } finally { setOnlineBusy(false); }
   }
 
-  /* My clock ran out. Reported through the timeout route so the game is stored
-     as a timeout — never as a resignation — and the winner is decided by who
-     still had time (or a draw when the opponent cannot mate). */
-  async function flagOnlineCurrent() {
-    if (!onlineGame) return;
+  /* Somebody's clock reached 0:00, on this board or on the other side of it.
+     Reported through the timeout route so the game is stored as a timeout — never
+     as a resignation — with the server deciding WHO flagged from its own clocks
+     and what the flag is worth (a win for the side that can still mate, a draw
+     against a bare king).
+
+    Returns whether the match is settled, which is what lets the claim retry
+    instead of latching on the first attempt. */
+  async function flagOnlineCurrent(gameIdArg) {
+    const gameId = gameIdArg ?? onlineGame?.id;
+    if (!gameId) return true;
     try {
-      const row = await timeoutGame(onlineGame.id);
+      const row = await timeoutGame(gameId);
       applyOnline(row); refreshOnlineMatches();
       if (soundOn) playSound('capture');
+      return true;
     } catch (e) {
-      setOnlineError(e.response?.data?.message || 'Could not flag the match.');
+      /* 409 is the server saying "nobody has run out yet" — our reading of the
+         clock is a hair ahead of theirs, so ask again after the retry floor.
+         403/404 will never succeed. Anything else, including 400 "match is not in
+         progress" (the opponent's claim, a reload or the server's own sweep got
+         there first), is answered by reading the row back: `GET /games/:id`
+         settles an expired clock on its way out, so the fetch both confirms the
+         result and puts it on a board that never received the push. */
+      const status = e.response?.status;
+      if (status === 409) return false;
+      if (status === 403 || status === 404) return true;
+      await catchUpOnline(gameId);
+      return onlineGameRef.current?.status !== 'active';
     }
   }
 
@@ -3316,7 +3416,16 @@ export default function AnalysisBoard() {
   const humanIsComputerTurn = computerOn
     ? (computerColor === 'white' ? gameRef.current.turn() === 'w' : gameRef.current.turn() === 'b')
     : false;
+  /* Nothing may be played into a game that already has a result. Each mode ends
+     in its own way — an online match by the row the server sends, a bot or free
+     game by the board's own rules or by a clock that fell — and all of them have
+     to lock the pieces. Without this, `onlineTurn` still names whoever would
+     have moved next after a flag, and a local position that reached its last
+     legal move still has replies in it, so the board stayed draggable underneath
+     a finished game. */
+  const gameOver = onlineFinished || Boolean(clockOver) || (status.over && moves.length > 0);
   const boardInteractive = reviewMode ? false  // review: navigate only, no new moves
+    : gameOver ? false
     : inOnline
       ? onlineMyColor === onlineTurn
       : computerOn
@@ -3406,6 +3515,23 @@ export default function AnalysisBoard() {
       const why = onlineReasonLabel(onlineGame.resultReason);
       if (r === 'abandoned') return { title: 'Game Drawn', reason: 'By Agreement', tone: 'draw', mySide: myColor, wantsReview: false };
       if (r === 'aborted')   return { title: 'Match Aborted', reason: 'Match never started', tone: 'draw', mySide: myColor, wantsReview: false };
+      /* A clock that fell is named from the inside rather than filed under
+         "By Timeout": the winner is the one who needs to be told the opponent ran
+         out, and the server has already decided what the flag was worth — a
+         timeout whose result is a draw is a clock that fell against a side with
+         no material to mate with (FIDE 6.9), not a draw by agreement. */
+      if (why === 'Timeout') {
+        if (r === 'draw') {
+          return { title: 'Game Drawn', reason: 'Timeout vs insufficient material', tone: 'draw', mySide: myColor, wantsReview: true };
+        }
+        const wonOnTime = r === myColor;
+        return {
+          title: wonOnTime ? 'You Won!' : 'You Lost',
+          reason: wonOnTime ? 'Opponent ran out of time' : 'You ran out of time',
+          tone: wonOnTime ? 'win' : 'loss',
+          winner: r, mySide: myColor, wantsReview: true,
+        };
+      }
       if (r === 'draw')      return { title: 'Game Drawn', reason: why ? `By ${why}` : 'By Agreement', tone: 'draw', mySide: myColor, wantsReview: true };
       const won = r === myColor;
       return {
@@ -3418,13 +3544,19 @@ export default function AnalysisBoard() {
     // clock / timeout
     if (clockOver && clockOver.title) {
       const myColor = computerOn ? computerColor : orientation;
+      /* A flagged clock that `drawOnFlag` ruled undeachable is a draw, and it has
+         to be read before the win/loss test below: a null winner compared against
+         myColor would come out as a loss for both players. */
+      if (clockOver.draw) {
+        return { title: 'Game Drawn', reason: 'Timeout vs insufficient material', tone: 'draw', mySide: myColor, wantsReview: true };
+      }
       /* Read the explicit flag rather than inferring it: `winner` is now the
          colour that WON, and myColor is the colour we played, so they are equal
          exactly when we won. */
       const won = clockOver.humanWon ?? clockOver.winner === myColor;
       return {
         title: won ? 'You Won!' : 'You Lost',
-        reason: 'By Timeout',
+        reason: won ? 'Opponent ran out of time' : 'You ran out of time',
         tone: won ? 'win' : 'loss',
         winner: clockOver.winner, mySide: myColor, wantsReview: true,
       };
@@ -3456,6 +3588,21 @@ export default function AnalysisBoard() {
   }
 
   const finalResult = buildResult();
+
+  /* The move strip closes with the result the way a pad of scoresheet paper
+     does — the score, then one short word for how it ended. Only a game that has
+     finished gets one, and a match that was never played (aborted) has no score
+     to post. The word comes from the machine reason the server stored, or from
+     the fallen clock, never from the card's prose, so the strip and the card
+     cannot disagree about what happened. */
+  const endWord = onlineFinished
+    ? (onlineGame.result === 'aborted' ? null : onlineReasonLabel(onlineGame.resultReason) || '')
+    : (clockOver && clockOver.title) ? 'Timeout' : '';
+  const moveResultToken = endWord === null || !finalResult ? null : [
+    finalResult.winner === 'white' ? '1-0'
+      : finalResult.winner === 'black' ? '0-1' : '½-½',
+    endWord,
+  ].filter(Boolean).join(' · ');
 
   /* auto-open the popup the moment a game ends (guards each distinct end state) */
   useEffect(() => {
@@ -3978,6 +4125,7 @@ export default function AnalysisBoard() {
               goToMove={handleNavMove}
               containerRef={stripRef}
               emptyText="No moves yet. Play on the board or load a game."
+              resultToken={moveResultToken}
             />
           )}
 
@@ -5031,6 +5179,7 @@ export default function AnalysisBoard() {
               goToMove={handleNavMove}
               containerRef={pmStripRef}
               emptyText="No moves yet"
+              resultToken={moveResultToken}
             />
             <button type="button" onClick={redoMove} disabled={navLocked || moveIndex >= moves.length} className="pm-strip-btn" title="Next move" aria-label="Next move">▶</button>
             <button type="button" onClick={() => goToMove(moves.length)} disabled={navLocked || moveIndex >= moves.length} className="pm-strip-btn" title="Last move" aria-label="Last move">⏭</button>
@@ -5200,9 +5349,17 @@ const MoveList = memo(function MoveList({
   goToMove,
   containerRef,
   emptyText,
+  resultToken,
 }) {
   if (moves.length === 0) {
-    return <div className="ab-movestrip" ref={containerRef}><span className="ab-moves-empty">{emptyText}</span></div>;
+    /* A game can end before its first move — a flag in a time scramble — so the
+       result belongs in this row too, not only after a list of chips. */
+    return (
+      <div className="ab-movestrip" ref={containerRef}>
+        <span className="ab-moves-empty">{emptyText}</span>
+        {resultToken && <span className="ab-mv-result">{resultToken}</span>}
+      </div>
+    );
   }
 
   const rows = Array.from({ length: Math.ceil(moves.length / 2) }, (_, i) => (
@@ -5231,7 +5388,12 @@ const MoveList = memo(function MoveList({
     </span>
   ));
 
-  return <div className="ab-movestrip" ref={containerRef}>{rows}</div>;
+  return (
+    <div className="ab-movestrip" ref={containerRef}>
+      {rows}
+      {resultToken && <span className="ab-mv-result">{resultToken}</span>}
+    </div>
+  );
 });
 
 /* The board's "waiting" overlay: a circular spinner with the message under it,
@@ -5249,9 +5411,9 @@ function WaitingOverlay() {
   );
 }
 
-function ClockBox({ color, time, active, low }) {
+function ClockBox({ color, time, active, low, flagged }) {
   return (
-    <div className={`ab-clock${active ? ' ab-clock-active' : ''}${low ? ' ab-clock-low' : ''}${!time ? ' ab-clock-static' : ''}`}>
+    <div className={`ab-clock${active ? ' ab-clock-active' : ''}${low ? ' ab-clock-low' : ''}${flagged ? ' ab-clock-flagged' : ''}${!time ? ' ab-clock-static' : ''}`}>
       <span className="ab-clock-color">{color === 'white' ? '⚪' : '⚫'}</span>
       <span className="ab-clock-time">{time ?? '--:--'}</span>
     </div>
@@ -5300,6 +5462,16 @@ function GameClock({ clock, running, color, forceFloor, silent = false }) {
   const left = remainingMs(clock, running, color);
   const low = ticking && left > 0 && left < LOW_TIME_MS;
 
+  /* The side that ran out KEEPS the red once the game stops. `low` needs a
+     ticking clock — a finished game must neither beat nor tick — so without this
+     the flagger's box drops back to plain the moment the result lands and nothing
+     on the board says who lost on time. A stopped clock shows its stored
+     snapshot, and a settled match stores the loser at 0:00 (the server for an
+     online game, zeroFlaggedClock for a bot game), which is what makes this true
+     for the loser alone — on this screen, on a refresh, and for a spectator. */
+  const stored = clock ? (color === 'white' ? clock.whiteMs : clock.blackMs) : null;
+  const flagged = !!clock && !running && stored != null && stored <= 0;
+
   useEffect(() => {
     if (!low || silent || !soundOn) return undefined;
     /* The first beat lands with the warning, then once a second after it. The
@@ -5317,6 +5489,7 @@ function GameClock({ clock, running, color, forceFloor, silent = false }) {
       time={clock ? fmtClock(left, forceFloor) : null}
       active={!!(clock && clock.turn === color)}
       low={low}
+      flagged={flagged}
     />
   );
 }

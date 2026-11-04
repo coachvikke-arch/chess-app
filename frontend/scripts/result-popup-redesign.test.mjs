@@ -146,7 +146,9 @@ test('the headline and reason are props, never literals in the card', () => {
 
 test('every termination reason the game can produce is still mapped from real state', () => {
   for (const reason of [
-    "'By Checkmate'", "'By Timeout'", "'By Stalemate'", "'By Threefold Repetition'",
+    "'By Checkmate'", "'You ran out of time'", "'Opponent ran out of time'",
+    "'Timeout vs insufficient material'",
+    "'By Stalemate'", "'By Threefold Repetition'",
     "'By Insufficient Material'", "'By Fifty-Move Rule'", "'By Draw'", "'By Agreement'",
   ]) {
     assert.ok(board.includes(reason), `buildResult must still produce ${reason}`);

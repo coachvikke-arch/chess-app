@@ -9,6 +9,12 @@ const { canSpectateClass, canSpectateGame } = require('../services/spectateAcces
    saving the game itself. */
 const analysisHooks = require('../services/analysis/enqueueHooks');
 
+/* `source` is a request for the API routes and the bare `io` for the clock
+   sweep, which has no request to hang one on. */
+function ioFrom(source) {
+  return source && source.app ? source.app.get('io') : source;
+}
+
 function emitToUser(io, userId, event, data) {
   if (!io) return;
   io.to(`user:${userId}`).emit(event, data);
@@ -36,7 +42,12 @@ function broadcastLiveEnded(io, row) {
 }
 
 function emitGameUpdate(req, gameId) {
-  const io = req.app.get('io');
+  emitGameUpdateIo(req.app.get('io'), gameId);
+}
+
+/* The broadcast without a request: the clock sweep settles a match nobody is
+   holding open, and both players still have to be told it ended. */
+function emitGameUpdateIo(io, gameId) {
   if (!io) return;
   getGameRow(gameId).then((row) => {
     if (!row) return;
@@ -103,9 +114,9 @@ const rowMs = (v) => new Date(v).getTime();
    admin/superadmin actually present in the live-class room, because
    userIsMemberOfClass lets any of them host. Falls back to any admin when the
    room is empty so a game that ends before the host connects is not silent. */
-async function notifyClassGameFinished(req, row) {
+async function notifyClassGameFinished(source, row) {
   if (!row.class_id) return;
-  const io = req.app.get('io');
+  const io = ioFrom(source);
   if (!io) return;
   try {
     /* Ping the class room so the instructor's live PvP grid re-fetches the
@@ -316,10 +327,20 @@ function parsePgn(pgn) {
   return g;
 }
 
+/* A stored clock, or the full time control when the match never had one.
+   `??` and not `||`: 0 is a real value here — it is what a flagged side is
+   settled at — and `Number(0) || base` would hand that player their whole
+   time control back, so every reader of a finished match would show a clock
+   that never fell. */
+function storedClockMs(value, base) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : base;
+}
+
 function clockState(row) {
   const base = (Number(row.time_base_minutes) || 5) * 60000;
-  let whiteMs = Number(row.white_ms) || base;
-  let blackMs = Number(row.black_ms) || base;
+  let whiteMs = storedClockMs(row.white_ms, base);
+  let blackMs = storedClockMs(row.black_ms, base);
   const g = parsePgn(row.pgn);
   const turn = g.turn() === 'w' ? 'white' : 'black';
   if (row.status === 'active') {
@@ -336,6 +357,137 @@ function clockState(row) {
     incrementSeconds: Number(row.time_increment_seconds) || 0,
   };
 }
+
+/* ── The flag fall, decided by the server ────────────────────────────────────
+   clockState() counts the side to move down from `updated_at`, so the server
+   already knows what every clock on every board reads WITHOUT either browser
+   being awake. That matters because a phone that is locked, a tab that was
+   closed or a backgrounded mobile browser freezes its timers: until this existed
+   the flag only ever landed when the player whose clock ran out still had a live
+   foreground page to post it. If they did not, the match stayed "active", the
+   opponent stared at "Waiting for opponent…" over a dead board, and no result or
+   rating was ever recorded.
+
+   `graceMs` tolerates the few hundred ms of skew between a player's own claim and
+   the server's clock (see timeoutGame). The sweep uses 0 and simply waits for the
+   flag to fall on the server's own reading. */
+function flaggedClock(row, graceMs = 0) {
+  if (row.status !== 'active') return null;
+  /* A match with no clocks has never been timed — the legacy rows, and anything
+     created before the time control was chosen. clockState() defaults a missing
+     base to five minutes, so a row last touched an hour ago would read as long
+     expired and a flag would be invented out of nothing. Same exclusion the sweep
+     query makes, in the one place both paths read a clock. */
+  if (row.white_ms == null || row.black_ms == null) return null;
+  const clock = clockState(row);
+  const onClock = clock.turn === 'white' ? clock.whiteMs : clock.blackMs;
+  return onClock <= graceMs ? clock : null;
+}
+
+/* Finish an active match whose side-to-move has run out, then tell everybody.
+   Returns the finished row, or null when no clock had expired — or when another
+   writer (a player's claim, a reload, the sweep) got there first.
+
+   The derived clocks are stored with the result: the flagged side at 0:00 and the
+   opponent at whatever they actually had left. Without that the row keeps the
+   loser's last-move snapshot (say 0:03), so every later reader — the result card,
+   a saved game, a spectator's board — shows a clock that never fell, and a board
+   reopened after the match shows the loser with time still on it. */
+async function finishOnFlag(row, io, { graceMs = 0 } = {}) {
+  const clock = flaggedClock(row, graceMs);
+  if (!clock) return null;
+
+  const flaggedColor = clock.turn;
+  const winnerColor = flaggedColor === 'white' ? 'black' : 'white';
+  /* FIDE 6.9: the player who flags only LOSES if the opponent can still mate
+     (see sideHasMatingMaterial), otherwise the game is a draw.
+
+     The REASON is 'timeout' either way — that is what actually ended the game —
+     and the draw is carried by `result`. A board draw by insufficient material
+     keeps its own 'insufficient' reason from the move handler, so the two never
+     get confused in the result card, the saved-games list, or a rating. */
+  const opponentCanMate = sideHasMatingMaterial(parsePgn(row.pgn), winnerColor);
+  const result = opponentCanMate ? winnerColor : 'draw';
+  const reason = 'timeout';
+  const whiteMs = Math.round(flaggedColor === 'white' ? 0 : clock.whiteMs);
+  const blackMs = Math.round(flaggedColor === 'black' ? 0 : clock.blackMs);
+
+  /* `AND status = 'active'` makes this the one writer. A claim, a reload and the
+     sweep can land on the same second, and a match must be rated exactly once. */
+  const upd = await db.query(
+    `UPDATE online_games SET status = 'finished', result = $2, result_reason = $3,
+       white_ms = $4, black_ms = $5, draw_offered_by = NULL, draw_offered_at = NULL,
+       updated_at = NOW()
+     WHERE id = $1 AND status = 'active'`,
+    [row.id, result, reason, whiteMs, blackMs]
+  );
+  if (!upd.rowCount) return null;
+
+  row.status = 'finished';
+  row.result = result;
+  row.result_reason = reason;
+  row.white_ms = whiteMs;
+  row.black_ms = blackMs;
+  await applyOnlineRating(row, result);
+  await notifyClassGameFinished(io, row);
+  analysisHooks.onlineGameFinished(row);
+  emitGameUpdateIo(io, row.id);
+  return row;
+}
+
+/* ── The clock sweep ─────────────────────────────────────────────────────────
+   getGame()/moveGame() settle the match a player actually touches, but the case
+   that has no request in it — the flagged player closed the app and the other one
+   is sitting at the board — only ever lands here. A short pass over the active
+   matches settles them, and `emitGameUpdate` inside finishOnFlag pushes the
+   result to BOTH players' sockets, so the waiting player's screen changes without
+   them reloading.
+
+   Two limits keep this off other people's history:
+     - a lookback window. A match last touched days ago is long dead, and finishing
+       it now would record a rating for a game nobody is playing any more;
+     - one finish per pass. A deploy that finds a pile of expired clocks drains
+       them over several passes instead of firing a burst of ratings and broadcasts
+       in a single tick.
+   Rows with no clock columns are excluded outright: clockState() defaults a
+   missing base to 5 minutes, so a legacy row that never had a time control would
+   read as long expired and get flagged by mistake. */
+const CLOCK_SWEEP_INTERVAL_MS = 5000;
+const CLOCK_SWEEP_LOOKBACK_MINUTES = 24 * 60;
+const CLOCK_SWEEP_PAGE = 50;
+
+async function sweepExpiredClocks(io) {
+  const r = await db.query(
+    `SELECT g.*, au.name AS admin_name, su.name AS student_name,
+            au.profile_image AS admin_profile_image, au.avatar_config AS admin_avatar_config,
+            su.profile_image AS student_profile_image, su.avatar_config AS student_avatar_config
+       FROM online_games g
+       JOIN users au ON au.id = g.admin_id
+       JOIN users su ON su.id = g.student_id
+      WHERE g.status = 'active'
+        AND g.time_base_minutes IS NOT NULL
+        AND g.white_ms IS NOT NULL AND g.black_ms IS NOT NULL
+        AND g.updated_at > NOW() - ($1 || ' minutes')::interval
+      ORDER BY g.updated_at ASC
+      LIMIT ${CLOCK_SWEEP_PAGE}`,
+    [CLOCK_SWEEP_LOOKBACK_MINUTES]
+  );
+  for (const row of r.rows) {
+    if (await finishOnFlag(row, io)) return 1;
+  }
+  return 0;
+}
+
+exports.startOnlineClockWorker = (io) => {
+  const tick = () => {
+    sweepExpiredClocks(io).catch((err) => console.warn('[online-clock] sweep failed:', err.message));
+  };
+  const timer = setInterval(tick, CLOCK_SWEEP_INTERVAL_MS);
+  /* Never hold the process open for the sweep — a shutdown must not wait on it. */
+  timer.unref?.();
+  tick();
+  return timer;
+};
 
 // Build a view of a match for a given viewer ({ role, id }).
 // The creator is stored in admin_id, the opponent in student_id — regardless of role.
@@ -1229,6 +1381,12 @@ exports.getGame = async (req, res) => {
     if (row.admin_id !== req.user.id && row.student_id !== req.user.id) {
       return res.status(403).json({ message: 'Not part of this match' });
     }
+    /* Opening a match is a chance to settle its clock. A player who refreshes
+       after their own — or their opponent's — flag fell gets the finished game
+       with the result on the first request, instead of a board still waiting for
+       a move that can never arrive. `row` is updated in place, so the payload
+       below already carries the result. */
+    await finishOnFlag(row, req.app.get('io'));
     res.json(payload(row, req.user.role, req.user.id));
   } catch (err) {
     res.status(500).json({ message: 'Failed to fetch match', error: err.message });
@@ -1433,17 +1591,25 @@ exports.resignGame = async (req, res) => {
   }
 };
 
-/* A participant's clock ran out and their client reports the flag fall.
+/* A clock ran out and one of the players reports it. Either participant may
+   claim — the loser who sees their own 0:00, and the winner who sees their
+   opponent sitting on it.
 
-   This is deliberately its own route rather than a resignation with a flag:
-   inferring "timeout" from a resignation body — or from a disconnect / window
-   close / whatever the board happened to look like at the end — is exactly how
-   games used to be recorded as resignation when the clock was really what
-   ended them. Here the REASON is explicit and the winner is derived from who
-   still had time, never from the final position.
+   WHO flagged is taken from the server's own clock, never from the caller:
+   the side to move is the only side whose time counts down, so the claim can
+   award the win to the player who actually still had time even when the other
+   one's tab was the one that called. `CLAIM_GRACE_MS` covers a browser whose
+   clock runs a little ahead of the server's and therefore reports the flag a
+   moment early; anything beyond that is refused and the sweep settles it.
 
-   Per FIDE 6.9 the opponent only WINS if they can still mate; otherwise the
-   game is a draw (reason 'insufficient'), not a fabricated win. */
+   This stays its own route rather than a resignation with a flag: inferring
+   "timeout" from a resignation body — or from a disconnect / window close /
+   whatever the board happened to look like at the end — is exactly how games
+   used to be recorded as resignation when the clock was really what ended them.
+   Here the REASON is explicit and the winner is derived from who still had
+   time, never from the final position. */
+const CLAIM_GRACE_MS = 1500;
+
 exports.timeoutGame = async (req, res) => {
   try {
     const row = await getGameRow(req.params.id);
@@ -1452,29 +1618,9 @@ exports.timeoutGame = async (req, res) => {
       return res.status(403).json({ message: 'Not part of this match' });
     }
     if (row.status !== 'active') return res.status(400).json({ message: 'Match is not in progress' });
-    /* The caller is the side whose flag fell; the opponent is the side that
-       still had time. */
-    const flaggedColor = row.admin_id === req.user.id
-      ? row.admin_color
-      : row.admin_color === 'white' ? 'black' : 'white';
-    const opponentColor = flaggedColor === 'white' ? 'black' : 'white';
-    const g = parsePgn(row.pgn);
-    const opponentCanMate = sideHasMatingMaterial(g, opponentColor);
-    const result = opponentCanMate ? opponentColor : 'draw';
-    const reason = opponentCanMate ? 'timeout' : 'insufficient';
-    await db.query(
-      `UPDATE online_games SET status = 'finished', result = $2, result_reason = $3,
-         draw_offered_by = NULL, draw_offered_at = NULL, updated_at = NOW() WHERE id = $1`,
-      [row.id, result, reason]
-    );
-    row.status = 'finished';
-    row.result = result;
-    row.result_reason = reason;
-    await applyOnlineRating(row, result);
-    await notifyClassGameFinished(req, row);
-    analysisHooks.onlineGameFinished(row);
-    emitGameUpdate(req, row.id);
-    res.json(payload(row, req.user.role, req.user.id));
+    const finished = await finishOnFlag(row, req.app.get('io'), { graceMs: CLAIM_GRACE_MS });
+    if (!finished) return res.status(409).json({ message: 'No clock has run out yet' });
+    res.json(payload(finished, req.user.role, req.user.id));
   } catch (err) {
     res.status(500).json({ message: 'Failed to flag match', error: err.message });
   }
@@ -1895,6 +2041,15 @@ exports.moveGame = async (req, res) => {
     if (!isCreator && !isOpponent) return res.status(403).json({ message: 'Not part of this match' });
     if (row.status !== 'active') return res.status(400).json({ message: 'Match is not in progress' });
 
+    /* Settle the clock before anything else, so a move cannot be played onto a
+       board whose side-to-move has already run out — and so the player who keeps
+       sending moves into a flagged game gets the finished game back instead of
+       "It's not your turn" forever. */
+    const alreadyFlagged = await finishOnFlag(row, req.app.get('io'));
+    if (alreadyFlagged) {
+      return res.json(payload(alreadyFlagged, req.user.role, req.user.id));
+    }
+
     const { from, to, promotion } = req.body;
     if (!from || !to) return res.status(400).json({ message: 'Move needs from and to squares' });
 
@@ -1913,27 +2068,14 @@ exports.moveGame = async (req, res) => {
 
     // clock accounting — the time used since the last move belongs to the mover
     const base = (Number(row.time_base_minutes) || 5) * 60000;
-    let whiteMs = Number(row.white_ms) || base;
-    let blackMs = Number(row.black_ms) || base;
+    let whiteMs = storedClockMs(row.white_ms, base);
+    let blackMs = storedClockMs(row.black_ms, base);
     const elapsed = Math.max(0, nowMs() - rowMs(row.updated_at));
     const moverMsBefore = Math.max(0, (moverColor === 'white' ? whiteMs : blackMs) - elapsed);
-    if (moverMsBefore <= 0) {
-      // flag fell before the move — opponent wins on time, unless they cannot mate
-      const opponentColor = moverColor === 'white' ? 'black' : 'white';
-      const opponentCanMate = sideHasMatingMaterial(g, opponentColor);
-      const result = opponentCanMate ? opponentColor : 'draw';
-      const reason = opponentCanMate ? 'timeout' : 'insufficient';
-      await db.query(
-        `UPDATE online_games SET status = 'finished', result = $2, result_reason = $3, updated_at = NOW() WHERE id = $1`,
-        [row.id, result, reason]
-      );
-      const updated = await getGameRow(row.id);
-      await applyOnlineRating(updated, result);
-      await notifyClassGameFinished(req, updated);
-      analysisHooks.onlineGameFinished(updated);
-      emitGameUpdate(req, row.id);
-      return res.json(payload(updated, req.user.role, req.user.id));
-    }
+    /* No flag check here: `moverColor` is the side to move (checked above), and
+       finishOnFlag() at the top of this handler already settled that clock on the
+       server's own reading — with the loser's time stored as 0:00 rather than
+       whatever their previous move left them with. */
 
     const mv = g.move({ from: String(from), to: String(to), promotion: promotion || 'q' });
     if (!mv) return res.status(400).json({ message: 'Illegal move' });

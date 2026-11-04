@@ -153,7 +153,11 @@ async function main() {
       const row = await gameRow(id);
       assert.equal(row.status, 'finished');
       assert.equal(row.result, 'draw', `a bare king cannot win, got ${row.result}`);
-      assert.equal(row.result_reason, 'insufficient', 'the reason must reflect the impossibility');
+      /* The REASON is still what actually ended the game. The draw is carried by
+         `result`, which is what lets the result card say "Timeout vs insufficient
+         material" instead of a plain draw — and keeps a clock distinguishable from
+         a board that simply ran out of material. */
+      assert.equal(row.result_reason, 'timeout');
     });
 
     await check('the winner is derived from WHO is out of time, both directions', async () => {
