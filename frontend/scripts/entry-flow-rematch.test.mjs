@@ -40,7 +40,12 @@ test('the root route is the landing page for a visitor, never the login page', (
   const gate = app.slice(gateStart, app.indexOf('\n}', gateStart));
   assert.match(gate, /<Navigate to=\{homeForRole\(user\.role\)\} replace \/>/);
   assert.match(gate, /return <Home \/>/);
-  assert.match(gate, /if \(loading\) return <Spinner \/>/);
+  /* While the saved session resolves the landing page is already painted — the
+     blank/spinner gap was the complaint. The redirect below still fires the
+     moment auth answers, so a session never stays on the front step. */
+  assert.match(gate, /if \(loading\) return <Home \/>/);
+  assert.ok(!/if \(loading\) return <Spinner \/>/.test(gate),
+    'the root gate must not wait on a spinner before showing the landing page');
   /* The gate has to be the element the route renders, not a helper nobody calls. */
   assert.ok(app.includes('<Route path="/" element={<LandingRoute />} />'));
 });

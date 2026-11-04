@@ -14,19 +14,6 @@
          colour, and matches the white canvas the app paints in index.css. -->
     <style>
       html, body, #root { background-color: #ffffff; }
-      /* The gap between this HTML parsing and React's first paint is filled by a
-         plain white field — the same white the manifest splash paints, so an
-         installed launch reads as one screen instead of splash → blank → app.
-         The logo is deliberately NOT here: SplashScreen.jsx fades it in as part
-         of the intro, and a static emblem in this field would either jump size
-         or cancel that fade-in. main.jsx removes it as soon as #root has
-         content. */
-      #boot-splash {
-        position: fixed;
-        inset: 0;
-        z-index: 2147483647;
-        background: #ffffff;
-      }
     </style>
     <meta
       name="description"
@@ -76,7 +63,6 @@
     </script>
   </head>
   <body>
-    <div id="boot-splash"></div>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
   </body>

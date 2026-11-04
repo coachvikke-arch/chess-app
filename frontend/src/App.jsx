@@ -2,7 +2,6 @@ import { Suspense, useEffect, useState } from 'react';
 import { Routes, Route, Navigate, Link, useLocation } from 'react-router-dom';
 import Navbar from './components/Navbar';
 import Logo from './components/Logo';
-import SplashScreen from './components/SplashScreen';
 /* These four are default exports; importing them by name made Rollup fail the
    whole bundle with "is not exported by ...". */
 import ChessBackground from './components/ChessBackground';
@@ -212,9 +211,10 @@ const AUTH_ONLY_PAGES = new Set(['/login', '/register', '/reset-password']);
  */
 function LandingRoute() {
   const { user, loading } = useAuth();
-  /* Resolve the session before deciding. The first-load splash is still over the
-     page at this moment, so the one frame this costs nobody can see. */
-  if (loading) return <Spinner />;
+  /* Render the public landing page immediately while the saved session resolves.
+     If a session is found, the existing redirect still takes the user to their
+     dashboard as soon as auth is ready. */
+  if (loading) return <Home />;
   if (user) return <Navigate to={homeForRole(user.role)} replace />;
   return <Home />;
 }
@@ -252,10 +252,6 @@ export default function App() {
 
   return (
     <div>
-      {/* First-load splash. It sits outside the location-keyed subtree below, so
-          it plays once per app load and a route change cannot restart it, while
-          the landing page mounts and lays out underneath it. */}
-      <SplashScreen />
       <div className="min-h-screen flex flex-col">
         <ChessBackground />
         <MatchDeclineListener />
@@ -276,7 +272,7 @@ export default function App() {
         {!usesShell && (
           <BackButton className="max-w-[90rem] mx-auto px-3 sm:px-4" />
         )}
-        <div className="flex-1" key={location.pathname} style={{ animation: 'fade-in .5s ease both' }}>
+        <div className="flex-1" key={location.pathname}>
           <Suspense fallback={<RouteFallback />}>
           <Routes location={location}>
             {/* Live classroom — full-screen, no portal shell */}

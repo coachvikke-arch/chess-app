@@ -46,19 +46,6 @@ ReactDOM.createRoot(document.getElementById('root')).render(
   </React.StrictMode>
 );
 
-/* Hand the screen over from the inline boot splash in index.html. It waits for
-   #root to actually hold the rendered tree rather than a fixed delay, so the
-   splash is gone the moment there is something to look at — and if the app
-   never mounts, the splash stays, which beats a blank page. */
-const bootSplash = document.getElementById('boot-splash');
-if (bootSplash) {
-  const handOff = () => {
-    if (document.querySelector('#root > *')) bootSplash.remove();
-    else requestAnimationFrame(handOff);
-  };
-  requestAnimationFrame(handOff);
-}
-
 /* Dev is deliberately excluded: a caching worker on top of Vite's HMR serves
    stale modules back into the editor and makes every change invisible. */
 if (import.meta.env.PROD && 'serviceWorker' in navigator) {
