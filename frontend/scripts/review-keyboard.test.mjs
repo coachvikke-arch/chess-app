@@ -102,12 +102,17 @@ test('unrelated keys and already-handled events are left alone', () => {
 test('GameViewerCard uses the full key set and tags keyboard effects', () => {
   const viewer = src('components/GameViewerCard.jsx');
   assert.match(viewer, /useReviewKeys\(\{/);
-  assert.match(viewer, /prev: \(\) => go\(moveIndex - 1, true, 'keyboard'\)/);
-  assert.match(viewer, /next: \(\) => go\(moveIndex \+ 1, true, 'keyboard'\)/);
-  assert.match(viewer, /first: \(\) => go\(0, true, 'keyboard'\)/);
-  assert.match(viewer, /last: \(\) => go\(parsed\.moves\.length, true, 'keyboard'\)/);
+  /* Prev/Next are DELTAS, first/last are absolute plies. The card used to write
+     `go(moveIndex - 1, …)`, which read React state that has not updated yet
+     inside a frame — five held presses collapsed into one ply. A delta lets the
+     rAF queue accumulate them; see viewer-navigation.test.mjs. */
+  assert.match(viewer, /prev: \(\) => stepNav\(-1, 'keyboard'\)/);
+  assert.match(viewer, /next: \(\) => stepNav\(1, 'keyboard'\)/);
+  assert.match(viewer, /first: \(\) => jumpNav\(0, 'keyboard'\)/);
+  assert.match(viewer, /last: \(\) => jumpNav\(plies, 'keyboard'\)/);
   assert.match(viewer, /flip: \(\) => setOrientation/);
-  assert.match(viewer, /playEffectForMove\(target, source,/);
+  assert.match(viewer, /playEffectForMove\(ply, source,/,
+    'the effect is tagged with the keyboard source');
 });
 
 test('GameReview disables its page listener while the viewer card is open', () => {

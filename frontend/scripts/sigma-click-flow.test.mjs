@@ -105,10 +105,12 @@ test('the opened card is the SAME component Chess Profile uses', () => {
 test('the board is established at the requested move index', () => {
   assert.match(CARD, /initialMoveIndex/);
   assert.match(CARD, /go\(startIndex, false\)/);
-  /* …and the position is rebuilt FROM that many moves, i.e. AFTER the move. */
-  assert.match(CARD, /for \(let i = 0; i < target; i\+\+\) \{\s*\n\s*try \{ g\.move\(parsed\.moves\[i\]\)/,
-    'target moves are replayed, so the selected move is already played');
-  assert.match(CARD, /Math\.max\(0, Math\.min\(n, i\)\)/, 'clamped to the real move list');
+  /* …and the position comes from the precomputed table, whose entry N is the
+     board AFTER N moves — so the selected move is already played. Rebuilding the
+     game per press was the freeze; see viewer-navigation.test.mjs. */
+  assert.match(CARD, /for \(let i = 0; i < parsed\.moves\.length; i \+= 1\)/,
+    'every ply is built once at load');
+  assert.match(CARD, /Math\.max\(0, Math\.min\(plies, i\)\)/, 'clamped to the real move list');
 });
 
 /* ── O: unknown move count must not collapse the ply ─────────────────────── */

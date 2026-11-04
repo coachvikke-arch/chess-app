@@ -62,7 +62,7 @@ test('a mate is detected from the position or the SAN', () => {
 
 test('a brilliant comes from the engine classification', () => {
   assert.match(PLAY, /isSigmaVerdict\(verdict\) \? 'brilliant'/);
-  assert.match(CARD, /const row = review\?\.verdicts\?\.\[target - 1\] \|\| null;/,
+  assert.match(CARD, /const row = review\?\.verdicts\?\.\[ply - 1\] \|\| null;/,
     'the card reads the stored verdict for the ply it is showing');
   assert.match(CARD, /verdict: row\?\.verdict \|\| null/);
 });
@@ -70,17 +70,21 @@ test('a brilliant comes from the engine classification', () => {
 /* ── it plays on every step, and it never sticks ─────────────────────────── */
 
 test('every navigation path goes through the same go()', () => {
-  /* The nav buttons and the keyboard all call go(); the card has no other way
-     of moving, so one call site covers ▶ ◀ ⏮ ⏭ and the arrow keys. */
-  assert.match(CARD, /onClick=\{\(\) => go\(0\)\}/, 'start');
-  assert.match(CARD, /onClick=\{\(\) => go\(moveIndex - 1\)\}/, 'previous');
-  assert.match(CARD, /onClick=\{\(\) => go\(moveIndex \+ 1\)\}/, 'next');
-  assert.match(CARD, /onClick=\{\(\) => go\(parsed\.moves\.length\)\}/, 'end');
-  assert.match(CARD, /prev: \(\) => go\(moveIndex - 1, true, 'keyboard'\)/);
-  assert.match(CARD, /next: \(\) => go\(moveIndex \+ 1, true, 'keyboard'\)/);
-  assert.match(CARD, /first: \(\) => go\(0, true, 'keyboard'\)/);
-  assert.match(CARD, /last: \(\) => go\(parsed\.moves\.length, true, 'keyboard'\)/);
-  assert.match(CARD, /onClick=\{\(\) => go\(idx \+ 1\)\}/, 'a click on a move in the sheet');
+  /* The nav buttons, the score sheet and the keyboard all funnel into `go`,
+     which queues one navigation for the frame — so ▶ ◀ ⏮ ⏭, a move click and
+     the arrow keys cannot take different paths. A step is a delta (a held key
+     adds up inside one frame) and a jump is an absolute ply. */
+  assert.match(CARD, /onClick=\{\(\) => jumpNav\(0\)\}/, 'start');
+  assert.match(CARD, /onClick=\{\(\) => stepNav\(-1\)\}/, 'previous');
+  assert.match(CARD, /onClick=\{\(\) => stepNav\(1\)\}/, 'next');
+  assert.match(CARD, /onClick=\{\(\) => jumpNav\(plies\)\}/, 'end');
+  assert.match(CARD, /prev: \(\) => stepNav\(-1, 'keyboard'\)/);
+  assert.match(CARD, /next: \(\) => stepNav\(1, 'keyboard'\)/);
+  assert.match(CARD, /first: \(\) => jumpNav\(0, 'keyboard'\)/);
+  assert.match(CARD, /last: \(\) => jumpNav\(plies, 'keyboard'\)/);
+  assert.match(CARD, /jumpRef\.current = \(ply\) => jumpNav\(ply, 'score-sheet'\)/,
+    'a click on a move in the sheet');
+  assert.match(CARD, /onCell=\{onCell\}/, 'the sheet rows navigate through it');
 });
 
 test('a new effect cancels the previous one, so quick clicks cannot overlap', () => {

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Chess } from 'chess.js';
+import { exactlyOnePly } from '../../utils/positionDiff';
 import { CBURNETT_SVGS } from '../cburnettPieces';
 import { resolveBoardAnimation, useBoardAnimationId } from '../../config/boardAnimation';
 import { lum } from '../../config/ornateTheme';
@@ -67,33 +68,11 @@ function sameMap(a, b) {
   return true;
 }
 
-function positionKey(fen) {
-  return String(fen).split(' ').slice(0, 4).join(' ');
-}
-
 /* Ask the previous position for its legal moves and look for the one that lands
    exactly on the new position. Anything else (a jump, a paste, a multi-ply
-   replay) returns null and the board snaps instead of animating. */
-function exactlyOnePly(prevFen, nextFen) {
-  if (!prevFen || !nextFen || prevFen === nextFen) return null;
-  let prevGame;
-  try {
-    prevGame = new Chess(prevFen);
-  } catch {
-    return null;
-  }
-  const legal = prevGame.moves({ verbose: true });
-  for (const m of legal) {
-    try {
-      prevGame.move(m.san);
-      if (positionKey(prevGame.fen()) === positionKey(nextFen)) return m;
-      prevGame.undo();
-    } catch {
-      /* restore and continue */
-    }
-  }
-  return null;
-}
+   replay) returns null and the board snaps instead of animating. This is the
+   SAME probe ChessBoard uses to sound and effect a move it did not play; it
+   lives in utils/positionDiff so one navigation pays for the geometry once. */
 
 function buildPieces(map) {
   return Object.entries(map).map(([square, code]) => ({ id: nextPieceId(), code, square }));

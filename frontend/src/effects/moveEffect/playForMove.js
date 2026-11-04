@@ -104,6 +104,9 @@ export function playEffectForMove(moveIndex, source = 'review-nav', {
     color: move.color,
     promotionPiece: move.promotion || (san.includes('=') ? san.split('=')[1] : null) || null,
     captured,
+    /* Read straight off the move record, so the overlay never has to walk the
+       game history looking for a victim that was already named here. */
+    capturedResolved: true,
     sacrifice: Boolean(sacrifice),
     boardOrientation: orientation,
     boardId: boardId || undefined,

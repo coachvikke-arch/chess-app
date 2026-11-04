@@ -36,6 +36,7 @@ import {
 } from '../config/ornateTheme';
 import { useAuth } from '../context/AuthContext';
 import { squareFromPoint, squareCenter } from '../utils/boardGeometry';
+import { exactlyOnePly, positionKey } from '../utils/positionDiff';
 import { framePadFor, squaresForOuter } from '../utils/boardFrame';
 import { prefersReducedMotion } from '../config/boardAnimation';
 import { useAutoQueen } from '../config/autoQueen';
@@ -97,39 +98,9 @@ function isPromotion(game, from, to) {
  * own drag handler (a bot reply, an opponent's move over a socket, a coach
  * driving the shared classroom board, stepping through a game in review).
  *
- * We answer it by asking the previous position for its legal moves and looking
- * for one that lands exactly on the new position. Working backwards from FENs is
- * what makes this safe for any caller: it can only ever match a real, legal move
- * of the position we were actually in, so we never invent a cue for a jump — a
- * new game load, a FEN paste, or several plies replayed at once all return null
- * and stay silent, exactly as chess.com does when you load a position rather than
- * watch someone play it.
- *
- * Comparison ignores the halfmove/fullmove counters, which advance on every ply
- * and would otherwise make an otherwise-identical position look different.
+ * Answered by `exactlyOnePly` (utils/positionDiff), shared with the piece layer
+ * so one navigation pays for the probe once instead of once per board.
  */
-function exactlyOnePly(prevFen, nextFen) {
-  if (!prevFen || !nextFen || prevFen === nextFen) return null;
-  let prevGame;
-  try { prevGame = new Chess(prevFen); } catch { return null; }  // bad FEN from a caller
-  const legal = prevGame.moves({ verbose: true });
-  for (const m of legal) {
-    try {
-      prevGame.move(m.san);
-      /* `isCheckmate`/`isStalemate` can end a game, but FEN stays comparable. */
-      if (positionKey(prevGame.fen()) === positionKey(nextFen)) return m;
-      prevGame.undo();
-    } catch {
-      /* Undo restores the position; keep scanning the remaining moves. */
-    }
-  }
-  return null;
-}
-
-/** The part of a FEN that defines the position (ignores move counters). */
-function positionKey(fen) {
-  return String(fen).split(' ').slice(0, 4).join(' ');
-}
 
 /**
  * Interactive chessboard.
@@ -386,9 +357,12 @@ export default function ChessBoard({
     } catch { /* a malformed position simply renders no ghosts */ }
 
     /* The captured piece is gone from the applied position, so recreate it for
-       the overlay; it vanishes at T.captureGone (440 ms). */
+       the overlay; it vanishes at T.captureGone (440 ms).
+       `capturedResolved` means the caller already read the capture off the move
+       it was given — which every navigation and live path does — so the history
+       never gets walked to find something that was handed over. */
     let captured = req.captured || null;
-    if (!captured) {
+    if (!captured && !req.capturedResolved) {
       try {
         const hist = effectGame.history({ verbose: true });
         const last = hist[hist.length - 1];

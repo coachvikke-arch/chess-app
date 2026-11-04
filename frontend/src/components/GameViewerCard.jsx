@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, useId } from 'react';
+import { useEffect, useMemo, useRef, useState, useId, useCallback, memo } from 'react';
 import { createPortal } from 'react-dom';
 import { Chess } from 'chess.js';
 import EvalBar from './EvalBar';
@@ -65,19 +65,39 @@ function useCopyPgn(game, moves, initialFen) {
  * re-scored or trimmed before being cached. */
 function projectReview(res) {
   const counts = { white: { ...res.white.counts }, black: { ...res.black.counts } };
-  const verdicts = res.moves.map((m, i) => ({
-    index: i, san: m.san, verdict: m.verdict,
-    uci: m.uci || null,
-    bestUci: m.bestUci || null,
-    lines: Array.isArray(m.lines) ? m.lines : [],
-    player: m.player === 'w' ? 'white' : 'black',
-    cpl: m.cpl, loss: m.loss, acc: m.acc,
-    /* The score AFTER this move, signed back to White's point of view (the
-       canonical row stores it from the mover's side, exactly like GM replay).
-       Presentation only — the stored analysis is never rewritten. */
-    evalAfter: m.played == null ? null : (m.player === 'w' ? m.played : -m.played),
-    mateAfter: m.playedMate == null ? null : (m.player === 'w' ? m.playedMate : -m.playedMate),
-  }));
+  /* Keyed by the row's own `ply` — the 0-based index of that move in the game —
+     NOT by its position in the array. A cancelled or failed ply is dropped from
+     the report, so once one row is missing the two stop agreeing, and every read
+     below (arrow, badge, eval bar, sheet grade) would describe the move after
+     the one it was asked about. A hole therefore reads as "no verdict here",
+     which is true, instead of as the neighbouring move's verdict. */
+  const verdicts = [];
+  res.moves.forEach((m, i) => {
+    const at = Number.isInteger(m.ply) ? m.ply : i;
+    verdicts[at] = {
+      index: at, san: m.san, verdict: m.verdict,
+      uci: m.uci || null,
+      bestUci: m.bestUci || null,
+      lines: Array.isArray(m.lines) ? m.lines : [],
+      player: m.player === 'w' ? 'white' : 'black',
+      cpl: m.cpl, loss: m.loss, acc: m.acc,
+      /* The engine's own sacrifice decision, read straight off the canonical row.
+         Without it the badge and the move effect's brilliant flare could only ever
+         describe a move that was classified before this card was opened, and a
+         freshly analysed game would show the glyph on the sheet but no flare on the
+         board. Presentation only — never a second classification. */
+      sacrifice: Boolean(m.sacrifice),
+      /* The score AFTER this move, signed back to White's point of view (the
+         canonical row stores it from the mover's side, exactly like GM replay).
+         Presentation only — the stored analysis is never rewritten. */
+      evalAfter: m.played == null ? null : (m.player === 'w' ? m.played : -m.played),
+      mateAfter: m.playedMate == null ? null : (m.player === 'w' ? m.playedMate : -m.playedMate),
+    };
+  });
+  /* Dense array: a hole becomes an explicit null so the consumers that index by
+     ply read "nothing here" rather than walking past an array element that React
+     and `.map()` both skip. */
+  for (let i = 0; i < verdicts.length; i += 1) if (!verdicts[i]) verdicts[i] = null;
   return {
     verdicts,
     counts,
@@ -85,6 +105,48 @@ function projectReview(res) {
     analysisVersion: CANONICAL_ANALYSIS_VERSION,
   };
 }
+
+/**
+ * One row of the score sheet.
+ *
+ * Memoised because a 150-ply game is 75 of these, and every navigation used to
+ * rebuild all of them — each with its own class string, title and a fresh
+ * onClick — on top of the board work. The row's CONTENT (SAN, glyph, grade)
+ * only ever changes with the analysis, while the highlight changes on every
+ * step, so the highlight is passed as two booleans and only the rows whose
+ * active cell actually moved re-render. Markup and class names are the same as
+ * before: this is a render-cost change, not a design change.
+ */
+const ScoreRow = memo(function ScoreRow({ num, cells, activeWhite, activeBlack, onCell }) {
+  return (
+    <div className="cp-score-row" role="row">
+      <span className="cp-score-num" role="rowheader">{num}.</span>
+      {cells.map((v, off) => {
+        /* A real empty cell, not a missing one: the columns must
+           stay aligned when a game ends after White's move. */
+        if (!v) return <span className="cp-score-cell is-empty" role="gridcell" key={off} />;
+        const meta = v.verdict ? reviewMetaFor(v.verdict) : null;
+        /* The cell colour is a CSS hook keyed by the legacy tier
+           name, so it has to be the DISPLAY key. */
+        const grade = v.verdict ? ` is-${getDisplayVerdict(v.verdict).toLowerCase()}` : '';
+        const active = off === 0 ? activeWhite : activeBlack;
+        return (
+          <button
+            key={off}
+            type="button"
+            role="gridcell"
+            title={meta ? `${getDisplayVerdict(v.verdict)}` : undefined}
+            className={`cp-score-cell${active ? ' is-active' : ''}${grade}`}
+            onClick={() => onCell(v.ply)}
+          >
+            {meta && <span className="cp-score-badge-glyph">{meta.glyph}</span>}
+            {v.san}
+          </button>
+        );
+      })}
+    </div>
+  );
+});
 
 /**
  * @param {object} props
@@ -176,7 +238,6 @@ export default function GameViewerCard({ game = null,   gameRef = null,   resolv
   const whiteLabel = gameData.white_name || 'Unknown player';
   const blackLabel = gameData.black_name || 'Unknown player';
   const moveCount = Math.ceil(parsed.moves.length / 2);
-  const board = useRef(null);
   /* The effect host id of THIS card's board.
      The card is opened over another board (the review board behind it, the
      profile page), and a move effect that names no board goes to the board the
@@ -188,21 +249,53 @@ export default function GameViewerCard({ game = null,   gameRef = null,   resolv
      looking at, so it owns the effect target. The previous owner is restored
      when the card closes. */
   useVisibleEffectHost(effectHostId);
+  /* ONE position per ply, built once when the game loads.
+     The board used to be rebuilt from the PGN on every navigation: a fresh Chess
+     plus one `move()` per ply up to the target, and every one of those generates
+     the full legal move list. On a 156-ply game that measured 27-59 ms of
+     main-thread work per press and it grows with the game, which is what froze
+     the page when Prev/Next were pressed quickly or held. Navigation is now a
+     read of `positions[ply]`, and the ply index below is the only state.
+     Each entry also carries the verbose move, so the move effect and the
+     last-move marker are read from the table instead of re-walking the history
+     on every step. */
+  const positions = useMemo(() => {
+    let g;
+    try {
+      g = new Chess(parsed.initFen === 'start' ? undefined : parsed.initFen);
+    } catch {
+      /* A PGN whose [FEN] tag the engine cannot load still has to open. */
+      g = new Chess();
+    }
+    const out = [{ fen: g.fen(), lastMove: null, move: null }];
+    for (let i = 0; i < parsed.moves.length; i += 1) {
+      let move = null;
+      try { move = g.move(parsed.moves[i]); } catch { break; }
+      out.push({ fen: g.fen(), lastMove: { from: move.from, to: move.to }, move });
+    }
+    return out;
+  }, [parsed.initFen, parsed.moves]);
+  /* The plies the board can actually show. A move the replay could not apply
+     stops the table, so this — not the raw PGN count — is what everything clamps
+     to; a stale request can never point past a position that exists. */
+  const plies = positions.length - 1;
   /* Start position: the requested move (the selected Brilliant move already
      played), else the end of the game. Clamped to the real move list, so a stale
      request can never point past the last move. This is the ONLY place the ply
      becomes a board position. */
   const startIndex = useMemo(() => {
-    const n = parsed.moves.length;
-    if (initialMoveIndex == null) return n;
+    if (initialMoveIndex == null) return plies;
     const i = Math.floor(Number(initialMoveIndex));
-    if (!Number.isFinite(i)) return n;
-    return Math.max(0, Math.min(n, i));
+    if (!Number.isFinite(i)) return plies;
+    return Math.max(0, Math.min(plies, i));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [parsed.moves.length, initialMoveIndex]);
+  }, [plies, initialMoveIndex]);
   const [moveIndex, setMoveIndex] = useState(startIndex);
-  const [fen, setFen] = useState('');
-  const [lastMove, setLastMove] = useState(null);
+  /* One Chess instance for the life of the card. The board reads its position
+     from this object, so a navigation changes what it holds instead of swapping
+     the instance the board is mounted on. */
+  const boardRef = useRef(null);
+  if (!boardRef.current) boardRef.current = new Chess();
   const [orientation, setOrientation] = useState('white');
   const [review, setReview] = useState(null);
   const [revState, setRevState] = useState('loaded'); // loaded | running | done | error
@@ -210,6 +303,10 @@ export default function GameViewerCard({ game = null,   gameRef = null,   resolv
   const [error, setError] = useState(null);
   const revToken = useRef(0);
   const unmounted = useRef(false);
+  /* Whether an analysis THIS card started is still running. A ref, because the
+     unmount cleanup below has to read it as of its last render. */
+  const runningRef = useRef(false);
+  runningRef.current = revState === 'running';
   const isMobileBoard = useMediaQuery('(max-width: 900px)');
   const { state: pgnCopied, copy: copyPgn } = useCopyPgn(gameData, parsed.moves, parsed.initFen);
   /* The score sheet can be folded away on a phone so the board alone owns the
@@ -222,44 +319,102 @@ export default function GameViewerCard({ game = null,   gameRef = null,   resolv
     // instance, so the cleanup would leave `unmounted` stuck true and cancel
     // every review instantly (stuck at 0%). Reset it on mount.
     unmounted.current = false;
-    return () => { unmounted.current = true; revToken.current++; };
+    return () => {
+      unmounted.current = true;
+      revToken.current++;
+      /* A review this card started stops WITH the card. The pipeline only looks
+         for cancellation between plies, so the search already dispatched would
+         otherwise keep a worker burning on a game nobody is watching — and the
+         pool is shared, so the next card pays for it. */
+      if (runningRef.current) stopEngineSearch();
+    };
   }, []);
 
   /* Warm the NNUE pool as soon as the viewer opens so the first "Analyze
      locally" click doesn't stall on the engine download/compile. */
   useEffect(() => { try { warmReviewEngine(); } catch { /* best effort */ } }, []);
 
-  function go(idx, animate = true, source = 'viewer-nav') {
+  /* The one place a ply becomes a position: load the table entry, tell React
+     which ply is showing, and let the stored MOVE DATA start the effect.
+     Nothing here is async and nothing here touches the engine, so navigation can
+     never leave the board waiting on a promise that failed or hung. */
+  function applyNav(target, animate, source) {
+    const ply = Math.max(0, Math.min(plies, target));
+    const pos = positions[ply];
+    if (!pos) return;
+    const g = boardRef.current;
+    try { g.load(pos.fen); } catch { /* the table only holds legal positions */ }
+    /* The ply the board is on NOW, as of this call — not as of the last render.
+       A step queued in the same frame as a flush must count from here, or the
+       press that arrives before React commits lands on the position it just
+       left and is silently dropped. */
+    appliedPlyRef.current = ply;
+    setMoveIndex(ply);
     /* Loading a game/position is not a move: any effect from the previous
-       position is over before the board is rebuilt. An animated navigation
-       (next/prev/move click) goes through playEffectForMove below, which
-       clears a stale effect and starts the new move's effect when it has one. */
-    if (!animate) clearMoveEffects(source);
-    const target = Math.max(0, Math.min(parsed.moves.length, idx));
-    const g = new Chess(parsed.initFen === 'start' ? undefined : parsed.initFen);
-    for (let i = 0; i < target; i++) {
-      try { g.move(parsed.moves[i]); } catch { break; }
-    }
-    board.current = g;
-    setMoveIndex(target);
-    setFen(g.fen());
-    const hist = g.history({ verbose: true });
-    setLastMove(hist.length ? { from: hist[hist.length - 1].from, to: hist[hist.length - 1].to } : null);
-    if (animate) {
-      const row = review?.verdicts?.[target - 1] || null;
-      /* The event is read from the MOVE DATA, not from a badge: a promotion
-         from the verbose move, a mate from the position the move produced, and
-         a brilliant from the engine's own classification once the analysis
-         has landed. `boardId` makes sure the effect is played on THIS board. */
-      playEffectForMove(target, source, {
-        game: g,
-        verdict: row?.verdict || null,
-        sacrifice: Boolean(row?.sacrifice),
-        orientation,
-        boardId: effectHostId,
-      });
-    }
+       position is over before the board shows it. */
+    if (!animate) { clearMoveEffects(source); return; }
+    const row = review?.verdicts?.[ply - 1] || null;
+    /* The event is read from the MOVE DATA, not from a badge: a promotion from
+       the verbose move (handed over straight from the table, so no history is
+       re-walked), a mate from the position the move produced, and a brilliant
+       from the engine's own classification once the analysis has landed.
+       `boardId` makes sure the effect is played on THIS board. */
+    playEffectForMove(ply, source, {
+      game: g,
+      move: pos.move,
+      verdict: row?.verdict || null,
+      sacrifice: Boolean(row?.sacrifice),
+      orientation,
+      boardId: effectHostId,
+    });
   }
+
+  /* Rapid Prev/Next — a held arrow key, an eager thumb — used to mean one full
+     rebuild per press. Animated navigation is now queued into the frame that will
+     paint it: a step accumulates (five quick presses still move five plies and the
+     counter follows), an absolute jump takes the newest target, and the board
+     changes at most once per frame. A non-animated load is a new position, not a
+     navigation, so it applies immediately and never waits for a frame. */
+  const navRef = useRef({ raf: 0, target: 0, animate: true, source: 'viewer-nav' });
+  /* The ply the board actually shows, kept as of the last navigation rather than
+     as of the last render. -1 until the first position is loaded. */
+  const appliedPlyRef = useRef(-1);
+  const navFlushRef = useRef(() => {});
+  navFlushRef.current = () => {
+    const nav = navRef.current;
+    nav.raf = 0;
+    applyNav(nav.target, nav.animate, nav.source);
+  };
+
+  /* `target` is a delta for a step and an absolute ply for a jump. While a frame
+     is already waiting, steps add up and the newest jump wins; a step that opens
+     a new queue counts from the ply the board is on. */
+  function queueNav(target, source, isStep) {
+    const nav = navRef.current;
+    const pending = Boolean(nav.raf);
+    const base = appliedPlyRef.current < 0 ? moveIndex : appliedPlyRef.current;
+    nav.target = isStep ? (pending ? nav.target + target : base + target) : target;
+    nav.animate = true;
+    nav.source = source;
+    if (!pending) nav.raf = requestAnimationFrame(() => navFlushRef.current());
+  }
+
+  function go(idx, animate = true, source = 'viewer-nav', isStep = false) {
+    if (!animate || typeof requestAnimationFrame !== 'function') {
+      if (navRef.current.raf) { cancelAnimationFrame(navRef.current.raf); navRef.current.raf = 0; }
+      applyNav(idx, false, source);
+      return;
+    }
+    queueNav(idx, source, isStep);
+  }
+  /* Steps are deltas so a held key accumulates correctly inside one frame; jumps
+     are absolute plies and the newest one wins. */
+  const stepNav = (delta, source) => go(delta, true, source, true);
+  const jumpNav = (ply, source = 'viewer-nav') => go(ply, true, source);
+
+  useEffect(() => () => {
+    if (navRef.current.raf) cancelAnimationFrame(navRef.current.raf);
+  }, []);
 
   /* Re-establish the board whenever the game (or the requested move) changes —
      including the first load, so opening a Brilliant move lands on its position
@@ -292,12 +447,14 @@ export default function GameViewerCard({ game = null,   gameRef = null,   resolv
   }, [gameId, gameSource, loadAnalysis, onReviewComplete, parsed.initFen, loaded?.pgn]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* Keyboard: ←/→ prev/next, ↑/Home first, ↓/End last, F flip. One listener,
-     always active while the card is mounted (no need to click the board). */
+     always active while the card is mounted (no need to click the board).
+     The steps are deltas, so a held key accumulates inside the frame it paints
+     in rather than queueing one rebuild per keypress. */
   useReviewKeys({
-    prev: () => go(moveIndex - 1, true, 'keyboard'),
-    next: () => go(moveIndex + 1, true, 'keyboard'),
-    first: () => go(0, true, 'keyboard'),
-    last: () => go(parsed.moves.length, true, 'keyboard'),
+    prev: () => stepNav(-1, 'keyboard'),
+    next: () => stepNav(1, 'keyboard'),
+    first: () => jumpNav(0, 'keyboard'),
+    last: () => jumpNav(plies, 'keyboard'),
     flip: () => setOrientation((o) => (o === 'white' ? 'black' : 'white')),
   });
 
@@ -314,6 +471,12 @@ export default function GameViewerCard({ game = null,   gameRef = null,   resolv
     stopEngineSearch();
   }
 
+  /* How long a cold engine is given to answer the pre-flight probe. A first NNUE
+     download is over 100 MB, so this cannot be a few seconds — but it does have
+     to be a number, so a worker that never answers produces an error the card can
+     recover from instead of a permanent "Analyzing… 0%". */
+  const ENGINE_BOOT_TIMEOUT_MS = 120000;
+
   async function runAnalysis() {
     if (revState === 'running' || !parsed.moves.length) return;
     const token = ++revToken.current;
@@ -322,14 +485,39 @@ export default function GameViewerCard({ game = null,   gameRef = null,   resolv
     setError(null);
     /* Explicit engine pre-flight: if Stockfish can't boot (wasm blocked / failed
        handshake) we fail fast with a clear message instead of the review pipeline
-       silently hanging on its first search forever. */
+       silently hanging on its first search forever.
+       The call is BOUNDED, like every other engine await in this card. It used to
+       have no ceiling: a worker that accepted the command and never answered left
+       the card at "Analyzing… 0%" with no error, no result and no way back to an
+       idle-looking board. */
+    let preWatchdog = null;
     try {
-      await searchTopMoves(parsed.initFen === 'start' ? new Chess().fen() : parsed.initFen, { maxDepth: 4, multiPv: 1 });
-    } catch {
+      const booted = await Promise.race([
+        searchTopMoves(parsed.initFen === 'start' ? new Chess().fen() : parsed.initFen, { maxDepth: 4, multiPv: 1 })
+          .then(() => null, () => ({ bootFailed: true })),
+        new Promise((resolve) => { preWatchdog = setTimeout(() => resolve({ bootTimedOut: true }), ENGINE_BOOT_TIMEOUT_MS); }),
+      ]);
       if (token !== revToken.current) return;
-      setRevState('error');
-      setError('The chess engine could not start (Stockfish WebAssembly failed to load or boot). Try again in a moment.');
-      return;
+      /* A boot that timed out is still occupying a worker: abort it, or the retry
+         queues behind the search that never finished. */
+      if (booted && booted.bootTimedOut) stopEngineSearch();
+      if (booted) {
+        setRevState('error');
+        setError(booted.bootTimedOut
+          ? 'The chess engine is slow to start — it may still be downloading. Try again in a moment.'
+          : 'The chess engine could not start (Stockfish WebAssembly failed to load or boot). Try again in a moment.');
+        return;
+      }
+    } catch {
+      /* Nothing here is expected to throw — the pre-flight rejection is handled
+         above — but a synchronous surprise must still land the card on `error`,
+         not leave it reading "running" forever. */
+      if (token === revToken.current) {
+        setRevState('error');
+        setError('The chess engine could not start (Stockfish WebAssembly failed to load or boot). Try again in a moment.');
+      }
+    } finally {
+      window.clearTimeout(preWatchdog);
     }
     let watchdog = null;
     const timedOut = new Promise((resolve) => { watchdog = setTimeout(() => resolve({ timedOut: true }), 300000); });
@@ -390,6 +578,11 @@ export default function GameViewerCard({ game = null,   gameRef = null,   resolv
   }
 
   const verdicts = review?.verdicts || null;
+  /* The last-move highlight is part of the position table, so the board marker
+     cannot drift from the ply showing: both come from `positions[moveIndex]`.
+     Ply 0 has no move, and the table's entries are the only source — no state
+     that has to be set in step with navigation. */
+  const lastMove = positions[moveIndex]?.lastMove || null;
   const myColor = gameData.my_color || 'white';
   /* Canonical accuracy only: it always ships with the review. */
   const accuracyForSide = (side) => review?.accuracy?.[side] ?? null;
@@ -418,22 +611,54 @@ export default function GameViewerCard({ game = null,   gameRef = null,   resolv
 
   /* ── board overlay: the engine's BEST move, one arrow ──
      Row `moveIndex` is the move that comes NEXT from the position on screen, so
-     its `lines` are the suggestions for the board being looked at. Only the best
-     move is drawn: the 2nd and 3rd engine preferences are not alternatives a
-     student should read as "also fine". */
+     its suggestion is about the board being looked at. Only the best move is
+     drawn: the 2nd and 3rd engine preferences are not alternatives a student
+     should read as "also fine".
+     Recomputed from `moveIndex` alone, so an arrow can never outlive the
+     position that produced it — and it is empty at the last ply, where there is
+     no next move to point at. */
   const TOP_LINE_COLOR = 'rgba(0, 128, 0, 1)';
   const lineArrows = useMemo(() => {
     const row = verdicts && moveIndex < verdicts.length ? verdicts[moveIndex] : null;
-    const ls = row && Array.isArray(row.lines) ? row.lines : [];
-    if (!ls.length) return [];
-    return ls.slice(0, 1)
-      .map((l) => ({
-        from: l.from || (l.uci ? l.uci.slice(0, 2) : null),
-        to: l.to || (l.uci ? l.uci.slice(2, 4) : null),
-        color: TOP_LINE_COLOR,
-      }))
-      .filter((a) => a.from && a.to);
+    if (!row) return [];
+    /* A ply whose search failed still records the best UCI the engine did see,
+       so the arrow comes from that instead of disappearing from a position that
+       has an answer. */
+    const best = Array.isArray(row.lines) && row.lines[0] ? row.lines[0] : null;
+    const uci = (best && best.uci) || row.bestUci || null;
+    const from = (best && best.from) || (uci ? uci.slice(0, 2) : null);
+    const to = (best && best.to) || (uci ? uci.slice(2, 4) : null);
+    if (!from || !to || from === to) return [];
+    return [{ from, to, color: TOP_LINE_COLOR }];
   }, [verdicts, moveIndex]);
+
+  /* The score sheet's content, built once per game + analysis. Each row's cells
+     keep a stable identity so `ScoreRow`'s memo can hold: navigation changes only
+     which cell is active, never what any cell says. The row renders its own
+     glyph and grade class from the verdict, exactly as the inline version did —
+     what the memo buys is that this data (and the SAN strings) are not rebuilt
+     for all 75 rows on every step. */
+  const sheetRows = useMemo(() => {
+    const pairs = Math.ceil(parsed.moves.length / 2);
+    const out = new Array(pairs);
+    for (let i = 0; i < pairs; i += 1) {
+      const cells = [0, 1].map((off) => {
+        const idx = i * 2 + off;
+        if (idx >= parsed.moves.length) return null;
+        const v = verdicts ? verdicts[idx] : null;
+        return { ply: idx + 1, san: parsed.moves[idx], verdict: v ? v.verdict : null };
+      });
+      out[i] = { num: i + 1, cells };
+    }
+    return out;
+  }, [parsed.moves, verdicts]);
+
+  /* The row's tap handler must not change identity on every render, or the memo
+     above is pointless. The ref keeps the closure pointing at the CURRENT
+     orientation/review without making `onCell` itself unstable. */
+  const jumpRef = useRef(null);
+  jumpRef.current = (ply) => jumpNav(ply, 'score-sheet');
+  const onCell = useCallback((ply) => jumpRef.current(ply), []);
 
   void showToast;
 
@@ -546,11 +771,16 @@ export default function GameViewerCard({ game = null,   gameRef = null,   resolv
                 <ResponsiveBoard
                   className="cp-board-responsive"
                   maxWidth={560}
-                  game={board.current}
+                  game={boardRef.current}
                   mode="analysis"
                   orientation={orientation}
                   interactive={false}
                   customArrows={lineArrows}
+                  /* Stepping through a game is reading, not watching: the glide
+                     is capped at 160 ms so the board is already on the next move
+                     when the thumb is, whatever the saved animation preset says.
+                     A player who chose "no animation" still gets none. */
+                  maxMoveMs={160}
                   /* This card's board answers to a named host, so a move effect
                      is played HERE and not on a board behind the card. */
                   moveEffectHostId={effectHostId}
@@ -568,11 +798,11 @@ export default function GameViewerCard({ game = null,   gameRef = null,   resolv
             {renderSeat(bottomSide, 'bottom')}
 
             <div className="cp-nav">
-              <button className="cp-nav-btn" disabled={moveIndex === 0} onClick={() => go(0)} title="Start">⏮</button>
-              <button className="cp-nav-btn" disabled={moveIndex === 0} onClick={() => go(moveIndex - 1)} title="Previous">◀</button>
-              <span className="cp-nav-count">{moveIndex} / {parsed.moves.length}</span>
-              <button className="cp-nav-btn" disabled={moveIndex >= parsed.moves.length} onClick={() => go(moveIndex + 1)} title="Next">▶</button>
-              <button className="cp-nav-btn" disabled={moveIndex >= parsed.moves.length} onClick={() => go(parsed.moves.length)} title="End">⏭</button>
+              <button className="cp-nav-btn" disabled={moveIndex === 0} onClick={() => jumpNav(0)} title="Start">⏮</button>
+              <button className="cp-nav-btn" disabled={moveIndex === 0} onClick={() => stepNav(-1)} title="Previous">◀</button>
+              <span className="cp-nav-count">{moveIndex} / {plies}</span>
+              <button className="cp-nav-btn" disabled={moveIndex >= plies} onClick={() => stepNav(1)} title="Next">▶</button>
+              <button className="cp-nav-btn" disabled={moveIndex >= plies} onClick={() => jumpNav(plies)} title="End">⏭</button>
               <button className="cp-nav-btn" onClick={() => setOrientation((o) => (o === 'white' ? 'black' : 'white'))} title="Flip board">⇄</button>
             </div>
           </div>
@@ -670,36 +900,15 @@ export default function GameViewerCard({ game = null,   gameRef = null,   resolv
                     <span role="columnheader" className="is-white">{whiteLabel}</span>
                     <span role="columnheader" className="is-black">{blackLabel}</span>
                   </div>
-                  {Array.from({ length: Math.ceil(parsed.moves.length / 2) }, (_, i) => (
-                    <div className="cp-score-row" role="row" key={i}>
-                      <span className="cp-score-num" role="rowheader">{i + 1}.</span>
-                      {[0, 1].map((off) => {
-                        const idx = i * 2 + off;
-                        /* A real empty cell, not a missing one: the columns must
-                           stay aligned when a game ends after White's move. */
-                        if (idx >= parsed.moves.length) {
-                          return <span className="cp-score-cell is-empty" role="gridcell" key={off} />;
-                        }
-                        const v = verdicts ? verdicts[idx] : null;
-                        const meta = v ? reviewMetaFor(v.verdict) : null;
-                        /* The cell colour is a CSS hook keyed by the legacy tier
-                           name, so it has to be the DISPLAY key. */
-                        const grade = v?.verdict ? ` is-${getDisplayVerdict(v.verdict).toLowerCase()}` : '';
-                        return (
-                          <button
-                            key={off}
-                            type="button"
-                            role="gridcell"
-                            title={meta ? `${getDisplayVerdict(v.verdict)}` : undefined}
-                            className={`cp-score-cell${idx + 1 === moveIndex ? ' is-active' : ''}${grade}`}
-                            onClick={() => go(idx + 1)}
-                          >
-                            {meta && <span className="cp-score-badge-glyph">{meta.glyph}</span>}
-                            {parsed.moves[idx]}
-                          </button>
-                        );
-                      })}
-                    </div>
+                  {sheetRows.map(({ num, cells }, i) => (
+                    <ScoreRow
+                      key={i}
+                      num={num}
+                      cells={cells}
+                      onCell={onCell}
+                      activeWhite={cells[0]?.ply === moveIndex}
+                      activeBlack={cells[1]?.ply === moveIndex}
+                    />
                   ))}
                 </>
               )}

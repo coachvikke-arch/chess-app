@@ -101,8 +101,10 @@ test('the card positions the board at that move index', () => {
   assert.match(CARD, /initialMoveIndex/);
   assert.match(CARD, /go\(startIndex, false\)/,
     'the requested move is established without replaying its effect on open');
-  /* Clamped, so a stale request cannot point past the last move. */
-  assert.match(CARD, /Math\.min\(n, i\)/);
+  /* Clamped, so a stale request cannot point past the last move. `plies` is the
+     number of positions the card actually built, so a PGN whose replay stopped
+     early clamps to the last REACHED position, not to the move count. */
+  assert.match(CARD, /Math\.max\(0, Math\.min\(plies, i\)\)/);
 });
 
 /* ── click → full game card ───────────────────────────────────────────────── */
