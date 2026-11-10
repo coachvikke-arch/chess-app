@@ -5,6 +5,8 @@ const { Chess } = require('chess.js');
 const { isAdminRole } = require('../middleware/roleMiddleware');
 const { deriveStudentSubmissionStatus } = require('../utils/assignmentStatus');
 const { pickTrainerPuzzle, LEVELS: TRAINER_LEVELS } = require('../services/puzzleTrainer');
+const { recordSolve, trainerLeaderboard: loadTrainerLadder } = require('../services/puzzleTrainerScore');
+const libraryPuzzleSync = require('../services/libraryPuzzleSync');
 
 /* ───────────────────── lichess theme taxonomy ───────────────────── */
 
@@ -549,8 +551,10 @@ function codeForTag(tag) {
   return `${tag}${String(n).padStart(2, '0')}`;
 }
 
-/* Human label for a tag (e.g. "EG" -> "Endgame"), mirroring puzzleTypeFromTheme. */
+/* Human label for a tag (e.g. "EG" -> "Endgame"), mirroring puzzleTypeFromTheme.
+   "LIB" marks a set projected from a PGN-library folder. */
 function labelForTag(tag) {
+  if (tag === 'LIB') return 'Library';
   return TYPE_SETS.find((t) => t.tag === tag)?.label || 'Tactics';
 }
 
@@ -689,6 +693,15 @@ function versionToEtag(row) {
 /* Set metadata for the navigation bar: set_code, set_name, puzzle_count per set. */
 exports.listSets = async (_req, res) => {
   try {
+    /* First call in a process backfills one set per PGN-library folder, so the
+       Listing carries the Library's sets without a re-upload. Awaited: the
+       answer must already contain them. The boot pass usually got here first,
+       in which case this resolves at once. */
+    try {
+      await libraryPuzzleSync.ensureLibrarySetsSynced();
+    } catch (err) {
+      console.warn('Library → Puzzle Listing sync failed:', err.message);
+    }
     const sets = await loadSets();
     res.json({
       total: sets.length,
@@ -1376,6 +1389,50 @@ exports.trainerNext = async (req, res) => {
   }
 };
 
+/* ───────────── trainer: credit a solve, and the ladder ───────────── */
+
+/**
+ * POST /api/puzzles/trainer/solve
+ * body: { puzzleId, line: string[] (solver-first UCI), firstTry, solveMs, level }
+ *
+ * The award is computed server-side and written once per (user, puzzle). The
+ * response carries the fresh ladder with it, so the page never has to race a
+ * second request to show the rank the solve just earned.
+ */
+exports.trainerSolve = async (req, res) => {
+  try {
+    const { puzzleId, line, firstTry, solveMs, level } = req.body || {};
+    const result = await recordSolve({
+      userId: req.user.id, puzzleId, line, firstTry, solveMs, level,
+    });
+    if (!result.ok) {
+      const reply = {
+        puzzle: [400, 'That puzzle is not in the trainer pool.'],
+        line: [400, 'That line does not solve this puzzle, so no points were awarded.'],
+        user: [401, 'Your session no longer matches an account. Please sign in again.'],
+      }[result.reason] || [400, 'Could not read that solve.'];
+      return res.status(reply[0]).json({ message: reply[1], reason: result.reason });
+    }
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ message: 'Failed to save your puzzle score', error: err.message });
+  }
+};
+
+/**
+ * GET /api/puzzles/trainer/leaderboard?limit=10
+ * Top `limit` plus the viewer's own row (`me`), which is returned even when it
+ * sits outside the top ten or is hidden from everybody else.
+ */
+exports.trainerLeaderboard = async (req, res) => {
+  try {
+    const limit = req.query.limit === undefined ? undefined : Number(req.query.limit);
+    res.json(await loadTrainerLadder({ viewerId: req.user.id, limit }));
+  } catch (err) {
+    res.status(500).json({ message: 'Failed to load the trainer leaderboard', error: err.message });
+  }
+};
+
 /* ──────────────── get single puzzle ──────────────── */
 
 exports.getPuzzle = async (req, res) => {
@@ -1422,6 +1479,27 @@ exports.createPuzzle = async (req, res) => {
 
 exports.deletePuzzle = async (req, res) => {
   try {
+    const found = await db.query(
+      'SELECT id, set_code, fen_key, fen, solution FROM puzzles WHERE id = $1', [req.params.id]
+    );
+    const puzzle = found.rows[0];
+
+    /* A folder-projected puzzle is an item of that folder. Remove the item so
+       the next sync does not resurrect it, and say so in the response. */
+    if (puzzle && libraryPuzzleSync.isLibrarySetCode(puzzle.set_code)) {
+      const folderId = libraryPuzzleSync.folderIdFromSetCode(puzzle.set_code);
+      const itemMatch = /^lib(\d+)$/.exec(String(puzzle.fen_key || ''));
+      if (itemMatch) {
+        await db.query('DELETE FROM library_items WHERE id = $1', [Number(itemMatch[1])]);
+      } else {
+        await libraryPuzzleSync.removeLibraryItemForPuzzle(folderId, puzzle.fen, puzzle.solution);
+      }
+      await db.query('DELETE FROM puzzles WHERE id = $1', [puzzle.id]);
+      await libraryPuzzleSync.syncLibraryFolder(folderId)
+        .catch((e) => console.warn('Library → Puzzle Listing sync failed:', e.message));
+      return res.json({ message: 'Removed from the set and from the PGN / FEN Library folder' });
+    }
+
     await db.query('DELETE FROM puzzles WHERE id = $1', [req.params.id]);
     res.json({ message: 'Deleted' });
   } catch (err) {
@@ -2517,6 +2595,28 @@ exports.getStudentPuzzleReport = async (_req, res) => {
   }
 };
 
+/* A set projected from a PGN-library folder has no name of its own: it shows
+   the folder's. Renaming it here renames the folder, so both stay identical. */
+async function renameLibraryFolderSet(res, code, name) {
+  const folderId = libraryPuzzleSync.folderIdFromSetCode(code);
+  const folder = await db.query('SELECT id, parent_id FROM library_folders WHERE id = $1', [folderId]);
+  if (!folder.rows.length) return res.status(404).json({ message: 'Puzzle set not found' });
+
+  const dupe = await db.query(
+    `SELECT 1 FROM library_folders
+      WHERE lower(name) = lower($1) AND parent_id IS NOT DISTINCT FROM $2 AND id <> $3
+      LIMIT 1`,
+    [name, folder.rows[0].parent_id, folderId]
+  );
+  if (dupe.rows.length) {
+    return res.status(400).json({ message: `A folder named "${name}" already exists in this location.` });
+  }
+
+  await db.query('UPDATE library_folders SET name = $1 WHERE id = $2', [name, folderId]);
+  await db.query('UPDATE sets SET name = $1, updated_at = NOW() WHERE code = $2', [name, code]);
+  return res.json({ set: { set_code: code, set_name: name }, puzzlesRenamed: 0 });
+}
+
 /* Rename a set — keeps set_code (and therefore every puzzle/assignment
    reference) intact; only the display label changes. */
 exports.renameSet = async (req, res) => {
@@ -2525,6 +2625,10 @@ exports.renameSet = async (req, res) => {
     const name = String(req.body.name || '').trim();
     if (!name) return res.status(400).json({ message: 'Set name is required and cannot be empty' });
     if (name.length > 200) return res.status(400).json({ message: 'Set name must be at most 200 characters' });
+
+    if (libraryPuzzleSync.isLibrarySetCode(code)) {
+      return await renameLibraryFolderSet(res, code, name);
+    }
 
     const client = await pool.connect();
     try {
@@ -2621,6 +2725,14 @@ exports.deleteSet = async (req, res) => {
 exports.deleteSet = async (req, res) => {
   const code = String(req.params.setCode || '').trim();
   if (!code) return res.status(400).json({ message: 'Set code is required' });
+
+  /* A folder-projected set disappears when its folder is deleted in the PGN /
+     FEN Library; deleting it here would only orphan attempts. */
+  if (libraryPuzzleSync.isLibrarySetCode(code)) {
+    return res.status(400).json({
+      message: 'This set is the PGN / FEN Library folder of the same name. Delete that folder in the Library to remove it.',
+    });
+  }
 
   const client = await pool.connect();
   try {
@@ -3027,6 +3139,11 @@ exports.addSetPuzzle = async (req, res) => {
     const setCode = String(req.params.setCode || '').trim();
     const setRes = await db.query('SELECT code FROM sets WHERE code = $1', [setCode]);
     if (setRes.rows.length === 0) return res.status(404).json({ message: 'Puzzle set not found' });
+    if (libraryPuzzleSync.isLibrarySetCode(setCode)) {
+      return res.status(400).json({
+        message: 'This set mirrors a PGN / FEN Library folder. Add the puzzle to that folder in the Library instead.',
+      });
+    }
 
     const fenRaw = String(req.body.fen || '').trim();
     const movesRaw = String(req.body.moves || '').trim();
@@ -3136,6 +3253,11 @@ exports.reorderSetPuzzles = async (req, res) => {
 
     const setRes = await db.query('SELECT code FROM sets WHERE code = $1', [setCode]);
     if (setRes.rows.length === 0) return res.status(404).json({ message: 'Puzzle set not found' });
+    if (libraryPuzzleSync.isLibrarySetCode(setCode)) {
+      return res.status(400).json({
+        message: 'This set follows the order of its PGN / FEN Library folder. Reorder the entries there.',
+      });
+    }
 
     const client = await pool.connect();
     try {

@@ -1,4 +1,20 @@
 const db = require('../config/database');
+const libraryPuzzleSync = require('../services/libraryPuzzleSync');
+
+/* Every library write funnels through here: the Puzzle Listing's folder-backed
+   sets are derived from these tables, so they are re-projected after the write.
+   Fire-and-forget — a failed projection must never fail the library edit, and
+   the next boot/listing pass repairs it. */
+function syncListingSoon(folderIds) {
+  const ids = (Array.isArray(folderIds) ? folderIds : [folderIds])
+    .filter((id) => id != null)
+    .map(Number)
+    .filter((id) => Number.isInteger(id) && id > 0);
+  if (!ids.length) return;
+  libraryPuzzleSync.syncLibraryFolders(ids).catch((err) => {
+    console.warn('Library → Puzzle Listing sync failed:', err.message);
+  });
+}
 
 /* ═══════════════════════════════════════════════════════════════════════════
  * Shared Chess Library — folders of PGN/FEN entries.
@@ -103,16 +119,19 @@ exports.bulkRenameItems = async (req, res) => {
   try {
     await client.query('BEGIN');
     let changed = 0;
+    const touched = new Set();
     for (const r of renames) {
       const id = Number(r?.id);
       const title = String(r?.title ?? '').trim();
       if (!Number.isInteger(id) || !title) continue;
       const res1 = await client.query(
-        'UPDATE library_items SET title = $1 WHERE id = $2 RETURNING id', [title, id]
+        'UPDATE library_items SET title = $1 WHERE id = $2 RETURNING id, folder_id', [title, id]
       );
       changed += res1.rowCount;
+      if (res1.rows[0]) touched.add(res1.rows[0].folder_id);
     }
     await client.query('COMMIT');
+    syncListingSoon([...touched]);
     res.json({ ok: true, renamed: changed });
   } catch (e) {
     await client.query('ROLLBACK');
@@ -227,6 +246,7 @@ exports.updateFolder = async (req, res) => {
     const items = await db.query(
       'SELECT * FROM library_items WHERE folder_id = $1 ORDER BY position ASC, id ASC', [id]
     );
+    syncListingSoon(id);
     res.json(toFolder(row.rows[0], items.rows.map(toItem)));
   } catch (err) {
     res.status(500).json({ message: 'Failed to update folder', error: err.message });
@@ -252,12 +272,18 @@ exports.deleteFolder = async (req, res) => {
          SELECT f.id FROM library_folders f JOIN sub s ON f.parent_id = s.id
        )
        SELECT (SELECT COUNT(*)::int FROM sub) AS folders,
-              (SELECT COUNT(*)::int FROM library_items WHERE folder_id IN (SELECT id FROM sub)) AS items`,
+              (SELECT COUNT(*)::int FROM library_items WHERE folder_id IN (SELECT id FROM sub)) AS items,
+              (SELECT array_agg(id) FROM sub) AS ids`,
       [id]
     );
 
+    /* The subtree's Puzzle Listing sets go with it. Derived puzzle rows stay
+       behind on purpose: an assigned puzzle keeps its attempts reachable. */
+    await libraryPuzzleSync.forgetLibraryFolders(counts.rows[0].ids || [])
+      .catch((e) => console.warn('Library → Puzzle Listing drop failed:', e.message));
+
     await db.query('DELETE FROM library_folders WHERE id = $1', [id]);
-    res.json({ ok: true, deleted: counts.rows[0] });
+    res.json({ ok: true, deleted: { folders: counts.rows[0].folders, items: counts.rows[0].items } });
   } catch (err) {
     res.status(500).json({ message: 'Failed to delete folder', error: err.message });
   }
@@ -354,6 +380,14 @@ exports.importLibrary = async (req, res) => {
       client.release();
     }
 
+    /* One projection pass for every imported folder, so an old library becomes
+       visible in the Puzzle Listing immediately. */
+    try {
+      await libraryPuzzleSync.syncLibraryFolders([...idMap.values()]);
+    } catch (e) {
+      console.warn('Library → Puzzle Listing sync failed:', e.message);
+    }
+
     res.status(201).json({
       ok: true,
       containerId,
@@ -390,6 +424,7 @@ exports.createItem = async (req, res) => {
        RETURNING *`,
       [folderId, title, type, notation, req.body?.fen ?? null, req.body?.pgn ?? null, req.user.id]
     );
+    syncListingSoon(folderId);
     res.status(201).json(toItem(row.rows[0]));
   } catch (err) {
     res.status(500).json({ message: 'Failed to create entry', error: err.message });
@@ -435,6 +470,7 @@ exports.createItems = async (req, res) => {
     } finally {
       client.release();
     }
+    syncListingSoon(folderId);
     res.status(201).json(created);
   } catch (err) {
     res.status(500).json({ message: 'Failed to add entries', error: err.message });
@@ -461,6 +497,10 @@ exports.updateItem = async (req, res) => {
       [req.body?.title ?? null, req.body?.notation ?? null, req.body?.fen ?? null,
         req.body?.pgn ?? null, req.body?.folderId ?? null, id]
     );
+    /* Content edits change the derived puzzle; a move changes both folders.
+       Destination first: the row follows its item, then the old folder sees
+       nothing stale left behind. */
+    syncListingSoon([row.rows[0].folder_id, current.folder_id]);
     res.json(toItem(row.rows[0]));
   } catch (err) {
     res.status(500).json({ message: 'Failed to update entry', error: err.message });
@@ -469,8 +509,11 @@ exports.updateItem = async (req, res) => {
 
 exports.deleteItem = async (req, res) => {
   try {
-    const del = await db.query('DELETE FROM library_items WHERE id = $1 RETURNING id', [req.params.id]);
+    const del = await db.query(
+      'DELETE FROM library_items WHERE id = $1 RETURNING id, folder_id', [req.params.id]
+    );
     if (del.rows.length === 0) return res.status(404).json({ message: 'Entry not found' });
+    syncListingSoon(del.rows[0].folder_id);
     res.json({ ok: true, id: del.rows[0].id });
   } catch (err) {
     res.status(500).json({ message: 'Failed to delete entry', error: err.message });
@@ -520,6 +563,7 @@ exports.reorderItem = async (req, res) => {
     } finally {
       client.release();
     }
+    syncListingSoon(folderId);
     res.json({ ok: true, moved: true });
   } catch (err) {
     res.status(500).json({ message: 'Failed to reorder entry', error: err.message });

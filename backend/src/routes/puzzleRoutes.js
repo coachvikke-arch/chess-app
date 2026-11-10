@@ -13,6 +13,9 @@ router.get('/my-assignments', authMiddleware, roleMiddleware('student'), require
    after them, "/next" is swallowed by `/:id` and the student is served the
    puzzle whose id happens to be the string "next". */
 router.get('/next', authMiddleware, roleMiddleware('student'), requireFeature('puzzle_trainer'), ctrl.trainerNext);
+/* Points and the ladder. Same reason as `/next`: above every `/:id` reader. */
+router.post('/trainer/solve', authMiddleware, roleMiddleware('student'), requireFeature('puzzle_trainer'), ctrl.trainerSolve);
+router.get('/trainer/leaderboard', authMiddleware, roleMiddleware('student'), requireFeature('puzzle_trainer'), ctrl.trainerLeaderboard);
 router.post('/:id/submit-assignment', authMiddleware, roleMiddleware('student'), requireFeature('puzzle_trainer'), ctrl.submitPuzzleAssignment);
 router.get('/listing', authMiddleware, roleMiddleware('admin'), ctrl.listingPuzzles);
 router.get('/sets', authMiddleware, roleMiddleware('admin'), ctrl.listSets);

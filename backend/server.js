@@ -272,6 +272,17 @@ server.listen(PORT, '0.0.0.0', () => {
   require('./src/services/puzzleTrainer').ensurePool()
     .then((n) => console.log(`Puzzle trainer pool ready (${n} puzzles)`))
     .catch((e) => console.warn('Puzzle trainer pool install failed:', e.message));
+  /* The trainer's score tables, for the same reason: a student's first solve
+     must not be the request that discovers they do not exist yet. */
+  require('./src/services/puzzleTrainerScore').ensureScores()
+    .then(() => console.log('Puzzle trainer scores ready'))
+    .catch((e) => console.warn('Puzzle trainer score install failed:', e.message));
+  /* PGN / FEN Library folders are projected into Puzzle Listing sets here, at
+     start-up, so sets uploaded long before the folder link existed appear
+     without anyone re-uploading anything. Idempotent; cheap when nothing moved. */
+  require('./src/services/libraryPuzzleSync').syncAllLibraryFolders()
+    .then((n) => console.log(`Puzzle Listing linked to ${n} library folder(s)`))
+    .catch((e) => console.warn('Library → Puzzle Listing sync failed:', e.message));
   /* Same reasoning for Settings: the board-preference columns are created by
      migration files a given database may never have been handed, and a missing
      one takes GET /auth/me down with it. Naming what was added here is what

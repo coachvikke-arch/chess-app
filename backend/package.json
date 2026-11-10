@@ -28,6 +28,7 @@
     "test:live-class-dm": "node scripts/test-live-class-dm.js",
     "test:puzzle-drill": "node --test scripts/test-puzzle-drill.js",
     "test:trainer-pool": "node --test scripts/trainer-pool.test.mjs",
+    "test:trainer-score": "node --test scripts/trainer-score.test.mjs",
     "data:trainer-pool": "node scripts/exportTrainerPool.js",
     "test:game-finished": "node scripts/test-game-finished-notification.js",
     "test:chess-sync": "node --test scripts/test-chess-sync.js",
@@ -76,6 +77,7 @@
     "test:board-prefs": "node --test scripts/board-prefs.test.mjs",
     "test:profile": "node --test scripts/profile-mutation.test.mjs",
     "db:reviewed-games": "node run_migration.js migrations/add_reviewed_games.sql",
+    "db:trainer-scores": "node run_migration.js migrations/add_puzzle_trainer_scores.sql",
     "test:reviewed-games": "node --test scripts/test-reviewed-games.mjs",
     "test:offline-attendance": "node --test scripts/test-offline-attendance-markers.mjs scripts/test-offline-attendance-admin.mjs",
     "test:class-list-exclude-status": "node --test scripts/test-class-list-exclude-status.mjs"

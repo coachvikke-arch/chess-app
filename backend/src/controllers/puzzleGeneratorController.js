@@ -1,6 +1,7 @@
 const { TOPICS, getTopic } = require('../services/puzzleGenerator/topics');
 const jobs = require('../services/puzzleGenerator/jobs');
 const { savePuzzles } = require('../services/savePuzzleService');
+const libraryPuzzleSync = require('../services/libraryPuzzleSync');
 
 const DIFFICULTIES = ['any', 'easy', 'medium', 'hard'];
 const SOURCES = ['lichess+engine', 'lichess', 'engine'];
@@ -74,6 +75,12 @@ exports.save = async (req, res) => {
   }
   try {
     const result = await savePuzzles({ puzzles, folderId, userId: req.user?.id });
+    /* The items just landed in a PGN-library folder, so its Puzzle Listing set
+       has to pick them up before the coach goes looking. */
+    if (result.saved) {
+      await libraryPuzzleSync.syncLibraryFolder(folderId)
+        .catch((e) => console.warn('Library → Puzzle Listing sync failed:', e.message));
+    }
     if (!result.saved) {
       return res.status(409).json({
         message: 'Every selected puzzle is already in the library — nothing new to save.',
