@@ -10,7 +10,6 @@ import { useAuth } from '../context/AuthContext';
 import { useFittedSquare } from '../hooks/useBoardWidth';
 import { useMediaQuery } from '../hooks/useMediaQuery';
 import { useProfileChanged } from '../hooks/useProfileChanged';
-import { revealAfterCheckmate } from '../effects/moveEffect';
 import { NEXT_DELAY_MS, solveMessage } from '../lib/puzzleScore';
 import {
   TRAINER_LEVELS,
@@ -76,7 +75,6 @@ export default function PuzzleTrainer() {
   const loadingRef = useRef(false);
   const timersRef = useRef([]);
   const fxTimerRef = useRef(null);
-  const fxRevealCancelRef = useRef(null);
   const levelButtonRef = useRef(null);
   const ladderButtonRef = useRef(null);
   /* Bumped by every new load: a score response that lands after the next puzzle
@@ -116,7 +114,6 @@ export default function PuzzleTrainer() {
   useEffect(() => () => {
     clearTimers();
     clearTimeout(fxTimerRef.current);
-    if (fxRevealCancelRef.current) fxRevealCancelRef.current();
     boardTicketRef.current += 1;   // a ladder response in flight must not land on a dead page
   }, [clearTimers]);
 
@@ -270,29 +267,16 @@ export default function PuzzleTrainer() {
         });
     }
 
-    if (fxRevealCancelRef.current) {
-      fxRevealCancelRef.current();
-      fxRevealCancelRef.current = null;
-    }
-
-    const isMate = !!meta.checkmate;
-    const payload = {
-      kind: isMate ? 'checkmate' : 'solved',
-      square: meta.lastMove?.to,
-      piece: pieceGlyph(meta.lastMove?.pieceType, meta.lastMove?.color),
-      msg: isMate ? 'CHECKMATE!' : 'Solved!',
-    };
-    /* A celebration on a mating move must not cover the mating animation. */
-    if (isMate) {
-      fxRevealCancelRef.current = revealAfterCheckmate(
-        { to: meta.lastMove?.to },
-        () => {
-          fxRevealCancelRef.current = null;
-          triggerFx(payload);
-        },
-      );
-    } else {
-      triggerFx(payload);
+    /* A mating move already carries its own king-anchored "Checkmate" pill from
+       the board's move effect. Showing the celebration card on top of it put the
+       same word on the board twice, so the pill is the one announcement. */
+    if (!meta.checkmate) {
+      triggerFx({
+        kind: 'solved',
+        square: meta.lastMove?.to,
+        piece: pieceGlyph(meta.lastMove?.pieceType, meta.lastMove?.color),
+        msg: 'Solved!',
+      });
     }
 
     /* One flight of timers, every one of them in timersRef: the countdown ticks
