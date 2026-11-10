@@ -100,10 +100,11 @@
     gap: 18px;
   }
 
-  /* Only the side column is pulled to the middle; the stage keeps stretching,
-     which is what gives the board a real height to solve against. */
+  /* The column stretches rather than centring: the ladder below takes the height
+     the board does not need and scrolls inside itself. Centred, a panel taller
+     than its row overflowed it and the one-screen frame clipped the bottom. */
   .pt-side {
-    align-self: center;
+    align-self: stretch;
   }
 }
 
@@ -339,6 +340,23 @@
   color: var(--tn-red);
 }
 
+/* The three-second beat, as a pill beside the award rather than a second line
+   under it. It overrides the `> span` wrapping rule above: a countdown that
+   broke across two lines would grow the row on every tick. */
+.pt-msg .pt-next {
+  flex: none;
+  padding: 3px 9px;
+  border: 1px solid #bfdbfe;
+  border-radius: 999px;
+  background: #eff6ff;
+  color: var(--tn-blue);
+  font-size: 12px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow-wrap: normal;
+}
+
 /* ── stats ── */
 
 .pt-stats {
@@ -382,6 +400,315 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* ── the ladder ─────────────────────────────────────────────────────────────
+   Same card language as the rest of the page: white panel, hairline edge, blue
+   for the one thing that matters (your own row). On a desktop it takes the
+   height the board does not need and scrolls inside itself; in the phone sheet
+   it is natural height and the modal body does the scrolling instead. */
+
+.pt-lb {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  border: 1px solid var(--hairline);
+  border-radius: 12px;
+  background: #ffffff;
+  overflow: hidden;
+}
+
+@media (min-width: 900px) {
+  .pt-lb {
+    flex: 0 1 auto;
+    /* Enough for the head, two rows and the rule line, so a short desktop
+       window still shows a ladder rather than a scrollbar with nothing in it. */
+    min-height: 150px;
+  }
+}
+
+.pt-lb-head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 10px 9px 12px;
+  border-bottom: 1px solid var(--hairline);
+  background: var(--tn-panel);
+}
+
+.pt-lb-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.pt-lb-title > span {
+  color: var(--tn-blue);
+  font-size: 14px;
+}
+
+.pt-lb-players {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--tn-dim);
+  white-space: nowrap;
+}
+
+.pt-lb-refresh {
+  flex: none;
+  margin-left: auto;
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--hairline);
+  border-radius: 8px;
+  background: #ffffff;
+  color: var(--tn-blue);
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+/* The count already took the auto margin when it is there; the button then sits
+   flush against it instead of pushing it back to the left. */
+.pt-lb-players + .pt-lb-refresh {
+  margin-left: 0;
+}
+
+.pt-lb-refresh:hover:not(:disabled) {
+  border-color: #93c5fd;
+  background: #eff6ff;
+}
+
+.pt-lb-refresh:focus-visible {
+  outline: 2px solid var(--tn-blue);
+  outline-offset: 2px;
+}
+
+.pt-lb-refresh:disabled {
+  color: var(--tn-dim);
+  cursor: default;
+  opacity: 0.6;
+}
+
+.pt-lb-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 6px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  /* The scrollbar belongs to the page's palette, not the browser's grey. */
+  scrollbar-width: thin;
+  scrollbar-color: #bfdbfe var(--tn-panel);
+}
+
+.pt-lb-body::-webkit-scrollbar {
+  width: 8px;
+}
+
+.pt-lb-body::-webkit-scrollbar-track {
+  background: var(--tn-panel);
+  border-radius: 999px;
+}
+
+.pt-lb-body::-webkit-scrollbar-thumb {
+  background: #bfdbfe;
+  border-radius: 999px;
+}
+
+.pt-lb-body::-webkit-scrollbar-thumb:hover {
+  background: var(--tn-blue);
+}
+
+.pt-lb-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pt-lb-row {
+  display: grid;
+  grid-template-columns: 20px 28px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+}
+
+.pt-lb-row.is-me {
+  border-color: #bfdbfe;
+  background: #eff6ff;
+}
+
+.pt-lb-rank {
+  font-size: 12px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--tn-dim);
+  text-align: center;
+}
+
+.pt-lb-rank.is-top {
+  color: var(--tn-blue);
+}
+
+.pt-lb-av {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+}
+
+.pt-lb-photo {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 1px solid var(--hairline);
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+/* The name truncates, the "You" chip never does: they are separate boxes, so a
+   long academy name cannot eat the one label that says this row is yours. */
+.pt-lb-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.pt-lb-uname {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.pt-lb-you {
+  flex: none;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--tn-blue);
+  color: #ffffff;
+  font-size: 10px;
+  font-style: normal;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.pt-lb-score {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.pt-lb-score b {
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+
+.pt-lb-score small {
+  font-size: 10px;
+  color: var(--tn-dim);
+}
+
+/* Below the ten, your own row stays put while the list scrolls past it — the
+   rank you just moved is the number you came here to read. */
+.pt-lb-row.is-outside {
+  position: sticky;
+  bottom: 0;
+  margin-top: 6px;
+  background: #eff6ff;
+  box-shadow: 0 -6px 12px -8px rgba(15, 23, 42, 0.35);
+}
+
+.pt-lb-row.is-unranked .pt-lb-rank,
+.pt-lb-row.is-unranked .pt-lb-score small {
+  color: var(--tn-dim);
+}
+
+.pt-lb-rules {
+  flex: none;
+  margin: 0;
+  padding: 8px 12px;
+  border-top: 1px solid var(--hairline);
+  background: var(--tn-panel);
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--tn-dim);
+}
+
+.pt-lb-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 96px;
+  padding: 12px;
+  text-align: center;
+}
+
+.pt-lb-state p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--tn-dim);
+}
+
+/* ── the ladder on a phone: one live row, the table opens from it ─────────── */
+
+.pt-lbopen {
+  flex: none;
+  width: 100%;
+}
+
+/* Inside the sheet the ladder keeps its card, but the modal body is what
+   scrolls: the sticky "you" row would stick to a box that never moves. */
+.pt-lbmodal .pt-lb {
+  overflow: visible;
+}
+
+.pt-lbmodal .pt-lb-head {
+  padding: 8px 10px;
+}
+
+/* The modal already titles this sheet; repeating "Leaderboard" inside it would
+   be the same word twice in 40px. Kept in the DOM for screen readers. */
+.pt-lbmodal .pt-lb-title {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.pt-lbmodal .pt-lb-players {
+  margin-left: 0;
+  margin-right: auto;
+}
+
+.pt-lbmodal .pt-lb-body {
+  overflow: visible;
+}
+
+.pt-lbmodal .pt-lb-row.is-outside {
+  position: static;
+  box-shadow: none;
 }
 
 /* ── the level sheet ── */
@@ -559,6 +886,29 @@
   .pt-stat span {
     font-size: 9px;
   }
+
+  /* The ladder row loses its second line here: 112px of column cannot hold a
+     rank readout, and the Points counter directly above already carries it. */
+  .pt-lbopen {
+    gap: 6px;
+    min-height: 36px;
+    padding: 6px 8px;
+  }
+
+  .pt-lbopen .pt-badge {
+    width: 22px;
+    height: 22px;
+    border-radius: 7px;
+    font-size: 12px;
+  }
+
+  .pt-lbopen .pt-level-text b {
+    font-size: 12px;
+  }
+
+  .pt-lbopen .pt-level-text small {
+    display: none;
+  }
 }
 
 /* …and on a phone this small the column takes its minimum, because 150px of
@@ -576,7 +926,8 @@
 /* The only motion this page owns is the loading spinner; the board's own
    animation and FX are already guarded by the shared effects layer. */
 @media (prefers-reduced-motion: reduce) {
-  .pt-wrap .chess-spinner {
+  .pt-wrap .chess-spinner,
+  .pt-lb .chess-spinner {
     animation: none;
   }
 }

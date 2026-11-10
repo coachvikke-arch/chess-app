@@ -543,10 +543,15 @@ export default function PuzzleListing({
       .get('/puzzles/sets')
       .then((res) => {
         const data = res.data?.data ?? res.data ?? {};
-        setSets(data.sets || []);
+        const list = data.sets || [];
+        setSets(list);
         setSetsError('');
+        return list;
       })
-      .catch((e) => setSetsError(e.response?.data?.message || e.message || 'Failed to load puzzle sets'));
+      .catch((e) => {
+        setSetsError(e.response?.data?.message || e.message || 'Failed to load puzzle sets');
+        return null;
+      });
   }, []);
 
   const refreshFolderTree = useCallback(() => {
@@ -559,10 +564,37 @@ export default function PuzzleListing({
       .catch(() => {});
   }, []);
 
+  const setsSignature = (list) => (list || [])
+    .map((s) => `${s.set_code}:${s.puzzle_count}:${s.set_name}`)
+    .join('|');
+  const setsRef = useRef([]);
+
   // Load set metadata (set_code, set_name, puzzle_count) for the rail.
   useEffect(() => {
-    loadSets();
+    loadSets().then((list) => { if (list) setsRef.current = list; });
     refreshFolderTree();
+  }, [loadSets, refreshFolderTree]);
+
+  /* The PGN / FEN Library and this Listing are two views of the same folders,
+     often open in separate tabs. Re-read on return so a rename, import or
+     delete made in the Library shows up without a manual reload; the cards
+     only refetch when the rail actually reports a different set or count. */
+  useEffect(() => {
+    const onReturn = async () => {
+      if (document.visibilityState !== 'visible') return;
+      const before = setsSignature(setsRef.current);
+      const list = await loadSets();
+      if (!list) return;
+      setsRef.current = list;
+      refreshFolderTree();
+      if (setsSignature(list) !== before) setRefreshKey((k) => k + 1);
+    };
+    window.addEventListener('focus', onReturn);
+    document.addEventListener('visibilitychange', onReturn);
+    return () => {
+      window.removeEventListener('focus', onReturn);
+      document.removeEventListener('visibilitychange', onReturn);
+    };
   }, [loadSets, refreshFolderTree]);
 
   /* Selection adapter. The library reads the shared store so a selection
@@ -727,6 +759,16 @@ export default function PuzzleListing({
   };
 
   const deleteSet = async (set) => {
+    /* A folder-backed set IS the PGN / FEN Library folder — removing it here
+       would desync (or orphan) the folder, so point at the one place that owns
+       it. The server refuses independently. */
+    if (/^lib\d+$/.test(String(set.set_code || ''))) {
+      window.alert(
+        `"${set.set_name}" follows the PGN / FEN Library folder of the same name.\n\n` +
+        'Delete that folder in the Library to remove this set.'
+      );
+      return;
+    }
     if (!window.confirm(
       `Delete "${set.set_name}"?\n\nThis will permanently remove all ${set.puzzle_count} puzzle${set.puzzle_count === 1 ? '' : 's'} in this set. This cannot be undone.`
     )) return;
@@ -1341,8 +1383,12 @@ export default function PuzzleListing({
           >
             <h3 className="mb-1 text-base font-bold text-slate-900">Rename set</h3>
             <p className="mb-4 text-xs font-semibold text-slate-500">
-              Set code <span className="font-mono text-gold-600">{renaming.set_code}</span> is kept — puzzles and
-              existing assignments keep working; only the display name changes.
+              {/^lib\d+$/.test(String(renaming.set_code || '')) ? (
+                <>This set follows the PGN / FEN Library folder of the same name — renaming it renames that folder too.</>
+              ) : (
+                <>Set code <span className="font-mono text-gold-600">{renaming.set_code}</span> is kept — puzzles and
+                existing assignments keep working; only the display name changes.</>
+              )}
             </p>
             <input
               autoFocus

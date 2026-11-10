@@ -108,58 +108,6 @@ function parseLichessCsv(raw) {
   return { format: true, rows };
 }
 
-/* Server CSV column auto-map — mirrors the CSV import wizard's detection so a
-   Library upload can also create a Puzzle-listing set from the same file. */
-function csvColumnAutoMap(text) {
-  const first = String(text || '').split(/\r?\n/).find((l) => l.trim() !== '');
-  if (!first) return {};
-  const headers = first.split(',').map((h) => h.replace(/^"+|"+$/g, '').trim()).filter(Boolean);
-  const findExact = (k) => headers.find((h) => h.toLowerCase() === k);
-  const findCont = (k) => headers.find((h) => h.toLowerCase().includes(k));
-  const map = {};
-  const fen = findExact('fen') || findCont('fen');
-  if (fen) map.fen = fen;
-  const moves = findExact('moves') || findCont('moves');
-  if (moves) map.moves = moves;
-  const rating = findExact('rating') || findCont('rating');
-  if (rating) map.rating = rating;
-  const themes = findExact('themes') || findCont('themes');
-  if (themes) map.themes = themes;
-  const title = findExact('puzzleid') || headers.find((h) => /puzzle\s?[-_]?id/i.test(h)) || findExact('title') || findCont('theme');
-  if (title) map.title = title;
-  return map;
-}
-
-/* Mirror a puzzle CSV upload to the Puzzle Listing as a server set (the same
-   endpoint the CSV import wizard uses). Returns the created set's title.
-   Retries transient failures (network, 429 rate-limit, 5xx) a few times before
-   giving up, so a single flaky response doesn't drop the set. */
-async function mirrorPuzzleCsvSet(csvText, fileName, movesAreDirect) {
-  const setTitle = String(fileName || '').replace(/\.csv$/i, '').trim() || 'Puzzle set';
-  const payload = {
-    csv: csvText,
-    setTitle,
-    columnMap: csvColumnAutoMap(csvText),
-    movesAreDirect: Boolean(movesAreDirect),
-    puzzleName: '',
-    fileName,
-    folderId: null,
-  };
-  const maxAttempts = 3;
-  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    try {
-      await api.post('/puzzles/import-csv-set', { ...payload });
-      return setTitle;
-    } catch (err) {
-      const status = err && err.response ? err.response.status : 0;
-      const retriable = !status || status === 408 || status === 429 || status >= 500;
-      if (!retriable || attempt === maxAttempts) throw err;
-      await new Promise((res) => setTimeout(res, attempt * 800));
-    }
-  }
-  throw new Error('mirror failed');
-}
-
 function moveFromUci(uci) {
   const mv = { from: uci.slice(0, 2), to: uci.slice(2, 4) };
   if (uci.length > 4) mv.promotion = uci.slice(4);
@@ -1359,8 +1307,6 @@ export default function Library() {
     let skippedRows = 0;
     let importedPuzzles = 0;
     let hasCsv = false;
-    const mirrorSets = [];
-    let mirrorFailed = false;
     const rawBase = String(baseName || '').trim();
 
     for (const file of uploadFiles) {
@@ -1380,7 +1326,6 @@ export default function Library() {
           continue;
         }
         setUploadProgress({ done: 0, total: parsed.rows.length, text: `${file.name} — parsing…` });
-        const rowsBefore = okItems.length;
         for (let i = 0; i < parsed.rows.length; i++) {
           const r = puzzleEntryFromCsvRow(parsed.rows[i], skipTriggers, today);
           if (r.error) skippedRows++;
@@ -1392,15 +1337,6 @@ export default function Library() {
           if (i % 100 === 0) {
             setUploadProgress({ done: i, total: parsed.rows.length, text: `${file.name} — row ${Math.min(i + 1, parsed.rows.length)}/${parsed.rows.length}` });
             await new Promise((res) => setTimeout(res, 0));
-          }
-        }
-        /* Keep the Puzzle Listing in sync: mirror this file as a separate set
-           (same import the CSV wizard would do — one set per uploaded file). */
-        if (okItems.length > rowsBefore) {
-          try {
-            mirrorSets.push(await mirrorPuzzleCsvSet(text, file.name, !skipTriggers));
-          } catch {
-            mirrorFailed = true;
           }
         }
       } else {
@@ -1456,21 +1392,12 @@ export default function Library() {
     const { folderNameForToast } = uploadResult;
 
     if (hasCsv) {
-      const mirrorNote = mirrorSets.length
-        ? mirrorSets.length === 1
-          ? `. Also added to Puzzle Listing as "${mirrorSets[0]}"`
-          : `. Also added ${mirrorSets.length} puzzle sets to Puzzle Listing`
-        : '';
-      showToast(`Imported ${importedPuzzles} puzzle${importedPuzzles === 1 ? '' : 's'} to ${folderNameForToast}${mirrorNote}`, {
-        tone: 'success',
-        title: 'Puzzles imported',
-      });
-      if (mirrorFailed) {
-        showToast('Saved to the Library only — could not also create a Puzzle Listing set (admin access required).', {
-          tone: 'error',
-          title: 'Puzzle set not created',
-        });
-      }
+      /* The folder itself is the set: the backend projects it into the Puzzle
+         Listing, so there is no second copy to create or announce. */
+      showToast(
+        `Imported ${importedPuzzles} puzzle${importedPuzzles === 1 ? '' : 's'} to ${folderNameForToast} — listed as that set in the Puzzle Library too`,
+        { tone: 'success', title: 'Puzzles imported' }
+      );
       if (skippedRows) {
         showToast(`${skippedRows} row${skippedRows === 1 ? '' : 's'} skipped due to errors.`, { tone: 'error', title: 'Import incomplete' });
       }

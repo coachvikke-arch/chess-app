@@ -7,11 +7,14 @@ import { APP_NAME_SHORT } from '../config/brand';
  * The name is not taken from the logo file — the artwork carries no wordmark,
  * and baking one in would make it unreadable at header sizes.
  *
- * `height` is the emblem height in px and the name scales from it, which keeps
- * one proportion across every header. `name={false}` gives the artwork alone.
+ * `height` sets `--brand-h`, which sizes the NAME, so one proportion holds
+ * across every header. The emblem is a fixed 36px at every width in the brand
+ * rules, and it is drawn with no box around it.
  *
- * The emblem ships on a transparent background, keyed out of the black the
- * artwork was drawn on, so it sits on the light bars without a box around it.
+ * The emblem ships on a transparent background — cropped out of the brand
+ * artwork above its wordmark — so it sits directly on the bar: no chip, frame
+ * or forced square. The old file had a white rounded card baked into it, which
+ * is what read as a box.
  *
  * The image is imported so Vite emits it with a hashed URL. A bare
  * "assets/logo-emblem.png" src is a *relative* URL: it resolves against the
