@@ -1,12 +1,15 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Page, Card, Spinner } from '../components/ui';
+import { Page, Card, Spinner, ConfirmDialog } from '../components/ui';
 import { useToast } from '../components/Toast';
 import StudentAvatar from '../components/StudentAvatar';
 import Button from '../components/Button';
 import { formatDate } from '../utils/pgnTools';
 import { formatTime12 } from '../utils/time';
-import { listAccountsForStudent, listStudentProfiles, syncStudentProfile } from '../services/adminChessProfiles';
+import {
+  listAccountsForStudent, listStudentProfiles, syncStudentProfile,
+  connectStudentAccount, updateStudentAccount, removeStudentAccount,
+} from '../services/adminChessProfiles';
 import {
   OverviewTab, GamesTab, StatsTab, OpeningsTab, InsightsTab,
 } from './ChessProfile';
@@ -16,6 +19,11 @@ import {
 const PAGE_SIZE = 10;
 const PLATFORM_LABEL = { 'chess.com': 'Chess.com', lichess: 'Lichess' };
 const PLATFORM_ICON = { 'chess.com': '♔', lichess: '♛' };
+/* Order shown in the connect panel and the empty state. */
+const LINK_PLATFORMS = [
+  ['chess.com', 'Chess.com', '♔'],
+  ['lichess', 'Lichess', '♛'],
+];
 
 const STATUS_META = {
   both: 'Both connected',
@@ -323,6 +331,12 @@ function StudentProfileView({ student, onSynced, onBack }) {
   const [syncNote, setSyncNote] = useState('');
   const [ratingsVersion, setRatingsVersion] = useState(0);
   const [gamesVersion, setGamesVersion] = useState(0);
+  /* null, or the one coach panel open: the header's connect form, or an Edit
+     form for a specific platform card. */
+  const [panel, setPanel] = useState(null);
+  const [platformChoice, setPlatformChoice] = useState('chess.com');
+  const [removing, setRemoving] = useState(null);
+  const [notice, setNotice] = useState('');
 
   const studentId = student.userId;
 
@@ -373,12 +387,67 @@ function StudentProfileView({ student, onSynced, onBack }) {
     }
   };
 
-  const scope = { studentId, readOnly: true };
   const list = accounts || [];
   const hasChess = list.some((a) => a.platform === 'chess.com');
   const hasLichess = list.some((a) => a.platform === 'lichess');
+  const bothLinked = hasChess && hasLichess;
   const lastSyncedAt = lastSyncedOf({ accounts: list });
   const callbacks = { all: () => load(), sync: () => { }, remove: () => { } };
+
+  /* `readOnly` still means "the shared student components offer no connect,
+     sync or disconnect controls here"; `manage` is what gives THIS page the
+     coach's own Edit and Remove actions, wired to the admin endpoints. */
+  const scope = {
+    studentId,
+    readOnly: true,
+    manage: {
+      onEdit: (acct) => { setNotice(''); setPanel({ mode: 'edit', account: acct }); },
+      onRemove: (acct) => setRemoving(acct),
+    },
+  };
+
+  /* Every coach write answers with the refreshed account list, so the new card,
+     its ratings and its games appear without a reload — and `onSynced` refreshes
+     the roster badge in the list beside it at the same time. */
+  const applyAccounts = (r) => {
+    if (r?.accounts) setAccounts(r.accounts);
+    setRatingsVersion((v) => v + 1);
+    setGamesVersion((v) => v + 1);
+    setNotice(r?.message || '');
+    setSyncNote(r?.syncError || '');
+    setPanel(null);
+    onSynced?.();
+  };
+
+  const openConnect = () => {
+    /* Start on the platform that is not linked yet; if both are, the panel
+       explains that Edit is the way to change a username. */
+    setPlatformChoice(hasChess && !hasLichess ? 'lichess' : 'chess.com');
+    setNotice('');
+    setPanel({ mode: 'connect' });
+  };
+
+  const confirmRemove = async () => {
+    const acct = removing;
+    setRemoving(null);
+    if (!acct) return;
+    try {
+      const r = await removeStudentAccount(studentId, acct.id);
+      setAccounts(r.accounts || []);
+      setRatingsVersion((v) => v + 1);
+      setGamesVersion((v) => v + 1);
+      setNotice(r.message || 'Profile unlinked.');
+      setSyncNote('');
+      showToast(`${PLATFORM_LABEL[acct.platform] || acct.platform} profile unlinked.`, {
+        tone: 'success', title: 'Profile removed',
+      });
+      onSynced?.();
+    } catch (err) {
+      showToast(err.response?.data?.message || 'Could not unlink that profile.', {
+        tone: 'error', title: 'Remove failed',
+      });
+    }
+  };
 
   return (
     <div>
@@ -406,14 +475,78 @@ function StudentProfileView({ student, onSynced, onBack }) {
               <span>Last synced {accounts == null ? '…' : formatSynced(lastSyncedAt)}</span>
             </p>
             {syncNote && <p className="scp-head-note">⚠ {syncNote}</p>}
+            {notice && <p className="scp-head-ok">✓ {notice}</p>}
           </div>
           <div className="scp-head-actions">
+            <Button variant="secondary" size="sm" className="!px-4 !py-2 !text-sm" onClick={openConnect}>
+              ＋ Connect profile
+            </Button>
             <Button variant="primary" size="sm" className="!px-4 !py-2 !text-sm" onClick={sync} loading={syncing}>
               {syncing ? 'Syncing…' : '↺ Sync now'}
             </Button>
           </div>
         </div>
       </Card>
+
+      {panel && (
+        <Card
+          title={panel.mode === 'edit'
+            ? `Edit ${PLATFORM_LABEL[panel.account.platform] || panel.account.platform} username`
+            : 'Connect a profile'}
+          piece={panel.mode === 'edit' ? (PLATFORM_ICON[panel.account.platform] || '♟') : '🔗'}
+          className="mt-4"
+          actions={(
+            <Button variant="secondary" size="sm" className="!px-3 !py-1.5 !text-xs" onClick={() => setPanel(null)}>
+              Close
+            </Button>
+          )}
+        >
+          {panel.mode === 'edit' ? (
+            <AccountForm
+              platform={panel.account.platform}
+              studentId={studentId}
+              account={panel.account}
+              onDone={applyAccounts}
+              onCancel={() => setPanel(null)}
+            />
+          ) : (
+            <div>
+              <div className="cp-connect-platforms">
+                {LINK_PLATFORMS.map(([key, label, icon]) => {
+                  const linked = list.some((a) => a.platform === key);
+                  return (
+                    <button
+                      key={key}
+                      type="button"
+                      className={`cp-connect-btn${platformChoice === key && !linked ? ' active' : ''}`}
+                      disabled={linked}
+                      title={linked
+                        ? `${label} is already linked — use Edit in that card`
+                        : `${label} public API — no password needed`}
+                      onClick={() => { setPlatformChoice(key); setNotice(''); }}
+                    >
+                      <span className="cp-connect-icon">{icon}</span>
+                      {label}{linked ? ' · linked' : ''}
+                    </button>
+                  );
+                })}
+              </div>
+              {bothLinked ? (
+                <p className="text-black text-sm mt-3">
+                  Both platforms are already linked. Use <strong>Edit</strong> in a platform card below to change a username.
+                </p>
+              ) : (
+                <AccountForm
+                  key={platformChoice}
+                  platform={platformChoice}
+                  studentId={studentId}
+                  onDone={applyAccounts}
+                />
+              )}
+            </div>
+          )}
+        </Card>
+      )}
 
       {/* Three states, never a blank panel: loading, a real error with Retry,
           then the profile itself (whose Overview tab owns the "not connected"
@@ -460,15 +593,30 @@ function StudentProfileView({ student, onSynced, onBack }) {
                 lastError={syncNote}
                 ratingsVersion={ratingsVersion}
                 scope={scope}
+                /* With zero accounts, both connect forms sit inside the empty
+                   state itself; once one platform is linked, the remaining
+                   missing-platform card carries its own form below. */
+                emptyExtra={(
+                  <div className="scp-empty-connect">
+                    {LINK_PLATFORMS.map(([key, label]) => (
+                      <div key={key} className="scp-empty-platform">
+                        <p className="text-black text-sm">Student has not connected {label} yet.</p>
+                        <AccountForm platform={key} studentId={studentId} onDone={applyAccounts} />
+                      </div>
+                    ))}
+                  </div>
+                )}
               />
-              {!hasChess && (
+              {list.length > 0 && !hasChess && (
                 <Card title="Chess.com" piece="♔" className="mt-4">
                   <p className="text-black text-sm">Student has not connected Chess.com yet.</p>
+                  <AccountForm platform="chess.com" studentId={studentId} onDone={applyAccounts} />
                 </Card>
               )}
-              {!hasLichess && (
+              {list.length > 0 && !hasLichess && (
                 <Card title="Lichess" piece="♛" className="mt-4">
                   <p className="text-black text-sm">Student has not connected Lichess yet.</p>
+                  <AccountForm platform="lichess" studentId={studentId} onDone={applyAccounts} />
                 </Card>
               )}
             </>
@@ -479,6 +627,103 @@ function StudentProfileView({ student, onSynced, onBack }) {
           {tab === 'insights' && <InsightsTab scope={scope} />}
         </div>
       )}
+
+      <ConfirmDialog
+        open={Boolean(removing)}
+        title="Remove linked profile"
+        message={removing
+          ? `Unlink the ${PLATFORM_LABEL[removing.platform] || removing.platform} account "${removing.username}" from ${student.name || 'this student'}? Its imported games and ratings will be deleted. The student can connect it again later.`
+          : ''}
+        confirmText="Remove"
+        onCancel={() => setRemoving(null)}
+        onConfirm={confirmRemove}
+      />
+    </div>
+  );
+}
+
+/* One username form, used in three places: inside a missing-platform card, in
+   the header's Connect profile panel, and as the Edit form for an existing
+   account. The server owns validation and duplicate rules, so the form just
+   renders the message it gets back. */
+function AccountForm({ platform, studentId, account = null, onDone, onCancel }) {
+  const { showToast } = useToast();
+  const editing = Boolean(account);
+  const label = PLATFORM_LABEL[platform] || platform;
+  const [username, setUsername] = useState(account?.username || '');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+
+  const submit = async () => {
+    const value = username.trim();
+    if (!value) { setError('Enter a username or profile URL.'); return; }
+    if (editing && value.toLowerCase() === String(account.username).toLowerCase()) {
+      setError('That is already the linked username.');
+      return;
+    }
+    setBusy(true);
+    setError('');
+    try {
+      const r = editing
+        ? await updateStudentAccount(studentId, account.id, value)
+        : await connectStudentAccount(studentId, platform, value);
+      if (r.syncError) {
+        showToast(r.syncError, { tone: 'warning', title: 'Linked — import needs a retry' });
+      } else {
+        showToast(r.message || `${label} profile linked.`, {
+          tone: 'success',
+          title: editing ? 'Username updated' : 'Profile connected',
+        });
+      }
+      if (!editing) setUsername('');
+      onDone?.(r);
+    } catch (err) {
+      const message = err.response?.data?.message
+        || `Could not ${editing ? 'update' : 'connect'} that ${label} profile.`;
+      setError(message);
+      showToast(message, { tone: 'error', title: editing ? 'Update failed' : 'Connect failed' });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="scp-connect-form">
+      <div className="scp-connect-row">
+        <input
+          className="chess-input scp-connect-input"
+          placeholder={`${label} username or profile URL`}
+          value={username}
+          onChange={(e) => { setUsername(e.target.value); setError(''); }}
+          onKeyDown={(e) => { if (e.key === 'Enter' && !busy) submit(); }}
+          disabled={busy}
+          autoComplete="off"
+          spellCheck={false}
+        />
+        <Button
+          variant="primary"
+          size="sm"
+          className="!px-4 !py-2 !text-sm"
+          onClick={submit}
+          disabled={busy || !username.trim()}
+          loading={busy}
+        >
+          {editing ? 'Save changes' : 'Connect'}
+        </Button>
+        {editing && (
+          <Button variant="secondary" size="sm" className="!px-4 !py-2 !text-sm" onClick={onCancel} disabled={busy}>
+            Cancel
+          </Button>
+        )}
+      </div>
+      {busy && (
+        <p className="scp-form-hint">
+          {editing
+            ? 'Re-verifying the username and re-importing the data…'
+            : `Verifying on ${label} and importing ratings, games and statistics…`}
+        </p>
+      )}
+      {error && <p className="scp-form-error" role="alert">{error}</p>}
     </div>
   );
 }

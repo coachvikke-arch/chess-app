@@ -25,6 +25,7 @@ function notifMeta(n) {
   if (type === 'quiz') return { icon: '📝', color: '#a06bff' };
   if (type === 'tournament') return { icon: '🏆', color: '#a06bff' };
   if (type === 'announcement') return { icon: '📢', color: '#4f7dff' };
+  if (type === 'chess_profile') return { icon: '♔', color: '#93c5fd' };
 
   const t = String(n?.title || '').toLowerCase();
   if (/(welcome|good to see|account|hello)/.test(t)) return { icon: '👋', color: '#93c5fd' };

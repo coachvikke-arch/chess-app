@@ -141,6 +141,29 @@ export default function ChessProfile() {
     /* eslint-disable-next-line react-hooks/exhaustive-deps */
   }, [authLoading, user?.id]);
 
+  /* A coach can link or edit this student's accounts from the admin page while
+     this tab sits open. The sync poll above only re-reads games, so the account
+     LIST itself is refreshed whenever the tab regains focus — the new profile
+     appears without a reload. The 5s guard swallows the visibility/focus pair
+     the browser fires together. */
+  const focusLoadAt = useRef(0);
+  useEffect(() => {
+    if (authLoading || !user) return undefined;
+    const onVisible = () => {
+      if (document.visibilityState !== 'visible') return;
+      if (Date.now() - focusLoadAt.current < 5000) return;
+      focusLoadAt.current = Date.now();
+      load({ quiet: true });
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('focus', onVisible);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('focus', onVisible);
+    };
+    /* eslint-disable-next-line react-hooks/exhaustive-deps */
+  }, [authLoading, user?.id]);
+
   /* Automatic synchronisation: an immediate check once auth has resolved, then
      a poll while the page is open, paused when the tab is hidden.
 
@@ -317,7 +340,7 @@ export default function ChessProfile() {
    student: `{ studentId, readOnly: true }`. Omitted (the student's own page),
    every call stays on the signed-in user's endpoints and the connect /
    sync / disconnect controls render exactly as before. */
-export function OverviewTab({ accounts, callbacks, appReport, user, checking = false, lastSyncedAt = null, lastError = '', ratingsVersion = 0, scope = null }) {
+export function OverviewTab({ accounts, callbacks, appReport, user, checking = false, lastSyncedAt = null, lastError = '', ratingsVersion = 0, scope = null, emptyExtra = null }) {
   const { all } = callbacks;
   if (accounts === null) {
     return <Spinner text={scope?.readOnly ? "Loading the student's chess profiles…" : 'Loading your chess profiles…'} />;
@@ -339,6 +362,9 @@ export function OverviewTab({ accounts, callbacks, appReport, user, checking = f
               : `Connect a Chess.com or Lichess account above to see your unified rating history, games,
             statistics, openings and personalized insights — all in one page.`}
           </p>
+          {/* The coach's connect forms live in this empty state, so the first
+              account is one input away instead of behind another page. */}
+          {emptyExtra}
         </Card>
       ) : (
         <RatingComparison
@@ -599,11 +625,33 @@ export function RatingComparison({ accounts, callbacks, appReport, checking = fa
         const historic = ratingsData[acct.id];
         const busy = openSync[acct.id];
         return (
-          <Card key={acct.id} title={p.label} piece={p.icon} className={`cp-account-card cp-acct-${acct.platform === 'lichess' ? 'lichess' : 'chess-com'}`}>
+          <Card
+            key={acct.id}
+            title={p.label}
+            piece={p.icon}
+            className={`cp-account-card cp-acct-${acct.platform === 'lichess' ? 'lichess' : 'chess-com'}`}
+            /* A coach manages the link from the platform card's own header, the
+               same place the student's page offers Sync/Disconnect. */
+            actions={scope?.manage ? (
+              <span className="cp-acct-actions">
+                <Button variant="secondary" size="sm" className="!px-3 !py-1.5 !text-xs" onClick={() => scope.manage.onEdit(acct)}>
+                  Edit
+                </Button>
+                <Button variant="danger" size="sm" className="!px-3 !py-1.5 !text-xs" onClick={() => scope.manage.onRemove(acct)}>
+                  Remove
+                </Button>
+              </span>
+            ) : undefined}
+          >
             <div className="cp-account">
               <span className="cp-avatar cp-avatar-lg">{acct.avatar ? <img src={acct.avatar} alt="" /> : p.icon}</span>
               <div className="flex-1 min-w-0">
-                <p className="cp-account-name">{acct.username} {acct.title && <Chip tone="gold">{acct.title}</Chip>}</p>
+                <p className="cp-account-name">
+                  {acct.username} {acct.title && <Chip tone="gold">{acct.title}</Chip>}
+                  {(acct.linkedByAdmin || acct.linked_by_admin_id != null) && (
+                    <Chip tone="green">Linked by admin</Chip>
+                  )}
+                </p>
                 <p className="cp-account-meta">
                   {acct.country_code && <span>{acct.country_code}</span>}
                   {acct.is_verified && <span>✓ verified</span>}

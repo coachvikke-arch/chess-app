@@ -93,8 +93,13 @@ test('every read is addressed with the selected student id', () => {
     'Sync now must target the student, never the signed-in coach');
   assert.match(
     PAGE,
-    /const scope = \{ studentId, readOnly: true \}/,
-    'the reused components must receive a read-only student scope',
+    /readOnly: true/,
+    'the reused student components must receive a read-only scope',
+  );
+  assert.match(
+    PAGE,
+    /manage: \{/,
+    'the coach actions are this page\'s own admin endpoints, not the shared ones',
   );
 });
 
@@ -111,13 +116,44 @@ test('games, statistics, openings and insights all carry the scope', () => {
 
 /* ── read-only ────────────────────────────────────────────────────────────── */
 
-test('the coach view offers no connect, disconnect or per-account sync', () => {
+test('the shared components keep their student-only controls hidden', () => {
   assert.match(PROFILE, /\{!scope\?\.readOnly && <ConnectPanel/,
-    'connect must be hidden in a read-only view');
+    'the student connect panel must stay hidden in a read-only view');
   assert.match(PROFILE, /\{!scope\?\.readOnly && \(\s*<>/,
-    'the per-account Sync and Disconnect buttons must be hidden');
+    'the per-account Sync and Disconnect buttons must stay hidden');
   assert.match(PAGE, /Student has not connected Chess\.com yet\./);
   assert.match(PAGE, /Student has not connected Lichess yet\./);
+});
+
+test('a coach can link, edit and unlink from the selected student', () => {
+  /* The admin endpoints, not the student ones. */
+  assert.match(SERVICE, /api\.post\(\s*`\/admin\/chess-profiles\/\$\{studentId\}\/accounts`/,
+    'connect must use the admin accounts endpoint');
+  assert.match(SERVICE, /api\.put\(\s*`\/admin\/chess-profiles\/\$\{studentId\}\/accounts\/\$\{accountId\}`/,
+    'edit must address one account of the student');
+  assert.match(SERVICE, /api\.delete\(\s*`\/admin\/chess-profiles\/\$\{studentId\}\/accounts\/\$\{accountId\}`/,
+    'remove must address one account of the student');
+
+  /* Header action, per-platform forms, empty state, and the manage buttons. */
+  assert.match(PAGE, /Connect profile/);
+  assert.match(PAGE, /function AccountForm/, 'one verified username form is reused');
+  assert.match(PAGE, /connectStudentAccount\(studentId, platform, value\)/);
+  assert.match(PAGE, /updateStudentAccount\(studentId, account\.id, value\)/);
+  assert.match(PAGE, /removeStudentAccount\(studentId, acct\.id\)/);
+  assert.match(PAGE, /emptyExtra=\{\(/, 'the empty state carries the connect forms');
+  assert.match(PAGE, /list\.length > 0 && !hasChess/,
+    'a missing platform card carries its own form once one is linked');
+  assert.match(PAGE, /setRemoving\(acct\)/);
+  assert.match(PAGE, /<ConfirmDialog/);
+  assert.match(PAGE, /applyAccounts/,
+    'the linked accounts must be applied without a reload');
+
+  /* Edit/Remove live in the platform card header; the provenance is a badge. */
+  assert.match(PROFILE, /actions=\{scope\?\.manage \? \(/,
+    'the manage buttons belong in the platform card header');
+  assert.match(PROFILE, /scope\.manage\.onEdit\(acct\)/);
+  assert.match(PROFILE, /scope\.manage\.onRemove\(acct\)/);
+  assert.match(PROFILE, /Linked by admin/);
 });
 
 test('the comparison drops the Mate Zone column it has no data for', () => {

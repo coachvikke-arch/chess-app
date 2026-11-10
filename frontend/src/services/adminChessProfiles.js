@@ -21,3 +21,27 @@ export const listAccountsForStudent = (studentId) =>
    platform leaves the page showing what it already had. */
 export const syncStudentProfile = (studentId) =>
   api.post(`/admin/chess-profiles/${studentId}/sync`, undefined, { cache: false }).then((r) => r.data);
+
+/* Coach-managed links. The server verifies the username on the platform's
+   official public API, stores it on the STUDENT's own account row, imports the
+   data and notifies the student. Every response carries the refreshed account
+   list, so the page never needs a second round-trip to show the result. */
+export const connectStudentAccount = (studentId, platform, username) =>
+  api.post(
+    `/admin/chess-profiles/${studentId}/accounts`,
+    { platform, username },
+    { cache: false },
+  ).then((r) => r.data);
+
+export const updateStudentAccount = (studentId, accountId, username) =>
+  api.put(
+    `/admin/chess-profiles/${studentId}/accounts/${accountId}`,
+    { username },
+    { cache: false },
+  ).then((r) => r.data);
+
+export const removeStudentAccount = (studentId, accountId) =>
+  api.delete(
+    `/admin/chess-profiles/${studentId}/accounts/${accountId}`,
+    { cache: false },
+  ).then((r) => r.data);

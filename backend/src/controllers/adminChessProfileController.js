@@ -45,6 +45,34 @@ exports.sync = wrap(async (req) => {
   return adminProfile.syncStudent(req.user, req.params.studentId);
 });
 
+/* POST /api/admin/chess-profiles/:studentId/accounts
+   Body: { platform: "chesscom" | "lichess", username }
+   Verifies the username on the official API, saves it on the STUDENT's own
+   account row, imports what it can, and notifies the student. */
+exports.connectAccount = wrap(async (req) => {
+  return adminProfile.connectStudentAccount(
+    req.user, req.params.studentId, req.body || {}, { io: req.app.get('io') }
+  );
+});
+
+/* PUT /api/admin/chess-profiles/:studentId/accounts/:accountId
+   Body: { username } — re-verifies, drops the old person's imported data when
+   the username actually changes, then imports the new one. */
+exports.updateAccount = wrap(async (req) => {
+  return adminProfile.updateStudentAccount(
+    req.user, req.params.studentId, req.params.accountId, req.body || {},
+    { io: req.app.get('io') }
+  );
+});
+
+/* DELETE /api/admin/chess-profiles/:studentId/accounts/:accountId
+   Same unlink behaviour as the student's own Disconnect. */
+exports.removeAccount = wrap(async (req) => {
+  return adminProfile.removeStudentAccount(
+    req.user, req.params.studentId, req.params.accountId
+  );
+});
+
 /* GET /api/admin/chess-profiles/:studentId/accounts/:accountId/ratings
    Same payload the student's own card reads (current + best + history). The
    account lookup is keyed to the STUDENT's user id, so an account id belonging

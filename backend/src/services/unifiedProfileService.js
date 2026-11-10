@@ -37,7 +37,17 @@ async function validate(platform, value) {
 
 /* ── connect / disconnect ────────────────────────────────────────────────── */
 
-async function upsertAccount(userId, summary) {
+/* `linkedByAdminId` lives in the existing `data` JSONB rather than a new column:
+   the provenance is cosmetic (a "Linked by admin" badge), and a new column would
+   need a migration before every read of this table could run. A sync re-upserts
+   the same row with a fresh platform summary, so the provenance has to be
+   explicitly preserved there — otherwise every background poll would quietly
+   erase the badge. A student re-connecting the account themselves clears it:
+   from then on it is their own link. */
+async function upsertAccount(userId, summary, { linkedByAdminId = null, clearProvenance = false } = {}) {
+  const data = { ...summary };
+  if (linkedByAdminId != null) data.linkedByAdminId = Number(linkedByAdminId);
+
   const res = await db.query(
     `INSERT INTO connected_chess_accounts (
        user_id, platform, username, profile_url, avatar, title, country_code,
@@ -54,7 +64,14 @@ async function upsertAccount(userId, summary) {
        is_verified = EXCLUDED.is_verified,
        is_streamer = EXCLUDED.is_streamer,
        followers = EXCLUDED.followers,
-       data = EXCLUDED.data,
+       data = CASE
+         WHEN $14::boolean THEN EXCLUDED.data - 'linkedByAdminId'
+         WHEN $15::int IS NOT NULL THEN EXCLUDED.data
+         WHEN connected_chess_accounts.data ? 'linkedByAdminId'
+           THEN EXCLUDED.data || jsonb_build_object(
+                  'linkedByAdminId', connected_chess_accounts.data -> 'linkedByAdminId')
+         ELSE EXCLUDED.data
+       END,
        status = 'connected',
        last_error = NULL,
        updated_at = NOW()
@@ -72,7 +89,9 @@ async function upsertAccount(userId, summary) {
       !!summary.isVerified,
       !!summary.isStreamer,
       summary.followers != null ? summary.followers : null,
-      JSON.stringify(summary),
+      JSON.stringify(data),
+      clearProvenance,
+      linkedByAdminId != null ? Number(linkedByAdminId) : null,
     ]
   );
   return res.rows[0].id;
@@ -80,9 +99,66 @@ async function upsertAccount(userId, summary) {
 
 async function connect(userId, platform, value) {
   const { username, summary } = await validate(platform, value);
-  const accountId = await upsertAccount(userId, summary);
+  /* The student did it themselves, so an earlier "linked by admin" badge no
+     longer describes where the link came from. */
+  const accountId = await upsertAccount(userId, summary, { clearProvenance: true });
   const result = await syncAccount(userId, accountId);
   return { accountId, platform: summary.platform, username: summary.username, ...result };
+}
+
+/* Same connect flow as the student, but stamped with the coach who performed it.
+   The account stays in the student's own table under the student's user id, so
+   their page sees it exactly like a self-connected account. */
+async function connectSummaryAsAdmin(userId, summary, adminId) {
+  const accountId = await upsertAccount(userId, summary, { linkedByAdminId: adminId });
+  let sync = null;
+  let syncError = null;
+  try {
+    sync = await syncAccount(userId, accountId);
+  } catch (err) {
+    /* The username was verified and the link is real; a failed import must not
+       undo it. The account card already shows last_error. */
+    syncError = err;
+  }
+  return {
+    accountId,
+    platform: summary.platform,
+    username: summary.username,
+    sync,
+    syncError,
+  };
+}
+
+async function connectAsAdmin(userId, platform, value, adminId) {
+  const { summary } = await validate(platform, value);
+  return connectSummaryAsAdmin(userId, summary, adminId);
+}
+
+/* The account this student already has on a platform (at most one: the table is
+   UNIQUE on (user_id, platform)). Used before a coach connect so a different
+   username cannot silently overwrite an existing link and mix two people's
+   imported history under one account. */
+async function accountOnPlatform(userId, platform) {
+  const res = await db.query(
+    `SELECT id, username, data -> 'linkedByAdminId' AS linked_by_admin_id
+       FROM connected_chess_accounts
+      WHERE user_id = $1 AND platform = $2`,
+    [userId, platform]
+  );
+  return res.rows[0] || null;
+}
+
+/* The student who currently owns a platform username, if any. Case-insensitive
+   because both platforms treat usernames that way, and a duplicate link would
+   make two students share one person's games. */
+async function ownerOfUsername(platform, username) {
+  const res = await db.query(
+    `SELECT id, user_id FROM connected_chess_accounts
+      WHERE platform = $1 AND LOWER(username) = LOWER($2)
+      LIMIT 1`,
+    [platform, username]
+  );
+  return res.rows[0] || null;
 }
 
 async function disconnect(userId, accountId) {
@@ -620,6 +696,7 @@ async function accountsForUser(userId) {
        a.id, a.platform, a.username, a.profile_url, a.avatar, a.title, a.country_code,
        a.joined_date, a.last_activity_at, a.is_verified, a.is_streamer, a.followers,
        a.last_synced_at, a.ratings_updated_at, a.status, a.last_error,
+       a.data -> 'linkedByAdminId' AS linked_by_admin_id,
        (SELECT COUNT(*) FROM chess_games g WHERE g.account_id = a.id) AS games,
        /* newest game we hold, so the UI can say "up to date through <this game>"
           instead of only "synced at <some time>" */
@@ -884,6 +961,10 @@ module.exports = {
   normalizeUsername,
   validate,
   connect,
+  connectAsAdmin,
+  connectSummaryAsAdmin,
+  accountOnPlatform,
+  ownerOfUsername,
   disconnect,
   syncAccount,
   syncLatest,

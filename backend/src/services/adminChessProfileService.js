@@ -5,6 +5,7 @@ const profile = require('./unifiedProfileService');
    the student_coaches rows, a superadmin's is everyone, and a student's is
    themselves (which the admin router already refuses). */
 const visibility = require('./reviewVisibilityService');
+const notifications = require('./notificationService');
 
 /* ─────────────────────────────────────────────────────────────────────────────
  * Admin / coach view of ASSIGNED students' Chess.com + Lichess profiles.
@@ -78,6 +79,7 @@ async function listStudents(user) {
   const accounts = await db.query(
     `SELECT a.user_id, a.id, a.platform, a.username, a.avatar, a.title, a.country_code,
             a.last_synced_at, a.last_error, a.status,
+            a.data -> 'linkedByAdminId' AS linked_by_admin_id,
             (SELECT COUNT(*) FROM chess_games g WHERE g.account_id = a.id) AS games,
             COALESCE((SELECT json_agg(json_build_object(
                         'category', r.category, 'rating', r.rating, 'best', r.best) ORDER BY r.category)
@@ -116,6 +118,7 @@ async function listStudents(user) {
         lastSyncedAt: a.last_synced_at,
         lastError: a.last_error,
         status: a.status,
+        linkedByAdmin: a.linked_by_admin_id != null,
         ratings: a.ratings || [],
       })),
       totalGames: linked.reduce((sum, a) => sum + (Number(a.games) || 0), 0),
@@ -124,11 +127,20 @@ async function listStudents(user) {
   });
 }
 
+/* The provenance rides in the account's data JSONB as `linkedByAdminId`; the
+   page only needs the boolean, so it is lifted into one camelCase field there. */
+function withLinkSource(accounts) {
+  return (accounts || []).map((a) => ({
+    ...a,
+    linkedByAdmin: a.linked_by_admin_id != null,
+  }));
+}
+
 /** One student's header row plus the same account payload their own page reads. */
 async function studentProfile(user, studentId) {
   const student = await resolveStudent(user, studentId);
   const accounts = await profile.accountsForUser(student.user_id);
-  return { student, accounts };
+  return { student, accounts: withLinkSource(accounts) };
 }
 
 /**
@@ -157,7 +169,7 @@ async function syncStudent(user, studentId) {
   const refreshed = await profile.accountsForUser(student.user_id);
   return {
     student,
-    accounts: refreshed,
+    accounts: withLinkSource(refreshed),
     newGames,
     failures,
     /* null means a clean run; a string is what the page shows as the reason it
@@ -173,9 +185,180 @@ function syncFailureMessage(platform, err) {
   return `${label} sync failed — showing the last cached data.`;
 }
 
+/* ── coach-managed links ──────────────────────────────────────────────────────
+ * The coach writes into the SAME table, under the SAME student user id, that the
+ * learner's own "Connect profile" writes to. There is no admin-only mirror: the
+ * student's page reads these rows as their own, can sync them, and can unlink
+ * them. The only trace of who added it is the `linkedByAdminId` value in `data`,
+ * which draws the badge and never affects access. */
+
+function platformLabel(platform) {
+  return platform === 'lichess' ? 'Lichess' : 'Chess.com';
+}
+
+function badRequest(message) {
+  return Object.assign(new Error(message), { status: 400 });
+}
+
+function conflict(message) {
+  return Object.assign(new Error(message), { status: 409 });
+}
+
+/** The UI posts "chesscom" (the body contract); the database stores
+    "chess.com". Accept the URL host too, so a caller cannot half-succeed. */
+function normalizePlatform(input) {
+  const v = String(input || '').trim().toLowerCase();
+  if (v === 'chesscom' || v === 'chess.com' || v === 'chess-com') return 'chess.com';
+  if (v === 'lichess' || v === 'lichess.org') return 'lichess';
+  throw badRequest('Choose Chess.com or Lichess.');
+}
+
+/* Tell the student through the bell/socket. Failure is tolerated: the link is
+   already saved and the notification is a courtesy, not part of the write. */
+async function notifyStudent(io, student, platform, username, senderId, accountId, action) {
+  const label = platformLabel(platform);
+  const message = action === 'updated'
+    ? `Your coach updated your ${label} profile to ${username}.`
+    : `Your coach linked your ${label} profile (${username}).`;
+  try {
+    await notifications.push(io, student.user_id, 'Chess profile updated', message, {
+      type: 'chess_profile',
+      senderId: senderId || null,
+      relatedId: accountId || null,
+    });
+  } catch (err) {
+    console.warn('[chess-profile] student notification failed:', err.message);
+  }
+}
+
+/**
+ * POST /:studentId/accounts — a coach links a username for a student.
+ *
+ * The username is verified against the platform's official public API before
+ * anything is stored, so a typo fails here instead of becoming an empty account.
+ * If the import then fails (rate limit, network), the verified link is KEPT and
+ * the reason is returned separately: the link is real even when the data is not
+ * readable yet, and the account card shows last_error until the next sync.
+ */
+async function connectStudentAccount(user, studentId, { platform, username } = {}, { io } = {}) {
+  const student = await resolveStudent(user, studentId);
+  const platformKey = normalizePlatform(platform);
+  const value = String(username || '').trim();
+  if (!value) throw badRequest('Enter a username or profile URL.');
+  const label = platformLabel(platformKey);
+
+  /* One account per platform is a table constraint. A different username there
+     must go through Edit, which clears the previous person's imported data;
+     silently overwriting would mix two histories under one account. */
+  const existing = await profile.accountOnPlatform(student.user_id, platformKey);
+  const { username: normalized, summary } = await profile.validate(platformKey, value);
+  if (existing && String(existing.username).toLowerCase() !== normalized.toLowerCase()) {
+    throw conflict(
+      `${label} is already linked to this student as "${existing.username}". Use Edit to change the username.`
+    );
+  }
+
+  const owner = await profile.ownerOfUsername(platformKey, normalized);
+  if (owner && Number(owner.user_id) !== student.user_id) {
+    throw conflict(`That ${label} username is already linked to another student.`);
+  }
+
+  const alreadyLinked = Boolean(existing);
+  const result = await profile.connectSummaryAsAdmin(student.user_id, summary, user.id);
+  if (!alreadyLinked) {
+    await notifyStudent(io, student, platformKey, result.username, user.id, result.accountId, 'linked');
+  }
+
+  const accounts = withLinkSource(await profile.accountsForUser(student.user_id));
+  return {
+    student,
+    accountId: result.accountId,
+    platform: platformKey,
+    username: result.username,
+    alreadyLinked,
+    accounts,
+    /* A failed import does not fail the connect. The account is linked and the
+       page shows why its data is not there yet. */
+    syncError: result.syncError ? syncFailureMessage(platformKey, result.syncError) : null,
+    message: alreadyLinked
+      ? `${label} (${result.username}) is already linked to this student.`
+      : `${label} (${result.username}) linked and imported.`,
+  };
+}
+
+/**
+ * PUT /:studentId/accounts/:accountId — change the username of an existing link.
+ *
+ * A DIFFERENT username means a different person, so the old account row is
+ * deleted first. Every child row (games, ratings, rating history, per-game
+ * analysis) references it with ON DELETE CASCADE, so the previous player's data
+ * goes with it instead of being attributed to the new username. The new row is
+ * then created and imported by the same verified connect path.
+ */
+async function updateStudentAccount(user, studentId, accountId, { username } = {}, { io } = {}) {
+  const student = await resolveStudent(user, studentId);
+  const id = Number(accountId);
+  if (!Number.isInteger(id) || id <= 0) throw notFound('Account not found.');
+
+  const current = (await profile.accountsForUser(student.user_id))
+    .find((a) => Number(a.id) === id);
+  if (!current) throw notFound('Account not found.');
+
+  const value = String(username || '').trim();
+  if (!value) throw badRequest('Enter a username or profile URL.');
+
+  const platform = current.platform;
+  const label = platformLabel(platform);
+  const { username: normalized, summary } = await profile.validate(platform, value);
+
+  const owner = await profile.ownerOfUsername(platform, normalized);
+  if (owner && Number(owner.user_id) !== student.user_id) {
+    throw conflict(`That ${label} username is already linked to another student.`);
+  }
+
+  const changed = String(current.username).toLowerCase() !== normalized.toLowerCase();
+  if (changed) {
+    await db.query(
+      'DELETE FROM connected_chess_accounts WHERE id = $1 AND user_id = $2',
+      [id, student.user_id]
+    );
+  }
+
+  const result = await profile.connectSummaryAsAdmin(student.user_id, summary, user.id);
+  await notifyStudent(
+    io, student, platform, result.username, user.id, result.accountId,
+    changed ? 'updated' : 'linked'
+  );
+
+  const accounts = withLinkSource(await profile.accountsForUser(student.user_id));
+  return {
+    student,
+    accountId: result.accountId,
+    platform,
+    username: result.username,
+    accounts,
+    syncError: result.syncError ? syncFailureMessage(platform, result.syncError) : null,
+    message: `${label} username updated to ${result.username}.`,
+  };
+}
+
+/** DELETE /:studentId/accounts/:accountId — unlink, exactly like the student's
+    own Disconnect: the account row goes, and its imported data cascades. */
+async function removeStudentAccount(user, studentId, accountId) {
+  const student = await resolveStudent(user, studentId);
+  const id = Number(accountId);
+  if (!Number.isInteger(id) || id <= 0) throw notFound('Account not found.');
+  await profile.disconnect(student.user_id, id);
+  const accounts = withLinkSource(await profile.accountsForUser(student.user_id));
+  return { student, accounts, message: 'Profile unlinked.' };
+}
+
 module.exports = {
   resolveStudent,
   listStudents,
   studentProfile,
   syncStudent,
+  connectStudentAccount,
+  updateStudentAccount,
+  removeStudentAccount,
 };

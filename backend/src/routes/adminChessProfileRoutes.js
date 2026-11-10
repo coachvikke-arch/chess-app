@@ -14,6 +14,13 @@ router.use(roleMiddleware('admin'));
 router.get('/', ctrl.list);
 router.get('/:studentId', ctrl.profile);
 router.post('/:studentId/sync', ctrl.sync);
+/* Coach-managed links. The student id in the path is the ONLY target: the
+   service resolves it through the visibility gate before touching any row, so
+   an unassigned student answers 403 and a student token never reaches the
+   handler at all (router-level roleMiddleware). */
+router.post('/:studentId/accounts', ctrl.connectAccount);
+router.put('/:studentId/accounts/:accountId', ctrl.updateAccount);
+router.delete('/:studentId/accounts/:accountId', ctrl.removeAccount);
 router.get('/:studentId/accounts/:accountId/ratings', ctrl.ratings);
 router.get('/:studentId/statistics', ctrl.statistics);
 router.get('/:studentId/openings', ctrl.openings);

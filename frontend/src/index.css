@@ -25762,8 +25762,21 @@ html, body {
 .scp-head-name { font-weight:800; font-size:1.05rem; color:#0f172a; line-height:1.25; overflow-wrap:anywhere; }
 .scp-head-meta { display:flex; flex-wrap:wrap; gap:.2rem .9rem; font-size:.78rem; color:#475569; margin-top:.25rem; overflow-wrap:anywhere; }
 .scp-head-note { margin-top:.35rem; font-size:.75rem; color:#b45309; }
-.scp-head-actions { margin-left:auto; }
+.scp-head-ok { margin-top:.35rem; font-size:.75rem; color:#15803d; font-weight:700; }
+.scp-head-actions { margin-left:auto; display:flex; gap:.5rem; flex-wrap:wrap; justify-content:flex-end; }
 .scp-tabs { margin-top:1rem; }
+
+/* coach-managed links: the form under a platform card, inside the header
+   connect panel, and in the empty state */
+.scp-connect-form { margin-top:.6rem; }
+.scp-connect-row { display:flex; gap:.5rem; flex-wrap:wrap; align-items:center; }
+.scp-connect-input { flex:1 1 220px; min-width:0; }
+.scp-form-hint { margin-top:.4rem; font-size:.72rem; color:#1d4ed8; font-weight:600; }
+.scp-form-error { margin-top:.4rem; font-size:.75rem; color:#b91c1c; font-weight:700; }
+.scp-empty-connect { display:grid; gap:.9rem; margin-top:.75rem; }
+.scp-empty-platform { border-top:1px solid #e2e8f0; padding-top:.75rem; }
+.scp-empty-platform:first-child { border-top:0; padding-top:0; }
+.cp-acct-actions { display:flex; gap:.4rem; flex-wrap:wrap; justify-content:flex-end; }
 
 .scp-table-wrap { overflow-x:auto; }
 .scp-table { width:100%; border-collapse:collapse; font-size:.82rem; }

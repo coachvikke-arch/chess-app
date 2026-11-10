@@ -34,6 +34,10 @@ export const NOTIFICATION_TYPE_ROUTES = {
      (Accept/Cancel for the coach, the request state for the student). */
   chat_admin_request: ({ base }) => ({ to: `${base}/messages?tab=people` }),
 
+  /* Written when a coach links or edits a Chess.com / Lichess username for the
+     student. The account lives on the student's own Chess Profile page. */
+  chess_profile: ({ base }) => ({ to: `${base}/chess-profile` }),
+
   assignment: ({ base }) => ({ to: `${base}/assignments` }),
   homework: ({ base }) => ({ to: `${base}/homework` }),
   /* Both portals own an /attendance route — the student's own list and the
