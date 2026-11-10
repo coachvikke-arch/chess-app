@@ -29,6 +29,33 @@ const LIB_TAG = 'LIB';
 const LIB_PREFIX = 'lib';
 const UCI_RE = /^[a-h][1-8][a-h][1-8][qrbn]?$/;
 
+/* The projection needs the same optional columns the puzzle generator adds.
+   A database that never ran add_puzzle_generator.sql still gets them here —
+   additive and idempotent, the way the trainer pool and scores install
+   themselves — so one missing column cannot stop a folder from being listed. */
+const DDL = [
+  `ALTER TABLE puzzles ADD COLUMN IF NOT EXISTS pgn_folder_id INTEGER REFERENCES library_folders(id) ON DELETE SET NULL`,
+  `ALTER TABLE puzzles ADD COLUMN IF NOT EXISTS fen_key VARCHAR(80)`,
+  `ALTER TABLE puzzles ADD COLUMN IF NOT EXISTS source VARCHAR(20)`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS puzzles_fen_key_uidx ON puzzles (fen_key) WHERE fen_key IS NOT NULL`,
+  `CREATE INDEX IF NOT EXISTS puzzles_pgn_folder_idx ON puzzles (pgn_folder_id)`,
+];
+
+let schemaReady = null;
+
+/* Memoised per process; a failure clears the memo so the next sync retries. */
+function ensureLibrarySchema() {
+  if (!schemaReady) {
+    schemaReady = (async () => {
+      for (const sql of DDL) await db.query(sql);
+    })().catch((err) => {
+      schemaReady = null;
+      throw err;
+    });
+  }
+  return schemaReady;
+}
+
 const librarySetCode = (folderId) => `${LIB_PREFIX}${Number(folderId)}`;
 const isLibrarySetCode = (code) => /^lib\d+$/.test(String(code || ''));
 const folderIdFromSetCode = (code) => Number(String(code).slice(LIB_PREFIX.length));
@@ -271,6 +298,7 @@ async function reconcileFolder(client, folderId) {
 }
 
 async function run(fn) {
+  await ensureLibrarySchema();
   const client = await db.pool.connect();
   try {
     await client.query('BEGIN');
@@ -308,6 +336,7 @@ async function forgetLibraryFolders(folderIds) {
 }
 
 async function syncAllLibraryFolders() {
+  await ensureLibrarySchema();
   const folders = await db.query('SELECT id FROM library_folders');
   const live = new Set(folders.rows.map((r) => librarySetCode(r.id)));
 
@@ -359,6 +388,7 @@ module.exports = {
   isLibrarySetCode,
   folderIdFromSetCode,
   itemToPuzzle,
+  ensureLibrarySchema,
   syncLibraryFolder,
   syncLibraryFolders,
   forgetLibraryFolders,
