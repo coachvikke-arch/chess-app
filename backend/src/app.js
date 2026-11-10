@@ -33,6 +33,7 @@ const tournamentGameRoutes = require('./routes/tournamentGameRoutes');
 const openingRoutes = require('./routes/openingRoutes');
 const academyRoutes = require('./routes/academyRoutes');
 const chessProfileRoutes = require('./routes/chessProfileRoutes');
+const adminChessProfileRoutes = require('./routes/adminChessProfileRoutes');
 const adminRoutes = require('./routes/adminRoutes');
 const gmGameRoutes = require('./routes/gmGameRoutes');
 const botRoutes = require('./routes/botRoutes');
@@ -107,6 +108,9 @@ app.use('/api/puzzles', puzzleRoutes);
    `/api` catch-all below so the prefix resolves to this router. */
 app.use('/api/admin/puzzle-generator', puzzleGeneratorRoutes);
 app.use('/api/admin/pgn-library', pgnLibraryRoutes);
+/* Coach/super-admin view of ASSIGNED students' linked profiles. Mounted before
+   the bare `/api` catch-all, like the other /api/admin prefixes above. */
+app.use('/api/admin/chess-profiles', adminChessProfileRoutes);
 app.use('/api/quizzes', quizRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/documents', documentRoutes);

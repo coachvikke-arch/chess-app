@@ -14,7 +14,7 @@ import { scoringNote } from '../../lib/puzzleScore';
  * `board.me` is the viewer's own row even when it sits below them, and
  * `board.scoring` is the rule the points were awarded under.
  */
-export default function TrainerLadder({ board, loading = false, error = '', myUserId, onRefresh }) {
+export default function TrainerLadder({ board, loading = false, error = '', myUserId, onRefresh, staff = false }) {
   const top = Array.isArray(board?.top) ? board.top : [];
   const me = board?.me || null;
   const isMe = (row) => Number(row.user_id) === Number(myUserId);
@@ -52,7 +52,7 @@ export default function TrainerLadder({ board, loading = false, error = '', myUs
           </div>
         ) : top.length === 0 ? (
           <div className="pt-lb-state">
-            <p>No scores yet. Solve a puzzle and you open the ladder.</p>
+            <p>{staff ? 'No student scores yet.' : 'No scores yet. Solve a puzzle and you open the ladder.'}</p>
           </div>
         ) : (
           <ol className="pt-lb-list">
@@ -80,8 +80,9 @@ export default function TrainerLadder({ board, loading = false, error = '', myUs
         )}
 
         {/* Outside the ten, the viewer still gets a row — that is the whole point
-            of `me`: a student far down the ladder can see the number they moved. */}
-        {board && !meInTop && (
+            of `me`: a student far down the ladder can see the number they moved.
+            Staff have no row to show: they are not ranked at all. */}
+        {board && !staff && !meInTop && (
           <div className={`pt-lb-row is-me is-outside${me ? '' : ' is-unranked'}`}>
             <span className="pt-lb-rank">{me ? me.rank : '—'}</span>
             <span className="pt-lb-av">
@@ -103,6 +104,7 @@ export default function TrainerLadder({ board, loading = false, error = '', myUs
         )}
       </div>
 
+      {staff && <p className="pt-lb-rules">Student leaderboard — staff practice is not ranked.</p>}
       {note && <p className="pt-lb-rules">{note}</p>}
     </div>
   );

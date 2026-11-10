@@ -48,6 +48,7 @@ import MyCertificates from './pages/MyCertificates';
 import ManagePerformances from './pages/ManagePerformances';
 import LiveMeetings from './pages/LiveMeetings';
 import ChessProfile from './pages/ChessProfile';
+import StudentChessProfiles from './pages/StudentChessProfiles';
 import StudentHomework from './pages/StudentHomework';
 import AdminHomework from './pages/AdminHomework';
 import Assignments from './pages/Assignments';
@@ -356,6 +357,9 @@ export default function App() {
             <Route path="/admin/tournaments/game/:gameId" element={<ProtectedRoute role="admin"><AdminLayout><TournamentGame /></AdminLayout></ProtectedRoute>} />
             <Route path="/admin/tournaments/:id" element={<ProtectedRoute role="admin"><AdminLayout><TournamentDetail /></AdminLayout></ProtectedRoute>} />
             <Route path="/admin/puzzle-listing" element={<ProtectedRoute role="admin"><FeatureRoute feature="puzzle_authoring"><AdminLayout><PuzzleListing /></AdminLayout></FeatureRoute></ProtectedRoute>} />
+            {/* Staff practice. Ungated on purpose: the puzzle_trainer switch is a
+                student setting, and staff solves are not scored or ranked. */}
+            <Route path="/admin/trainer" element={<ProtectedRoute role="admin"><AdminLayout><PuzzleTrainer /></AdminLayout></ProtectedRoute>} />
             <Route path="/admin/homework" element={<ProtectedRoute role="admin"><AdminLayout><AdminHomework /></AdminLayout></ProtectedRoute>} />
             <Route path="/admin/messages" element={<ProtectedRoute role="admin"><AdminLayout><MessagesPage /></AdminLayout></ProtectedRoute>} />
             <Route path="/admin/notifications" element={<ProtectedRoute role="admin"><AdminLayout><Notifications /></AdminLayout></ProtectedRoute>} />
@@ -371,6 +375,9 @@ export default function App() {
             <Route path="/admin/openings/course/:openingSlug" element={<ProtectedRoute role="admin"><AdminLayout><AcademyOpening /></AdminLayout></ProtectedRoute>} />
             <Route path="/admin/gm-games" element={<ProtectedRoute role="admin"><AdminLayout><AdminGmGames /></AdminLayout></ProtectedRoute>} />
             <Route path="/admin/chess-profile" element={<ProtectedRoute role="admin"><AdminLayout><ChessProfile /></AdminLayout></ProtectedRoute>} />
+            {/* Student-wise view of ASSIGNED students' linked profiles. The role
+                guard keeps students out of the route; the API refuses them too. */}
+            <Route path="/admin/chess-profiles" element={<ProtectedRoute role="admin"><AdminLayout><StudentChessProfiles /></AdminLayout></ProtectedRoute>} />
             <Route path="/admin/chat-requests" element={<ProtectedRoute role="admin"><AdminLayout><ChatRequestsPage /></AdminLayout></ProtectedRoute>} />
             <Route path="/admin/admins/:id/performance" element={<ProtectedRoute role="superadmin"><AdminLayout><CoachReport /></AdminLayout></ProtectedRoute>} />
             <Route path="/admin/settings" element={<ProtectedRoute role="admin"><AdminLayout><Settings /></AdminLayout></ProtectedRoute>} />

@@ -12,8 +12,11 @@ function pct(part, whole) {
   return Math.round((part / whole) * 100);
 }
 
-/** color side ('white'|'black') the account owner played in a game */
+/** color side ('white'|'black') the account owner played in a game.
+ *  `my_color` is stored per imported row and is authoritative; the username
+ *  match is the fallback for older rows and is case-insensitive. */
 function userSide(game, accountUsername) {
+  if (game.my_color === 'white' || game.my_color === 'black') return game.my_color;
   const me = String(accountUsername || '').toLowerCase();
   if (!me) return null;
   if (String(game.white_name || '').toLowerCase().indexOf(me) >= 0) return 'white';
@@ -21,9 +24,12 @@ function userSide(game, accountUsername) {
   return null;
 }
 
-function userWonFor(game, side) {
+/** The owner's result: 'win' | 'loss' | 'draw' | null. A draw must never be
+ *  folded into either side. */
+function userOutcomeFor(game, side) {
   if (!side) return null;
-  return side === 'white' ? game.result === 'white' : game.result === 'black';
+  if (game.result === 'draw') return 'draw';
+  return game.result === side ? 'win' : 'loss';
 }
 
 async function buildOpenings(userId, platform = null) {
@@ -36,10 +42,10 @@ async function buildOpenings(userId, platform = null) {
     if (!bucket.has(key)) bucket.set(key, { eco: game.eco || '', games: 0, wins: 0, losses: 0, draws: 0, oppSum: 0, oppN: 0 });
     const row = bucket.get(key);
     row.games++;
-    const won = userWonFor(game, side);
-    if (won === true) row.wins++;
-    else if (won === false) row.losses++;
-    else row.draws++;
+    const outcome = userOutcomeFor(game, side);
+    if (outcome === 'win') row.wins++;
+    else if (outcome === 'loss') row.losses++;
+    else if (outcome === 'draw') row.draws++;
     const opp = side === 'white' ? game.black_rating : game.white_rating;
     if (opp) { row.oppSum += opp; row.oppN++; }
   };

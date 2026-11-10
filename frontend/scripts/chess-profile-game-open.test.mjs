@@ -54,7 +54,9 @@ test('the overlay only steps back over the entry it pushed', () => {
 test('the open game is the row id, inside the chess_profile source', () => {
   assert.match(PROFILE, /gameRef=\{\{ gameSource: 'chess_profile', gameId \}\}/,
     'the viewer must be handed the canonical (source, id) pair');
-  assert.match(PROFILE, /const resolveGame = useCallback\(\(ref\) => fetchGame\(ref\.gameId\), \[\]\)/,
+  /* The same viewer also serves a coach's read-only view of one student, so it
+     resolves through the profile endpoint with an optional student scope. */
+  assert.match(PROFILE, /const resolveGame = useCallback\(\(ref\) => fetchGame\(ref\.gameId, studentId\), \[studentId\]\)/,
     'the card must resolve the game through the profile game endpoint');
   assert.match(PROFILE, /openViewer = \(id\) => \{[\s\S]{0,120}?setSelectedId\(String\(id\)\)/,
     'the click must put the row id in the URL as a string');

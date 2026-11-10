@@ -129,12 +129,22 @@ export function timeClassGlyph(cls) {
   return CATEGORY_GLYPH[cls] || CATEGORY_GLYPH.other;
 }
 
-export function resultMeta(result, myColor) {
-  if (result === 'draw') return { text: '½–½', tone: 'draw', color: '#a3a3a3' };
-  const won = result === myColor;
-  return won
-    ? { text: '1–0', tone: 'win', color: '#93c5fd' }
-    : { text: '0–1', tone: 'loss', color: '#ff7b7b' };
+/* The score ON THE BOARD, written from the game's point of view — never the
+   reader's. `result` is the winning colour ('white' | 'black' | 'draw') from
+   the importer, with PGN spellings accepted too.
+
+   This used to return an owner-relative score (always '1–0' when the owner
+   won), which inverted the visible score for every Black player: a 0-1 win was
+   shown as "1–0" and a 1-0 loss as "0–1". Win/Loss is a separate judgement and
+   comes from gameColour.getUserResult, which knows the owner's colour. */
+export function resultMeta(result) {
+  const r = String(result || '').trim().toLowerCase().replace(/[–—]/g, '-');
+  if (r === 'white' || r === '1-0') return { text: '1–0', tone: 'white' };
+  if (r === 'black' || r === '0-1') return { text: '0–1', tone: 'black' };
+  if (r === 'draw' || r === 'drawn' || r === '1/2-1/2' || r === '½-½' || r === '1/2' || r === '0.5-0.5') {
+    return { text: '½–½', tone: 'draw' };
+  }
+  return { text: '—', tone: 'unknown' };
 }
 
 export function formatDate(iso) {

@@ -5,6 +5,18 @@ const authMiddleware = require('../middleware/authMiddleware');
 const roleMiddleware = require('../middleware/roleMiddleware');
 const requireFeature = require('../middleware/requireFeature');
 
+/* Staff reach the trainer for practice, but their solves are not scored (see
+   recordSolve), so the ladder stays a students-only board. The feature switch
+   still governs the student experience; staff are not locked out by a switch
+   that exists for learners. */
+function trainerAccess(req, res, next) {
+  if (roleMiddleware.isAdminRole(req.user?.role)) return next();
+  return requireFeature('puzzle_trainer')(req, res, next);
+}
+
+/* The trainer is shared by students and staff. */
+const trainerRoles = roleMiddleware('student', 'admin');
+
 router.get('/', authMiddleware, ctrl.listPuzzles);
 router.get('/themes', ctrl.themeCategories);
 router.get('/assigned', authMiddleware, roleMiddleware('student'), requireFeature('puzzle_trainer'), ctrl.listStudentAssignedPuzzles);
@@ -12,10 +24,10 @@ router.get('/my-assignments', authMiddleware, roleMiddleware('student'), require
 /* The trainer feed. Declared above the `/:id` readers at the bottom: mounted
    after them, "/next" is swallowed by `/:id` and the student is served the
    puzzle whose id happens to be the string "next". */
-router.get('/next', authMiddleware, roleMiddleware('student'), requireFeature('puzzle_trainer'), ctrl.trainerNext);
+router.get('/next', authMiddleware, trainerRoles, trainerAccess, ctrl.trainerNext);
 /* Points and the ladder. Same reason as `/next`: above every `/:id` reader. */
-router.post('/trainer/solve', authMiddleware, roleMiddleware('student'), requireFeature('puzzle_trainer'), ctrl.trainerSolve);
-router.get('/trainer/leaderboard', authMiddleware, roleMiddleware('student'), requireFeature('puzzle_trainer'), ctrl.trainerLeaderboard);
+router.post('/trainer/solve', authMiddleware, trainerRoles, trainerAccess, ctrl.trainerSolve);
+router.get('/trainer/leaderboard', authMiddleware, trainerRoles, trainerAccess, ctrl.trainerLeaderboard);
 router.post('/:id/submit-assignment', authMiddleware, roleMiddleware('student'), requireFeature('puzzle_trainer'), ctrl.submitPuzzleAssignment);
 router.get('/listing', authMiddleware, roleMiddleware('admin'), ctrl.listingPuzzles);
 router.get('/sets', authMiddleware, roleMiddleware('admin'), ctrl.listSets);

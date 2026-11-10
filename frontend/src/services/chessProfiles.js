@@ -3,9 +3,18 @@ import { unwrapAnalysisEnvelope } from '../utils/analysisEnvelope';
 
 /* Unified Chess.com + Lichess profile integration — API wrapper. */
 
+/* Every reader takes an optional `studentId`. Without one it talks to the
+   signed-in user's own endpoints (/chess-profiles). With one it talks to the
+   coach endpoints (/admin/chess-profiles/:studentId), which enforce the
+   assignment server-side — the id here is only WHICH profile to read, never
+   proof of permission. Same response shapes either way, so the Chess Profile
+   components can be reused unchanged in read-only mode. */
+const base = (studentId) => (studentId ? `/admin/chess-profiles/${studentId}` : '/chess-profiles');
+
 /* listAccounts must never be served from the 30s GET cache: the page polls it
    to learn `last_synced_at` / `newest_game_ms`, and a cached copy makes a
-   fresh sync look like it did nothing. */
+   fresh sync look like it did nothing. (The coach-side list wrapper lives in
+   adminChessProfiles.js; this one stays the signed-in user's own accounts.) */
 export const listAccounts = () =>
   api.get('/chess-profiles', { cache: false }).then((r) => r.data);
 
@@ -28,23 +37,25 @@ export const syncAccount = (id) =>
 export const syncAccountLatest = (id) =>
   api.post(`/chess-profiles/${id}/sync-latest`, undefined, { cache: false }).then((r) => r.data);
 
-export const accountRatings = (id) =>
-  api.get(`/chess-profiles/${id}/ratings`).then((r) => r.data);
+export const accountRatings = (id, studentId) =>
+  studentId
+    ? api.get(`${base(studentId)}/accounts/${id}/ratings`).then((r) => r.data)
+    : api.get(`/chess-profiles/${id}/ratings`).then((r) => r.data);
 
-export const fetchStatistics = (platform) =>
-  api.get('/chess-profiles/statistics', { params: { platform: platform || undefined } }).then((r) => r.data);
+export const fetchStatistics = (platform, studentId) =>
+  api.get(`${base(studentId)}/statistics`, { params: { platform: platform || undefined } }).then((r) => r.data);
 
-export const fetchOpenings = (platform) =>
-  api.get('/chess-profiles/openings', { params: { platform: platform || undefined } }).then((r) => r.data);
+export const fetchOpenings = (platform, studentId) =>
+  api.get(`${base(studentId)}/openings`, { params: { platform: platform || undefined } }).then((r) => r.data);
 
-export const fetchInsights = () =>
-  api.get('/chess-profiles/insights').then((r) => r.data);
+export const fetchInsights = (studentId) =>
+  api.get(`${base(studentId)}/insights`).then((r) => r.data);
 
-export const fetchGames = (filters) =>
-  api.get('/chess-profiles/games', { params: filters, cache: false }).then((r) => r.data);
+export const fetchGames = (filters, studentId) =>
+  api.get(`${base(studentId)}/games`, { params: filters, cache: false }).then((r) => r.data);
 
-export const fetchGame = (id) =>
-  api.get(`/chess-profiles/games/${id}`, { cache: false }).then((r) => r.data);
+export const fetchGame = (id, studentId) =>
+  api.get(`${base(studentId)}/games/${id}`, { cache: false }).then((r) => r.data);
 
 /**
  * The stored analysis of one imported game, as the canonical envelope.
@@ -62,13 +73,13 @@ export const fetchGame = (id) =>
  * @param {number|string} id  the imported game's id
  * @returns {Promise<object|null>} the envelope, or null when nothing is stored
  */
-export async function fetchAnalysis(id) {
-  const res = await api.get(`/chess-profiles/games/${id}/analysis`, { cache: false });
+export async function fetchAnalysis(id, studentId) {
+  const res = await api.get(`${base(studentId)}/games/${id}/analysis`, { cache: false });
   return unwrapAnalysisEnvelope(res.data);
 }
 
-export const saveAnalysis = (id, data) =>
-  api.post(`/chess-profiles/games/${id}/analysis`, data).then((r) => r.data);
+export const saveAnalysis = (id, data, studentId) =>
+  api.post(`${base(studentId)}/games/${id}/analysis`, data).then((r) => r.data);
 
 export const deleteGame = (id) =>
   api.delete(`/chess-profiles/games/${id}`).then((r) => r.data);

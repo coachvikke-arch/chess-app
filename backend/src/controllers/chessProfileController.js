@@ -93,10 +93,11 @@ exports.insights = wrap(async (req) => {
 
 /* GET /api/chess-profiles/games — unified, paginated, filterable */
 exports.games = wrap(async (req) => {
-  const { platform, result, timeClass, q, from, to, opponent, page, pageSize, sort } = req.query;
+  const { platform, result, outcome, timeClass, q, from, to, opponent, page, pageSize, sort } = req.query;
   return profile.listGames(req.user.id, {
     platform: platform || null,
     result: result || null,
+    outcome: outcome || null,
     timeClass: timeClass || null,
     q: q || null,
     from: from || null,

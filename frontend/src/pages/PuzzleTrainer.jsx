@@ -11,6 +11,7 @@ import { useFittedSquare } from '../hooks/useBoardWidth';
 import { useMediaQuery } from '../hooks/useMediaQuery';
 import { useProfileChanged } from '../hooks/useProfileChanged';
 import { NEXT_DELAY_MS, solveMessage } from '../lib/puzzleScore';
+import { isAdminRole } from '../utils/roles';
 import {
   TRAINER_LEVELS,
   readLevel, writeLevel,
@@ -41,6 +42,9 @@ function describeLoadFailure(err) {
 
 export default function PuzzleTrainer() {
   const { user } = useAuth();
+  /* Staff get the same feed as practice: solves are verified but never scored,
+     and the ladder they see is the students' one. */
+  const staff = isAdminRole(user?.role);
   const [level, setLevel] = useState(readLevel);
   const [counts, setCounts] = useState(readSolvedCounts);
   const [puzzle, setPuzzle] = useState(null);
@@ -257,7 +261,7 @@ export default function PuzzleTrainer() {
           }
           if (seq !== solveSeqRef.current) return;
           setStatus({
-            text: solveMessage({ credited: award.credited, points: award.points, messy }),
+            text: solveMessage({ credited: award.credited, points: award.points, messy, counted: award.counted }),
             tone: 'ok',
           });
         })
@@ -333,6 +337,7 @@ export default function PuzzleTrainer() {
       error={boardError}
       myUserId={user?.id}
       onRefresh={loadBoard}
+      staff={staff}
     />
   );
 
@@ -340,7 +345,9 @@ export default function PuzzleTrainer() {
     <Page
       piece="♞"
       title="Puzzle Trainer"
-      sub="Pick a rating band and find the best move. The feed never runs out."
+      sub={staff
+        ? 'Practice by rating band. Staff solves stay off the student leaderboard.'
+        : 'Pick a rating band and find the best move. The feed never runs out.'}
       className="pt-page"
     >
       <div className="pt-wrap">
@@ -419,7 +426,10 @@ export default function PuzzleTrainer() {
           </div>
 
           <div className="pt-stats">
-            <div className="pt-stat"><b>{myRow ? myRow.total_points : '—'}</b><span>Points</span></div>
+            <div className="pt-stat">
+              <b>{!staff && myRow ? myRow.total_points : '—'}</b>
+              <span>{staff ? 'Unranked' : 'Points'}</span>
+            </div>
             <div className="pt-stat"><b>{counts[level]}</b><span>Solved here</span></div>
             <div className="pt-stat"><b>{streak}</b><span>Streak</span></div>
           </div>
@@ -434,14 +444,20 @@ export default function PuzzleTrainer() {
               ref={ladderButtonRef}
               onClick={openLadder}
               aria-haspopup="dialog"
-              aria-label={myRow
-                ? `Leaderboard: you are rank ${myRow.rank} with ${myRow.total_points} points. Open the top 10.`
-                : 'Leaderboard: no rank yet. Open the top 10.'}
+              aria-label={staff
+                ? 'Student leaderboard. Open the top 10.'
+                : myRow
+                  ? `Leaderboard: you are rank ${myRow.rank} with ${myRow.total_points} points. Open the top 10.`
+                  : 'Leaderboard: no rank yet. Open the top 10.'}
             >
               <span className="pt-badge" aria-hidden="true">♛</span>
               <span className="pt-level-text">
                 <b>Leaderboard</b>
-                <small>{myRow ? `You #${myRow.rank} · ${myRow.total_points} pts · ${myRow.solved_count} solved` : 'Top 10 · solve a puzzle to rank'}</small>
+                <small>{staff
+                  ? 'Student ladder · top 10'
+                  : myRow
+                    ? `You #${myRow.rank} · ${myRow.total_points} pts · ${myRow.solved_count} solved`
+                    : 'Top 10 · solve a puzzle to rank'}</small>
               </span>
               <span className="pt-chevron" aria-hidden="true">▾</span>
             </button>
@@ -486,7 +502,9 @@ export default function PuzzleTrainer() {
           open={ladderSheet}
           onClose={() => setLadderSheet(false)}
           title="Puzzle Leaderboard"
-          description="Every solve counts: a clean first try pays the most, and the table moves as the academy plays."
+          description={staff
+            ? 'The student ladder. Staff practice is verified but never scored.'
+            : 'Every solve counts: a clean first try pays the most, and the table moves as the academy plays.'}
           size="sm"
           modalClass="pt-lbmodal"
           returnFocusRef={ladderButtonRef}

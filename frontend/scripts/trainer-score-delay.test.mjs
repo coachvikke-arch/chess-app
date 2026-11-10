@@ -115,6 +115,30 @@ test('wordings match the score the server awarded', () => {
   assert.match(solveMessage({ credited: false, points: 0 }), /already counted/);
 });
 
+test('staff practice is not dressed up as an award', () => {
+  assert.match(
+    solveMessage({ credited: false, points: 0, messy: false, counted: false }),
+    /not added to the student leaderboard/,
+    'a staff solve must say it was not counted',
+  );
+  assert.match(page, /const staff = isAdminRole\(user\?\.role\);/);
+  assert.match(page, /counted: award\.counted/, 'the page must read the server\'s counted flag');
+  assert.match(page, /staff=\{staff\}/, 'the ladder is not told this viewer is staff');
+});
+
+test('staff reach the trainer from the admin sidebar, ungated', () => {
+  const app = read('src/App.jsx');
+  assert.match(app, /path="\/admin\/trainer"[\s\S]{0,120}<PuzzleTrainer \/>/,
+    'the admin trainer route is missing');
+  const sidebars = read('src/config/sidebarConfigs.js');
+  const at = sidebars.indexOf("to: '/admin/trainer'");
+  assert.ok(at > -1, 'the admin sidebar has no Puzzle Trainer row');
+  const line = sidebars.slice(at, sidebars.indexOf('\n', at));
+  assert.match(line, /label: 'Puzzle Trainer'/);
+  assert.doesNotMatch(line, /feature:/,
+    'staff practice must not depend on the student puzzle_trainer switch');
+});
+
 /* ── the ladder ───────────────────────────────────────────────────────────── */
 
 test('the ladder is read fresh, never from the 30-second GET cache', () => {
@@ -147,9 +171,16 @@ test('your own row is highlighted, and shown even outside the ten', () => {
   assert.match(ladder, /const isMe = \(row\) => Number\(row\.user_id\) === Number\(myUserId\);/);
   assert.match(ladder, /isMe\(row\) \? ' is-me' : ''/);
   assert.match(ladder, /const meInTop = !!me && top\.some\(isMe\);/);
-  assert.match(ladder, /board && !meInTop &&/);
+  assert.match(ladder, /board && !staff && !meInTop &&/);
   assert.match(ladder, /is-me is-outside/);
   assert.match(ladder, /solve to rank/, 'an unranked viewer gets words, not a fake rank');
+});
+
+test('the ladder never shows staff a fake "you" row', () => {
+  assert.match(ladder, /board && !staff && !meInTop &&/,
+    'a staff viewer would be drawn as an unranked student');
+  assert.match(ladder, /student leaderboard|Student leaderboard/);
+  assert.match(ladder, /staff practice is not ranked/);
 });
 
 test('the ladder says how it scores', () => {

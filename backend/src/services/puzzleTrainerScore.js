@@ -123,6 +123,10 @@ function rowOut(r) {
  * The trainer ladder: the top `limit` plus the viewer's own row, even when that
  * row is outside the top ten (or hidden from everybody else).
  *
+ * Only students are ranked. Staff can practise on the same feed, but their
+ * solves are never written, and the `u.role` filter keeps any stray row from
+ * an old role change out of the ladder for good.
+ *
  * `hide_from_leaderboard` is applied INSIDE the ranked set, so a private student
  * neither appears in the list nor consumes a rank number and leaves a gap in it.
  * The viewer is the one exception, matching ratingService: the flag stops other
@@ -141,7 +145,8 @@ async function trainerLeaderboard({ viewerId, limit = TOP_LIMIT } = {}) {
          FROM puzzle_trainer_scores sc
          JOIN users u ON u.id = sc.user_id
          LEFT JOIN students s ON s.user_id = sc.user_id
-        WHERE COALESCE(s.hide_from_leaderboard, FALSE) = FALSE OR sc.user_id = $1
+        WHERE u.role = 'student'
+          AND (COALESCE(s.hide_from_leaderboard, FALSE) = FALSE OR sc.user_id = $1)
      ), ranked AS (
        SELECT v.*,
               (ROW_NUMBER() OVER (
@@ -171,8 +176,12 @@ async function trainerLeaderboard({ viewerId, limit = TOP_LIMIT } = {}) {
  * @returns {Promise<{ok: false, reason: string}|{ok: true, credited: boolean, ...}>}
  *   `reason` is 'puzzle' (unknown id), 'line' (the submitted moves are not this
  *   puzzle's solution) or 'user' (the token names an account that is gone).
+ *
+ * `count: false` is staff practice: the line is validated exactly as a
+ * student's, but nothing is written and `counted` comes back false. The trainer
+ * is open to staff; the ladder is not theirs.
  */
-async function recordSolve({ userId, puzzleId, line, firstTry = false, solveMs = null, level = null }) {
+async function recordSolve({ userId, puzzleId, line, firstTry = false, solveMs = null, level = null, count = true }) {
   const id = String(puzzleId || '').trim();
   if (!id || id.length > MAX_PUZZLE_ID) return { ok: false, reason: 'puzzle' };
   const played = normalizeLine(line);
@@ -191,6 +200,25 @@ async function recordSolve({ userId, puzzleId, line, firstTry = false, solveMs =
      not anti-cheat — it is what stops a stale or crossed response from crediting
      a solve against the wrong position. */
   if (puzzle.moves.join(' ') !== played.join(' ')) return { ok: false, reason: 'line' };
+
+  /* Staff practice: verified against the same solution, but no ledger row and
+     no ladder row exists for it, so the student leaderboard never moves. */
+  if (!count) {
+    return {
+      ok: true,
+      counted: false,
+      practice: true,
+      credited: false,
+      already: false,
+      points: 0,
+      base_points: 0,
+      bonus_points: 0,
+      first_try: firstTry === true || firstTry === 'true',
+      total_points: 0,
+      solved_count: 0,
+      leaderboard: await trainerLeaderboard({ viewerId: userId }),
+    };
+  }
 
   const clean = firstTry === true || firstTry === 'true';
   const base = clean ? FIRST_TRY_POINTS : AFTER_MISS_POINTS;
@@ -251,6 +279,7 @@ async function recordSolve({ userId, puzzleId, line, firstTry = false, solveMs =
     const leaderboard = await trainerLeaderboard({ viewerId: userId });
     return {
       ok: true,
+      counted: true,
       credited,
       already: !credited,
       points: credited ? points : 0,

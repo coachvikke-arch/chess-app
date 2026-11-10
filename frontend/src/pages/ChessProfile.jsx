@@ -27,22 +27,6 @@ function elo(e) {
   return e == null ? '—' : e;
 }
 
-function toneOf(result, myColor) {
-  if (result === 'draw') return 'draw';
-  return result === myColor ? 'win' : 'loss';
-}
-
-/* colour the owner played, with a fallback for rows imported before my_color was stored */
-function effectiveColor(g) {
-  if (g.my_color) return g.my_color;
-  const me = String(g.account_username || '').toLowerCase();
-  if (me) {
-    if (String(g.white_name || '').toLowerCase().indexOf(me) >= 0) return 'white';
-    if (String(g.black_name || '').toLowerCase().indexOf(me) >= 0) return 'black';
-  }
-  return 'white';
-}
-
 /* Fit a board square width inside `col` px, leaving room for the themed
    coordinate frame (remC band + 13px border/padding each side) so the framed
    board never overflows its column and gets visually cut. */
@@ -329,12 +313,20 @@ export default function ChessProfile() {
 
 /* ====================================================== overview */
 
-function OverviewTab({ accounts, callbacks, appReport, user, checking = false, lastSyncedAt = null, lastError = '', ratingsVersion = 0 }) {
+/* `scope` is how the same components serve a coach's read-only view of one
+   student: `{ studentId, readOnly: true }`. Omitted (the student's own page),
+   every call stays on the signed-in user's endpoints and the connect /
+   sync / disconnect controls render exactly as before. */
+export function OverviewTab({ accounts, callbacks, appReport, user, checking = false, lastSyncedAt = null, lastError = '', ratingsVersion = 0, scope = null }) {
   const { all } = callbacks;
-  if (accounts === null) return <Spinner text="Loading your chess profiles…" />;
+  if (accounts === null) {
+    return <Spinner text={scope?.readOnly ? "Loading the student's chess profiles…" : 'Loading your chess profiles…'} />;
+  }
   return (
     <>
-      <ConnectPanel onConnected={all} hasAccounts={accounts.length > 0} />
+      {/* Connecting or disconnecting an account is the account owner's action;
+          a coach never gets those controls. */}
+      {!scope?.readOnly && <ConnectPanel onConnected={all} hasAccounts={accounts.length > 0} />}
       {/* Staff accounts have no `students` row, so there is no Mate Zone
           profile to describe. Rendering it would show an empty card reading
           "App ID: —", so it is hidden rather than shown blank. */}
@@ -342,8 +334,10 @@ function OverviewTab({ accounts, callbacks, appReport, user, checking = false, l
       {accounts.length === 0 ? (
         <Card title="No profiles connected" piece="🔗" className="mt-4">
           <p className="text-black text-sm">
-            Connect a Chess.com or Lichess account above to see your unified rating history, games,
-            statistics, openings and personalized insights — all in one page.
+            {scope?.readOnly
+              ? `This student has not connected Chess.com or Lichess yet.`
+              : `Connect a Chess.com or Lichess account above to see your unified rating history, games,
+            statistics, openings and personalized insights — all in one page.`}
           </p>
         </Card>
       ) : (
@@ -355,6 +349,7 @@ function OverviewTab({ accounts, callbacks, appReport, user, checking = false, l
           lastSyncedAt={lastSyncedAt}
           lastError={lastError}
           ratingsVersion={ratingsVersion}
+          scope={scope}
         />
       )}
     </>
@@ -514,7 +509,7 @@ function ConnectPanel({ onConnected, hasAccounts }) {
   );
 }
 
-function RatingComparison({ accounts, callbacks, appReport, checking = false, lastSyncedAt = null, lastError = '', ratingsVersion = 0 }) {
+export function RatingComparison({ accounts, callbacks, appReport, checking = false, lastSyncedAt = null, lastError = '', ratingsVersion = 0, scope = null }) {
   const [openSync, setOpenSync] = useState({});
   const [ratingsData, setRatingsData] = useState({});
   const [ratingsLoading, setRatingsLoading] = useState({});
@@ -527,7 +522,7 @@ function RatingComparison({ accounts, callbacks, appReport, checking = false, la
     if (!force && ratingsData[acct.id]) return;
     setRatingsLoading((p) => ({ ...p, [acct.id]: true }));
     try {
-      const r = await accountRatings(acct.id);
+      const r = await accountRatings(acct.id, scope?.studentId);
       setRatingsData((p) => ({ ...p, [acct.id]: r }));
     } catch { /* leave the previous values on screen */ } finally {
       setRatingsLoading((p) => ({ ...p, [acct.id]: false }));
@@ -644,23 +639,34 @@ function RatingComparison({ accounts, callbacks, appReport, checking = false, la
             </div>
 
             <p className="cp-account-meta mt-2">
-              {checking ? 'Checking for new games…'
+              {scope?.readOnly
+                ? (checking ? 'Syncing this student’s accounts…'
+                  : lastError ? `Last refresh failed: ${lastError}`
+                  : lastSyncedAt ? `Last synced ${formatDateTime(lastSyncedAt)}`
+                  : 'Showing the last synced data')
+                : checking ? 'Checking for new games…'
                 : lastError ? `Last check failed: ${lastError}`
                 : lastSyncedAt ? `Checked ${formatDateTime(lastSyncedAt)} · this page re-checks every 2 minutes`
                 : 'Re-checking for new games automatically'}
             </p>
 
             <div className="flex flex-wrap gap-2 mt-3">
-              <Button variant="secondary" size="sm" className="!px-3 !py-1.5 !text-xs" disabled={busy} onClick={async () => {
-                setOpenSync((s) => ({ ...s, [acct.id]: true }));
-                await callbacks.sync(acct.id, acct.platform);
-                setOpenSync((s) => ({ ...s, [acct.id]: false }));
-              }}>
-                {busy ? 'Syncing…' : '↺ Sync'}
-              </Button>
-              <Button variant="danger" size="sm" className="!px-3 !py-1.5 !text-xs" onClick={() => callbacks.remove(acct.id, acct.platform)}>
-                Disconnect
-              </Button>
+              {/* A coach refreshes both accounts from the page header; there is
+                  no per-account sync or disconnect to offer here. */}
+              {!scope?.readOnly && (
+                <>
+                  <Button variant="secondary" size="sm" className="!px-3 !py-1.5 !text-xs" disabled={busy} onClick={async () => {
+                    setOpenSync((s) => ({ ...s, [acct.id]: true }));
+                    await callbacks.sync(acct.id, acct.platform);
+                    setOpenSync((s) => ({ ...s, [acct.id]: false }));
+                  }}>
+                    {busy ? 'Syncing…' : '↺ Sync'}
+                  </Button>
+                  <Button variant="danger" size="sm" className="!px-3 !py-1.5 !text-xs" onClick={() => callbacks.remove(acct.id, acct.platform)}>
+                    Disconnect
+                  </Button>
+                </>
+              )}
               <Button variant="secondary" size="sm" className="!px-3 !py-1.5 !text-xs" href={acct.profile_url || '#'} target="_blank" rel="noopener noreferrer">
                 View on site ↗
               </Button>
@@ -722,12 +728,15 @@ function RatingComparison({ accounts, callbacks, appReport, checking = false, la
                       {PLATFORMS[a.platform]?.icon || '♟'} {PLATFORMS[a.platform]?.label || a.platform}
                     </th>
                   ))}
-                  <th className="cp-col-app">♞ Mate Zone</th>
+                  {/* The Mate Zone column belongs to the learner's own report
+                      and there is no data for it in a coach's view, so the
+                      comparison is linked platforms only there. */}
+                  {!scope?.readOnly && <th className="cp-col-app">♞ Mate Zone</th>}
                 </tr>
               </thead>
               <tbody>
                 {categories.length === 0 && !hasAppRating && (
-                  <tr><td colSpan={accounts.length + 2} className="text-center text-black text-sm py-6">No rating categories found.</td></tr>
+                  <tr><td colSpan={accounts.length + (scope?.readOnly ? 1 : 2)} className="text-center text-black text-sm py-6">No rating categories found.</td></tr>
                 )}
                 {hasAppRating && (
                   <tr className="cp-overall-row">
@@ -761,9 +770,11 @@ function RatingComparison({ accounts, callbacks, appReport, checking = false, la
                           </td>
                         );
                       })}
-                      <td className={`cp-cat-val cp-col-app${appIsBest ? ' cp-cat-best' : ''}`}>
-                        {appVal != null ? appVal : '—'}{appIsBest ? ' ▲' : ''}
-                      </td>
+                      {!scope?.readOnly && (
+                        <td className={`cp-cat-val cp-col-app${appIsBest ? ' cp-cat-best' : ''}`}>
+                          {appVal != null ? appVal : '—'}{appIsBest ? ' ▲' : ''}
+                        </td>
+                      )}
                     </tr>
                   );
                 })}
@@ -823,9 +834,27 @@ const GAME_SORTS = [
   ['asc', 'Oldest first'],
 ];
 
-function GamesTab({ gamesVersion = 0 }) {
+/* Numbered pager window: first, last, and a few around the current page, with
+   '…' for the gaps. Kept compact so the controls never overflow the card. */
+function pagerWindow(page, pageCount) {
+  if (pageCount <= 7) return Array.from({ length: pageCount }, (_, i) => i + 1);
+  const wanted = new Set([1, pageCount, page - 1, page, page + 1]);
+  if (page <= 4) [2, 3, 4, 5].forEach((n) => wanted.add(n));
+  if (page >= pageCount - 3) [pageCount - 4, pageCount - 3, pageCount - 2, pageCount - 1].forEach((n) => wanted.add(n));
+  const nums = [...wanted].filter((n) => n >= 1 && n <= pageCount).sort((a, b) => a - b);
+  const out = [];
+  let prev = 0;
+  for (const n of nums) {
+    if (prev && n - prev > 1) out.push('gap');
+    out.push(n);
+    prev = n;
+  }
+  return out;
+}
+
+export function GamesTab({ gamesVersion = 0, scope = null }) {
   const { showToast } = useToast();
-  const [filters, setFilters] = useState({ platform: '', result: 'all', timeClass: 'all', q: '', page: 1, pageSize: 25, sort: 'desc' });
+  const [filters, setFilters] = useState({ platform: '', outcome: 'all', timeClass: 'all', q: '', page: 1, pageSize: 10, sort: 'desc' });
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
   /* The open game lives in the URL (?game=<id>), so it IS the history entry:
@@ -833,13 +862,10 @@ function GamesTab({ gamesVersion = 0 }) {
      game open. The id is the imported game's own row id - the unique identity
      inside the 'chess_profile' source. */
   const [selectedId, setSelectedId] = useUrlView('game');
-  /* Colour-from-the-owner's-seat layer. This is purely client-side and sits ON
-     TOP of the existing server filters (platform / result / timeClass / sort /
-     search, which still go through fetchGames untouched): the server narrows,
-     these chips narrow further. `colour` never conflicts with the existing
-     "Won (as white)" / "Won (as black)" result options — those describe who
-     won the board, this describes which seat the owner sat in, so e.g.
-     colour=black + result="Won (as white)" is exactly "Lost as Black". */
+  /* Colour-from-the-owner's-seat layer. The server filters below narrow the
+     list; these chips narrow it further on the client. The outcome select is
+     OWNER-relative ("Win" means the owner won, from either seat) and is
+     resolved by the server from my_color, so a Black player's 0-1 is a Win. */
   const [colour, setColour] = useState('all'); // 'all' | 'white' | 'black'
   const [groupByColour, setGroupByColour] = useState(false); // default off
 
@@ -852,12 +878,16 @@ function GamesTab({ gamesVersion = 0 }) {
   const [reviewedFilter, setReviewedFilter] = useState('all'); // 'all' | 'reviewed' | 'pending'
 
   useEffect(() => {
+    /* "Reviewed" is a per-viewer mark. In a coach's read-only view it would
+       show the COACH's marks next to a student's games, which is not a claim
+       about the student, so the overlay is not loaded or rendered there. */
+    if (scope?.readOnly) return undefined;
     let alive = true;
     fetchReviewed()
       .then((list) => { if (alive) setReviewed(new Set(list)); })
       .catch(() => { });
     return () => { alive = false; };
-  }, []);
+  }, [scope?.readOnly]);
 
   /* Optimistic: the badge appears the moment the analysis completes, and the
      row disappears again only if the save actually failed. The endpoint is
@@ -890,7 +920,7 @@ function GamesTab({ gamesVersion = 0 }) {
     try {
       const params = { ...next };
       params.platform = params.platform || undefined;
-      const r = await fetchGames(params);
+      const r = await fetchGames(params, scope?.studentId);
       setData(r);
     } catch (err) {
       showToast(err.response?.data?.message || 'Could not load games.', { tone: 'error', title: 'Game history' });
@@ -951,6 +981,7 @@ function GamesTab({ gamesVersion = 0 }) {
   const whiteGames = visible.filter((a) => a.colour === 'white');
   const blackGames = visible.filter((a) => a.colour === 'black');
   const unknownGames = visible.filter((a) => a.colour !== 'white' && a.colour !== 'black');
+  const pageCount = data ? Math.max(1, Math.ceil(Number(data.total || 0) / Number(data.pageSize || 10))) : 1;
 
   return (
     <div className="mt-4">
@@ -961,10 +992,10 @@ function GamesTab({ gamesVersion = 0 }) {
             <option value="chess.com">Chess.com</option>
             <option value="lichess">Lichess</option>
           </select>
-          <select className="chess-input" value={filters.result} onChange={(e) => apply({ result: e.target.value, page: 1 })}>
+          <select className="chess-input" value={filters.outcome} onChange={(e) => apply({ outcome: e.target.value, page: 1 })}>
             <option value="all">All results</option>
-            <option value="white">Won (as white)</option>
-            <option value="black">Won (as black)</option>
+            <option value="win">Win</option>
+            <option value="loss">Loss</option>
             <option value="draw">Draw</option>
           </select>
           <select className="chess-input" value={filters.timeClass} onChange={(e) => apply({ timeClass: e.target.value, page: 1 })}>
@@ -987,8 +1018,10 @@ function GamesTab({ gamesVersion = 0 }) {
           />
         </div>
 
-        {/* Colour seat filter + group toggle. Chips combine with every select
-            above (e.g. Black + "Won (as white)" reads as Lost as Black). */}
+        {/* Colour seat filter + group toggle. These chips narrow the already
+            owner-relative result list (Win/Loss/Draw describe the owner, not
+            the winning colour), e.g. Black + Loss shows games the owner lost
+            while playing Black. */}
         <div className="cp-chips-row">
           <span className="cp-chips-label">Colour:</span>
           {[
@@ -1015,29 +1048,33 @@ function GamesTab({ gamesVersion = 0 }) {
         </div>
 
         {/* Reviewed filter — same chip pattern as the colour row above. */}
-        <div className="cp-chips-row">
-          <span className="cp-chips-label">Reviewed:</span>
-          {[
-            ['all', 'All'],
-            ['reviewed', '✔ Reviewed'],
-            ['pending', 'Not reviewed'],
-          ].map(([v, label]) => (
-            <button
-              key={v}
-              className={`cp-chip${reviewedFilter === v ? ' active' : ''}`}
-              onClick={() => setReviewedFilter(v)}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
+        {!scope?.readOnly && (
+          <div className="cp-chips-row">
+            <span className="cp-chips-label">Reviewed:</span>
+            {[
+              ['all', 'All'],
+              ['reviewed', '✔ Reviewed'],
+              ['pending', 'Not reviewed'],
+            ].map(([v, label]) => (
+              <button
+                key={v}
+                className={`cp-chip${reviewedFilter === v ? ' active' : ''}`}
+                onClick={() => setReviewedFilter(v)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
 
         {loading && !data ? <Spinner text="Loading games…" /> : null}
 
         {data && data.games.length === 0 && (
           <p className="text-black text-sm py-6 text-center">
             {data.total === 0
-              ? 'No imported games yet — connect a Chess.com or Lichess profile and sync it, or check back after a sync.'
+              ? (scope?.readOnly
+                ? 'This student has no imported games yet — run Sync now, or check back after their next sync.'
+                : 'No imported games yet — connect a Chess.com or Lichess profile and sync it, or check back after a sync.')
               : 'No imported games match those filters. Clear the search, or sync a profile for the latest games.'}
           </p>
         )}
@@ -1056,7 +1093,7 @@ function GamesTab({ gamesVersion = 0 }) {
                   <>
                     <p className="cp-colour-group-label">⚪ White games ({whiteGames.length})</p>
                     {whiteGames.map((a) => (
-                      <GameRow key={a.game.id} game={a.game} colour={a.colour} userResult={a.userResult} reviewedMark={reviewed.has(reviewedKey(a.game.platform, a.game.id))} active={String(selectedId) === String(a.game.id)} onOpen={() => openViewer(a.game.id)} />
+                      <GameRow key={a.game.id} game={a.game} colour={a.colour} userResult={a.userResult} reviewedMark={!scope?.readOnly && reviewed.has(reviewedKey(a.game.platform, a.game.id))} active={String(selectedId) === String(a.game.id)} onOpen={() => openViewer(a.game.id)} />
                     ))}
                   </>
                 )}
@@ -1064,7 +1101,7 @@ function GamesTab({ gamesVersion = 0 }) {
                   <>
                     <p className="cp-colour-group-label">⚫ Black games ({blackGames.length})</p>
                     {blackGames.map((a) => (
-                      <GameRow key={a.game.id} game={a.game} colour={a.colour} userResult={a.userResult} reviewedMark={reviewed.has(reviewedKey(a.game.platform, a.game.id))} active={String(selectedId) === String(a.game.id)} onOpen={() => openViewer(a.game.id)} />
+                      <GameRow key={a.game.id} game={a.game} colour={a.colour} userResult={a.userResult} reviewedMark={!scope?.readOnly && reviewed.has(reviewedKey(a.game.platform, a.game.id))} active={String(selectedId) === String(a.game.id)} onOpen={() => openViewer(a.game.id)} />
                     ))}
                   </>
                 )}
@@ -1072,7 +1109,7 @@ function GamesTab({ gamesVersion = 0 }) {
                   <>
                     <p className="cp-colour-group-label">❔ Seat unknown ({unknownGames.length})</p>
                     {unknownGames.map((a) => (
-                      <GameRow key={a.game.id} game={a.game} colour={a.colour} userResult={a.userResult} reviewedMark={reviewed.has(reviewedKey(a.game.platform, a.game.id))} active={String(selectedId) === String(a.game.id)} onOpen={() => openViewer(a.game.id)} />
+                      <GameRow key={a.game.id} game={a.game} colour={a.colour} userResult={a.userResult} reviewedMark={!scope?.readOnly && reviewed.has(reviewedKey(a.game.platform, a.game.id))} active={String(selectedId) === String(a.game.id)} onOpen={() => openViewer(a.game.id)} />
                     ))}
                   </>
                 )}
@@ -1080,18 +1117,35 @@ function GamesTab({ gamesVersion = 0 }) {
             ) : (
               <div className="cp-games-list">
                 {visible.map((a) => (
-                  <GameRow key={a.game.id} game={a.game} colour={a.colour} userResult={a.userResult} reviewedMark={reviewed.has(reviewedKey(a.game.platform, a.game.id))} active={String(selectedId) === String(a.game.id)} onOpen={() => openViewer(a.game.id)} />
+                  <GameRow key={a.game.id} game={a.game} colour={a.colour} userResult={a.userResult} reviewedMark={!scope?.readOnly && reviewed.has(reviewedKey(a.game.platform, a.game.id))} active={String(selectedId) === String(a.game.id)} onOpen={() => openViewer(a.game.id)} />
                 ))}
               </div>
             )}
             <div className="cp-pager">
-              <Button variant="secondary" size="sm" className="!px-3 !py-1.5 !text-xs" disabled={data.page <= 1} onClick={() => apply({ page: data.page - 1 })}>← Prev</Button>
-              <span className="text-black text-xs">Page {data.page} · {data.total} game{data.total === 1 ? '' : 's'}</span>
-              <Button
-                variant="secondary" size="sm" className="!px-3 !py-1.5 !text-xs"
-                disabled={data.page * data.pageSize >= data.total}
-                onClick={() => apply({ page: data.page + 1 })}
-              >Next →</Button>
+              <div className="cp-pager-controls">
+                <Button variant="secondary" size="sm" className="!px-3 !py-1.5 !text-xs" disabled={data.page <= 1} onClick={() => apply({ page: data.page - 1 })}>← Prev</Button>
+                {pagerWindow(data.page, pageCount).map((n, i) => (
+                  n === 'gap' ? (
+                    <span key={`gap-${i}`} className="cp-page-gap">…</span>
+                  ) : (
+                    <button
+                      key={n}
+                      type="button"
+                      className={`cp-page${n === data.page ? ' active' : ''}`}
+                      aria-current={n === data.page ? 'page' : undefined}
+                      onClick={() => n !== data.page && apply({ page: n })}
+                    >{n}</button>
+                  )
+                ))}
+                <Button
+                  variant="secondary" size="sm" className="!px-3 !py-1.5 !text-xs"
+                  disabled={data.page >= pageCount}
+                  onClick={() => apply({ page: data.page + 1 })}
+                >Next →</Button>
+              </div>
+              <span className="cp-pager-count">
+                Page {data.page} of {pageCount} · {data.total} game{data.total === 1 ? '' : 's'}
+              </span>
             </div>
           </>
         )}
@@ -1101,6 +1155,7 @@ function GamesTab({ gamesVersion = 0 }) {
         <GameViewer
           key={selectedGameId}
           gameId={selectedGameId}
+          studentId={scope?.studentId || null}
           onClose={closeViewer}
           onReviewed={(gameId, platform) => markGameReviewed(gameId, platform)}
         />
@@ -1110,14 +1165,14 @@ function GamesTab({ gamesVersion = 0 }) {
 }
 
 function GameRow({ game: g, active, onOpen, colour, userResult, reviewedMark }) {
-  const myColor = effectiveColor(g);
-  const meta = resultMeta(g.result, myColor);
-  const t = toneOf(g.result, myColor);
-  /* Owner-seat badges: never guessed — 'unknown' renders a neutral chip. The
-     `colour` / `userResult` props arrive precomputed from the GamesTab list;
-     the fallback keeps GameRow safe if ever rendered standalone. */
+  /* The owner's seat is resolved ONCE (my_color first, then a case-insensitive
+     username match) and the owner's Win/Loss/Draw comes from that seat. The
+     score text stays board-relative, so "0–1" is always Black's win no matter
+     who is reading. */
   const uc = colour || getUserColour(g);
   const ur = userResult || getUserResult(g);
+  const meta = resultMeta(g.result);
+  const t = ur === 'win' ? 'win' : ur === 'loss' ? 'loss' : 'draw';
   const badgeText = ur === 'win' ? 'Win' : ur === 'loss' ? 'Loss' : ur === 'draw' ? 'Draw' : '—';
   const platCls = g.platform === 'lichess' ? 'lichess' : 'chess-com';
   return (
@@ -1143,7 +1198,7 @@ function GameRow({ game: g, active, onOpen, colour, userResult, reviewedMark }) 
           <span className="cp-game-rating">⚪ {elo(g.white_rating)} · ⚫ {elo(g.black_rating)}</span>
         </span>
         <span className="cp-game-sub">
-          {timeClassGlyph(g.time_class)} {g.time_class} · {formatDate(g.game_date)} · {(g.opening || 'No opening recorded').slice(0, 60)}
+          {timeClassGlyph(g.time_class)} {g.time_class} · {formatDate(g.game_date)} · {(g.opening || 'No opening recorded')}
         </span>
       </span>
       <span className="cp-game-platform">
@@ -1161,13 +1216,18 @@ function GameRow({ game: g, active, onOpen, colour, userResult, reviewedMark }) 
    classification source — rather than building a parallel second one. This page
    passes the game's identity plus the stored-analysis accessors; the card itself
    knows nothing about where a game came from. */
-function GameViewer({ gameId, onClose, onReviewed }) {
+export function GameViewer({ gameId, onClose, onReviewed, studentId = null }) {
   /* The card opens IMMEDIATELY and resolves the game itself, so a slow or
      failed load is reported INSIDE the card instead of leaving a dead click
      with nothing on screen. The resolver is memoised: the card re-runs its
      load whenever the resolver's identity changes, and an inline arrow would
      change on every render. */
-  const resolveGame = useCallback((ref) => fetchGame(ref.gameId), []);
+  const resolveGame = useCallback((ref) => fetchGame(ref.gameId, studentId), [studentId]);
+  /* Analysis accessors travel with the game. For a coach's view the stored
+     analysis belongs to the student (read), while any review the coach runs is
+     saved under the coach's own id (the server keys the row by viewer). */
+  const loadAnalysis = useCallback((id) => fetchAnalysis(id, studentId), [studentId]);
+  const storeAnalysis = useCallback((id, data) => saveAnalysis(id, data, studentId), [studentId]);
   /* Stable identity: the card lists this callback in its restore effect's
      deps, and an inline arrow would re-fire that effect on every render.
      The platform comes from the card's own loaded row — the only copy that
@@ -1181,8 +1241,8 @@ function GameViewer({ gameId, onClose, onReviewed }) {
       resolveGame={resolveGame}
       onClose={onClose}
       gameId={gameId}
-      loadAnalysis={fetchAnalysis}
-      saveAnalysis={saveAnalysis}
+      loadAnalysis={loadAnalysis}
+      saveAnalysis={storeAnalysis}
       onReviewComplete={reviewComplete}
       /* The ?game= parameter IS this card's history entry. A second one (the
          overlay's own push) would make the browser Back button skip over the
@@ -1193,7 +1253,7 @@ function GameViewer({ gameId, onClose, onReviewed }) {
 }
 /* ====================================================== stats */
 
-function StatsTab() {
+export function StatsTab({ scope = null }) {
   const { showToast } = useToast();
   const [platform, setPlatform] = useState('');
   const [stats, setStats] = useState(null);
@@ -1203,7 +1263,7 @@ function StatsTab() {
     setPlatform(p);
     setLoading(true);
     try {
-      setStats(await fetchStatistics(p || undefined));
+      setStats(await fetchStatistics(p || undefined, scope?.studentId));
     } catch (err) {
       showToast(err.response?.data?.message || 'Could not load statistics.', { tone: 'error', title: 'Statistics' });
       setStats(null);
@@ -1258,7 +1318,7 @@ function StatsTab() {
 
 /* ====================================================== openings */
 
-function OpeningsTab() {
+export function OpeningsTab({ scope = null }) {
   const { showToast } = useToast();
   const [platform, setPlatform] = useState('');
   const [data, setData] = useState(null);
@@ -1268,7 +1328,7 @@ function OpeningsTab() {
     setPlatform(p);
     setLoading(true);
     try {
-      setData(await fetchOpenings(p || undefined));
+      setData(await fetchOpenings(p || undefined, scope?.studentId));
     } catch (err) {
       showToast(err.response?.data?.message || 'Could not load openings.', { tone: 'error', title: 'Openings' });
       setData(null);
@@ -1338,14 +1398,14 @@ const INSIGHT_TONES = {
   info: { icon: '💡', cls: 'info' },
 };
 
-function InsightsTab() {
+export function InsightsTab({ scope = null }) {
   const { showToast } = useToast();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let alive = true;
-    fetchInsights().then((r) => { if (alive) setData(r); }).catch((err) => {
+    fetchInsights(scope?.studentId).then((r) => { if (alive) setData(r); }).catch((err) => {
       showToast(err.response?.data?.message || 'Could not load insights.', { tone: 'error', title: 'Insights' });
       if (alive) setData({ insights: [], hasData: false });
     }).finally(() => { if (alive) setLoading(false); });

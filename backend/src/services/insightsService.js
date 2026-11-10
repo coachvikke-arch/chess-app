@@ -49,8 +49,8 @@ async function buildInsights(userId) {
   let lateWins = 0, lateLosses = 0, earlyWins = 0, earlyLosses = 0;
   for (const g of games) {
     const side = userSideObj(g);
-    const won = side === 'white' ? g.result === 'white' : side === 'black' ? g.result === 'black' : null;
-    if (won == null) continue;
+    if (!side || g.result === 'draw') continue;
+    const won = g.result === side;
     const late = (g.moves_count || 0) > 30;
     if (late) { if (won) lateWins++; else lateLosses++; }
     else { if (won) earlyWins++; else earlyLosses++; }
@@ -95,6 +95,7 @@ async function buildInsights(userId) {
 }
 
 function userSideObj(game) {
+  if (game.my_color === 'white' || game.my_color === 'black') return game.my_color;
   const me = String(game.account_username || '').toLowerCase();
   if (me && String(game.white_name || '').toLowerCase().indexOf(me) >= 0) return 'white';
   if (me && String(game.black_name || '').toLowerCase().indexOf(me) >= 0) return 'black';

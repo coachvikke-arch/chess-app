@@ -1404,6 +1404,8 @@ exports.trainerSolve = async (req, res) => {
     const { puzzleId, line, firstTry, solveMs, level } = req.body || {};
     const result = await recordSolve({
       userId: req.user.id, puzzleId, line, firstTry, solveMs, level,
+      /* Staff get the trainer as practice; only a student's solve is scored. */
+      count: req.user.role === 'student',
     });
     if (!result.ok) {
       const reply = {

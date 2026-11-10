@@ -11420,7 +11420,7 @@ button.live-drill-move:hover { border-color: #93c5fd; }
 
 .cp-games-list { display: flex; flex-direction: column; gap: 0.4rem; }
 .cp-game-row {
-  display: flex; align-items: center; gap: 0.75rem; width: 100%; text-align: left; padding: 0.6rem 0.8rem;
+  display: flex; align-items: center; gap: 0.75rem; width: 100%; min-width: 0; text-align: left; padding: 0.6rem 0.8rem;
   border-radius: 0.8rem; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.07); cursor: pointer; transition: all 0.15s ease;
 }
 .cp-game-row:hover { border-color: rgba(236,205,118,0.4); background: rgba(255,255,255,0.05); }
@@ -11442,14 +11442,29 @@ button.live-drill-move:hover { border-color: #93c5fd; }
 .cp-result-loss { color: #ff7b7b; }
 .cp-result-draw { color: #a3a3a3; }
 .cp-game-main { flex: 1; min-width: 0; }
-.cp-game-head { display: flex; justify-content: space-between; gap: 0.6rem; align-items: baseline; flex-wrap: wrap; }
-.cp-game-names { font-size: 0.88rem; font-weight: 700; color: #f7f3d5; }
-.cp-game-rating { font-size: 0.75rem; color: #c9d4e8; font-weight: 600; }
-.cp-game-sub { display: block; font-size: 0.76rem; color: #c3cfe2; font-weight: 600; margin-top: 0.15rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cp-game-head { display: flex; justify-content: space-between; gap: 0.6rem; align-items: baseline; flex-wrap: wrap; min-width: 0; }
+.cp-game-names { font-size: 0.88rem; font-weight: 700; color: var(--ivory-300); overflow-wrap: anywhere; }
+.cp-game-rating { font-size: 0.75rem; color: #475569; font-weight: 600; }
+/* Long opening names wrap instead of being truncated: the date · time-control ·
+   opening line is information, so an ellipsis here hides real content. */
+.cp-game-sub { display: block; font-size: 0.76rem; color: #475569; font-weight: 600; margin-top: 0.15rem; line-height: 1.35; overflow-wrap: anywhere; }
 .cp-game-platform { display: flex; flex-direction: column; align-items: flex-end; gap: 0.15rem; font-size: 1.1rem; flex-shrink: 0; }
 .cp-game-platform span { font-size: 0.7rem; font-weight: 700; }
 
-.cp-pager { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; margin-top: 1rem; }
+/* Numbered pager. Controls wrap, and the count gets its own line when the
+   column is narrow, so neither the controls nor "Page 1 · 883 games" can be
+   clipped by the card's overflow. */
+.cp-pager { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.5rem; margin-top: 1rem; }
+.cp-pager-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 0.3rem; }
+.cp-page {
+  min-width: 30px; padding: 0.35rem 0.5rem; border-radius: 8px; font-size: 0.75rem; font-weight: 700;
+  color: #1f2937; background: #fff; border: 1px solid #cbd5e1; cursor: pointer; line-height: 1.1;
+}
+.cp-page:hover { border-color: #93c5fd; color: #1d4ed8; }
+.cp-page.active { color: #fff; background: #2563eb; border-color: #2563eb; cursor: default; }
+.cp-page:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; }
+.cp-page-gap { padding: 0 0.15rem; color: #64748b; font-weight: 700; font-size: 0.75rem; }
+.cp-pager-count { font-size: 0.75rem; font-weight: 600; color: #475569; overflow-wrap: anywhere; }
 
 /* ---- Game history: owner-seat colour layer (additive; existing cp-game-row
    glassy blue-gray look untouched) ---- */
@@ -13241,6 +13256,9 @@ button.live-drill-move:hover { border-color: #93c5fd; }
 .cp-ink-all .cp-cat-tab.active:hover { color: #ffffff !important; }
 .cp-ink-all .cp-tab:hover:not(.active),
 .cp-ink-all .cp-cat-tab:hover:not(.active) { color: #1d4ed8 !important; }
+.cp-ink-all .cp-page { color: #1f2937 !important; background: #fff; border-color: #cbd5e1; }
+.cp-ink-all .cp-page.active { color: #ffffff !important; background: #2563eb; border-color: #2563eb; }
+.cp-ink-all .cp-pager-count { color: #475569 !important; }
 .cp-ink-all .cp-connect-btn:hover:not(.active),
 .cp-ink-all .cp-connect-btn:hover:not(.active) .cp-connect-icon { color: #1d4ed8 !important; }
 /* board coordinate labels must stay light — never darkened by the ink rule */
@@ -25697,3 +25715,121 @@ html, body {
   .arena-custom-fields { gap:12px; padding:12px; }
 }
 @keyframes arena-spin { to { transform:rotate(360deg); } }
+
+/* ── Student Chess Profiles (admin) ─────────────────────────────────────────
+   Student-wise read-only view of assigned students' linked accounts. Flat
+   blue/white, matching the rest of the admin suite. The desktop layout is a
+   two-column split (list + profile); under 900px the list becomes a picker. */
+.scp-switch { display:flex; flex-wrap:wrap; gap:.5rem; margin:.25rem 0 1rem; }
+.scp-switch-btn {
+  border:1px solid #d7def0; background:#fff; color:#1f2937;
+  padding:.5rem .95rem; border-radius:10px; font-size:.85rem; font-weight:700; cursor:pointer;
+}
+.scp-switch-btn.active { background:#2563eb; border-color:#2563eb; color:#fff; }
+
+.scp-filters { display:flex; flex-wrap:wrap; gap:.5rem; margin-bottom:.75rem; }
+.scp-search { flex:1 1 240px; min-width:0; }
+
+.scp-split { display:grid; grid-template-columns:minmax(260px,340px) minmax(0,1fr); gap:1rem; align-items:start; }
+.scp-list { display:flex; flex-direction:column; gap:.5rem; min-width:0; }
+.scp-student {
+  display:flex; align-items:center; gap:.6rem; width:100%; text-align:left;
+  padding:.55rem .65rem; border:1px solid #e2e8f5; border-radius:12px; background:#fff; cursor:pointer;
+}
+.scp-student:hover { border-color:#bcd0f7; }
+.scp-student.active { border-color:#2563eb; box-shadow:0 0 0 2px rgba(37,99,235,.15); }
+.scp-student-avatar { flex:none; }
+.scp-student-main { display:flex; flex-direction:column; gap:.15rem; min-width:0; flex:1; }
+/* Full names stay readable: they wrap onto a second line instead of being cut
+   with an ellipsis, and long unbroken usernames may break mid-word. */
+.scp-student-name { font-weight:700; font-size:.9rem; color:#0f172a; line-height:1.25; white-space:normal; overflow-wrap:anywhere; }
+.scp-student-users { display:flex; flex-direction:column; font-size:.72rem; color:#475569; line-height:1.3; overflow-wrap:anywhere; }
+.scp-student-users .muted { color:#64748b; }
+
+.scp-badge { flex:none; font-size:.65rem; font-weight:700; padding:.2rem .45rem; border-radius:999px; white-space:nowrap; }
+.scp-badge-both { background:#dcfce7; color:#166534; }
+.scp-badge-chess-com { background:#dbeafe; color:#1d4ed8; }
+.scp-badge-lichess { background:#fef3c7; color:#92400e; }
+.scp-badge-none { background:#f1f5f9; color:#475569; }
+
+.scp-pager { display:flex; align-items:center; justify-content:space-between; gap:.5rem; margin-top:.5rem; }
+.scp-mobile-picker { display:none; }
+.scp-detail { min-width:0; }
+
+.scp-head-row { display:flex; align-items:flex-start; gap:.85rem; flex-wrap:wrap; }
+.scp-head-avatar { flex:none; }
+.scp-head-main { flex:1; min-width:0; }
+.scp-head-name { font-weight:800; font-size:1.05rem; color:#0f172a; line-height:1.25; overflow-wrap:anywhere; }
+.scp-head-meta { display:flex; flex-wrap:wrap; gap:.2rem .9rem; font-size:.78rem; color:#475569; margin-top:.25rem; overflow-wrap:anywhere; }
+.scp-head-note { margin-top:.35rem; font-size:.75rem; color:#b45309; }
+.scp-head-actions { margin-left:auto; }
+.scp-tabs { margin-top:1rem; }
+
+.scp-table-wrap { overflow-x:auto; }
+.scp-table { width:100%; border-collapse:collapse; font-size:.82rem; }
+.scp-table th, .scp-table td {
+  padding:.5rem .6rem; border-bottom:1px solid #eef2fa; text-align:right; white-space:nowrap; color:#1f2937;
+}
+.scp-table th.scp-th-left, .scp-table td.scp-td-student { text-align:left; }
+.scp-sort {
+  background:none; border:0; padding:0; font:inherit; font-weight:700; color:#1e3a8a; cursor:pointer; white-space:nowrap;
+}
+.scp-sort:hover { color:#2563eb; }
+.scp-link {
+  background:none; border:0; padding:0; font:inherit; font-weight:700; color:#2563eb;
+  cursor:pointer; text-decoration:underline; text-underline-offset:2px;
+}
+.scp-td-muted { color:#64748b; }
+
+/* The list is a picker on narrow screens, so returning to it needs an explicit
+   control where the row list is gone. */
+.scp-back { display:none; }
+
+@media (max-width:900px) {
+  .scp-split { grid-template-columns:1fr; }
+  .scp-list { display:none; }
+  .scp-mobile-picker { display:block; width:100%; margin-bottom:.75rem; }
+  .scp-head-actions { margin-left:0; width:100%; }
+  .scp-head-actions .mz-btn, .scp-head-actions button { width:100%; }
+  .scp-back {
+    display:inline-flex; align-items:center; gap:.35rem;
+    margin-bottom:.6rem; padding:.4rem .75rem;
+    font-size:.8rem; font-weight:700; color:#1d4ed8;
+    background:#eff6ff; border:1px solid #bfdbfe; border-radius:999px;
+  }
+}
+
+/* ── Light-surface fix for the reused Chess Profile components on this page ──
+   Those components were authored for dark surfaces. Inside `.cp-ink-all` their
+   text is forced black, which is readable but loses the meaningful colours;
+   these scoped rules restore the owner badges, outcome tone, seat chip and
+   filters with AA-or-better contrast on white. Scoped to `.scp-ink` so the
+   student's own Chess Profile page is unchanged. */
+.scp-ink .cp-game-row { background:#ffffff; border-color:#e2e8f0; }
+.scp-ink .cp-game-row:hover { background:#f8fafc; border-color:#93c5fd; }
+.scp-ink .cp-game-rating,
+.scp-ink .cp-game-sub { color:#475569 !important; }
+.scp-ink .cp-colour-chip { background:#f8fafc; border-color:#cbd5e1; }
+.scp-ink .cp-user-win { color:#166534 !important; background:#dcfce7; border-color:#86efac; }
+.scp-ink .cp-user-loss { color:#b91c1c !important; background:#fee2e2; border-color:#fca5a5; }
+.scp-ink .cp-user-draw { color:#334155 !important; background:#f1f5f9; border-color:#cbd5e1; }
+.scp-ink .cp-user-unknown { color:#475569 !important; background:#f1f5f9; border-color:#cbd5e1; }
+.scp-ink .cp-result-win { color:#15803d !important; }
+.scp-ink .cp-result-loss { color:#b91c1c !important; }
+.scp-ink .cp-result-draw { color:#475569 !important; }
+.scp-ink .cp-chips-label,
+.scp-ink .cp-group-toggle,
+.scp-ink .cp-colour-group-label,
+.scp-ink .cp-strip-note { color:#475569 !important; }
+.scp-ink .cp-chip { color:#1f2937 !important; background:#ffffff; border-color:#cbd5e1; }
+.scp-ink .cp-chip:hover { border-color:#93c5fd; }
+.scp-ink .cp-chip.active { color:#ffffff !important; background:#2563eb; border-color:#2563eb; }
+.scp-ink .cp-colour-half { background:#f8fafc; border-color:#e2e8f0; }
+.scp-ink .cp-colour-half-title { color:#0f172a !important; }
+.scp-ink .cp-colour-half-nums,
+.scp-ink .cp-colour-half-rate { color:#475569 !important; }
+.scp-ink .cp-winbar { background:#e2e8f0; }
+
+@media (max-width:640px) {
+  .cp-pager-count { flex-basis:100%; text-align:center; }
+}

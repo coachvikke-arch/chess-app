@@ -36,9 +36,12 @@ export const adminLinks = [
   { to: '/admin/performances', label: 'Top Performances', icon: '🏆' },
   { to: '/admin/gm-games', label: 'GM Games', icon: '♞', feature: 'gm_games' },
   { to: '/admin/puzzle-listing', label: 'Puzzle Listing', icon: '♟', feature: 'puzzle_authoring' },
+  /* Practice only — staff attempts never reach the student leaderboard. */
+  { to: '/admin/trainer', label: 'Puzzle Trainer', icon: '♞' },
   { to: '/admin/analysis', label: 'Play Arena', icon: '♝' },
   { to: '/admin/review', label: 'Game Review', icon: '♚', feature: 'live_review' },
   { to: '/admin/chess-profile', label: 'Chess Profile', icon: '♛' },
+  { to: '/admin/chess-profiles', label: 'Student Chess Profiles', icon: '♟' },
   { to: '/admin/announcements', label: 'Announcements', icon: '♚', feature: 'messaging_students' },
   { to: '/admin/settings', label: 'Settings', icon: '⚙' },
   { to: '/admin/profile', label: 'My Profile', icon: '♙' },

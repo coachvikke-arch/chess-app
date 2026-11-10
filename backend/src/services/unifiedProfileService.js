@@ -624,9 +624,15 @@ async function accountsForUser(userId) {
        /* newest game we hold, so the UI can say "up to date through <this game>"
           instead of only "synced at <some time>" */
        (SELECT MAX(g.end_time_ms) FROM chess_games g WHERE g.account_id = a.id) AS newest_game_ms,
-       (SELECT COUNT(*) FROM chess_games g WHERE g.account_id = a.id AND
-           (CASE WHEN g.white_name ILIKE ('%' || a.username || '%') THEN
-              g.result = 'white' ELSE g.result = 'black' END)) AS wins,
+       /* The owner's colour comes from the stored my_color column; the username match
+          is only the fallback for rows imported before that column existed. A
+          win is the board result matching that colour, so a draw is never a
+          win — and a Black player's 0-1 counts as a win, not a loss. */
+       (SELECT COUNT(*) FROM chess_games g WHERE g.account_id = a.id
+          AND g.result = COALESCE(g.my_color,
+            CASE WHEN g.white_name ILIKE ('%' || a.username || '%') THEN 'white'
+                 WHEN g.black_name ILIKE ('%' || a.username || '%') THEN 'black'
+                 END)) AS wins,
 COALESCE((SELECT json_agg(json_build_object(
             'category', r.category, 'rating', r.rating, 'best', r.best) ORDER BY r.category)
           FROM chess_ratings r WHERE r.account_id = a.id), '[]'::json) AS ratings
@@ -692,7 +698,7 @@ const GAME_FIELDS = `g.id, g.platform_game_id,
   g.account_id, a.platform, a.username AS account_username`;
 
 async function listGames(userId, {
-  platform, result, timeClass, q, from, to, opponent,
+  platform, result, outcome, timeClass, q, from, to, opponent,
   page = 1, pageSize = 25, sort = 'desc',
 } = {}) {
   const params = [userId];
@@ -701,7 +707,23 @@ async function listGames(userId, {
   const addParam = (v) => { params.push(v); return `$${params.length}`; };
 
   if (platform) conds.push(`a.platform = ${addParam(platform)}`);
+  /* `result` is the WINNER's colour ('white' | 'black' | 'draw') and is kept
+     for callers that need to ask "who won the board". It is NOT the owner's
+     result: for a Black player a 'white' result is a loss. */
   if (result && result !== 'all') conds.push(`g.result = ${addParam(result)}`);
+  /* `outcome` is OWNER-relative — win | loss | draw. The colour is taken from
+     `my_color` (stored by both importers), falling back to a case-insensitive
+     username match for older rows, and only then compared with the result. */
+  if (outcome && outcome !== 'all') {
+    const ownerSide = `COALESCE(g.my_color,
+      CASE WHEN g.white_name ILIKE ('%' || a.username || '%') THEN 'white'
+           WHEN g.black_name ILIKE ('%' || a.username || '%') THEN 'black'
+           END)`;
+    const ownerResult = `CASE WHEN g.result = 'draw' THEN 'draw'
+                              WHEN g.result = ${ownerSide} THEN 'win'
+                              ELSE 'loss' END`;
+    conds.push(`${ownerResult} = ${addParam(outcome)}`);
+  }
   if (timeClass && timeClass !== 'all') conds.push(`g.time_class = ${addParam(timeClass)}`);
   if (from) conds.push(`g.game_date >= ${addParam(from)}`);
   if (to) conds.push(`g.game_date <= ${addParam(to)}`);

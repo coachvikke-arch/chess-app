@@ -19,7 +19,12 @@ async function gamesForUser(userId, platform = null) {
   return res.rows;
 }
 
+/* Which colour did the account owner play? `my_color` is stored by both
+   importers and is authoritative; the username match is the fallback for rows
+   imported before that column was populated. The comparison is case-insensitive
+   because Chess.com and Lichess differ on username casing. */
 function userSide(game) {
+  if (game.my_color === 'white' || game.my_color === 'black') return game.my_color;
   const me = String(game.account_username || '').toLowerCase();
   if (!me) return null;
   if (String(game.white_name || '').toLowerCase().indexOf(me) >= 0) return 'white';
@@ -27,13 +32,14 @@ function userSide(game) {
   return null;
 }
 
+/* `outcome` is the owner's own result. A draw is NOT a loss: `userWon` stays
+   null for it so every caller has to handle the third state explicitly. */
 function classify(game) {
   const side = userSide(game);
-  const userWon =
-    side === 'white' ? game.result === 'white'
-    : side === 'black' ? game.result === 'black'
-    : null;
-  return { side, userWon };
+  if (!side) return { side, userWon: null, outcome: null };
+  if (game.result === 'draw') return { side, userWon: null, outcome: 'draw' };
+  const userWon = game.result === side;
+  return { side, userWon, outcome: userWon ? 'win' : 'loss' };
 }
 
 function pct(part, whole) {
@@ -80,10 +86,10 @@ async function buildStatistics(userId, platform = null) {
   const openingMap = new Map();
 
   for (const g of games) {
-    const { side, userWon } = classify(g);
-    if (userWon === true) wins++;
-    else if (userWon === false) losses++;
-    else if (g.result) draws++;
+    const { side, userWon, outcome } = classify(g);
+    if (outcome === 'win') wins++;
+    else if (outcome === 'loss') losses++;
+    else if (outcome === 'draw') draws++;
     else unknown++;
 
     movesSum += g.moves_count || 0;

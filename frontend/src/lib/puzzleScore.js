@@ -15,9 +15,12 @@ export const NEXT_DELAY_MS = 3000;
 
 /**
  * The status line once the server has answered.
- * @param {{credited: boolean, points: number, messy: boolean}} award
+ * `counted === false` is staff practice: the solve is verified but nothing was
+ * written, so it must not read like an award.
+ * @param {{credited: boolean, points: number, messy: boolean, counted?: boolean}} award
  */
-export function solveMessage({ credited, points, messy }) {
+export function solveMessage({ credited, points, messy, counted = true }) {
+  if (counted === false) return `${messy ? 'Solved' : 'Correct'}! Practice solve — not added to the student leaderboard.`;
   if (!credited) return 'Solved again — this puzzle is already counted.';
   return `${messy ? 'Solved' : 'Correct'}! +${points} point${points === 1 ? '' : 's'}`;
 }

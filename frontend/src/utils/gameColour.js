@@ -1,9 +1,8 @@
 /* Colour-aware game helpers for the "Game history" section of Chess Profile.
  *
- * These sit ALONGSIDE the existing `effectiveColor` / `toneOf` helpers in
- * ChessProfile.jsx — nothing existing was changed. The difference: these never
- * guess. When the profile owner's username matches neither player, the colour
- * is 'unknown' (never a defaulted 'white').
+ * They never guess. When the profile owner's colour cannot be established, the
+ * colour is 'unknown' (never a defaulted 'white'), and the result is 'unknown'
+ * rather than being folded into a win or a loss.
  *
  * Supported `game` shapes (both occur in this codebase):
  *   - imported profile games: { white_name, black_name, account_username, result }
@@ -28,13 +27,18 @@ function normResult(v) {
 
 /**
  * Which colour did `username` play in `game`?
- * Case-insensitive compare against both player names. Falls back to the
- * row's own `account_username` when no explicit username is passed (each
+ * The importer stores the owner's own seat as `my_color`, so that is checked
+ * first — it is exact and cannot be confused by an opponent whose name happens
+ * to contain the username. The fallback compares usernames case-insensitively
+ * against both player names (Chess.com and Lichess differ on casing) and uses
+ * the row's own `account_username` when no explicit username is passed (each
  * imported row carries the owner it was synced for, and one page can mix
  * several linked accounts). Returns 'white' | 'black' | 'unknown'.
  */
 export function getUserColour(game, username) {
   const g = game || {};
+  const stored = normName(g.my_color);
+  if (stored === 'white' || stored === 'black') return stored;
   const candidates = [username, g.account_username, g.username].map(normName).filter(Boolean);
   if (candidates.length === 0) return 'unknown';
   const white = normName(g.white_name);

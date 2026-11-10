@@ -141,6 +141,7 @@ test('a clean first try inside the speed window is worth 10 + 2', async () => {
   const svc = loadService();
   const out = await solve(svc);
   assert.equal(out.ok, true);
+  assert.equal(out.counted, true, 'a student solve must be reported as counted');
   assert.equal(out.credited, true);
   assert.equal(out.points, 12);
   assert.equal(out.base_points, 10);
@@ -230,6 +231,26 @@ test('an id outside the pool is refused before any write', async () => {
   assert.equal(state.solves.size, 0);
 });
 
+test('a staff solve is verified but never written or ranked', async () => {
+  const state = stubDb();
+  const svc = loadService();
+  const out = await solve(svc, { count: false });
+  assert.equal(out.ok, true);
+  assert.equal(out.counted, false);
+  assert.equal(out.practice, true);
+  assert.equal(out.credited, false);
+  assert.equal(out.points, 0);
+  assert.equal(out.total_points, 0);
+  assert.equal(state.solves.size, 0, 'staff practice wrote a ledger row');
+  assert.equal(state.scores.size, 0, 'staff practice opened a ladder row');
+  assert.equal(state.begin, 0, 'staff practice opened a transaction');
+  assert.equal(state.released, 0, 'staff practice took a pooled connection');
+  assert.ok(Array.isArray(out.leaderboard.top), 'staff should still see the student ladder');
+
+  /* The line is still the real solution check, not a free pass. */
+  assert.deepEqual(await solve(svc, { count: false, line: ['e2e4'] }), { ok: false, reason: 'line' });
+});
+
 test('a token naming a deleted account rolls back instead of writing an orphan', async () => {
   const state = stubDb({ users: {} });
   const svc = loadService();
@@ -269,6 +290,8 @@ test('the ladder ranks on points, then solves, then name — and hides private s
   /* The privacy filter has to sit in `visible`, BEFORE the window function: applied
      after ranking it would leave gaps (1, 2, 4…) in the public top ten. */
   const visible = sql.slice(sql.indexOf('WITH visible AS'), sql.indexOf('), ranked AS'));
+  assert.match(visible, /u\.role = 'student'/,
+    'a staff row could reach the student ladder');
   assert.match(visible, /COALESCE\(s\.hide_from_leaderboard, FALSE\) = FALSE OR sc\.user_id = \$1/);
   assert.match(sql, /WHERE r\.rank <= \$2 OR r\.user_id = \$1/, 'the viewer outside the top ten was cut');
   assert.match(sql, /\(SELECT count\(\*\) FROM visible\)::int AS players/);
@@ -381,9 +404,19 @@ test('both trainer writes are declared above the /:id readers', () => {
     assert.ok(at > -1, `${needle} is not routed`);
     assert.ok(at < wildcard, `${needle} sits below /:id and would be swallowed`);
     const line = routes.slice(at, routes.indexOf('\n', at));
-    assert.match(line, /roleMiddleware\('student'\)/);
-    assert.match(line, /requireFeature\('puzzle_trainer'\)/);
+    assert.match(line, /trainerRoles/);
+    assert.match(line, /trainerAccess/);
   }
+});
+
+test('staff reach the trainer, but the feature switch still governs students', () => {
+  const routes = readFileSync(join(BACKEND, 'src', 'routes', 'puzzleRoutes.js'), 'utf8');
+  assert.match(routes, /roleMiddleware\('student', 'admin'\)/, 'staff were left out of the trainer roles');
+  const gate = routes.slice(routes.indexOf('function trainerAccess'), routes.indexOf('const trainerRoles'));
+  assert.match(gate, /isAdminRole\(req\.user\?\.role\)\) return next\(\)/,
+    'staff must not be checked against a student feature switch');
+  assert.match(gate, /requireFeature\('puzzle_trainer'\)\(req, res, next\)/,
+    'students lost their puzzle_trainer gate');
 });
 
 test('the migration file carries the same tables and columns as the self-install', () => {
