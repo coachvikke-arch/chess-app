@@ -4137,7 +4137,9 @@ details[open] .ab-section-head::after { transform: rotate(180deg); }
   position: absolute;
   right: 0;
   bottom: calc(100% + 6px);
-  z-index: calc(var(--z-modal-backdrop, 9000) - 2);
+  /* Above the arena tiles (which are explicitly z-index:0 now) and above Play
+     Mode; the trigger lives in a player card that the tool panel can overlap. */
+  z-index: var(--z-alert, 9999);
   display: grid;
   grid-template-columns: repeat(3, 36px);
   gap: 3px;
@@ -4168,7 +4170,10 @@ details[open] .ab-section-head::after { transform: rotate(180deg); }
 .ab-react-emoji:disabled { opacity: .5; cursor: default; }
 .ab-reaction-bubble {
   position: fixed;
-  z-index: calc(var(--z-modal-backdrop, 9000) - 1);
+  /* Portalled to <body>, but a plain backdrop z-index would still lose to Play
+     Mode (--z-popup = 9200): the bubble is the reaction itself, so it belongs
+     on the alert tier and must show over the board the opponent is playing on. */
+  z-index: var(--z-alert, 9999);
   width: 96px;
   height: 96px;
   display: grid;
@@ -4415,10 +4420,12 @@ details[open] .ab-section-head::after { transform: rotate(180deg); }
 
 /* ═══════════════ REVIEW COMPLETE PARTY BURST ═══════════════ */
 
+/* On the alert tier, not 200: the review-complete card can be raised while Play
+   Mode is open, and 200 sits under the board overlay (--z-popup) and the nav. */
 .party-overlay {
   position: fixed;
   inset: 0;
-  z-index: 200;
+  z-index: var(--z-alert, 9999);
   display: grid;
   place-items: center;
   padding: 16px;
@@ -22790,6 +22797,11 @@ html, body {
   --z-notification: 9600;
   --z-tooltip: 9700;
   --z-popover-tooltip: var(--z-tooltip);
+  /* Requests and alerts — a match/rematch challenge, an emoji reaction. These
+     must outrank every surface the Play Arena can open, including Play Mode
+     (--z-popup) and the result card, or a request that arrives mid-game is
+     painted behind the board and never answered. */
+  --z-alert: 9999;
 }
 
 @keyframes impact-shake {
@@ -25181,21 +25193,31 @@ html, body {
 }
 
 /* ── Brand lockup ────────────────────────────────────────────────────────────
-   Emblem artwork + the name as text. --brand-h is the emblem height in px and
-   the name scales off it, so one proportion holds in every header. The two
-   colours are sampled from the logo artwork itself; the dark half would vanish
-   on the navy bars, so those get white ink instead. */
+   Emblem artwork + the name as text. --brand-h sets the name's size so one
+   proportion holds in every header. The two colours are sampled from the logo
+   artwork itself. */
 .brand-lockup {
   display: inline-flex;
   align-items: center;
   gap: 12px;
   min-width: 0;
 }
+/* The emblem is artwork, not an app icon: one 36px height at every width, with
+   nothing drawn around it. No chip, frame, shadow, rounded box or forced
+   square — a fixed square width would letterbox the trimmed PNG and put the
+   "box" straight back. The PNG is transparent, so the bar shows through. */
 .brand-emblem {
   flex: 0 0 auto;
-  height: var(--brand-h, 44px);
+  height: 36px;
   width: auto;
+  max-width: none;
   object-fit: contain;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+  overflow: visible;
 }
 .brand-name {
   font-family: Orbitron, Nunito, sans-serif;
@@ -25213,7 +25235,6 @@ html, body {
 }
 @media (max-width: 640px) {
   .brand-lockup { gap: 8px; }
-  .brand-emblem { height: calc(var(--brand-h, 44px) * 0.73); }
   .brand-name { font-size: clamp(15px, calc(var(--brand-h, 44px) * 0.42), 18px); }
 }
 
@@ -25528,22 +25549,28 @@ html, body {
 .arena-waiting-error { color:#dc2626; font-weight:700; }
 .arena-waiting-spinner { width:38px; height:38px; border:4px solid rgba(40,120,240,.2); border-top-color:#2878f0; border-radius:50%; animation:arena-spin .8s linear infinite; }
 
-/* Play Arena cards stay readable and roomy in both light and dark themes. */
-.ab-root.ab-root .ab-side-panel .ab-tool-grid { grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
+/* Play Arena mode cards — half height. Every size below is exactly half the
+   previous value (136→68, 48→24, 32→16, 16→8, 14→7, 18→14 for legibility) so
+   the grid still reads as one block of buttons instead of a wall of tiles.
+   `position:relative; z-index:0` (and no transform/filter) pins them BELOW the
+   popup tier: a match request, emoji or toast can never be buried under a
+   card. */
+.ab-root.ab-root .ab-side-panel .ab-tool-grid { grid-template-columns:repeat(2,minmax(0,1fr)); gap:6px; }
 .ab-root.ab-root .ab-tool-grid .ab-tool-tile {
-  display:flex; flex-direction:row; box-sizing:border-box; width:100%; min-width:0; min-height:136px; height:auto; padding:16px;
-  align-items:center; justify-content:flex-start; gap:14px; overflow:visible; text-align:left; white-space:normal;
+  position:relative; z-index:0; transform:none; filter:none;
+  display:flex; flex-direction:row; box-sizing:border-box; width:100%; min-width:0; min-height:68px; height:auto; padding:8px 10px;
+  align-items:center; justify-content:flex-start; gap:7px; overflow:visible; text-align:left; white-space:normal;
   color:#111!important; background:linear-gradient(135deg,#fff 0%,var(--tile-fill,#F8FAFC) 100%)!important; border:1px solid var(--tile-line,#dbe4f0);
 }
 .ab-root.ab-root .ab-tool-grid .ab-tool-tile:hover { color:#111!important; background:var(--tile-fill,#f8fbff)!important; }
 .ab-root.ab-root .ab-tool-grid .ab-tool-tile.is-active {
   color:#111!important; background:#eaf3ff!important; border:3px solid #2878f0;
 }
-.ab-root.ab-root .ab-tool-grid .ab-tool-icon { display:grid; place-items:center; box-sizing:border-box; width:48px; height:48px; flex:none; border-radius:12px; font-size:32px; line-height:1; background:var(--tile-chip,#EEF2F7); }
-.ab-root.ab-root .ab-tool-grid .ab-tool-label { display:block; flex:1 1 auto; min-width:0; max-width:100%; color:#111!important; font-size:18px; font-weight:800; line-height:1.25; text-align:left; white-space:normal; overflow:visible; text-overflow:clip; overflow-wrap:anywhere; }
+.ab-root.ab-root .ab-tool-grid .ab-tool-icon { display:grid; place-items:center; box-sizing:border-box; width:24px; height:24px; flex:none; border-radius:6px; font-size:16px; line-height:1; background:var(--tile-chip,#EEF2F7); }
+.ab-root.ab-root .ab-tool-grid .ab-tool-label { display:block; flex:1 1 auto; min-width:0; max-width:100%; color:#111!important; font-size:14px; font-weight:800; line-height:1.2; text-align:left; white-space:normal; overflow:visible; text-overflow:clip; overflow-wrap:anywhere; }
 @media(max-width:640px) {
-  .ab-root.ab-root .ab-tool-grid .ab-tool-tile { gap:6px; padding:8px; }
-  .ab-root.ab-root .ab-tool-grid .ab-tool-icon { width:32px; height:32px; border-radius:8px; font-size:22px; }
+  .ab-root.ab-root .ab-tool-grid .ab-tool-tile { gap:6px; padding:6px 8px; }
+  .ab-root.ab-root .ab-tool-grid .ab-tool-icon { width:22px; height:22px; border-radius:6px; font-size:14px; }
   .ab-root.ab-root .ab-tool-grid .ab-tool-label {
     flex:1 1 0; min-width:0; font-size:12px; letter-spacing:-.02em;
     white-space:nowrap; overflow:visible; overflow-wrap:normal; word-break:normal;

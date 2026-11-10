@@ -472,7 +472,7 @@ const PLAY_ARENA_UI_CSS = `
    At phone widths the two buttons take the full row so they stay real tap
    targets instead of squashing the sentence above them. */
 .ab-rematch-layer{
-  position:fixed;inset:0;z-index:var(--z-modal);pointer-events:none;
+  position:fixed;inset:0;z-index:var(--z-alert,9999);pointer-events:none;
   display:grid;place-items:center;padding:14px;
 }
 .ab-rematch-card{
@@ -537,6 +537,9 @@ const PLAY_ARENA_UI_CSS = `
 .ab-root.ab-root .ab-tool-grid{
   display:grid !important;grid-template-columns:repeat(2,minmax(0,1fr)) !important;gap:8px;
   flex:0 0 auto;
+  /* A tile block, never a layer: the popup tier (--z-alert) must always paint
+     over these, so the grid owns its own z-index:0 and creates no ambiguity. */
+  position:relative;z-index:0;
 }
 /* One button shape, a different accent per mode — the mixed-colour palette. */
 .ab-root.ab-root #ab-tool-online{--tile-ink:#1D4ED8;--tile-line:#BFDBFE;--tile-fill:#EFF6FF;--tile-chip:#DBEAFE;--tile-ring:rgba(37,99,235,.2)}
@@ -547,9 +550,10 @@ const PLAY_ARENA_UI_CSS = `
 .ab-root.ab-root #ab-tool-settings{--tile-ink:#334155;--tile-line:#CBD5E1;--tile-fill:#F8FAFC;--tile-chip:#E2E8F0;--tile-ring:rgba(51,65,85,.16)}
 
 .ab-root.ab-root .ab-tool-tile{
+  position:relative;z-index:0;transform:none;filter:none;
   display:flex !important;flex-direction:row !important;align-items:center;justify-content:flex-start;
-  gap:14px;width:100%;height:67px;min-height:67px;padding:0 17px;box-sizing:border-box;
-  font-size:21px;font-weight:500;text-align:left;white-space:nowrap;min-width:0;
+  gap:7px;width:100%;height:68px;min-height:68px;padding:0 10px;box-sizing:border-box;
+  font-size:14px;font-weight:600;text-align:left;white-space:nowrap;min-width:0;
   color:var(--tile-ink,#334155);
   background:linear-gradient(135deg,#fff 0%,var(--tile-fill,#F8FAFC) 100%);
   border:1px solid var(--tile-line,#E3E8F0);border-radius:12px;
@@ -562,8 +566,8 @@ const PLAY_ARENA_UI_CSS = `
   box-shadow:0 0 0 3px var(--tile-ring,rgba(37,99,235,.2));
 }
 .ab-root.ab-root .ab-tool-icon{
-  flex:none;display:grid;place-items:center;width:40px;height:40px;border-radius:11px;
-  font-size:25px;line-height:1;text-align:center;background:var(--tile-chip,#EEF2F7);
+  flex:none;display:grid;place-items:center;width:24px;height:24px;border-radius:6px;
+  font-size:16px;line-height:1;text-align:center;background:var(--tile-chip,#EEF2F7);
 }
 .ab-root.ab-root .ab-tool-label{flex:1 1 auto;min-width:0;text-align:left;overflow:hidden;text-overflow:ellipsis}
 .ab-root.ab-root .ab-tool-badge{margin-left:auto}
@@ -627,7 +631,7 @@ const PLAY_ARENA_UI_CSS = `
   .ab-root.ab-root .ab-board-col{gap:6px}
   .ab-root.ab-root .ab-side-panel{gap:6px}
   .ab-root.ab-root .ab-tool-grid{gap:6px}
-  .ab-root.ab-root .ab-tool-tile{height:59px;min-height:59px;font-size:20px;padding:0 15px}
+  .ab-root.ab-root .ab-tool-tile{height:68px;min-height:68px;font-size:14px;padding:0 10px}
   .ab-root.ab-root .ab-player-row{height:44px;min-height:44px;max-height:44px;padding:0 10px}
   .ab-root.ab-root .ab-ctrl-row .ab-ctrl-btn{height:32px}
   .ab-root.ab-root .ab-action-btn{height:36px}
@@ -651,7 +655,7 @@ const PLAY_ARENA_UI_CSS = `
     flex:0 0 auto;min-height:0;height:auto;
     overflow:visible;padding-bottom:8px;
   }
-  .ab-root.ab-root .ab-tool-tile{height:62px;min-height:62px;font-size:20px}
+  .ab-root.ab-root .ab-tool-tile{height:68px;min-height:68px;font-size:14px}
   .ab-root.ab-root .ab-info-card{flex:0 0 auto;height:auto;min-height:180px;max-height:260px}
   .ab-root.ab-root .ab-note{display:none}
 }
@@ -660,10 +664,10 @@ const PLAY_ARENA_UI_CSS = `
    label may wrap instead of truncating. */
 @media (max-width:640px){
   .ab-root.ab-root .ab-tool-tile{
-    height:66px;min-height:66px;font-size:19px;gap:10px;padding:0 12px;
+    height:68px;min-height:68px;font-size:13px;gap:6px;padding:6px 8px;
     white-space:normal;line-height:1.15;
   }
-  .ab-root.ab-root .ab-tool-icon{font-size:22px;width:34px;height:34px;border-radius:9px}
+  .ab-root.ab-root .ab-tool-icon{font-size:14px;width:22px;height:22px;border-radius:6px}
   .ab-root.ab-root .ab-tool-label{white-space:normal}
 }
 `;
@@ -4629,9 +4633,11 @@ export default function AnalysisBoard() {
 
       </Modal>
 
-      {/* ── online game request — bottom-of-page notice bar ── */}
-      {inviteBar && (
-        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-[var(--z-toast)] w-[min(94vw,560px)]">
+      {/* ── online game request — bottom-of-page notice bar ──
+          Portalled to the body on the alert tier: it used to render inside the
+          page, where Play Mode and a finished-game result card cover it. */}
+      {inviteBar && createPortal(
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-[var(--z-alert)] w-[min(94vw,560px)]" role="status" aria-live="assertive">
           <div className="pointer-events-auto chess-toast rounded-xl border border-gold-500/40 shadow-[0_10px_30px_-8px_rgba(96,165,250,0.35)] bg-ink-800 px-4 py-3 flex items-center gap-3 shadow-2xl">
             <span className="grid place-items-center w-7 h-7 shrink-0 rounded-lg border text-xs font-bold text-gold-400 bg-gold-500/15 border-gold-400/30">♟</span>
             <p className="flex-1 text-xs text-ivory-300 leading-snug">{inviteBar.msg}</p>
@@ -4657,7 +4663,8 @@ export default function AnalysisBoard() {
               ✕
             </button>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* One rematch card for the whole page: portalled to the body, so the page
@@ -5688,7 +5695,10 @@ function ReviewCompletePopup({ analysis, onClose, soundOn }) {
     (v) => (counts.white[v.key] || 0) + (counts.black[v.key] || 0) > 0
   );
 
-  return (
+  /* Portalled to the body: the overlay is `position: fixed`, and any ancestor
+     with a transform would turn that into a board-sized box and trap the
+     z-index below Play Mode's overlay. */
+  return createPortal(
     <div className="party-overlay" onClick={onClose}>
       <div className="party-card" onClick={(e) => e.stopPropagation()} style={{ maxHeight: 'calc(100vh - 32px)', overflowY: 'auto' }}>
         {/* animated golden top bar */}
@@ -5764,7 +5774,8 @@ function ReviewCompletePopup({ analysis, onClose, soundOn }) {
           Got it 👍
         </Button>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 

@@ -5,7 +5,9 @@
 .rg-layer {
   position: fixed;
   inset: 0;
-  z-index: var(--z-modal);
+  /* Above Play Mode (--z-popup) and the result card: a live rematch request has
+     to be visible while the player is looking at the finished game. */
+  z-index: var(--z-alert, 9999);
   pointer-events: none;
   display: flex;
   align-items: flex-end;
