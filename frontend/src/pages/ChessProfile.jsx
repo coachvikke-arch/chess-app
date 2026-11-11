@@ -938,11 +938,19 @@ export function GamesTab({ gamesVersion = 0, scope = null }) {
   }, [scope?.readOnly]);
 
   /* Optimistic: the badge appears the moment the analysis completes, and the
-     row disappears again only if the save actually failed. The endpoint is
-     idempotent, so re-reviewing a marked game is a harmless repeat. */
+     row disappears again only if the save actually failed. The card reports the
+     same completion again whenever it re-checks its stored review, so a game is
+     posted at most ONCE per mount: a failed save rolls the badge back but is not
+     retried automatically, otherwise one rejected request (a stale game, a 429)
+     becomes a render → POST → fail → render loop that alone exhausts the API's
+     rate limit for the whole IP. The endpoint stays idempotent for a real retry
+     after the page is opened again. */
+  const reviewAttemptedRef = useRef(new Set());
   const markGameReviewed = useCallback(async (gameId, platform) => {
     if (gameId == null || !platform) return;
     const key = reviewedKey(platform, gameId);
+    if (reviewAttemptedRef.current.has(key)) return;
+    reviewAttemptedRef.current.add(key);
     setReviewed((prev) => {
       if (prev.has(key)) return prev;
       const next = new Set(prev);
@@ -1205,7 +1213,7 @@ export function GamesTab({ gamesVersion = 0, scope = null }) {
           gameId={selectedGameId}
           studentId={scope?.studentId || null}
           onClose={closeViewer}
-          onReviewed={(gameId, platform) => markGameReviewed(gameId, platform)}
+          onReviewed={markGameReviewed}
         />
       )}
     </div>
