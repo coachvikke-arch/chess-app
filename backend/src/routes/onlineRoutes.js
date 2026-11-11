@@ -20,6 +20,13 @@ router.post('/games/:id/decline', roleMiddleware('admin', 'student'), ctrl.decli
 router.post('/games/:id/cancel-request', roleMiddleware('admin', 'student'), ctrl.cancelGameRequest);
 router.post('/games/:id/abort', ctrl.abortGame);
 router.post('/games/:id/resign', roleMiddleware('admin', 'student'), ctrl.resignGame);
+/* Walking away from a live board: aborted when no move was played, resigned
+   once there is a position worth recording. The server decides, not the UI. */
+router.post('/games/:id/leave', roleMiddleware('admin', 'student'), ctrl.leaveGame);
+/* "Settle every live board I am on." A plain `/games/:id/leave` cannot reach a
+   game whose board rendered on a tab the user already left, so leaving the
+   classroom asks once for all of them. */
+router.post('/leave-active', roleMiddleware('admin', 'student'), ctrl.leaveActiveGames);
 /* A clock ran out. Separate from resign so the recorded reason is genuinely
    'timeout' (and never a resignation inferred from a disconnect/close). */
 router.post('/games/:id/timeout', roleMiddleware('admin', 'student'), ctrl.timeoutGame);

@@ -6,6 +6,7 @@ import { Page, Card, Chip, Spinner, Bar } from '../components/ui';
 import Pagination, { PAGE_SIZE } from '../components/Pagination';
 import { usePagination } from '../hooks/usePagination';
 import { isAdminRole } from '../utils/roles';
+import { onGameUpdate, onLiveGamesChanged } from '../services/socket';
 import { formatDateTime12 } from '../utils/time';
 import { copyText } from '../utils/clipboard';
 import { buildRowPgn, pgnFilename, hasPgnMoves, pgnHasMoves } from '../utils/gamePgn';
@@ -115,12 +116,44 @@ function StudentView({ embedded = false, onOpenGame }) {
   const [downloadedId, setDownloadedId] = useState(null);
   const listTopRef = useRef(null);
 
+  /* The history has to agree with the board the moment a match ends — after a
+     resignation, an abort on leave, or an abandoned tab settling on the server.
+     A finished game-update, the global live-games signal and coming back to the
+     tab all refetch; moves inside an active game do not, so the list is not
+     rewritten on every ply. */
   useEffect(() => {
-    api
-      .get('/game-history')
-      .then((res) => setData(res.data))
-      .catch((e) => setError(e.response?.data?.message || e.message || 'Failed to load game history'));
-  }, []);
+    let alive = true;
+    const load = () => {
+      api
+        .get('/game-history', { cache: false })
+        .then((res) => { if (alive) { setData(res.data); setError(''); } })
+        .catch((e) => {
+          if (alive) setError(e.response?.data?.message || e.message || 'Failed to load game history');
+        });
+    };
+    load();
+    const mine = (wrapped) => {
+      const row = wrapped?.forAdmin && Number(wrapped.forAdmin.meId) === Number(user?.id)
+        ? wrapped.forAdmin
+        : wrapped?.forStudent && Number(wrapped.forStudent.meId) === Number(user?.id)
+          ? wrapped.forStudent
+          : null;
+      return row;
+    };
+    const offGame = onGameUpdate((wrapped) => {
+      const row = mine(wrapped);
+      if (row && row.status !== 'active') load();
+    });
+    const offEnded = onLiveGamesChanged(() => load());
+    const onVisible = () => { if (document.visibilityState === 'visible') load(); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      alive = false;
+      offGame();
+      offEnded();
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [user?.id]);
 
   const games = useMemo(() => data?.games || [], [data]);
   const filtered = useMemo(() => {

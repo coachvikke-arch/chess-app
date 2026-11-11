@@ -7,8 +7,6 @@ import { useBotGame, statusLabel } from '../hooks/useBotGame';
 import { useGameTimer } from '../hooks/useGameTimer';
 import { useStockfish } from '../hooks/useStockfish';
 import { useBotProgress } from '../hooks/useBotProgress';
-import { useLeaveGameGuard } from '../hooks/useLeaveGameGuard';
-import LeaveGameConfirmDialog from '../components/LeaveGameConfirmDialog';
 import { getBot, getTimeControl, getColorChoice, resolveColor } from '../services/BotService';
 import { submitResult } from '../services/botsApi';
 import PostGameResultPopup from '../components/PostGameResultPopup';
@@ -219,7 +217,6 @@ function Game({ bot, timeControl, colorChoice, navigate }) {
   const [analyzing, setAnalyzing] = useState(false);
   const [popupOpen, setPopupOpen] = useState(false);
   const [popupDismissed, setPopupDismissed] = useState(false);
-  const { open: leaveOpen, stay: leaveStay, leave: leaveLeave } = useLeaveGameGuard(!outcome);
   const analysisToken = useRef(0);
 
   const sanMoves = useMemo(() => game.history.map((m) => m.san), [game.history]);
@@ -247,6 +244,25 @@ function Game({ bot, timeControl, colorChoice, navigate }) {
   useEffect(() => () => {
     analysisToken.current++;
     if (resultRevealCancelRef.current) { resultRevealCancelRef.current(); resultRevealCancelRef.current = null; }
+  }, []);
+
+  /* Leaving the page mid-game resigns it — no prompt, no beforeunload. The
+     delay lets a fast remount cancel the call, and a board with no moves is
+     simply dropped (see useBotGame's abandon). */
+  const abandonRef = useRef(game.abandon);
+  abandonRef.current = game.abandon;
+  const abandonTimerRef = useRef(null);
+  useEffect(() => {
+    if (abandonTimerRef.current) {
+      window.clearTimeout(abandonTimerRef.current);
+      abandonTimerRef.current = null;
+    }
+    return () => {
+      abandonTimerRef.current = window.setTimeout(() => {
+        abandonTimerRef.current = null;
+        abandonRef.current();
+      }, 500);
+    };
   }, []);
 
   /* The result popup does NOT auto-open: the inline panel below is the single
@@ -454,7 +470,6 @@ function Game({ bot, timeControl, colorChoice, navigate }) {
 
       {/* Optional post-game analysis. Dismissing it leaves the inline panel
           behind, so the result and the final position stay readable. */}
-      <LeaveGameConfirmDialog open={leaveOpen} onStay={leaveStay} onLeave={leaveLeave} />
       <PostGameResultPopup
         open={popupOpen && !!outcome && resultReady}
         title={outcome ? (outcome.result === 'win' ? 'You Won!' : outcome.result === 'draw' ? 'Draw' : 'You Lost') : ''}

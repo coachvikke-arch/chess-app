@@ -4,6 +4,7 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../components/Toast';
 import { isAdminRole, homeForRole } from '../utils/roles';
+import { leaveActiveGames } from '../utils/online';
 import { LiveClassProvider, useLiveClass } from '../context/LiveClassContext';
 import { getJoinToken, endClass, normalizeMeetingUrl, setClassSpectateEnabled } from '../services/liveClassApi';
 import { leaveLiveClass, on } from '../services/socket';
@@ -163,6 +164,28 @@ function ClassroomInner({ socketError }) {
     };
   }, [classMeta?.id, classMeta?.title, endReason]);
 
+  /* Route-away net. A back press or any link out of the room skips goHome, and
+     the PvP board only mounts on one of the tabs, so neither the leave bar nor
+     the board's own cleanup would run. Debounced and cancelled on remount so a
+     React double-mount cannot settle a board that is still on screen. */
+  const classLeaveTimer = useRef(null);
+  const classIdRef = useRef(null);
+  classIdRef.current = classMeta?.id || null;
+  useEffect(() => {
+    if (classLeaveTimer.current) {
+      window.clearTimeout(classLeaveTimer.current);
+      classLeaveTimer.current = null;
+    }
+    return () => {
+      const id = classIdRef.current;
+      if (!id) return;
+      classLeaveTimer.current = window.setTimeout(() => {
+        classLeaveTimer.current = null;
+        leaveActiveGames(id).catch(() => {});
+      }, 600);
+    };
+  }, []);
+
   /* The overflow menu is hover-free on purpose: it only closes on an explicit
      press outside, Escape, or picking an item - otherwise it would vanish
      mid-move while someone is reading what it says. */
@@ -207,6 +230,10 @@ function ClassroomInner({ socketError }) {
      history so Back does not re-enter a class they just left. */
   const goHome = () => {
     leaveLiveClass(classMeta.id);
+    /* Leaving the room ends any match this user still has running. Asked here
+       rather than relying on the board's unmount: the PvP board lives on one
+       tab, so a student on Chat or Puzzles never had it mounted. */
+    leaveActiveGames(classMeta.id).catch(() => {});
     navigate(homeForRole(user?.role), { replace: true });
   };
 

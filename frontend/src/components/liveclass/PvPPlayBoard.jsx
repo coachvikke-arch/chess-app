@@ -6,7 +6,7 @@ import StudentAvatar from '../StudentAvatar';
 import { useAuth } from '../../context/AuthContext';
 import { useLiveClass } from '../../context/LiveClassContext';
 import { useFittedSquare, CLASSROOM_BOARD_MIN, PAIRED_BOARD_MAX } from '../../hooks/useBoardWidth';
-import { listLiveSessions, fetchGame, sendMove, resignGame, abortGame, offerDraw, respondDraw } from '../../utils/online';
+import { listLiveSessions, fetchGame, sendMove, resignGame, abortGame, offerDraw, respondDraw, leaveGame } from '../../utils/online';
 import { onGameUpdate, on } from '../../services/socket';
 import { searchBest, warmEngine } from '../../utils/engine';
 import { botLevelConfig } from '../../utils/botLevels';
@@ -171,9 +171,9 @@ export default function PvPPlayBoard({ classId, fallback, onOpened, onEnded, ins
   /* Only a finish we watched happen deserves the animation wait; opening an
      already-finished game must show its result at once. */
   const seenActiveGameRef = useRef(null);
-  /* View-only collapse: hides this card and hands the slot back to the
-     classroom (fallback). Purely local — the game keeps running on the server,
-     nothing is resigned or aborted. */
+  /* Collapse this card and hand the slot back to the classroom. The match does
+     not linger: closing the board leaves it (aborted before the first move,
+     resigned after), exactly like walking away from a Play Arena board. */
   const [hidden, setHidden] = useState(false);
   const movesEndRef = useRef(null);
   const focusMovesEndRef = useRef(null);
@@ -511,16 +511,26 @@ export default function PvPPlayBoard({ classId, fallback, onOpened, onEnded, ins
     setBusy(false);
   }, [ended, game?.status]);
 
-  /* Close button: hide the card and hand the slot back to the classroom
-     (fallback). A live game is only hidden after a confirmation that says it
-     keeps running; the game is never resigned or aborted here. */
+  /* Close button: hide the card and hand the slot back to the classroom.
+     Closing a LIVE game ends it — no confirmation. The server aborts a board
+     with no moves and records a resignation once one exists. */
   const handleHide = useCallback(() => {
     const inProgress = Boolean(game) && game.status === 'active' && !ended;
-    if (inProgress && typeof window !== 'undefined') {
-      if (!window.confirm('Hide this game? It will continue.')) return;
-    }
+    if (inProgress) leaveGame(game.id).catch(() => {});
     setHidden(true);
   }, [game, ended]);
+
+  /* Navigating to another page while this game is live ends it. Classroom tab
+     switches keep the pathname, so those leave the game running. */
+  const liveGameIdRef = useRef(null);
+  liveGameIdRef.current = game && game.status === 'active' && !ended ? game.id : null;
+  const classPath = `/live-class/${classId}`;
+  useEffect(() => () => {
+    const id = liveGameIdRef.current;
+    if (id == null) return;
+    if (window.location.pathname === classPath) return;
+    window.setTimeout(() => { leaveGame(id).catch(() => {}); }, 500);
+  }, [classPath]);
 
   /* A brand-new pairing re-opens the card even if the previous one was hidden. */
   useEffect(() => {
@@ -779,7 +789,7 @@ export default function PvPPlayBoard({ classId, fallback, onOpened, onEnded, ins
             className="pvp-play-close"
             onClick={handleHide}
             aria-label="Close game card"
-            title="Close — the game keeps running"
+            title="Close — your game ends"
           >
             ✕
           </button>

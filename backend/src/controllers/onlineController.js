@@ -1682,6 +1682,133 @@ exports.resignGame = async (req, res) => {
   }
 };
 
+/* ── Leaving a live match ───────────────────────────────────────────────────
+   There is no "are you sure?" prompt any more. A player who navigates away,
+   closes the board, or drops off the network is out of the match, and the
+   SERVER decides what that means from the move list alone:
+     - no moves played  -> aborted, and nothing is rated (the game never began);
+     - at least one ply -> resignation, the leaver loses and ratings apply.
+   The explicit route and the disconnect timer both come through here, so the
+   two paths can never disagree about the stored result. */
+async function finishAsLeft(row, userId, io) {
+  if (!row || row.status !== 'active') return null;
+
+  let halfMoves = 0;
+  try {
+    halfMoves = parsePgn(row.pgn).history().length;
+  } catch {
+    halfMoves = 0;
+  }
+  const aborted = halfMoves === 0;
+
+  /* Who is leaving decides who wins. admin_color belongs to admin_id; the
+     student holds the other colour. A bot game stores the instructor in
+     admin_id but the student is the human, so the same rule holds. */
+  const leaverColor = Number(row.admin_id) === Number(userId)
+    ? row.admin_color
+    : row.admin_color === 'white' ? 'black' : 'white';
+  const winner = leaverColor === 'white' ? 'black' : 'white';
+
+  /* `AND status = 'active'` keeps this the one writer: a leave racing the
+     opponent's resign, a timeout claim or the clock sweep must not rate twice. */
+  const upd = aborted
+    ? await db.query(
+      `UPDATE online_games SET status = 'finished', result = 'aborted',
+         result_reason = 'aborted', draw_offered_by = NULL, draw_offered_at = NULL,
+         updated_at = NOW()
+       WHERE id = $1 AND status = 'active'`,
+      [row.id],
+    )
+    : await db.query(
+      `UPDATE online_games SET status = 'finished', result = $2,
+         result_reason = 'resignation', draw_offered_by = NULL, draw_offered_at = NULL,
+         updated_at = NOW()
+       WHERE id = $1 AND status = 'active'`,
+      [row.id, winner],
+    );
+  if (!upd.rowCount) return null;
+
+  row.status = 'finished';
+  row.result = aborted ? 'aborted' : winner;
+  row.result_reason = aborted ? 'aborted' : 'resignation';
+  if (!aborted) await applyOnlineRating(row, winner);
+  /* Class hosts drop the dead board; both players' sockets get the result. */
+  await notifyClassGameFinished(io, row);
+  if (!aborted) analysisHooks.onlineGameFinished(row);
+  emitGameUpdateIo(io, row.id);
+  return row;
+}
+
+/* The player leaves through the UI (back, another page, closing the board).
+   Idempotent: a match already finished is returned as-is, never re-rated. */
+exports.leaveGame = async (req, res) => {
+  try {
+    const row = await getGameRow(req.params.id);
+    if (!row) return res.status(404).json({ message: 'Match not found' });
+    if (Number(row.admin_id) !== Number(req.user.id) && Number(row.student_id) !== Number(req.user.id)) {
+      return res.status(403).json({ message: 'Not part of this match' });
+    }
+    if (row.status !== 'active') {
+      return res.json(payload(row, req.user.role, req.user.id));
+    }
+    const finished = await finishAsLeft(row, req.user.id, req.app.get('io'));
+    const latest = finished || await getGameRow(row.id);
+    res.json(payload(latest, req.user.role, req.user.id));
+  } catch (err) {
+    res.status(500).json({ message: 'Failed to leave match', error: err.message });
+  }
+};
+
+/* Route-level twin of the disconnect timer: "I am walking away from every live
+   board I am on." Leaving the live classroom unmounts the PvP board without
+   ever having mounted it (other tabs), so the board's own cleanup cannot fire.
+   Same settlement rules as one explicit leave; `classId` keeps it to the room
+   being left so a match open in another tab is not resigned by proxy. */
+exports.leaveActiveGames = async (req, res) => {
+  try {
+    const classId = Number(req.body?.classId);
+    const games = await finishAbandonedGamesFor(
+      req.app.get('io'),
+      req.user.id,
+      Number.isInteger(classId) && classId > 0 ? classId : null,
+    );
+    res.json({ games });
+  } catch (err) {
+    res.status(500).json({ message: 'Failed to leave active matches', error: err.message });
+  }
+};
+
+/* Socket-side abandonment. A closed tab or a dead connection does not fire the
+   route, so the disconnect handler calls this after a short grace. Returns how
+   many matches were settled, which the caller only logs. */
+async function finishAbandonedGamesFor(io, userId, classId = null) {
+  const uid = Number(userId);
+  if (!Number.isInteger(uid)) return 0;
+  const r = classId
+    ? await db.query(
+      `SELECT * FROM online_games
+        WHERE status = 'active' AND (admin_id = $1 OR student_id = $1)
+          AND class_id = $2`,
+      [uid, classId],
+    )
+    : await db.query(
+      `SELECT * FROM online_games
+        WHERE status = 'active' AND (admin_id = $1 OR student_id = $1)`,
+      [uid],
+    );
+  let finished = 0;
+  for (const row of r.rows) {
+    /* The instructor's browser drives the bot in classroom computer games;
+       the STUDENT is the player. The host closing a tab must not resign the
+       whole class's boards. */
+    if (row.is_bot && Number(row.admin_id) === uid) continue;
+    if (await finishAsLeft(row, uid, io)) finished += 1;
+  }
+  return finished;
+}
+
+exports.finishAbandonedGamesFor = finishAbandonedGamesFor;
+
 /* A clock ran out and one of the players reports it. Either participant may
    claim — the loser who sees their own 0:00, and the winner who sees their
    opponent sitting on it.

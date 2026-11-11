@@ -60,6 +60,22 @@ export async function resignGame(id) {
   return (await api.post(`/online/games/${id}/resign`)).data;
 }
 
+/* Leaving a live board. The server decides the consequence from the move list:
+   aborted before the first move, resignation afterwards. Used by navigation
+   away and by closing a board card — no confirmation prompt anywhere. */
+export async function leaveGame(id) {
+  return (await api.post(`/online/games/${id}/leave`, {}, { cache: false })).data;
+}
+
+/* "Settle every live board I am on." Leaving the classroom must end a game whose
+   board was mounted on another tab (and may already be unmounted), which a
+   per-game leave cannot address. `classId` scopes it to that room, so a match
+   open in another tab is untouched. Resolves with how many matches were
+   settled. */
+export async function leaveActiveGames(classId) {
+  return (await api.post('/online/leave-active', { classId }, { cache: false })).data;
+}
+
 /* A clock ran out. Its own endpoint (not resign) so the stored reason is
    'timeout', never a resignation inferred from a disconnect or a close. */
 export async function timeoutGame(id) {

@@ -28,6 +28,42 @@ async function ownClassGameFinished(classId, userId) {
 
 const classCache = new Map();
 
+/* ── Abandoning a live match ───────────────────────────────────────────────
+   A closed tab or a dead connection never reaches the leave route, so the
+   match would sit "active" forever. The disconnect handler waits a short grace
+   (a refresh or a two-second blip reconnects well inside it), then settles
+   every active match that user was in — aborted when it never started,
+   resigned once a move exists. Any socket coming back cancels the timer. */
+const ABANDON_GRACE_MS = 10000;
+const abandonTimers = new Map();
+
+function scheduleAbandonOnDisconnect(io, userId) {
+  if (userId == null) return;
+  const key = String(userId);
+  clearTimeout(abandonTimers.get(key));
+  const timer = setTimeout(async () => {
+    abandonTimers.delete(key);
+    try {
+      const still = await io.in(`user:${userId}`).fetchSockets();
+      if (still.length > 0) return;
+      await onlineCtrl.finishAbandonedGamesFor(io, userId);
+    } catch (err) {
+      console.warn('[online-abandon] settle failed:', err.message);
+    }
+  }, ABANDON_GRACE_MS);
+  timer.unref?.();
+  abandonTimers.set(key, timer);
+}
+
+function cancelAbandonOnReconnect(userId) {
+  if (userId == null) return;
+  const key = String(userId);
+  const pending = abandonTimers.get(key);
+  if (!pending) return;
+  clearTimeout(pending);
+  abandonTimers.delete(key);
+}
+
 const CLASS_CACHE_TTL_MS = 2 * 60 * 1000;
 
 /* One canonical key per class. Socket payloads are not consistent about the
@@ -368,6 +404,8 @@ module.exports = function (io) {
     const userId = socket.user?.id;
     const userRole = socket.user?.role;
     const userName = socket.user?.name;
+    /* A reconnect (a refresh, a network flap) keeps the player in the match. */
+    cancelAbandonOnReconnect(userId);
 
     socket.on('join-live-class', async (classId, ack) => {
       try {
@@ -1732,6 +1770,10 @@ const body = String(text).trim();
           }, 5000);
           timer.unref?.();
         }
+
+        /* Closing the tab or dropping off the network ends the matches this
+           user was playing, after a grace that a reconnect cancels. */
+        scheduleAbandonOnDisconnect(io, userId);
 
         /* socket.io clears socket.rooms before 'disconnect', so the rooms we
            joined are remembered on socket.data instead of re-derived here. */

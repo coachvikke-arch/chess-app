@@ -335,6 +335,16 @@ export function useBotGame({
   }, [status, finish]);
 
   /**
+   * Leaving the page mid-game. With moves on the board that is a resignation
+   * and is recorded like one; an untouched board is simply dropped, because
+   * there is no game to save. No confirmation prompt stands in front of it.
+   */
+  const abandon = useCallback(() => {
+    if (status !== 'playing' || moveCountRef.current === 0) return;
+    finish('resignation');
+  }, [status, finish]);
+
+  /**
    * Player ran out of time.
    *
    * `finish('timeout')` classifies by SIDE TO MOVE, which is exactly who
@@ -441,6 +451,7 @@ export function useBotGame({
     /* actions */
     onHumanMove,
     resign,
+    abandon,
     flagBot,
     flagPlayer,
     rematch,

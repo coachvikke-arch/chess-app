@@ -28,8 +28,6 @@ import { useAuth } from '../context/AuthContext';
 import { useToast } from '../components/Toast';
 import { matchRequestKey } from '../utils/toastDedupe';
 import { useFullHeight } from '../context/FullHeightContext';
-import { useLeaveGameGuard } from '../hooks/useLeaveGameGuard';
-import LeaveGameConfirmDialog from '../components/LeaveGameConfirmDialog';
 import {
   listUsers,
   listGames,
@@ -49,6 +47,7 @@ import {
   respondRematch,
   cancelRematch,
   fetchRatingResult,
+  leaveGame,
 } from '../utils/online';
 import {
   joinGameRoom,
@@ -747,7 +746,6 @@ export default function AnalysisBoard() {
   /* Play Mode — fullscreen immersive overlay. Purely a VIEW switch: the page
      (and every game/time/connection state) stays mounted underneath. */
   const [playMode,      setPlayMode]      = useState(false);
-  const { open: leaveOpen, stay: leaveStay, leave: leaveLeave } = useLeaveGameGuard(playMode);
 
   /* The two boards this page mounts: the page board and the full-screen Play
      Mode board (a portal above the page). They share ONE Chess instance, so a
@@ -973,6 +971,27 @@ export default function AnalysisBoard() {
   const gameSocketCleanupRef = useRef(null);
   const reactionSocketCleanupRef = useRef(null);
   const flagClaimRef      = useRef(null);
+
+  /* Navigating away during a live online match ends it — no prompt. The server
+     aborts a board with no moves and records a resignation once one exists.
+     The delay lets a fast remount (StrictMode in development) cancel the
+     request before anything is sent. A tab close never reaches this cleanup;
+     the backend's disconnect grace settles that case. */
+  const leaveGameTimer = useRef(null);
+  useEffect(() => {
+    if (leaveGameTimer.current) {
+      window.clearTimeout(leaveGameTimer.current);
+      leaveGameTimer.current = null;
+    }
+    return () => {
+      const active = onlineGameRef.current;
+      if (!active || active.status !== 'active') return;
+      leaveGameTimer.current = window.setTimeout(() => {
+        leaveGameTimer.current = null;
+        leaveGame(active.id).catch(() => {});
+      }, 600);
+    };
+  }, []);
 
   /* The last position this board actually RENDERED, as `{ id, ply, pgn }`.
      Every inbound update — the socket push, the 2.5 s poll, and the reply to
@@ -4085,11 +4104,9 @@ export default function AnalysisBoard() {
   ) : null;
 
   /* ========================= RENDER ========================= */
-  const leaveDialog = <LeaveGameConfirmDialog open={leaveOpen} onStay={leaveStay} onLeave={leaveLeave} />;
   return (
     <div className="ab-root">
       <style>{PLAY_ARENA_UI_CSS}</style>
-      {leaveDialog}
       {/* ── party burst ── */}
       {confetti.length > 0 && (
         <div className="confetti-wrap">
