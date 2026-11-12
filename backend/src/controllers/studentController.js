@@ -672,9 +672,16 @@ exports.getProgress = async (req, res) => {
     const puzzlesSolved = Number(pz.puzzles_solved) || 0;
     const puzzleAccuracy = attempts > 0 ? Math.round((correct / attempts) * 100) : 0;
 
+    /* The student report labels these two "Rapid Rating", so they must be the
+       Rapid pool — the same number the Ratings page and the champion ladder
+       show. The legacy aggregate on `students` (whose ratings used to chain
+       across every control) is only a fallback for a student with no Rapid
+       pool at all. */
+    const rapidPool = timeRatings.rows.find((r) => r.time_class === 'rapid');
+
     res.json({
-      currentRating: Number(rating.rows[0]?.current_rating ?? 0),
-      peakRating: Number(rating.rows[0]?.peak_rating ?? 0),
+      currentRating: Number(rapidPool ? rapidPool.rating : rating.rows[0]?.current_rating ?? 0),
+      peakRating: Number(rapidPool ? rapidPool.peak_rating : rating.rows[0]?.peak_rating ?? 0),
       // One entry per control, always all four so the UI can render a fixed row.
       timeRatings: TIME_CLASSES.reduce((acc, cls) => {
         const row = timeRatings.rows.find((r) => r.time_class === cls);

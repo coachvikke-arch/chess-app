@@ -9,16 +9,68 @@ import StudentAvatar from '../components/StudentAvatar';
 
 const RESULT_TONE = { win: 'green', loss: 'red', draw: 'gold' };
 
-/** "3d ago" / "2h ago" — falls back to a date beyond a week. */
+/** Canonical control labels — the same four the pools use, so the Recent
+ *  Rated Results column never shows a raw "5+0" for one row and "Blitz" for
+ *  another. Falls back to the stored label for rows written before
+ *  time_class existed. */
+const CONTROL_LABEL = { bullet: 'Bullet', blitz: 'Blitz', rapid: 'Rapid', classical: 'Classical' };
+
+/** "3d ago" / "2h ago" for recent games; dd/mm/yyyy beyond a week. */
 function ago(iso) {
   if (!iso) return '—';
-  const s = (Date.now() - new Date(iso).getTime()) / 1000;
+  const d = new Date(iso);
+  const s = (Date.now() - d.getTime()) / 1000;
   if (!Number.isFinite(s)) return '—';
   if (s < 60) return 'just now';
   if (s < 3600) return `${Math.floor(s / 60)}m ago`;
   if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
   if (s < 604800) return `${Math.floor(s / 86400)}d ago`;
-  return new Date(iso).toLocaleDateString();
+  /* Explicit dd/mm/yyyy: toLocaleDateString() follows the device locale and
+     would render 10/28/2026 on a US phone, next to 28/10/2026 elsewhere. */
+  const dd = String(d.getDate()).padStart(2, '0');
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  return `${dd}/${mm}/${d.getFullYear()}`;
+}
+
+/** Opponent name cell.
+ *
+ *  A long Tamil name used to be clipped on the LEFT because the cell was
+ *  allowed to grow past the table and the wrapper scrolled to its end — the
+ *  start of the name was simply off-screen. The cell is now a fixed-width,
+ *  left-aligned box that truncates with an ellipsis; tapping (or long-pressing)
+ *  expands it to the full name instead of cutting it. `title` covers desktop
+ *  hover. */
+function OpponentCell({ id, name, open, onToggle }) {
+  const label = name || '—';
+  return (
+    <td className="py-2 pr-3 align-top">
+      <button
+        type="button"
+        title={label}
+        aria-expanded={open}
+        onClick={() => onToggle(id)}
+        onContextMenu={(e) => { e.preventDefault(); onToggle(id, true); }}
+        className="block w-full text-left"
+        style={{
+          minWidth: 0,
+          maxWidth: '100%',
+          font: 'inherit',
+          color: 'inherit',
+          opacity: 0.65,
+          background: 'none',
+          border: 0,
+          padding: 0,
+          cursor: name ? 'pointer' : 'default',
+          whiteSpace: open ? 'normal' : 'nowrap',
+          overflow: open ? 'visible' : 'hidden',
+          textOverflow: open ? 'clip' : 'ellipsis',
+          overflowWrap: open ? 'anywhere' : 'normal',
+        }}
+      >
+        {label}
+      </button>
+    </td>
+  );
 }
 
 function Delta({ value }) {
@@ -201,6 +253,11 @@ export default function Ratings() {
   /* Which time-control pool the switcher is showing. Defaults to Rapid, the
      overall-champion ladder, which is the pool most students care about. */
   const [pool, setPool] = useUrlTab('pool', 'rapid');
+  /* Which Recent Rated Results row has its opponent name expanded. One at a
+     time keeps the table height stable. */
+  const [openOpponent, setOpenOpponent] = useState(null);
+  const toggleOpponent = (id, forceOpen) =>
+    setOpenOpponent((cur) => (forceOpen || cur !== id ? id : null));
   /* My own photo and avatar live in these rows too, so a change made on this
      device has to pull the page again instead of waiting for the next visit. */
   const [profileTick, setProfileTick] = useState(0);
@@ -367,18 +424,18 @@ export default function Ratings() {
         {data.recent.length === 0 ? (
           <p className="chess-empty">No rated results recorded yet.</p>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+          <div className="overflow-x-auto" style={{ maxWidth: '100%' }}>
+            <table className="w-full text-sm" style={{ tableLayout: 'fixed', minWidth: 720 }}>
               <thead>
                 <tr style={{ opacity: 0.5 }} className="text-left text-xs">
-                  <th className="py-2 pr-3 font-medium">Player</th>
-                  <th className="py-2 pr-3 font-medium">Result</th>
-                  <th className="py-2 pr-3 font-medium">Opponent</th>
-                  <th className="py-2 pr-3 font-medium text-right">Before</th>
-                  <th className="py-2 pr-3 font-medium text-right">After</th>
-                  <th className="py-2 pr-3 font-medium text-right">Change</th>
-                  <th className="py-2 pr-3 font-medium">Control</th>
-                  <th className="py-2 font-medium">When</th>
+                  <th className="py-2 pr-3 font-medium" style={{ width: '21%' }}>Player</th>
+                  <th className="py-2 pr-3 font-medium" style={{ width: '9%' }}>Result</th>
+                  <th className="py-2 pr-3 font-medium" style={{ width: '20%' }}>Opponent</th>
+                  <th className="py-2 pr-3 font-medium text-right" style={{ width: '8%' }}>Before</th>
+                  <th className="py-2 pr-3 font-medium text-right" style={{ width: '8%' }}>After</th>
+                  <th className="py-2 pr-3 font-medium text-right" style={{ width: '9%' }}>Change</th>
+                  <th className="py-2 pr-3 font-medium" style={{ width: '13%' }}>Control</th>
+                  <th className="py-2 font-medium" style={{ width: '12%' }}>When</th>
                 </tr>
               </thead>
               <tbody>
@@ -388,12 +445,19 @@ export default function Ratings() {
                     <td className="py-2 pr-3">
                       <Chip tone={RESULT_TONE[r.result] || ''}>{r.result}</Chip>
                     </td>
-                    <td className="py-2 pr-3" style={{ opacity: 0.6 }}>{r.opponent_name || '—'}</td>
+                    <OpponentCell
+                      id={r.id}
+                      name={r.opponent_name}
+                      open={openOpponent === r.id}
+                      onToggle={toggleOpponent}
+                    />
                     <td className="py-2 pr-3 text-right" style={{ opacity: 0.6 }}>{r.rating_before}</td>
                     <td className="py-2 pr-3 text-right font-medium">{r.rating_after}</td>
                     <td className="py-2 pr-3 text-right font-bold"><Delta value={r.rating_change} /></td>
-                    <td className="py-2 pr-3 text-xs" style={{ opacity: 0.5 }}>{r.time_control || '—'}</td>
-                    <td className="py-2 text-xs" style={{ opacity: 0.5 }}>{ago(r.played_at)}</td>
+                    <td className="py-2 pr-3 text-xs" style={{ opacity: 0.5, whiteSpace: 'nowrap' }}>
+                      {CONTROL_LABEL[r.time_class] || r.time_control || '—'}
+                    </td>
+                    <td className="py-2 text-xs" style={{ opacity: 0.5, whiteSpace: 'nowrap' }}>{ago(r.played_at)}</td>
                   </tr>
                 ))}
               </tbody>

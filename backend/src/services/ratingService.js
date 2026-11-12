@@ -7,8 +7,8 @@ const db = require('../config/database');
  * (LEVELS not yet defined) when certificateContent destructured it, and
  * certificateService would then crash on `LEVELS.length`.
  *
- * The one place this module issues a certificate — updateSingleStudent —
- * lazy-requires it inside the branch instead. See that function. */
+ * The one place this module issues a certificate — maybeIssueLevelCertificate
+ * — lazy-requires it instead. See that function. */
 
 /**
  * FIDE-style Elo rating + Level/Badge progression.
@@ -253,9 +253,10 @@ async function lockPlayers(client, ids) {
  * Apply a single rated result between two students and update both sides.
  *
  * `score` is 1 / 0.5 / 0 from the perspective of the "player".
- * Safe to call from any game-finish path. Each side's update runs inside its
- * own single-row transaction (row lock on that player's row), so concurrent
- * finishes for the same player serialise instead of interleaving.
+ * Safe to call from any game-finish path. Both sides are settled inside ONE
+ * transaction that locks both students rows first, so concurrent finishes for
+ * the same player serialise instead of interleaving, and a game's two history
+ * rows + both pool moves commit together or not at all.
  * Returns a summary of the change + whether either side levelled up.
  *
  * PARAMS:
@@ -281,120 +282,122 @@ async function applyGameResult({ player, opponent, meta = {} }) {
  * update rolls back with it and the tournament can retry — never "result saved,
  * rating lost".
  *
- * The exactly-once guard for a tournament game is the duplicate check after
- * `lockPlayers`: two concurrent settlements serialise on the students rows, and
- * the second one sees the first one's committed `rating_history` row and
- * returns `alreadyApplied` without touching a rating. The partial UNIQUE index
- * `(tournament_game_id, student_id)` in the migration is the database backstop.
+ * RATINGS ARE PER TIME CONTROL. The only rating this function reads or writes
+ * is `student_time_ratings` for the game's own class. There is no combined
+ * chain: a Bullet result cannot move a Rapid number, and a "rating before"
+ * always comes from the previous game in the SAME control. The history rows are
+ * written from those per-control numbers, so the profile card, the leaderboard
+ * and the Recent Rated Results table cannot disagree.
+ *
+ * The exactly-once guard for a game is the duplicate check after `lockPlayers`:
+ * two concurrent settlements serialise on the students rows, and the second one
+ * sees the first one's committed history row and returns `alreadyApplied`
+ * without touching a rating. The partial UNIQUE index
+ * `(student_id, online_game_id)` / `(student_id, tournament_game_id)` is the
+ * database backstop, so a retried finish cannot rate the same game twice.
  */
 async function applyGameResultInTransaction(client, { player, opponent, meta = {} }) {
   /* The rating CATEGORY is derived ONCE, here, from the game's time control,
-   and then threaded through everything below: the overall rating_history row,
-     both per-control pool rows, and the return value the API/UI read. Deriving
-     it in one place is the point - the category is what selects the pool, so a
-     second independent derivation elsewhere (the controller's display-label
-     helper) is exactly the kind of drift that makes a Blitz game report Rapid.
+     and then threaded through everything below: both players' pool rows, both
+     history tables, and the return value the API/UI read. Deriving it in one
+     place is the point - the category is what selects the pool, so a second
+     independent derivation elsewhere (the controller's display-label helper) is
+     exactly the kind of drift that makes a Blitz game report Rapid.
      `meta.timeClass` lets a caller that already knows the category pass it in
-     rather than re-deriving it from a display string. Computed BEFORE any
-     update so both history rows can carry it at INSERT time (no post-hoc
-     stamp, which is itself another statement for a concurrent finish to slip
-     between). */
+     rather than re-deriving it from a display string. */
   const timeClass = meta.timeClass || classifyTimeControl(meta.timeControl);
   const metaWithClass = { ...meta, timeClass };
 
-  /* ONE transaction for the whole game: both players' overall + pool + level
-     rows commit atomically, so concurrent finishes for the same pair become
-     one global serial order (the concurrent outcome always equals A,B or B,A
-     exactly) instead of interleaving per player. lockPlayers takes both
-     students rows ascending first (see its note): same-pair games serialise
-     there, disjoint pairs never interact, and no lock cycle is possible. */
+  /* Both players' student rows first (ascending id): same-pair games serialise
+     here, disjoint pairs never interact, and no lock cycle is possible. */
   await lockPlayers(client, [player.studentId, opponent.studentId]);
 
-  /* Tournament idempotency, checked after the locks so a concurrent settlement
-     cannot slip between the check and the writes. The unique index would also
-     reject a duplicate, but returning cleanly lets the caller mark the game
-     "applied" rather than aborting the tournament transaction. */
-  if (meta.tournamentGameId != null) {
+  /* Exactly-once, AFTER the locks so a concurrent finish cannot slip between
+     the check and the writes. Checked on the per-control table because that is
+     the one every rated game writes; the columns are nullable, so the
+     `IS NOT NULL` guard stops a missing id from matching every row. Returning
+     cleanly lets a tournament mark the game "applied" instead of aborting. */
+  if (meta.tournamentGameId != null || meta.onlineGameId != null) {
     const already = await client.query(
-      'SELECT 1 FROM rating_history WHERE tournament_game_id = $1 LIMIT 1',
-      [meta.tournamentGameId],
+      `SELECT 1 FROM time_control_rating_history
+        WHERE ($1::int IS NOT NULL AND tournament_game_id = $1)
+           OR ($2::int IS NOT NULL AND online_game_id = $2)
+        LIMIT 1`,
+      [meta.tournamentGameId ?? null, meta.onlineGameId ?? null],
     );
     if (already.rows.length) {
       return { alreadyApplied: true, timeClass, playerChange: null, opponentChange: null };
     }
   }
 
-  /* Expectancy inputs, read INSIDE the transaction (no extra locks needed —
-     both rows are already held). A value passed in from before the game is
-     only a fallback: under concurrency the pre-game read can predate a
-     just-committed game, and scoring against it would make the outcome match
-     NO sequential order. Reading here means every number in the transaction
-     comes from committed state as of this game, so concurrent finishes
-     always equal A,B or B,A exactly. */
-  const fresh = await client.query(
-    'SELECT id, current_rating FROM students WHERE id = ANY($1)',
-    [[player.studentId, opponent.studentId]],
-  );
-  const freshById = {};
-  fresh.rows.forEach((r) => { freshById[r.id] = r.current_rating; });
-  let freshPools = {};
-  if (timeClass && meta.rated !== false) {
-    const pr = await client.query(
-      'SELECT student_id, rating FROM student_time_ratings WHERE student_id = ANY($1) AND time_class = $2',
-      [[player.studentId, opponent.studentId], timeClass],
-    );
-    pr.rows.forEach((r) => { freshPools[r.student_id] = r.rating; });
+  /* A game with no classifiable control, or an explicitly unrated one, has no
+     pool to move. Counters are left alone too: a practice game is not a rated
+     game and must not inflate games_played. */
+  if (!timeClass || meta.rated === false) {
+    return { playerChange: null, opponentChange: null, timeClass };
   }
 
-  const playerChange = await updateOverallLocked(client, {
+  /* Both pools are created and LOCKED before either side is scored. That makes
+     each expectancy read the opponent's committed rating in the SAME control
+     (never a value cached before the game, never the opponent's rating in a
+     different control), and it means concurrent finishes for one player are
+     one sequential order rather than a lost update. */
+  const playerPoolRow = await lockPool(client, player.studentId, timeClass);
+  const opponentPoolRow = await lockPool(client, opponent.studentId, timeClass);
+  if (!playerPoolRow || !opponentPoolRow) {
+    return { playerChange: null, opponentChange: null, timeClass };
+  }
+
+  const playerPool = await updatePoolLocked(client, {
     studentId: player.studentId,
+    timeClass,
+    pool: playerPoolRow,
     score: player.score,
+    opponentRating: opponentPoolRow.rating,
+  });
+  const opponentPool = await updatePoolLocked(client, {
+    studentId: opponent.studentId,
+    timeClass,
+    pool: opponentPoolRow,
+    score: opponent.score,
+    opponentRating: playerPoolRow.rating,
+  });
+
+  await recordGameHistory(client, {
+    studentId: player.studentId,
+    timeClass,
     opponentId: opponent.studentId,
     opponentName: opponent.name,
-    opponentRating: freshById[opponent.studentId] ?? opponent.rating,
+    score: player.score,
+    change: playerPool,
     meta: metaWithClass,
   });
-  const opponentChange = playerChange && await updateOverallLocked(client, {
+  await recordGameHistory(client, {
     studentId: opponent.studentId,
-    score: opponent.score,
+    timeClass,
     opponentId: player.studentId,
     opponentName: player.name,
-    opponentRating: freshById[player.studentId] ?? player.rating,
+    score: opponent.score,
+    change: opponentPool,
     meta: metaWithClass,
   });
-  if (!playerChange || !opponentChange) {
-    return { playerChange, opponentChange, timeClass };
-  }
 
-  let playerPool = null;
-  let opponentPool = null;
-  if (timeClass && meta.rated !== false) {
-    playerPool = await updatePoolLocked(client, {
-      studentId: player.studentId,
-      timeClass,
-      score: player.score,
-      opponentId: opponent.studentId,
-      opponentName: opponent.name,
-      opponentRating: freshPools[opponent.studentId] ?? opponent.rating,
-      meta: metaWithClass,
-    });
-    opponentPool = await updatePoolLocked(client, {
-      studentId: opponent.studentId,
-      timeClass,
-      score: opponent.score,
-      opponentId: player.studentId,
-      opponentName: player.name,
-      opponentRating: freshPools[player.studentId] ?? player.rating,
-      meta: metaWithClass,
-    });
-  }
+  // Counters, plus the legacy display mirror of the Rapid pool.
+  await updateStudentTotalsLocked(client, {
+    studentId: player.studentId, timeClass, level: playerPool.level, after: playerPool.ratingAfter,
+  });
+  await updateStudentTotalsLocked(client, {
+    studentId: opponent.studentId, timeClass, level: opponentPool.level, after: opponentPool.ratingAfter,
+  });
 
   // Permanently record newly reached level tiers (never downgraded).
-  const playerNewLevel = await insertLevelRow(client, player.studentId, playerChange.level);
-  const opponentNewLevel = await insertLevelRow(client, opponent.studentId, opponentChange.level);
+  const playerNewLevel = await insertLevelRow(client, player.studentId, playerPool.level);
+  const opponentNewLevel = await insertLevelRow(client, opponent.studentId, opponentPool.level);
 
   return {
-    playerChange, opponentChange, playerPool, opponentPool,
+    playerChange: { ...playerPool, studentId: player.studentId },
+    opponentChange: { ...opponentPool, studentId: opponent.studentId },
+    playerPool, opponentPool,
     playerNewLevel, opponentNewLevel, timeClass,
   };
 }
@@ -455,10 +458,10 @@ async function getTimeRating(studentId, timeClass) {
 }
 
 /* ── locked single-player updates ─────────────────────────────────────────
- * The two helpers below do the actual writes and MUST run inside a
- * transaction holding the relevant row lock (see withTransaction). They take
- * a client, never touch the pool, and never commit — the caller owns the
- * transaction so overall + pool + level rows commit atomically.
+ * The helpers below do the actual writes and MUST run inside a transaction
+ * holding the relevant row locks (see withTransaction). They take a client and
+ * never commit — the caller owns the transaction so pool + history + counters
+ * commit atomically.
  *
  * Lock order is ALWAYS both students rows (ascending id via lockPlayers)
  * first, then pool rows: same-pair transactions fully serialise on the
@@ -466,98 +469,9 @@ async function getTimeRating(studentId, timeClass) {
  * lock cycle is possible (the FK KEY SHARE checks then target self-locked
  * rows — see lockPlayers). */
 
-/** Overall-rating half of a player's update, on an already-locked row. */
-async function updateOverallLocked(client, { studentId, score, opponentId, opponentName, opponentRating, meta }) {
-  const { rows } = await client.query(
-    `SELECT s.id, s.current_rating, s.peak_rating, s.highest_level,
-            s.games_played, s.provisional_games, s.birthdate
-     FROM students s WHERE s.id = $1 FOR UPDATE`,
-    [studentId]
-  );
-  const profile = rows[0];
-  if (!profile) return null;
-
-  // K-factor needs the games count BEFORE this match is recorded.
-  const gamesPlayed = profile.games_played;
-  const age = computeAge(profile.birthdate);
-  const { k, reason } = kFactorDetailed({ gamesPlayed, age, peakRating: profile.peak_rating });
-
-  const exp = expectedScore(profile.current_rating, opponentRating ?? profile.current_rating);
-  const oldRating = profile.current_rating;
-  const newR = newRating(oldRating, k, exp, score);
-  const change = newR - oldRating;
-  const level = levelForRating(newR);
-
-  // Persist rating + counters, compare against peak/highest level.
-  await client.query(
-    `UPDATE students SET
-       current_rating = $1,
-       peak_rating = GREATEST(peak_rating, $2),
-       highest_level = GREATEST(highest_level, $3),
-       games_played = games_played + 1,
-       provisional_games = GREATEST(0, provisional_games - 1),
-       last_rating_change_at = NOW()
-     WHERE id = $4`,
-    [newR, newR, level.level, studentId]
-  );
-
-  // Log the rating history entry.
-  // `online_game_id` is what lets the game screen show THIS player the change
-  // for THIS game (onlineController.getRatingResult). It is NULL for games that
-  // have no online row - tournaments, imports, anything recorded by hand.
-  //
-  // `time_class` is the CANONICAL category key ('bullet' | 'blitz' | 'rapid' |
-  // 'classical') alongside the human-readable `time_control` label ('Rapid').
-  // The label is what the player reads; the key is what the rating pool is
-  // selected by, so storing both makes the category of a given game
-  // queryable and assertable rather than something a test has to re-derive
-  // from a display string.
-  const result = score === 1 ? 'win' : score === 0 ? 'loss' : 'draw';
-  /* `tournament_game_id` is only written by the tournament settlement path.
-     Keeping it in a separate statement shape means the online (and every other)
-     rated game does not depend on the tournament migration having run. */
-  if (meta.tournamentGameId != null) {
-    await client.query(
-      `INSERT INTO rating_history
-         (student_id, opponent_id, opponent_name, result, rating_before, rating_after,
-          rating_change, time_control, time_class, game_type, rated, online_game_id,
-          tournament_game_id, played_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10, TRUE, $11, $12, clock_timestamp())`,
-      [studentId, opponentId, opponentName, result, oldRating, newR, change,
-        meta.timeControl || null, meta.timeClass || null, meta.gameType || 'official',
-        meta.onlineGameId != null ? meta.onlineGameId : null, meta.tournamentGameId]
-    );
-  } else {
-    await client.query(
-      `INSERT INTO rating_history
-         (student_id, opponent_id, opponent_name, result, rating_before, rating_after,
-          rating_change, time_control, time_class, game_type, rated, online_game_id, played_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10, TRUE, $11, clock_timestamp())`,
-      [studentId, opponentId, opponentName, result, oldRating, newR, change,
-        meta.timeControl || null, meta.timeClass || null, meta.gameType || 'official',
-        meta.onlineGameId != null ? meta.onlineGameId : null]
-    );
-  }
-
-  // Was the previous unlocked level < this level tier → level up event.
-  const leveled = level.level > profile.highest_level;
-
-  return {
-    ratingBefore: oldRating,
-    ratingAfter: newR,
-    ratingChange: change,
-    kFactor: k,
-    kReason: reason,
-    level,
-    prevHighestLevel: profile.highest_level,
-    gamesPlayed: gamesPlayed + 1,
-    leveled,
-  };
-}
-
-/** Pool half of a player's update: ensure, lock, update, log — atomically. */
-async function updatePoolLocked(client, { studentId, timeClass, score, opponentId, opponentName, opponentRating, meta }) {
-  // Lazy pool creation is idempotent (UNIQUE on student_id + time_class), so
+/** Create (if needed) and lock one student's pool row for one time class. */
+async function lockPool(client, studentId, timeClass) {
+  // Lazy creation is idempotent (UNIQUE on student_id + time_class), so
   // concurrent first-games converge on one row and then serialise below.
   await client.query(
     `INSERT INTO student_time_ratings (student_id, time_class, rating, peak_rating, provisional_games)
@@ -569,7 +483,18 @@ async function updatePoolLocked(client, { studentId, timeClass, score, opponentI
     'SELECT * FROM student_time_ratings WHERE student_id = $1 AND time_class = $2 FOR UPDATE',
     [studentId, timeClass]
   );
-  const pool = rows[0];
+  return rows[0] || null;
+}
+
+/**
+ * The rating half of a player's update: the ONLY place an Elo number changes.
+ *
+ * Everything here reads and writes `student_time_ratings` for THIS class.
+ * `students.current_rating` is never read, so a Bullet result cannot be scored
+ * against a Rapid number and vice versa; the opponent's expectancy is the
+ * opponent's pool rating in the same class. `pool` must already be locked.
+ */
+async function updatePoolLocked(client, { studentId, timeClass, pool, score, opponentRating }) {
   if (!pool) return null;
 
   const { k, reason } = kFactorDetailed({
@@ -587,43 +512,15 @@ async function updatePoolLocked(client, { studentId, timeClass, score, opponentI
   await client.query(
     `UPDATE student_time_ratings SET
        rating = $1,
-       peak_rating = GREATEST(peak_rating, $2),
-       highest_level = GREATEST(highest_level, $3),
+       peak_rating = GREATEST(peak_rating, $1),
+       highest_level = GREATEST(highest_level, $2),
        games_played = games_played + 1,
        provisional_games = GREATEST(0, provisional_games - 1),
        last_changed_at = NOW(),
        updated_at = NOW()
-     WHERE student_id = $4 AND time_class = $5`,
-    [newR, newR, level.level, studentId, timeClass]
+     WHERE student_id = $3 AND time_class = $4`,
+    [newR, level.level, studentId, timeClass]
   );
-
-  const result = score === 1 ? 'win' : score === 0 ? 'loss' : 'draw';
-  // `online_game_id` links this pool row to the game that moved it, so "which
-  // rating category did THIS game update?" is answerable without guessing from
-  // the display label. NULL for games with no online row. Tournaments use
-  // `tournament_game_id` instead (same split as the overall table).
-  if (meta.tournamentGameId != null) {
-    await client.query(
-      `INSERT INTO time_control_rating_history
-         (student_id, time_class, opponent_id, opponent_name, result,
-          rating_before, rating_after, rating_change, time_control, game_type,
-          online_game_id, tournament_game_id, played_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12, clock_timestamp())`,
-      [studentId, timeClass, opponentId || null, opponentName || null, result,
-        oldRating, newR, change, meta.timeControl || null, meta.gameType || 'official',
-        meta.onlineGameId != null ? meta.onlineGameId : null, meta.tournamentGameId]
-    );
-  } else {
-    await client.query(
-      `INSERT INTO time_control_rating_history
-         (student_id, time_class, opponent_id, opponent_name, result,
-          rating_before, rating_after, rating_change, time_control, game_type, online_game_id, played_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11, clock_timestamp())`,
-      [studentId, timeClass, opponentId || null, opponentName || null, result,
-        oldRating, newR, change, meta.timeControl || null, meta.gameType || 'official',
-        meta.onlineGameId != null ? meta.onlineGameId : null]
-    );
-  }
 
   return {
     studentId,
@@ -638,6 +535,95 @@ async function updatePoolLocked(client, { studentId, timeClass, score, opponentI
     leveled: level.level > (pool.highest_level || 1),
     gamesPlayed: (pool.games_played || 0) + 1,
   };
+}
+
+/**
+ * Append one rated game to BOTH history tables.
+ *
+ * They are written from the same per-control numbers in the same transaction,
+ * so the Recent Rated Results feed (`rating_history`) and the profile chart
+ * (`time_control_rating_history`) can never drift apart. `rating_history` keeps
+ * its old name for the readers that select from it, but it no longer stores the
+ * combined chain — before/after/change are the class's own numbers.
+ *
+ * `online_game_id` links the row to the game (onlineController.getRatingResult),
+ * `tournament_game_id` to a tournament pairing; both are NULL for imports or
+ * anything recorded by hand. The partial UNIQUE indexes on (student_id, <id>)
+ * make a duplicate insert fail instead of silently rating a game twice.
+ */
+async function recordGameHistory(client, { studentId, timeClass, opponentId, opponentName, score, change, meta }) {
+  const result = score === 1 ? 'win' : score === 0 ? 'loss' : 'draw';
+  const onlineGameId = meta.onlineGameId != null ? meta.onlineGameId : null;
+  const tournamentGameId = meta.tournamentGameId != null ? meta.tournamentGameId : null;
+  const timeControl = meta.timeControl || null;
+  const gameType = meta.gameType || 'official';
+
+  await client.query(
+    `INSERT INTO time_control_rating_history
+       (student_id, time_class, opponent_id, opponent_name, result,
+        rating_before, rating_after, rating_change, time_control, game_type,
+        online_game_id, tournament_game_id, played_at)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12, clock_timestamp())`,
+    [
+      studentId, timeClass, opponentId || null, opponentName || null, result,
+      change.ratingBefore, change.ratingAfter, change.ratingChange,
+      timeControl, gameType, onlineGameId, tournamentGameId,
+    ]
+  );
+
+  /* `tournament_game_id` ships in add_tournament_rating.sql, so this row always
+     has the column. A failed insert here must abort the whole rating
+     transaction rather than be caught: in Postgres the transaction is already
+     unusable after an error, so a "fallback" insert could never run. */
+  await client.query(
+    `INSERT INTO rating_history
+       (student_id, opponent_id, opponent_name, result, rating_before, rating_after,
+        rating_change, time_control, time_class, game_type, rated, online_game_id,
+        tournament_game_id, played_at)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10, TRUE, $11,$12, clock_timestamp())`,
+    [
+      studentId, opponentId || null, opponentName || null, result,
+      change.ratingBefore, change.ratingAfter, change.ratingChange,
+      timeControl, timeClass, gameType, onlineGameId, tournamentGameId,
+    ]
+  );
+}
+
+/**
+ * The `students` row's counters, plus the legacy display mirror.
+ *
+ * `students.current_rating` predates per-control pools and is NOT a rating
+ * track any more: no delta is computed from it and nothing in the rated flow
+ * reads it. It mirrors the Rapid pool — the champion ladder — so older screens
+ * (tournament seeding, game-history headers, the student report) show the same
+ * number the leaderboard ranks by. A non-Rapid game only bumps the counters, so
+ * one control's result can never move another control's displayed rating.
+ */
+async function updateStudentTotalsLocked(client, { studentId, timeClass, level, after }) {
+  if (timeClass === 'rapid') {
+    await client.query(
+      `UPDATE students SET
+         current_rating = $1,
+         peak_rating = GREATEST(peak_rating, $1),
+         highest_level = GREATEST(highest_level, $2),
+         games_played = games_played + 1,
+         provisional_games = GREATEST(0, provisional_games - 1),
+         last_rating_change_at = NOW()
+       WHERE id = $3`,
+      [after, level.level, studentId]
+    );
+    return;
+  }
+
+  await client.query(
+    `UPDATE students SET
+       highest_level = GREATEST(highest_level, $1),
+       games_played = games_played + 1,
+       provisional_games = GREATEST(0, provisional_games - 1),
+       last_rating_change_at = NOW()
+     WHERE id = $2`,
+    [level.level, studentId]
+  );
 }
 
 /** Permanently record a newly reached level tier (never downgraded).
@@ -675,76 +661,36 @@ async function maybeIssueLevelCertificate(studentId, levelNum) {
 /**
  * Apply one rated result to a single student's pool for a single time class.
  *
- * Uses the same FIDE-style Elo maths as the overall rating, and keeps its own
- * K-factor/provisional counter so a player stays provisional within EACH
- * control rather than only overall. `opponentRating` should be the opponent's
- * rating in the SAME class, so a blitz game isn't scored against a classical
- * number.
+ * Keeps its own K-factor/provisional counter so a player stays provisional
+ * within EACH control rather than only overall. `opponentRating` must be the
+ * opponent's rating in the SAME class, so a blitz game isn't scored against a
+ * classical number.
  *
- * Same atomicity contract as updateSingleStudent: the pool row is created
- * idempotently if missing, then locked (SELECT … FOR UPDATE), and the pool
- * UPDATE + pool-history INSERT commit together — so the badge (which reads
- * the pool) and the pool history (which the card's "last change" reads) can
- * never disagree, no matter how close together two games finish.
+ * The pool row is created idempotently if missing, then locked
+ * (SELECT … FOR UPDATE), and the pool UPDATE + both history rows commit
+ * together — so the badge (which reads the pool) and the history the card reads
+ * can never disagree, no matter how close together two games finish.
  */
 async function applyTimeControlResult({ studentId, timeClass, score, opponentId, opponentName, opponentRating, meta = {} }) {
   return withTransaction(async (client) => {
-    // Both rows first (canonical order): this INSERT references opponent_id
-    // too, so without the opponent lock it can deadlock against a concurrent
-    // game transaction exactly like rating_history did — see lockPlayers.
+    // Both rows first (canonical order): the history INSERT references
+    // opponent_id too, so without the opponent lock it can deadlock against a
+    // concurrent game transaction — see lockPlayers.
     await lockPlayers(client, [studentId, opponentId]);
-    return updatePoolLocked(client, {
-      studentId, timeClass, score, opponentId, opponentName, opponentRating, meta,
+    const pool = await lockPool(client, studentId, timeClass);
+    const change = await updatePoolLocked(client, {
+      studentId, timeClass, pool, score, opponentRating,
     });
+    if (change) {
+      await recordGameHistory(client, {
+        studentId, timeClass, opponentId, opponentName, score, change, meta,
+      });
+      await updateStudentTotalsLocked(client, {
+        studentId, timeClass, level: change.level, after: change.ratingAfter,
+      });
+    }
+    return change;
   });
-}
-
-/**
- * Fetch a student's profile (rating, games, birthdate) and applies a single
- * match, returning the after-state. Overall-rating only (no pool touch) —
- * the game-finish path uses applyPlayerUpdate instead so overall + pool
- * commit in one transaction.
- */
-async function updateSingleStudent({ studentId, score, meta = {}, opponentId, opponentName, opponentRating }) {
-  const change = await withTransaction(async (client) => {
-    // Both rows first (canonical order) — see lockPlayers: the history INSERT
-    // below references opponent_id as well.
-    await lockPlayers(client, [studentId, opponentId]);
-    const change = await updateOverallLocked(client, {
-      studentId, score, opponentId, opponentName, opponentRating, meta,
-    });
-    if (!change) return null;
-    const newLevelReached = await insertLevelRow(client, studentId, change.level);
-    return { ...change, newLevelReached };
-  });
-
-  if (!change) return null;
-
-  // Issued AFTER the rating transaction commits: holding the player's row lock
-  // across certificate work would serialise every concurrent finish behind it,
-  // and a certificate failure must never roll back an already-decided rating.
-  if (change.newLevelReached) {
-    await maybeIssueLevelCertificate(studentId, change.level.level);
-  }
-
-  return {
-    studentId,
-    ratingBefore: change.ratingBefore,
-    ratingAfter: change.ratingAfter,
-    ratingChange: change.ratingChange,
-    kFactor: change.kFactor,
-    kReason: change.kReason,
-    level: change.level,
-    levelsUnlocked: change.leveled,
-    prevHighestLevel: change.prevHighestLevel,
-    gamesPlayed: change.gamesPlayed,
-    levels: {
-      all: LEVELS,
-      current: change.level,
-      icon: BADGE_ICONS[change.level.level] || '♟',
-    },
-    leveled: change.leveled,
-  };
 }
 
 /** Grab the live rating-relevant row for a student. */
@@ -775,16 +721,6 @@ async function buildProfile(studentId, { limit = 60, fullHistory = false } = {})
   const row = await getStudentRatingRow(studentId);
   if (!row) return null;
 
-  const level = levelForRating(row.current_rating);
-  const peakLevel = levelForRating(row.peak_rating);
-  const next = level.level < LEVELS.length ? LEVELS[level.level] : null;
-  const nextThreshold = next ? next.min : level.min;
-
-  const progress = next
-    ? Math.max(0, Math.min(100, Math.round(((row.current_rating - level.min) / (next.min - level.min)) * 100)))
-    : 100;
-  const pointsToNext = next ? Math.max(0, next.min - row.current_rating) : 0;
-
   /* The dashboard graphs span from the student's first recorded game to today,
      so they ask for the complete per-pool history (`?full=1`). Everything else
      (profile cards, recent strips) keeps the bounded read. */
@@ -806,13 +742,7 @@ async function buildProfile(studentId, { limit = 60, fullHistory = false } = {})
         [studentId, limit * 4]
       );
 
-  const [history, levels, pools, histAll] = await Promise.all([
-    db.query(
-      `SELECT id, opponent_name, result, rating_before, rating_after, rating_change,
-              time_control, game_type, played_at
-       FROM rating_history WHERE student_id = $1 ORDER BY played_at DESC LIMIT $2`,
-      [studentId, limit]
-    ),
+  const [levels, pools, histAll] = await Promise.all([
     db.query(
       `SELECT level, badge_name, achieved_at FROM student_levels
        WHERE student_id = $1 ORDER BY level ASC`,
@@ -837,7 +767,22 @@ async function buildProfile(studentId, { limit = 60, fullHistory = false } = {})
   const byClass = Object.fromEntries(pools.rows.map((r) => [r.time_class, r]));
   const rapid = byClass.rapid || null;
 
-  const historyAsc = [...history.rows].reverse();
+  /* Tier, band progress and "pts to next" are computed from the CHAMPION
+     control — Rapid — because that is the rating the ladder ranks by. The
+     legacy `students` aggregate is only a fallback for a student who has never
+     played Rapid, so a Bullet game can never move the tier shown next to a
+     Rapid rating. */
+  const rankedRating = rapid ? rapid.rating : row.current_rating;
+  const rankedPeak = rapid ? rapid.peak_rating : row.peak_rating;
+  const level = levelForRating(rankedRating);
+  const peakLevel = levelForRating(rankedPeak);
+  const next = level.level < LEVELS.length ? LEVELS[level.level] : null;
+  const nextThreshold = next ? next.min : level.min;
+
+  const progress = next
+    ? Math.max(0, Math.min(100, Math.round(((rankedRating - level.min) / (next.min - level.min)) * 100)))
+    : 100;
+  const pointsToNext = next ? Math.max(0, next.min - rankedRating) : 0;
 
   /* Split the per-class rows into four ascending lists, one per time control.
      Each control can have far fewer games than another, so a single global
@@ -852,6 +797,13 @@ async function buildProfile(studentId, { limit = 60, fullHistory = false } = {})
   /* `rapidHistory` keeps its original contract — Rapid only, capped at `limit`
      — because RatingCard and studentController both read it. */
   const rapidHistoryAsc = historyByClass.rapid.slice(-limit);
+
+  /* The legacy `history` / `historyRecent` fields come from the SAME Rapid rows
+     now. They used to be a second read of `rating_history`, which was the
+     combined chain; keeping them on a different source is exactly how a chart
+     and the card beside it could disagree. */
+  const historyAsc = rapidHistoryAsc;
+  const historyRecentDesc = [...rapidHistoryAsc].reverse();
 
   /* THE authoritative "latest Rapid rating move", plus the recent form strip the
      Rapid card renders.
@@ -884,9 +836,12 @@ async function buildProfile(studentId, { limit = 60, fullHistory = false } = {})
 
   return {
     studentId,
-    currentRating: row.current_rating,
-    peakRating: row.peak_rating,
-    gamesPlayed: row.games_played,
+    /* The champion-control numbers. `currentRating` is the Rapid pool rating —
+       the same number `rapid.rating` below carries — so a report that labels it
+       "Rapid Rating" and the leaderboard that ranks by Rapid cannot disagree. */
+    currentRating: rankedRating,
+    peakRating: rankedPeak,
+    gamesPlayed: rapid ? rapid.games_played : row.games_played,
     /* The Rapid pool — this is what the overall champion ladder ranks on, so
        it is the number the UI leads with. null when the student has never
        played a rated Rapid game. Band/progress come from the shared
@@ -932,7 +887,7 @@ async function buildProfile(studentId, { limit = 60, fullHistory = false } = {})
       })
     ),
     provisionalGames: row.provisional_games,
-    isProvisional: row.games_played < 20 || row.provisional_games > 0,
+    isProvisional: (rapid ? rapid.games_played : row.games_played) < 20,
     age: computeAge(row.birthdate),
     // live tier (current rating) — can dip
     level: {
@@ -960,7 +915,7 @@ async function buildProfile(studentId, { limit = 60, fullHistory = false } = {})
     pointsToNext,
     // ascending history for line chart
     history: historyAsc,
-    historyRecent: history.rows,
+    historyRecent: historyRecentDesc,
     /* Rapid-only, ascending — what the chart should draw, since Rapid is the
        ladder. Empty when the student has no Rapid games. */
     rapidHistory: rapidHistoryAsc,
@@ -1074,12 +1029,17 @@ async function leaderboard({ limit = 100, hidePrivate = true } = {}) {
       `SELECT student_id, COALESCE(SUM(score), 0)::int AS pts
        FROM puzzle_attempts WHERE result = 'correct' GROUP BY student_id`
     ),
+    /* The Trend sparkline for the ELO tab. It used to read `rating_history`,
+       which was the combined chain, so the line mixed Bullet and Rapid points.
+       It now reads the Rapid pool — the same control the ladder ranks by — so
+       the trend and the rank describe one rating. */
     db.query(
       `SELECT student_id, rating_after, time_control, played_at
        FROM (
          SELECT student_id, rating_after, time_control, played_at,
                 ROW_NUMBER() OVER (PARTITION BY student_id ORDER BY played_at DESC) AS rn
-         FROM rating_history
+         FROM time_control_rating_history
+        WHERE time_class = 'rapid'
        ) h WHERE h.rn <= 14`,
     ),
     /* RAPID-pool history for the last 14 Rapid games per student. The Weekly
@@ -1142,7 +1102,10 @@ async function leaderboard({ limit = 100, hidePrivate = true } = {}) {
   const WEEK = 7 * 24 * 60 * 60 * 1000;
 
   return base.rows.map((row, i) => {
-    const lvl = levelForRating(row.current_rating);
+    /* Tier comes from the pool the rank comes from. `rapid_rating` is NULL for
+       a student with no Rapid games; they fall back to the legacy aggregate so
+       the badge never reads as "no level". */
+    const lvl = levelForRating(row.rapid_rating ?? row.current_rating);
     const rowWld = wld.get(row.user_id);
     const pts = puzzle.get(row.student_id) || 0;
     const rows = (history.get(row.student_id) || [])
@@ -1344,26 +1307,52 @@ async function ratingAnalytics({ limit = 20, hidePrivate = true, viewerStudentId
        GROUP BY t.time_class ORDER BY t.time_class`
     ),
     /* Movers: within the 7-day window, the rating BEFORE the player's first
-       game vs the rating AFTER their last one. MIN/MAX over those two columns
-       is the true net change regardless of the order results arrived in. */
+       game vs the rating AFTER their last one — computed PER TIME CONTROL.
+
+       This used to aggregate over the whole student, so a Bullet game and a
+       Rapid game were subtracted from each other and reported as one move.
+       Each control has its own Elo chain now, so the window is split by
+       `time_class` first and a student is listed once, under whichever pool
+       moved most.
+
+       First/last rows are picked with ROW_NUMBER by played_at rather than
+       MIN(rating_before)/MAX(rating_after): those extremes are only correct
+       while a rating only rises. A player who fell 1200 → 1100 has a MIN
+       before of 1100 and a MAX after of 1190, which used to report +90. */
     db.query(
       `WITH win AS (
-         SELECT student_id,
-                MIN(rating_before) AS start_rating,
-                MAX(rating_after)  AS end_rating,
-                COUNT(*)::int      AS games
+         SELECT student_id, time_class, rating_before, rating_after,
+                ROW_NUMBER() OVER (
+                  PARTITION BY student_id, time_class ORDER BY played_at ASC, id ASC
+                ) AS rn_first,
+                ROW_NUMBER() OVER (
+                  PARTITION BY student_id, time_class ORDER BY played_at DESC, id DESC
+                ) AS rn_last
          FROM rating_history
          WHERE rated = TRUE AND played_at >= NOW() - INTERVAL '${WEEK}'
-         GROUP BY student_id
+       ), per_class AS (
+         SELECT student_id, time_class,
+                MAX(rating_before) FILTER (WHERE rn_first = 1) AS start_rating,
+                MAX(rating_after)  FILTER (WHERE rn_last = 1)  AS end_rating,
+                COUNT(*)::int AS games
+         FROM win
+         GROUP BY student_id, time_class
+       ), best AS (
+         SELECT per_class.*,
+                ROW_NUMBER() OVER (
+                  PARTITION BY student_id
+                  ORDER BY ABS(end_rating - start_rating) DESC, games DESC, time_class
+                ) AS rn
+         FROM per_class
        )
-       SELECT w.student_id, u.name, u.avatar_config, u.profile_image,
-              w.start_rating, w.end_rating,
-              (w.end_rating - w.start_rating)::int AS delta, w.games
-       FROM win w
-       JOIN students s ON s.id = w.student_id
+       SELECT b.student_id, u.name, u.avatar_config, u.profile_image, b.time_class,
+              b.start_rating, b.end_rating,
+              (b.end_rating - b.start_rating)::int AS delta, b.games
+       FROM best b
+       JOIN students s ON s.id = b.student_id
        JOIN users u ON u.id = s.user_id
-       WHERE 1=1 ${hideClause}
-       ORDER BY ABS(w.end_rating - w.start_rating) DESC, w.games DESC
+       WHERE b.rn = 1 AND 1=1 ${hideClause}
+       ORDER BY ABS(b.end_rating - b.start_rating) DESC, b.games DESC
        LIMIT $1`,
       [limit]
     ),
@@ -1405,7 +1394,7 @@ async function ratingAnalytics({ limit = 20, hidePrivate = true, viewerStudentId
        unreliable column instead of the resolved one. */
     db.query(
       `SELECT h.id, h.result, h.rating_before, h.rating_after, h.rating_change,
-              h.time_control, h.game_type, h.played_at,
+              h.time_control, h.time_class, h.game_type, h.played_at,
               h.opponent_id,
               COALESCE(ou.name, h.opponent_name) AS opponent_name,
               s.id AS student_id, u.name AS student_name,

@@ -202,19 +202,26 @@ async function settleFinishedGame(client, { game, tournament, result, after = []
  * intentionally left alone — it is a monotonic "highest ever" by design.
  */
 async function reverseGameSettlement(client, gameId, note) {
+  /* `students.current_rating` is only a display mirror of the RAPID pool now,
+     so only a Rapid reversal may move it. A Blitz or Classical reversal must
+     leave that mirror alone or it would drift away from the Rapid rating every
+     screen shows. */
   const overall = await client.query(
-    `SELECT student_id, rating_change FROM rating_history WHERE tournament_game_id = $1`,
+    `SELECT student_id, rating_change, time_class
+       FROM rating_history WHERE tournament_game_id = $1`,
     [gameId],
   );
   for (const row of overall.rows) {
     await client.query(
       `UPDATE students
-          SET current_rating = GREATEST(100, current_rating - $2),
+          SET current_rating = CASE WHEN $3::boolean
+                                    THEN GREATEST(100, current_rating - $2)
+                                    ELSE current_rating END,
               games_played = GREATEST(0, games_played - 1),
               provisional_games = LEAST(20, provisional_games + 1),
               last_rating_change_at = NOW()
         WHERE id = $1`,
-      [row.student_id, Number(row.rating_change) || 0],
+      [row.student_id, Number(row.rating_change) || 0, row.time_class === 'rapid'],
     );
   }
 
