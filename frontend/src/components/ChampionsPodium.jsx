@@ -64,6 +64,10 @@ export function PlayerBadges({ row }) {
  * given as a function of the player — `(p) => [...]`, the same shape as `elo`;
  * pass a plain array for a strip that is the same on every card. A malformed
  * `stats` falls back to the default strip rather than throwing.
+ *
+ * `onCompare` adds a Compare action to each card; `compareMeId` is the viewer,
+ * whose own card never gets one. Both default to off, so callers that only
+ * display the podium (the dashboard) are unchanged.
  */
 export default function ChampionsPodium({
   list,
@@ -74,6 +78,8 @@ export default function ChampionsPodium({
   stats,
   showPeak = true,
   showBadges = true,
+  onCompare = null,
+  compareMeId = null,
 }) {
   if (!list || list.length === 0) return null;
   const byRank = [null, list[0], list[1], list[2]]; // rank -> player list
@@ -142,6 +148,16 @@ export default function ChampionsPodium({
                   <span key={i}><b>{s.value}</b>{s.label}</span>
                 ))}
               </div>
+              {onCompare && Number(p.user_id) !== Number(compareMeId) && (
+                <button
+                  type="button"
+                  className="lb-pcard-compare"
+                  onClick={() => onCompare(p)}
+                  aria-label={`Compare with ${p.name}`}
+                >
+                  ⚔ Compare
+                </button>
+              )}
             </div>
           </div>
         );

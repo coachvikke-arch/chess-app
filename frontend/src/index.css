@@ -23145,6 +23145,414 @@ html, body {
   background: rgba(25, 189, 242, 0.05);
 }
 
+/* ═══ LEADERBOARD COMPARE ═══════════════════════════════════════════════════
+   The Compare action and the sheet it opens. The action is one extra column on
+   both the ELO table and the Champion table, added only for a student viewer
+   (`--cmp` modifier + a cell rendered per row), so the grid templates below are
+   always the complete set of VISIBLE columns at that width. A hidden cell
+   (`display:none`) takes no grid track, which is why each breakpoint's template
+   is re-declared here rather than reusing the one above it. */
+
+/* Row action ------------------------------------------------------------- */
+.lb-cmp { display: flex; align-items: center; justify-content: flex-end; min-width: 0; }
+.champ-cmp { display: flex; align-items: center; justify-content: flex-end; min-width: 0; }
+
+.lb-cmp-btn,
+.lb-pcard-compare {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 5px 10px;
+  border: 1px solid rgba(25, 189, 242, 0.45);
+  border-radius: 999px;
+  background: rgba(25, 189, 242, 0.12);
+  color: #0b7ea8;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1.1;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease, transform 0.15s ease;
+}
+.lb-cmp-btn:hover,
+.lb-pcard-compare:hover {
+  background: rgba(25, 189, 242, 0.24);
+  border-color: rgba(25, 189, 242, 0.8);
+  color: #064e66;
+}
+.lb-cmp-btn:focus-visible,
+.lb-pcard-compare:focus-visible { outline: 2px solid #19bdf2; outline-offset: 2px; }
+.lb-cmp-btn:active,
+.lb-pcard-compare:active { transform: scale(0.97); }
+
+/* The reward card is cream-on-sky, so its button keeps the rank tint instead of
+   the dark table's blue-on-navy pill. */
+.lb-podium--reward .lb-pcard-compare {
+  align-self: center;
+  margin-top: 2px;
+  border-color: var(--lb-rank-border, rgba(25, 189, 242, 0.45));
+  background: rgba(255, 255, 255, 0.68);
+  color: var(--lb-rank, #0b7ea8);
+}
+.lb-podium--reward .lb-pcard-compare:hover {
+  background: rgba(255, 255, 255, 0.92);
+  border-color: var(--lb-rank, #0b7ea8);
+}
+
+/* Column templates. Base = 8 visible cells (the 7 existing + Compare). */
+.lb-grid--cmp { grid-template-columns: 46px 1.6fr 88px 102px 78px 94px 70px 92px; }
+
+@media (max-width: 900px) {
+  /* Trend is hidden here: rank, player, ELO, W/L/D, streak, weekly Δ, Compare. */
+  .lb-grid--cmp { grid-template-columns: 42px 1.5fr 84px 96px 76px 90px 84px; }
+}
+@media (max-width: 700px) {
+  /* Streak hidden too: rank, player, ELO, W/L/D, weekly Δ, Compare. */
+  .lb-grid--cmp { grid-template-columns: 40px 1.5fr 84px 92px 90px 84px; }
+}
+@media (max-width: 540px) {
+  /* Weekly Δ hidden: rank, player, ELO, W/L/D, Compare. */
+  .lb-grid--cmp { grid-template-columns: 36px 1.5fr 80px 90px 84px; }
+}
+@media (max-width: 430px) {
+  /* W/L/D hidden: rank, player, ELO, Compare — Compare takes the track the
+     W/L/D column used to leave unused. */
+  .lb-grid--cmp { grid-template-columns: 28px 1.5fr 74px 82px; }
+  .lb-cmp-btn { gap: 3px; padding: 4px 7px; font-size: 10px; }
+}
+
+/* Champion ladder: base = 9 visible cells. */
+.champ-grid--cmp { grid-template-columns: 46px minmax(0, 1.6fr) 74px 74px 96px 74px 70px 86px 92px; }
+
+@media (max-width: 900px) {
+  .champ-grid--cmp { grid-template-columns: 42px minmax(0, 1.4fr) 64px 64px 84px 64px 62px 78px 84px; }
+}
+@media (max-width: 700px) {
+  /* Same card layout, but the Compare pill sits at the end of the metrics line
+     in the score column, so it can never squeeze the player name. */
+  .champ-grid--cmp {
+    grid-template-columns: 30px minmax(0, 1fr) auto;
+    grid-template-areas: "rank who score" "metrics metrics cmp";
+  }
+  .champ-grid--cmp > .champ-cmp { grid-area: cmp; align-self: end; justify-self: end; }
+}
+
+/* The sheet -------------------------------------------------------------- */
+.mz-modal.cmp-modal { width: min(760px, calc(100vw - 2rem)); }
+
+.cmp-picker {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  margin-bottom: 0.9rem;
+}
+.cmp-picker-label {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #5b7183;
+}
+.cmp-select {
+  flex: 1 1 200px;
+  min-width: 0;
+  max-width: 340px;
+  padding: 8px 10px;
+  border: 1px solid rgba(25, 189, 242, 0.4);
+  border-radius: 10px;
+  background: #fff;
+  color: #1f3a44;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  outline: none;
+}
+.cmp-select:focus-visible { border-color: #19bdf2; box-shadow: 0 0 0 3px rgba(25, 189, 242, 0.18); }
+
+/* Identity row */
+.cmp-heads {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: stretch;
+  gap: 8px;
+  margin-bottom: 0.75rem;
+}
+.cmp-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid rgba(25, 189, 242, 0.22);
+  border-radius: 14px;
+  background: rgba(25, 189, 242, 0.06);
+}
+.cmp-head--opponent { flex-direction: row-reverse; text-align: right; }
+.cmp-head--opponent .cmp-head-copy { align-items: flex-end; }
+.cmp-head--opponent .cmp-chips { justify-content: flex-end; }
+.cmp-avatar {
+  flex: none;
+  width: 62px;
+  height: 62px;
+  border-radius: 50%;
+  overflow: hidden;
+  background: #eef7fb;
+  border: 2px solid rgba(25, 189, 242, 0.35);
+}
+.cmp-avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.cmp-head-copy { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; min-width: 0; }
+.cmp-tag {
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #0b7ea8;
+}
+.cmp-name {
+  max-width: 100%;
+  font-size: 15px;
+  font-weight: 800;
+  color: #16242d;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cmp-meta { font-size: 11.5px; font-weight: 600; color: #6b7c83; }
+.cmp-chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 3px; }
+.cmp-chip {
+  padding: 2px 7px;
+  border: 1px solid rgba(25, 189, 242, 0.3);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.75);
+  color: #33525f;
+  font-size: 10.5px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.cmp-chip--elo { color: #0b7ea8; font-weight: 800; }
+.cmp-vs {
+  align-self: center;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: #16242d;
+  color: #bff1ff;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+
+/* Stat rows: my value | label | their value */
+.cmp-stats {
+  border: 1px solid rgba(15, 23, 42, 0.09);
+  border-radius: 14px;
+  overflow: hidden;
+  margin-bottom: 0.9rem;
+}
+.cmp-stat {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 132px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  padding: 7px 12px;
+}
+.cmp-stat + .cmp-stat { border-top: 1px solid rgba(15, 23, 42, 0.07); }
+.cmp-stat:nth-child(odd) { background: rgba(25, 189, 242, 0.035); }
+.cmp-val {
+  font-size: 15px;
+  font-weight: 800;
+  color: #1f3a44;
+  font-variant-numeric: tabular-nums;
+}
+.cmp-val--win { color: #15803d; }
+.cmp-stat > .cmp-val:first-child { text-align: right; }
+.cmp-label {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #6b7c83;
+  text-align: center;
+}
+.cmp-bars { display: flex; flex-direction: column; gap: 2px; width: 100%; }
+.cmp-bar { display: block; height: 3px; border-radius: 999px; background: rgba(15, 23, 42, 0.1); overflow: hidden; }
+.cmp-bar > span { display: block; height: 100%; border-radius: 999px; background: #2563eb; }
+.cmp-bar:last-child > span { background: #d97706; }
+
+.cmp-streak--w { color: #15803d; }
+.cmp-streak--l { color: #b91c1c; }
+.cmp-form { display: flex; flex-wrap: wrap; gap: 3px; row-gap: 2px; align-items: center; }
+.cmp-stat--form > .cmp-val:first-child { justify-content: flex-end; display: flex; }
+.cmp-muted { font-size: 11px; font-weight: 600; color: #94a3b8; }
+
+.cmp-result {
+  display: inline-grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  font-size: 10.5px;
+  font-weight: 800;
+  line-height: 1;
+}
+.cmp-result--w { background: #dcfce7; color: #15803d; }
+.cmp-result--l { background: #fee2e2; color: #b91c1c; }
+.cmp-result--d { background: #e2e8f0; color: #475569; }
+
+/* Head to head */
+.cmp-section {
+  border: 1px solid rgba(25, 189, 242, 0.24);
+  border-radius: 14px;
+  background: rgba(25, 189, 242, 0.05);
+  padding: 10px 12px 12px;
+}
+.cmp-section-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.cmp-section-title {
+  margin: 0;
+  font-family: var(--font-display, Georgia, serif);
+  font-size: 13.5px;
+  font-weight: 800;
+  color: #1f3a44;
+}
+.cmp-h2h-count { font-size: 11px; font-weight: 700; color: #6b7c83; }
+.cmp-h2h-summary { margin: 4px 0 8px; font-size: 12px; font-weight: 600; color: #5b7183; }
+.cmp-h2h-bar {
+  display: flex;
+  height: 10px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: rgba(15, 23, 42, 0.08);
+}
+.cmp-h2h-seg { flex-basis: 0; min-width: 0; height: 100%; }
+.cmp-h2h-seg--me { background: #2563eb; }
+.cmp-h2h-seg--draw { background: #94a3b8; }
+.cmp-h2h-seg--opp { background: #d97706; }
+.cmp-h2h-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  margin-top: 7px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #5b7183;
+}
+.cmp-h2h-legend b { color: #1f3a44; }
+.cmp-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 4px; }
+.cmp-dot--me { background: #2563eb; }
+.cmp-dot--draw { background: #94a3b8; }
+.cmp-dot--opp { background: #d97706; }
+.cmp-h2h-rate { margin-left: auto; font-weight: 800; color: #0b7ea8; }
+.cmp-h2h-list { list-style: none; margin: 9px 0 0; padding: 0; display: grid; gap: 5px; }
+.cmp-h2h-list li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 8px;
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.72);
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #5b7183;
+}
+.cmp-h2h-date { color: #1f3a44; font-weight: 700; }
+.cmp-h2h-color { margin-left: auto; color: #6b7c83; }
+.cmp-empty { margin: 6px 0 0; font-size: 13px; font-weight: 700; color: #1f3a44; }
+.cmp-empty-sub { margin: 3px 0 0; font-size: 11.5px; color: #6b7c83; }
+.cmp-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 18px 10px;
+  text-align: center;
+  font-size: 13px;
+  color: #5b7183;
+}
+
+/* Loading skeleton */
+.cmp-skeleton { display: grid; gap: 8px; }
+.cmp-skel-row { display: grid; grid-template-columns: minmax(0, 1fr) 132px minmax(0, 1fr); gap: 8px; align-items: center; }
+.cmp-skel-head { grid-template-columns: 62px minmax(0, 1fr) 62px minmax(0, 1fr); margin-bottom: 4px; }
+.cmp-skel {
+  display: block;
+  height: 14px;
+  border-radius: 6px;
+  background: linear-gradient(90deg, #eef2f6 25%, #e0e7ee 37%, #eef2f6 63%);
+  background-size: 420px 100%;
+  animation: cmp-shimmer 1.2s ease-in-out infinite;
+}
+.cmp-skel-circle { width: 62px; height: 62px; border-radius: 50%; }
+.cmp-skel-val { height: 18px; }
+.cmp-skel-line { width: 70%; height: 18px; }
+.cmp-skel-label { width: 70%; justify-self: center; }
+@keyframes cmp-shimmer {
+  from { background-position: -210px 0; }
+  to { background-position: 210px 0; }
+}
+.cmp-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (max-width: 560px) {
+  /* Full-screen sheet: the page behind never scrolls, only the sheet body. */
+  .mz-modal-layer.cmp-layer { padding: 0; align-items: stretch; }
+  .mz-modal.cmp-modal {
+    width: 100%;
+    max-width: none;
+    height: 100vh;
+    height: 100dvh;
+    max-height: 100vh;
+    max-height: 100dvh;
+    border-width: 0;
+    border-radius: 0;
+    animation: none;
+  }
+  .mz-modal.cmp-modal .mz-modal-head { border-radius: 0; }
+  .cmp-heads { gap: 6px; }
+  /* Stack the avatar over the name so each side keeps its full half-width. */
+  .cmp-head,
+  .cmp-head--opponent {
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 6px;
+    text-align: center;
+  }
+  .cmp-head-copy,
+  .cmp-head--opponent .cmp-head-copy { align-items: center; }
+  .cmp-chips,
+  .cmp-head--opponent .cmp-chips { justify-content: center; }
+  .cmp-avatar { width: 46px; height: 46px; }
+  .cmp-name { font-size: 13px; }
+  .cmp-vs { width: 26px; height: 26px; font-size: 9px; }
+  .cmp-stat { grid-template-columns: minmax(0, 1fr) 96px minmax(0, 1fr); padding: 6px 9px; }
+  .cmp-val { font-size: 13.5px; }
+  .cmp-label { font-size: 9.5px; letter-spacing: 0.03em; }
+  .cmp-skel-row { grid-template-columns: minmax(0, 1fr) 96px minmax(0, 1fr); }
+  .cmp-skel-head { grid-template-columns: 46px minmax(0, 1fr) 46px minmax(0, 1fr); }
+  .cmp-skel-circle { width: 46px; height: 46px; }
+  .cmp-h2h-rate { margin-left: 0; }
+}
+
 /* Option chips inside the modal. `flex-1` alone squeezes every chip to an equal
    share and clips labels on very narrow phones (320 px), so the row wraps and
    each chip is allowed its content width. */

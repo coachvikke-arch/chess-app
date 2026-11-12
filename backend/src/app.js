@@ -9,6 +9,7 @@ const rateLimit = require('express-rate-limit');
 const authRoutes = require('./routes/authRoutes');
 const studentRoutes = require('./routes/studentRoutes');
 const ratingRoutes = require('./routes/ratingRoutes');
+const leaderboardRoutes = require('./routes/leaderboardRoutes');
 const courseRoutes = require('./routes/courseRoutes');
 const libraryRoutes = require('./routes/libraryRoutes');
 const lessonRoutes = require('./routes/lessonRoutes');
@@ -95,6 +96,9 @@ app.get('/api/health', (req, res) => res.json({ status: 'ok' }));
 app.use('/api/auth', authRoutes);
 app.use('/api/students', studentRoutes);
 app.use('/api/students/ratings', ratingRoutes);
+/* Student-vs-student comparison sheet on the Leaderboard. Mounted on its own
+   prefix, as requested by the client contract: /api/leaderboard/compare/:id. */
+app.use('/api/leaderboard', leaderboardRoutes);
 app.use('/api/courses', courseRoutes);
 app.use('/api/lessons', lessonRoutes);
 /* Shared Chess Library (PGN/FEN folders) — one library for all admins. */

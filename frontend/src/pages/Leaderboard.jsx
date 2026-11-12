@@ -3,6 +3,7 @@ import api from '../services/api';
 import { PageHeader, Spinner } from '../components/ui';
 import StudentAvatar from '../components/StudentAvatar';
 import ChampionsPodium, { PlayerBadges } from '../components/ChampionsPodium';
+import LeaderboardCompareModal from '../components/LeaderboardCompareModal';
 import Pagination, { PAGE_SIZE } from '../components/Pagination';
 import { usePagination } from '../hooks/usePagination';
 import { useProfileChanged } from '../hooks/useProfileChanged';
@@ -102,6 +103,17 @@ export default function Leaderboard() {
   const [q, setQ] = useState('');
   const [tip, setTip] = useState(null);
   const listTopRef = useRef(null);
+
+  /* Compare is a student-to-student view: "you" is the signed-in student, so a
+     coach (who has no ladder identity here) never sees the action. */
+  const canCompare = user?.role === 'student';
+  const [compareOpen, setCompareOpen] = useState(false);
+  const [compareId, setCompareId] = useState(null);
+  const openCompare = useCallback((id) => {
+    if (!id) return;
+    setCompareId(Number(id));
+    setCompareOpen(true);
+  }, []);
 
   /* The composite Overall Champion ladder is a separate payload from the ELO
      board. It is fetched once per visit and refreshed while that tab is open,
@@ -331,6 +343,8 @@ export default function Leaderboard() {
                 eloLabel="CHAMPION PTS"
                 eloSuffix="pts"
                 showBadges={false}
+                onCompare={canCompare ? (p) => openCompare(p.user_id) : undefined}
+                compareMeId={user?.id}
                 stats={(p) => [
                   { label: 'Games', value: p.games },
                   { label: 'Win %', value: pct(p.winRate) },
@@ -361,7 +375,7 @@ export default function Leaderboard() {
               </details>
 
               <div ref={listTopRef}>
-                <div className="champ-grid champ-head">
+                <div className={`champ-grid champ-head${canCompare ? ' champ-grid--cmp' : ''}`}>
                   <span>Rank</span>
                   <span>Player</span>
                   <span>Games</span>
@@ -370,12 +384,13 @@ export default function Leaderboard() {
                   <span>Puzzles</span>
                   <span>Streak</span>
                   <span className="champ-score">Score</span>
+                  {canCompare && <span className="champ-cmp">Compare</span>}
                 </div>
                 <div className="lb-body">
                   {champTable.map((r) => (
                     <div
                       key={r.user_id}
-                      className={`champ-grid champ-row${Number(r.user_id) === Number(user?.id) ? ' champ-row--me' : ''}`}
+                      className={`champ-grid champ-row${Number(r.user_id) === Number(user?.id) ? ' champ-row--me' : ''}${canCompare ? ' champ-grid--cmp' : ''}`}
                     >
                       <span className={`lb-rank ${r.rank <= 4 ? 'top' : ''}`}>#{r.rank}</span>
                       <span className="lb-pname">
@@ -408,6 +423,20 @@ export default function Leaderboard() {
                         <span className="champ-metric"><b>{r.streak}</b><span>streak</span></span>
                       </span>
                       <span className="champ-score"><b>{r.score.toFixed(1)}</b><span>pts</span></span>
+                      {canCompare && (
+                        <span className="champ-cmp">
+                          {Number(r.user_id) !== Number(user?.id) && (
+                            <button
+                              type="button"
+                              className="lb-cmp-btn"
+                              onClick={() => openCompare(r.user_id)}
+                              aria-label={`Compare with ${r.name}`}
+                            >
+                              ⚔ Compare
+                            </button>
+                          )}
+                        </span>
+                      )}
                     </div>
                   ))}
                   {champTable.length === 0 && (
@@ -453,12 +482,14 @@ export default function Leaderboard() {
             elo={isPuzzle ? (p) => p.puzzlePoints : isWeekly ? (p) => ratingFor(p, 'weekly') : tcKey ? (p) => p.timeRatings?.[tcKey]?.rating : null}
             peak={isPuzzle || isWeekly ? () => null : tcKey ? (p) => p.timeRatings?.[tcKey]?.peakRating : null}
             eloLabel={isPuzzle ? 'POINTS' : isWeekly ? 'WEEKLY RAPID ELO' : tcLabel.toUpperCase()}
+            onCompare={canCompare ? (p) => openCompare(p.user_id) : undefined}
+            compareMeId={user?.id}
           />
 
 
             {/* table (rank 4 onwards on page 1; whole pages after that) */}
             <div ref={listTopRef}>
-            <div className="lb-grid lb-head">
+            <div className={`lb-grid lb-head${canCompare ? ' lb-grid--cmp' : ''}`}>
               <span>Rank</span>
               <span>Player</span>
               <span>{isPuzzle ? 'Points' : 'ELO'}</span>
@@ -466,10 +497,11 @@ export default function Leaderboard() {
               <span className="lb-c-streak">Streak</span>
               <span className="lb-c-change">Weekly Δ</span>
               <span className="lb-c-trend">Trend</span>
+              {canCompare && <span className="lb-cmp">Compare</span>}
             </div>
             <div className="lb-body">
               {tableRows.map((r) => (
-                <div key={r.student_id} className={`lb-grid lb-row${Number(r.user_id) === Number(user?.id) ? ' lb-row--me' : ''}`} >
+                <div key={r.student_id} className={`lb-grid lb-row${Number(r.user_id) === Number(user?.id) ? ' lb-row--me' : ''}${canCompare ? ' lb-grid--cmp' : ''}`} >
                   <span className={`lb-rank ${r.dr <= 4 ? 'top' : ''}`}>#{r.dr}</span>
                   <span className="lb-pname">
                     <span className="lb-pavatar">
@@ -517,6 +549,20 @@ export default function Leaderboard() {
                   <span className="lb-spark-wrap lb-c-trend">
                     <Spark points={isWeekly ? r.timeRatings?.rapid?.spark : tcKey ? r.timeRatings?.[tcKey]?.spark : r.spark} />
                   </span>
+                  {canCompare && (
+                    <span className="lb-cmp">
+                      {Number(r.user_id) !== Number(user?.id) && (
+                        <button
+                          type="button"
+                          className="lb-cmp-btn"
+                          onClick={() => openCompare(r.user_id)}
+                          aria-label={`Compare with ${r.name}`}
+                        >
+                          ⚔ Compare
+                        </button>
+                      )}
+                    </span>
+                  )}
                 </div>
               ))}
               {tableRows.length === 0 && (
@@ -535,6 +581,13 @@ export default function Leaderboard() {
           </>
         )}
       </div>
+      <LeaderboardCompareModal
+        open={compareOpen}
+        onClose={() => setCompareOpen(false)}
+        students={isChampion ? champRows : ranked}
+        me={user}
+        initialOpponentId={compareId}
+      />
       {tip && (
         <div
           className="lb-fixed-tip"
