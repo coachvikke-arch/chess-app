@@ -1,6 +1,5 @@
 import { useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { DIFFICULTY_BANDS, getBotsByDifficulty } from '../data/bots';
 import { useAuth } from '../context/AuthContext';
 import { useBot } from '../../matezone-bot/bot/BotContext.jsx';
 
@@ -16,7 +15,6 @@ const GUIDES = [
   ['/student/live-meetings', 'navMeetings', 'alert', '/student/attendance'],
   ['/student/messages', 'navMessages', 'calm', null],
   ['/student/attendance', 'navAttendance', 'calm', '/student/live-meetings'],
-  ['/play/bots', 'navPlayBots', 'happy', 'random-bot'],
   ['/student/analysis', 'navArena', 'calm', '/student/review'],
   ['/student/profile', 'navProfile', 'calm', '/student/profile'],
   ['/student/report', 'navReport', 'calm', '/student/trainer'],
@@ -30,13 +28,6 @@ const GUIDES = [
   ['/student/tactics', 'navTactics', 'calm', '/student/tactics'],
   ['/student/gm-games', 'navGmGames', 'calm', '/student/review'],
 ];
-
-function randomBotPath() {
-  const bots = DIFFICULTY_BANDS.flatMap((band) => getBotsByDifficulty(band.id));
-  if (!bots.length) return '/play/bots';
-  const selected = bots[Math.floor(Math.random() * bots.length)];
-  return `/play/bot/${selected.id}`;
-}
 
 export default function StudentBotGuide() {
   const { user } = useAuth();
@@ -54,9 +45,7 @@ export default function StudentBotGuide() {
 
     const timer = window.setTimeout(() => {
       sessionStorage.setItem(key, '1');
-      const onClick = destination
-        ? () => navigate(destination === 'random-bot' ? randomBotPath() : destination)
-        : undefined;
+      const onClick = destination ? () => navigate(destination) : undefined;
       showBotFrom(group, mood, {}, { ...(onClick ? { onClick } : {}) });
     }, 650);
     return () => window.clearTimeout(timer);

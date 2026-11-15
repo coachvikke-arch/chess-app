@@ -15,8 +15,6 @@ export const OpeningsLibrary = lazy(() => import('../pages/OpeningsLibrary'));
 export const OpeningDetail = lazy(() => import('../pages/OpeningDetail'));
 export const OpeningPractice = lazy(() => import('../pages/OpeningPractice'));
 export const AdminGmGames = lazy(() => import('../pages/AdminGmGames'));
-export const BotsPage = lazy(() => import('../pages/BotsPage'));
-export const BotGamePage = lazy(() => import('../pages/BotGamePage'));
 export const LiveClassroom = lazy(() => import('../pages/LiveClassroom'));
 export const Puzzles = lazy(() => import('../pages/Puzzles'));
 export const PuzzleTrainer = lazy(() => import('../pages/PuzzleTrainer'));
@@ -31,8 +29,6 @@ const preloaders = [
   [/^\/openings\/.+/, () => import('../pages/OpeningDetail')],
   [/^\/openings/, () => import('../pages/OpeningsLibrary')],
   [/^\/(admin|student)\/gm-games/, () => import('../pages/AdminGmGames')],
-  [/^\/play\/bots/, () => import('../pages/BotsPage')],
-  [/^\/play\/bot\//, () => import('../pages/BotGamePage')],
   [/^\/live-class\//, () => import('../pages/LiveClassroom')],
   [/^\/student\/puzzles/, () => import('../pages/Puzzles')],
   [/^\/student\/trainer/, () => import('../pages/PuzzleTrainer')],

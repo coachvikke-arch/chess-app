@@ -94,8 +94,8 @@ import AcademyHome from './pages/academy/AcademyHome';
 import AcademyLevel from './pages/academy/AcademyLevel';
 import AcademyLesson from './pages/academy/AcademyLesson';
 import AcademyOpening from './pages/academy/AcademyOpening';
-/* The twelve heavy sections — the review/analysis boards, the classroom, the
-   bot and openings pages, puzzles, messages — come from the same module that
+/* The heavy sections — the review/analysis boards, the classroom, the
+   openings pages, puzzles, messages — come from the same module that
    the sidebar hover-preloader uses, so a click loads the exact chunk that was
    already warmed. Static imports here would pull all of them into the landing
    page bundle and make the first paint wait for them. */
@@ -106,26 +106,18 @@ import {
   OpeningDetail,
   OpeningPractice,
   AdminGmGames,
-  BotsPage,
-  BotGamePage,
   LiveClassroom,
   Puzzles,
   PuzzleTrainer,
   MessagesPage,
 } from './utils/lazyPages';
 
-/* Openings and bot pages may be reached from either portal's sidebar. The
+/* Openings pages may be reached from either portal's sidebar. The
    persistent portal shell is selected once around the route tree below. */
 function OpeningsLayout({ children }) {
   const { user, loading } = useAuth();
   /* Don't guess while auth is resolving — rendering the public page and then
      swapping in a shell a frame later would flash the wrong header. */
-  if (loading) return <Spinner />;
-  return children;
-}
-
-function PlayLayout({ children }) {
-  const { user, loading } = useAuth();
   if (loading) return <Spinner />;
   return children;
 }
@@ -221,25 +213,20 @@ export default function App() {
   const isStudentQuiz = pathname.startsWith('/quizzes/');
   const isLiveClass = pathname.startsWith('/live-class');
   const isOpeningsModule = pathname === '/openings' || pathname.startsWith('/openings/');
-  /* A single bot match is a full-screen surface that renders inside the caller's
-     shell, so the standalone navbar stands down for it too — otherwise the
-     in-flow sticky header pushes the 100vh board past the viewport. */
-  const isFullScreenGame = pathname.startsWith('/play/bot/');
-  const hideStandaloneNavbar = isAdmin || isStudent || isOpeningsModule || isFullScreenGame || isLiveClass;
+  const hideStandaloneNavbar = isAdmin || isStudent || isOpeningsModule || isLiveClass;
   /* Portal shells provide their own navigation row. Public Openings pages
-     and unauthenticated bot matches keep the standalone navigation. */
+     keep the standalone navigation. */
   const usesShell =
     !isLiveClass &&
     (isAdmin ||
       pathname.startsWith('/student/') ||
       (isStudentQuiz && user?.role === 'student') ||
-      (isOpeningsModule && Boolean(user)) ||
-      (isFullScreenGame && Boolean(user)));
+      (isOpeningsModule && Boolean(user)));
   const authorizedShellUser = Boolean(user) && (
     (isStudent && user.role === 'student') ||
     (isStudentQuiz && user.role === 'student') ||
     (isAdmin && isAdminRole(user.role)) ||
-    (!isStudent && !isAdmin && (isOpeningsModule || isFullScreenGame))
+    (!isStudent && !isAdmin && isOpeningsModule)
   );
   const shellPortalIsStudent = isStudent || user?.role === 'student';
   const PortalShell = !usesShell || !authorizedShellUser
@@ -295,10 +282,8 @@ export default function App() {
             <Route path="/daily" element={<DailyGame />} />
             <Route path="/players" element={<GmPlayers />} />
             <Route path="/players/:id" element={<GmPlayerProfile />} />
-            <Route path="/play/bots" element={<BotsPage />} />
             <Route path="/dev/move-effect" element={<MoveEffectDebug />} />
             {import.meta.env.DEV && <Route path="/bot-test" element={<BotTest />} />}
-            <Route path="/play/bot/:botId" element={<PlayLayout><BotGamePage /></PlayLayout>} />
             <Route path="/openings" element={<OpeningsLayout><OpeningsLibrary /></OpeningsLayout>} />
             <Route path="/openings/:slug/practice" element={<OpeningsLayout><OpeningPractice /></OpeningsLayout>} />
             <Route path="/openings/:slug" element={<OpeningsLayout><OpeningDetail /></OpeningsLayout>} />

@@ -27,13 +27,9 @@ import { useSmartBack } from '../hooks/useSmartBack';
  */
 const HIDDEN_PATHS = new Set(['/', '/login', '/student/dashboard', '/admin/dashboard']);
 
-/* The bot pages ship their own back control inside their header — `← Back` on
-   the catalogue and `← Bots` on a match — so the row is a duplicate
-   that overlaps it. Matched as prefixes because the match route is parameterised
-   (`/play/bot/pip`), which a plain exact-match set cannot express.
-   The live classroom is hidden for the same reason: the room is full-screen
-   chrome with its own leave controls, and the row sits over the board. */
-const HIDDEN_PREFIXES = ['/play/bots', '/play/bot/', '/live-class/', '/coach/dashboard/'];
+/* The live classroom is hidden because the room is full-screen chrome with
+   its own leave controls, and the row sits over the board. */
+const HIDDEN_PREFIXES = ['/live-class/', '/coach/dashboard/'];
 
 /* Used until the real bar has been measured (one frame). */
 const FALLBACK_NAV_HEIGHT = 68;

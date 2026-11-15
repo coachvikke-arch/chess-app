@@ -58,7 +58,6 @@ export const studentLinks = [
   { to: '/student/messages', label: 'Messages', icon: '💬', feature: 'messaging_coach', badge: true },
   { to: '/student/attendance', label: 'Attendance', icon: '📋' },
   { to: '/student/analysis', label: 'Play Arena', icon: '♖' },
-  { to: '/play/bots', label: 'Play vs Bots', icon: '🤖' },
   { to: '/student/profile', label: 'My Profile', icon: '👤' },
   { to: '/student/report', label: 'My Report', icon: '📊' },
   { to: '/student/performances', label: 'Top Performances', icon: '🏆' },
