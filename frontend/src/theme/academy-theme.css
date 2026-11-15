@@ -1237,6 +1237,95 @@ tbody tr:hover {
   }
 }
 
+/* Rank hierarchy on the side-by-side podium: the champion card takes the
+   biggest share and the two runners-up sit smaller either side of it. This is
+   desktop-only — below 1200px the cards stack at full width (see above), so a
+   width split there would only make the runners-up cramped to read. */
+@media (min-width: 1201px) {
+  .lb-podium--reward .lb-pcard--rank-1 {
+    flex: 1.4 1 0;
+    max-width: 480px;
+    /* Wider alone would leave the champion card shorter than its neighbours,
+       since a long runner-up name wraps to more lines. */
+    min-height: 240px;
+    padding: 26px 24px;
+    gap: 18px;
+  }
+  .lb-podium--reward .lb-pcard--rank-1 .lb-pcard-icon {
+    flex-basis: 92px;
+    width: 92px;
+    height: 92px;
+    border-radius: 24px;
+  }
+  .lb-podium--reward .lb-pcard--rank-1 .lb-pcard-title {
+    font-size: 1.34rem;
+  }
+  .lb-podium--reward .lb-pcard--rank-1 .lb-pcard-desc {
+    font-size: 0.86rem;
+  }
+  .lb-podium--reward .lb-pcard--rank-1 .lb-pcard-stats {
+    font-size: 0.68rem;
+  }
+  .lb-podium--reward .lb-pcard--rank-1 .lb-pcard-stats b {
+    font-size: 0.76rem;
+  }
+
+  .lb-podium--reward .lb-pcard--rank-2,
+  .lb-podium--reward .lb-pcard--rank-3 {
+    flex: 0.95 1 0;
+    max-width: 350px;
+    padding: 16px;
+    gap: 12px;
+    border-radius: 26px;
+    align-self: center;
+  }
+  .lb-podium--reward .lb-pcard--rank-2 .lb-pcard-icon,
+  .lb-podium--reward .lb-pcard--rank-3 .lb-pcard-icon {
+    flex-basis: 66px;
+    width: 66px;
+    height: 66px;
+    border-radius: 18px;
+  }
+  .lb-podium--reward .lb-pcard--rank-2 .lb-pcard-rankbadge,
+  .lb-podium--reward .lb-pcard--rank-3 .lb-pcard-rankbadge {
+    width: 24px;
+    height: 24px;
+    right: -5px;
+    bottom: -5px;
+  }
+  .lb-podium--reward .lb-pcard--rank-2 .lb-pcard-rankbadge svg,
+  .lb-podium--reward .lb-pcard--rank-3 .lb-pcard-rankbadge svg {
+    width: 13px;
+    height: 13px;
+  }
+  .lb-podium--reward .lb-pcard--rank-2 .lb-pcard-title,
+  .lb-podium--reward .lb-pcard--rank-3 .lb-pcard-title {
+    font-size: 1.02rem;
+  }
+  .lb-podium--reward .lb-pcard--rank-2 .lb-pcard-eyebrow,
+  .lb-podium--reward .lb-pcard--rank-3 .lb-pcard-eyebrow {
+    font-size: 0.55rem;
+    letter-spacing: 0.14em;
+  }
+  .lb-podium--reward .lb-pcard--rank-2 .lb-pcard-pill,
+  .lb-podium--reward .lb-pcard--rank-3 .lb-pcard-pill {
+    font-size: 0.6rem;
+    padding: 3px 8px;
+  }
+  .lb-podium--reward .lb-pcard--rank-2 .lb-pcard-desc,
+  .lb-podium--reward .lb-pcard--rank-3 .lb-pcard-desc {
+    font-size: 0.74rem;
+  }
+  .lb-podium--reward .lb-pcard--rank-2 .lb-pcard-stats,
+  .lb-podium--reward .lb-pcard--rank-3 .lb-pcard-stats {
+    font-size: 0.6rem;
+  }
+  .lb-podium--reward .lb-pcard--rank-2 .lb-pcard-stats b,
+  .lb-podium--reward .lb-pcard--rank-3 .lb-pcard-stats b {
+    font-size: 0.66rem;
+  }
+}
+
 
 /* Inline player-name accents hard-coded to #60a5fa (2.5:1 on white). */
 .lb-uname,
