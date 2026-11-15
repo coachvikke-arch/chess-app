@@ -1,4 +1,4 @@
-import { Fragment, Suspense } from 'react';
+import { Fragment, Suspense, lazy } from 'react';
 import { Routes, Route, Navigate, Link, useLocation } from 'react-router-dom';
 import Navbar from './components/Navbar';
 import Logo from './components/Logo';
@@ -61,6 +61,10 @@ import TournamentReadyListener from './components/TournamentReadyListener';
 import Ratings from './pages/Ratings';
 import TakeQuiz from './pages/TakeQuiz';
 import MoveEffectDebug from './pages/MoveEffectDebug';
+
+/* Developer-only animation harness. The route and the chunk exist in dev
+   builds only, so production never ships the panel. */
+const BotTest = import.meta.env.DEV ? lazy(() => import('./pages/BotTest')) : null;
 import Announcements from './pages/Announcements';
 import Attendance from './pages/Attendance';
 import Settings from './pages/Settings';
@@ -293,6 +297,7 @@ export default function App() {
             <Route path="/players/:id" element={<GmPlayerProfile />} />
             <Route path="/play/bots" element={<BotsPage />} />
             <Route path="/dev/move-effect" element={<MoveEffectDebug />} />
+            {import.meta.env.DEV && <Route path="/bot-test" element={<BotTest />} />}
             <Route path="/play/bot/:botId" element={<PlayLayout><BotGamePage /></PlayLayout>} />
             <Route path="/openings" element={<OpeningsLayout><OpeningsLibrary /></OpeningsLayout>} />
             <Route path="/openings/:slug/practice" element={<OpeningsLayout><OpeningPractice /></OpeningsLayout>} />

@@ -32,6 +32,16 @@ export const botMessages = {
     "You were away for a day. Come on, one puzzle to restart.",
     "Back at last! Let us get the streak going again.",
   ],
+  blessing: [
+    "Day {streak} in a row. May your next games go well, {name}.",
+    "{streak} days of practice in a row. Keep that calm focus, {name}.",
+    "A steady streak, {name}. Take a quiet moment and enjoy the board.",
+  ],
+  cry: [
+    "That was a hard day. Be kind to yourself, {name}.",
+    "A tough run. Take a breath and come back when you are ready.",
+    "Hard games are part of chess. Rest a little, then we try again.",
+  ],
   classReminder30: ["Class reminder: {class} starts at {time}. About 30 minutes left."],
   classReminder5: ["{class} starts in 5 minutes. Time to get ready!"],
   chatFirstMessage: [

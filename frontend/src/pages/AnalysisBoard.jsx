@@ -3869,6 +3869,11 @@ export default function AnalysisBoard() {
           /* Ignore a response for a game we have already navigated away from. */
           if (activeGameIdRef.current !== gameId) return;
           setRatingResult((prev) => (prev && prev.gameId !== gameId ? prev : { ...r, gameId }));
+          /* A heavy rating drop is its own kind of loss; the bot reacts to it
+             once the number lands, after the first sad beat. */
+          if (finalResult.tone === 'loss' && Number(r?.ratingChange) <= -15) {
+            notifyGameResult('cry', { ratingChange: r.ratingChange, gameId });
+          }
         })
         .catch(() => setRatingResult(null));
     } else if (!onlineFinished) {
