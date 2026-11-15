@@ -1,4 +1,8 @@
-.mzbot{position:fixed;z-index:900;touch-action:none;user-select:none}
+/* The helper belongs above every in-app surface a student can open: the
+   sidebar drawer (999), modals (9100), popups (9200), toasts (9500) and
+   alerts (9999) would otherwise paint the character and its bubble out of
+   sight. The boot splash sits at the very top and still covers it. */
+.mzbot{position:fixed;z-index:10000;touch-action:none;user-select:none}
 .mzb-body{display:block;cursor:grab;outline-offset:4px}
 .mzb-body:active{cursor:grabbing}
 .mzb-body:focus-visible{outline:3px solid #0b6bb0}
