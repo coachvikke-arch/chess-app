@@ -23,6 +23,7 @@ import { FacedPiece } from '../components/FacedPiece';
 import { RoyalPiece } from '../components/RoyalPieces';
 import Button from '../components/Button';
 import { useToast } from '../components/Toast';
+import { useBot } from '../../matezone-bot/bot/BotContext.jsx';
 
 /* Settings is one flat white/blue list: nothing heavy is painted on the page.
    Every row opens ONE card that contains a real, playable board plus the
@@ -123,13 +124,14 @@ const CARDS = {
 const APPEARANCE_ROWS = ['look', 'frame', 'anim', 'legal', 'drag', 'queen'];
 
 export default function Settings() {
-  const { boardTheme, pieceSet, boardFrame, boardColors, hasCustomBoardColors, updatePrefs } = useAuth();
+  const { user, boardTheme, pieceSet, boardFrame, boardColors, hasCustomBoardColors, updatePrefs } = useAuth();
   const [saving, setSaving] = useState(false);
   const [savedMsg, setSavedMsg] = useState('');
   /* The same app-wide preference the Play Arena's toggle writes to, so sound is
      adjustable from the page a user actually goes to for preferences. */
   const { soundOn, setSoundOn, volume, setVolume, playSound, unlockAudio } = useSound();
   const { showToast } = useToast();
+  const { enabled: botEnabled, setEnabled: setBotEnabled } = useBot();
 
   /* Which card is open. Every detail screen is a centred card, so the page
      behind never changes and the list stays exactly where it was. */
@@ -449,6 +451,15 @@ export default function Settings() {
         sub="Personalise your chessboard — the look applies everywhere you play."
         className="settings-page"
       >
+        {user?.role === 'student' && <Group cap="Helper bot">
+          <label className="flex items-center justify-between gap-4 px-4 py-3 cursor-pointer">
+            <span>
+              <span className="block font-medium">Show helper bot</span>
+              <span className="block text-sm opacity-70">Show your animated Mate Zone companion.</span>
+            </span>
+            <input type="checkbox" checked={botEnabled} onChange={(event) => setBotEnabled(event.target.checked)} aria-label="Show helper bot" />
+          </label>
+        </Group>}
         {/* The list-level rows have no card open, so this is where a save from
             the frame toggle gets reported. */}
         {!popup && status}

@@ -1,5 +1,4 @@
 /* Tournaments main page */
-import { useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '../components/Toast';
@@ -10,10 +9,6 @@ function Tournaments() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const { threadFor, messages, conversations, contacts, searchQuery } = useChat();
-
-  useEffect(() => {
-    window.scrollTo({ top: 0, left: 0 });
-  }, [user?.role]);
 
   return (
     <div className="chat-screen w-full">

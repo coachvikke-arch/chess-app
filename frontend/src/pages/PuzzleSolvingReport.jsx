@@ -3,6 +3,9 @@ import api from '../services/api';
 import { Chip, Spinner, Bar, Stat } from '../components/ui';
 import Button from '../components/Button';
 import usePageTitle from '../hooks/usePageTitle';
+import ReportDateFilter from '../components/reports/ReportDateFilter';
+import Pagination from '../components/Pagination';
+import { usePagination } from '../hooks/usePagination';
 
 const THEME_LABELS = {
   fork: 'Fork', pin: 'Pin', skewer: 'Skewer', sacrifice: 'Sacrifice',
@@ -107,6 +110,8 @@ export default function PuzzleSolvingReport() {
   const [setFilter, setSetFilter] = useState('all');
   const [activeOnly, setActiveOnly] = useState(false);
   const [expanded, setExpanded] = useState(null);
+  const [dateRange, setDateRange] = useState({ from: '', to: '' });
+  const [pageSize, setPageSize] = useState(10);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -155,6 +160,10 @@ export default function PuzzleSolvingReport() {
 
   const filtered = useMemo(() => {
     let src = scoped;
+    if (dateRange.from || dateRange.to) src = src.filter((s) => {
+      const last = String(s.last_attempt_at || '').slice(0, 10);
+      return !!last && (!dateRange.from || last >= dateRange.from) && (!dateRange.to || last <= dateRange.to);
+    });
     if (activeOnly) src = src.filter((s) => (s.assigned_count || 0) > 0 || (s.attempts || 0) > 0);
     if (search) {
       const q = search.toLowerCase();
@@ -176,7 +185,9 @@ export default function PuzzleSolvingReport() {
       finish: (a, b) => (b.finish_pct || 0) - (a.finish_pct || 0),
     }[sortKey];
     return [...src].sort(cmp);
-  }, [scoped, search, sortKey, activeOnly]);
+  }, [scoped, search, sortKey, activeOnly, dateRange]);
+
+  const pager = usePagination(filtered, pageSize, { resetKeys: [search, sortKey, activeOnly, setFilter, dateRange.from, dateRange.to, pageSize] });
 
   const totals = useMemo(() => {
     const assigned = filtered.reduce((n, s) => n + (s.assigned_count || 0), 0);
@@ -197,6 +208,8 @@ export default function PuzzleSolvingReport() {
           Student-wise puzzle performance — what each student was assigned and how they did.
         </p>
       </div>
+
+      <ReportDateFilter value={dateRange} onChange={setDateRange} />
 
       <div className="grid grid-cols-2 lg:grid-cols-6 gap-3 mb-5">
         <Stat label="Students" value={filtered.length} icon="♟" />
@@ -242,10 +255,11 @@ export default function PuzzleSolvingReport() {
         </span>
       </div>
 
-      {filtered.length === 0 ? (
+          {filtered.length === 0 ? (
         <div className="chess-card text-center py-14">
           <span className="block text-5xl mb-3 piece-glyph-spin text-gold-500/40">♜</span>
-          <p className="chess-empty">No students match this filter.</p>
+          <p className="chess-empty">{(dateRange.from || dateRange.to) ? 'No records found for this date range.' : 'No students match this filter.'}</p>
+          {(dateRange.from || dateRange.to) && <Button variant="secondary" size="sm" onClick={() => setDateRange({ from: '', to: '' })}>Reset filter</Button>}
         </div>
       ) : (
         <div className="chess-table-wrap">
@@ -266,7 +280,7 @@ export default function PuzzleSolvingReport() {
               </tr>
             </thead>
             <tbody>
-              {filtered.map((s, i) => {
+              {pager.currentItems.map((s, i) => {
                 const isOpen = expanded === s.student_id;
                 const puzzles = s.puzzles || [];
                 return (
@@ -283,6 +297,7 @@ export default function PuzzleSolvingReport() {
           </table>
         </div>
       )}
+      <Pagination currentPage={pager.currentPage} totalPages={pager.totalPages} totalItems={pager.totalItems} pageSize={pageSize} onPageChange={pager.setPage} showPageSize onPageSizeChange={setPageSize} itemLabel="students" />
     </div>
   );
 }

@@ -8,6 +8,7 @@ import {
 } from '../utils/charts';
 import Button from '../components/Button';
 import { APP_NAME } from '../config/brand';
+import { SkeletonRegion, SkeletonStatCard, SkeletonTable } from '../components/skeleton';
 
 /* ─────────────────────────────────────────────────────────────────────────────
    Admin Dashboard — Coach / Super Admin overview.
@@ -148,7 +149,7 @@ export default function AdminDashboard() {
   if (loading) {
     return (
       <PageHeader title="Admin Dashboard" icon="♕" subtitle="Your command center — see the whole board at a glance." className="adb-page">
-        <div className="adb"><div className="adb-loading">Loading…</div></div>
+        <div className="adb"><SkeletonRegion label="Loading dashboard"><div className="mz-route-skeleton-grid"><SkeletonStatCard /><SkeletonStatCard /><SkeletonStatCard /></div><SkeletonTable rows={5} columns={4} /></SkeletonRegion></div>
       </PageHeader>
     );
   }

@@ -144,6 +144,8 @@ export function buildTournamentPayload(records = [], opts = {}) {
     personal = false,
     isAdmin = false,
     allowMyStatus = false,
+    dateFrom = '',
+    dateTo = '',
   } = opts;
 
   const cutoff =
@@ -165,6 +167,9 @@ export function buildTournamentPayload(records = [], opts = {}) {
     .filter((t) => {
       if (format !== 'all' && t.format !== format) return false;
       if (status !== 'all' && t.statusGroup !== status) return false;
+      const eventTime = timeOf(t);
+      if (dateFrom && eventTime < new Date(`${dateFrom}T00:00:00`).getTime()) return false;
+      if (dateTo && eventTime >= new Date(`${dateTo}T00:00:00`).getTime() + 86400000) return false;
       if (cutoff && timeOf(t) < cutoff) return false;
       return inScope(t);
     })
@@ -278,6 +283,7 @@ export function useTournamentReport({ active, studentMode }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [range, setRange] = useState('all');
+  const [dateRange, setDateRange] = useState({ from: '', to: '' });
   const [format, setFormat] = useState('all');
   const [status, setStatus] = useState('all');
   const [sortDir, setSortDir] = useState('desc');
@@ -387,6 +393,8 @@ export function useTournamentReport({ active, studentMode }) {
   const buildOpts = useMemo(
     () => ({
       range,
+      dateFrom: dateRange.from,
+      dateTo: dateRange.to,
       format,
       status,
       sortDir,
@@ -396,7 +404,7 @@ export function useTournamentReport({ active, studentMode }) {
       isAdmin: !studentMode,
       allowMyStatus: studentMode,
     }),
-    [range, format, status, sortDir, scopeIds, scopeName, personal, studentMode]
+    [range, dateRange.from, dateRange.to, format, status, sortDir, scopeIds, scopeName, personal, studentMode]
   );
 
   const payload = useMemo(
@@ -411,6 +419,7 @@ export function useTournamentReport({ active, studentMode }) {
 
   const resetFilters = useCallback(() => {
     setRange('all');
+    setDateRange({ from: '', to: '' });
     setFormat('all');
     setStatus('all');
     setSortDir('desc');
@@ -427,6 +436,8 @@ export function useTournamentReport({ active, studentMode }) {
     ensureLoaded,
     range,
     setRange,
+    dateRange,
+    setDateRange,
     format,
     setFormat,
     status,

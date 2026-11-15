@@ -145,7 +145,7 @@ async function champions({ hidePrivate = true, limit = 1000 } = {}) {
 
   const [baseR, rollupR, onlineR, computerR, puzzleR, attendanceR, activityR] = await Promise.all([
     db.query(
-      `SELECT s.id AS student_id, u.id AS user_id, u.name, u.avatar_config, u.profile_image,
+      `SELECT s.id AS student_id, u.id AS user_id, u.name, u.avatar_config, u.profile_image, u.updated_at,
               g.name AS group_name
        FROM students s
        JOIN users u ON u.id = s.user_id
@@ -416,6 +416,7 @@ async function champions({ hidePrivate = true, limit = 1000 } = {}) {
       name: student.name,
       avatar_config: student.avatar_config,
       profile_image: student.profile_image,
+      updated_at: student.updated_at,
       group_name: student.group_name,
       score,
       games: games.games,

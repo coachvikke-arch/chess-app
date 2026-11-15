@@ -1,0 +1,30 @@
+.mzbot{position:fixed;z-index:900;touch-action:none;user-select:none}
+.mzbot-img{display:block;width:100%;height:auto;pointer-events:none;transform-origin:50% 90%}
+.mzbot-img.wave{animation:mzwave .6s ease-in-out 4}
+.mzbot-body{cursor:grab;outline-offset:4px;animation:mzfloat 3s ease-in-out infinite}
+.mzbot-body:active{cursor:grabbing}
+.mzbot-body:focus-visible{outline:3px solid #0b6bb0}
+.mzbot-bubble{position:absolute;bottom:100%;left:0;margin-bottom:8px;width:max-content;max-width:240px;background:#fff;color:#0b2347;border:2px solid #0b2347;border-radius:6px;padding:.5rem 1.6rem .5rem .7rem;font:500 .9rem/1.35 system-ui,sans-serif;box-shadow:0 4px 14px rgba(11,35,71,.18);animation:mzin .3s ease-out}
+.mzbot-bubble.r{left:auto;right:0}
+.mzbot-bubble.b{bottom:auto;top:100%;margin:8px 0 0}
+.mzbot-msg{background:none;border:0;padding:0;font:inherit;color:inherit;text-align:left;cursor:default}
+button.mzbot-msg{cursor:pointer;text-decoration:underline}
+.mzbot-x{position:absolute;top:2px;right:4px;background:none;border:0;color:#4a586b;font:600 .85rem/1 system-ui;cursor:pointer;padding:.2rem .3rem}
+.mzbot-confetti{position:absolute;left:50%;top:30%;pointer-events:none}
+.mzbot-confetti i{position:absolute;width:7px;height:7px;background:hsl(calc(var(--i)*30),70%,50%);animation:mzconf 1.8s ease-out forwards;animation-delay:calc(var(--i)*40ms);opacity:0}
+.mzbot-drop{position:absolute;left:62%;top:30%;width:9px;height:12px;background:#0b6bb0;border-radius:50% 50% 50% 50%/60% 60% 40% 40%;animation:mzdrop 1.4s ease-in infinite}
+.mood-happy .mzbot-body{animation:mzjump .6s ease-in-out 3}
+.mood-sad .mzbot-body{animation:mzsad 2.4s ease-in-out infinite}
+.mood-neutral .mzbot-body{animation:mzshake .8s ease-in-out 2}
+.mood-alert .mzbot-body{animation:mzpulse .8s ease-in-out 2}
+.mzbot.still .mzbot-body{animation:none}
+@keyframes mzwave{0%,100%{transform:rotate(0)}30%{transform:rotate(-7deg)}70%{transform:rotate(7deg)}}
+@keyframes mzfloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+@keyframes mzjump{0%,100%{transform:translateY(0)}50%{transform:translateY(-22px)}}
+@keyframes mzsad{0%,100%{transform:rotate(-6deg) translateY(4px)}50%{transform:rotate(-10deg) translateY(8px)}}
+@keyframes mzshake{0%,100%{transform:rotate(0)}25%{transform:rotate(-8deg)}75%{transform:rotate(8deg)}}
+@keyframes mzpulse{0%,100%{transform:scale(1)}50%{transform:scale(1.1)}}
+@keyframes mzin{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+@keyframes mzconf{0%{opacity:1;transform:translate(0,0)}100%{opacity:0;transform:translate(calc((var(--i) - 6)*14px),calc(-60px + var(--i)*8px)) rotate(240deg)}}
+@keyframes mzdrop{0%{opacity:0;transform:translateY(0)}20%{opacity:1}100%{opacity:0;transform:translateY(46px)}}
+@media (prefers-reduced-motion:reduce){.mzbot-body,.mzbot-bubble,.mzbot-img{animation:none!important}}

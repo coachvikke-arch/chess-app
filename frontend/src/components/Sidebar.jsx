@@ -3,7 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { useChat } from '../context/ChatContext';
 import { useSidebarOrder } from '../context/SidebarOrderContext';
 import { FeatureGate } from './FeatureGate';
-import { memo, useEffect, useMemo, useRef } from 'react';
+import { memo, useLayoutEffect, useMemo, useRef } from 'react';
 import { preloadRoute } from '../utils/lazyPages';
 
 /**
@@ -25,7 +25,7 @@ import { preloadRoute } from '../utils/lazyPages';
  *   - 'admin': sees everything except superOnly items
  *   - 'student': sees everything except superOnly items (no super admin console)
  *
- * Auto-scrolls the active link into view on route change.
+ * Keeps its own scroll position across route changes.
  * Memoized: with the persistent shell, sidebar re-renders should be limited to
  * real data changes (unread counts, route), not every page render. Hovering or
  * focusing a menu item warms that section's lazy chunk so the click is instant.
@@ -58,15 +58,23 @@ function Sidebar({
   }), [orderedLinks, isSuper, portal]);
 
   const navRef = useRef(null);
+  const savedScrollTop = useRef(0);
 
-  /* Auto-scroll active link into view on route change. */
-  useEffect(() => {
-    if (!navRef.current) return;
-    const activeLink = navRef.current.querySelector('[aria-current="page"]');
-    if (activeLink) {
-      activeLink.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    }
+  /* A route change updates the active highlight without moving the menu. */
+  useLayoutEffect(() => {
+    const menu = navRef.current?.querySelector('.admin-sidebar-menu');
+    if (menu) menu.scrollTop = savedScrollTop.current;
   }, [location.pathname]);
+
+  const handleNavigation = () => {
+    const menu = navRef.current?.querySelector('.admin-sidebar-menu');
+    if (menu) savedScrollTop.current = menu.scrollTop;
+    onClose?.();
+  };
+
+  const rememberMenuScroll = (event) => {
+    savedScrollTop.current = event.currentTarget.scrollTop;
+  };
 
   const sidebarWidth = isMobile ? '280px' : '240px';
 
@@ -82,14 +90,14 @@ function Sidebar({
     >
       <div className="admin-sidebar-inner flex flex-col h-full">
         {/* Menu (scrollable) */}
-        <nav className="admin-sidebar-menu flex-1 min-h-0 overflow-y-auto overscroll-contain px-3 py-4" role="menu">
+        <nav onScroll={rememberMenuScroll} className="admin-sidebar-menu flex-1 min-h-0 overflow-y-auto overscroll-contain px-3 py-4" role="menu">
           {visibleLinks.map((l) => (
             <FeatureGate key={l.to} feature={l.feature}>
               <NavLink
                 key={l.to}
                 to={l.to}
                 replace={l.to === '/admin/dashboard' || l.to === '/student/dashboard' || l.to === '/super'}
-                onClick={onClose}
+                onClick={handleNavigation}
                 onMouseEnter={() => preloadRoute(l.to)}
                 onFocus={() => preloadRoute(l.to)}
                 className={({ isActive }) =>

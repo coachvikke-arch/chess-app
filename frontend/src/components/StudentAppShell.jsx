@@ -1,5 +1,6 @@
 import { FullHeightProvider } from '../context/FullHeightContext';
 import AppShell from './AppShell';
+import StudentClassBotReminders from './StudentClassBotReminders';
 
 /**
  * Student shell — uses the shared AppShell with the student portal config.
@@ -12,7 +13,10 @@ import AppShell from './AppShell';
 export default function StudentAppShell({ children }) {
   return (
     <FullHeightProvider>
-      <AppShell portal="student">{children}</AppShell>
+      <AppShell portal="student">
+        <StudentClassBotReminders />
+        {children}
+      </AppShell>
     </FullHeightProvider>
   );
 }

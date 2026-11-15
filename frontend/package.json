@@ -108,6 +108,7 @@
     "html2canvas": "^1.4.1",
     "jspdf": "^4.2.1",
     "livekit-client": "^2.0.0",
+    "lottie-react": "^3.1.2",
     "lottie-web": "^5.13.0",
     "lucide-react": "^1.44.0",
     "nodemailer": "^10.2.1",

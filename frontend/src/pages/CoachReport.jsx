@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import api from '../services/api';
 import { PageHeader, Card, Chip, Spinner } from '../components/ui';
 import Button from '../components/Button';
+import ReportDateFilter from '../components/reports/ReportDateFilter';
 
 /* ── Period helpers ──────────────────────────────────────────────────────── */
 
@@ -169,7 +170,7 @@ export default function CoachReport() {
   const { id } = useParams();
   const [report, setReport] = useState(null);
   const [error, setError] = useState('');
-  const [period, setPeriod] = useState('weekly');
+  const [period, setPeriod] = useState('custom');
   const [customFrom, setCustomFrom] = useState('');
   const [customTo, setCustomTo] = useState('');
   const [applied, setApplied] = useState({ from: '', to: '' });
@@ -179,7 +180,10 @@ export default function CoachReport() {
     setError('');
     const from = period === 'custom' ? applied.from : rangeFor(period).from;
     const to = period === 'custom' ? applied.to : rangeFor(period).to;
-    const qs = from && to ? `?startDate=${from}&endDate=${to}` : '';
+    const params = new URLSearchParams();
+    if (from) params.set('startDate', from);
+    if (to) params.set('endDate', to);
+    const qs = params.size ? `?${params.toString()}` : '';
     api
       .get(`/admins/${id}/performance${qs}`, { cache: false })
       .then((res) => { if (alive) setReport(res.data); })
@@ -193,19 +197,20 @@ export default function CoachReport() {
 
   function activateCustom() {
     setPeriod('custom');
-    if (!customFrom && !customTo) {
-      const now = new Date();
-      const from = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 29);
-      setCustomFrom(iso(from));
-      setCustomTo(iso(now));
-    }
+  }
+
+  function applyDateRange(next) {
+    setPeriod('custom');
+    setCustomFrom(next.from);
+    setCustomTo(next.to);
+    setApplied(next);
   }
 
   const range = rangeFor(period);
   const sub =
     period === 'custom'
-      ? applied.from && applied.to
-        ? `${fmtDate(applied.from)} – ${fmtDate(applied.to)}`
+      ? applied.from || applied.to
+        ? `${applied.from ? fmtDate(applied.from) : 'Any date'} – ${applied.to ? fmtDate(applied.to) : 'Any date'}`
         : 'All time'
       : `${range.label} · ${fmtDate(range.from)} – ${fmtDate(range.to)}`;
 
@@ -264,6 +269,8 @@ export default function CoachReport() {
           ))}
         </div>
       </div>
+
+      <ReportDateFilter value={applied} onChange={applyDateRange} />
 
       {period === 'custom' && (
         <div className="cr-range">

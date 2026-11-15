@@ -17,7 +17,7 @@ import { SVG_VIEWBOX } from '../avatar-assets/shared';
  *   seed    — falls back to a deterministic default when config is missing
  *   size    — rendered dimensions
  */
-export default function ChessAvatar({ config, seed, size = 64, className = '', rounded = true }) {
+export default function ChessAvatar({ config, seed, size = 64, className = '', rounded = true, alt = 'Avatar' }) {
   const layers = useMemo(() => {
     const c = config && config.basePiece ? config : defaultChessConfig(seed);
     const piece = PIECE_MAP[c.basePiece] || PIECE_MAP.pawn;
@@ -43,7 +43,7 @@ export default function ChessAvatar({ config, seed, size = 64, className = '', r
       className={cls}
       style={{ width: size, height: size, display: 'block' }}
       role="img"
-      aria-label="Avatar"
+      aria-label={alt}
     >
       <Background color={layers.bg} />
       <layers.piece color={layers.bodyColor} />

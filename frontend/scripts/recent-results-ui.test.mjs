@@ -4,8 +4,8 @@
  * --------------
  *   1. OPPONENT NAMES ARE NEVER CLIPPED ON THE LEFT. The old cell let a long name
  *      widen the table until the wrapper scrolled, so the start of "IYAPPAN…"
- *      was off-screen. It is now a fixed-width, left-aligned box that truncates
- *      with an ellipsis and expands to the full name on tap/long-press.
+ *      was off-screen. It is now a fixed-width, left-aligned avatar + name cell
+ *      that truncates with an ellipsis and keeps the full name in `title`.
  *   2. THE PAGE NEVER SCROLLS SIDEWAYS. The table keeps a min-width inside its
  *      own overflow-x-auto container, so only that container scrolls.
  *   3. THE CONTROL COLUMN IS CANONICAL. Rows render "Rapid"/"Blitz"/…
@@ -54,18 +54,23 @@ test('control labels cover every pool and prefer the stored class', () => {
 
 test('opponent cell is fixed, left-aligned, truncating and expandable', () => {
   const cell = slice('function OpponentCell', '\nfunction Delta');
-  assert.match(cell, /<td className="py-2 pr-3 align-top">/);
-  assert.match(cell, /className="block w-full text-left"/, 'left-aligned box, never a centred one');
+  assert.match(cell, /<td className="py-2 pr-3 align-middle">/, 'the cell aligns with its avatar');
+  assert.match(cell, /className="flex w-full min-w-0 items-center gap-2 text-left"/,
+    'left-aligned box, never a centred one');
   assert.match(cell, /title=\{label\}/, 'full name on desktop hover');
   assert.match(cell, /aria-expanded=\{open\}/);
-  assert.match(cell, /onClick=\{\(\) => onToggle\(id\)\}/, 'tap to expand');
+  assert.match(cell, /onClick=\{\(\) => onToggle\(id\)\}/, 'tap to toggle');
   assert.match(cell, /onContextMenu=\{\(e\) => \{ e\.preventDefault\(\); onToggle\(id, true\); \}\}/,
     'long-press opens the same toggle');
   assert.match(cell, /minWidth: 0/, 'a shrinking flex/grid child may actually shrink');
   assert.match(cell, /maxWidth: '100%'/);
-  assert.match(cell, /whiteSpace: open \? 'normal' : 'nowrap'/);
-  assert.match(cell, /overflow: open \? 'visible' : 'hidden'/);
-  assert.match(cell, /textOverflow: open \? 'clip' : 'ellipsis'/);
+  assert.match(cell, /whiteSpace: 'nowrap'/);
+  assert.match(cell, /overflow: 'hidden'/);
+  assert.match(cell, /textOverflow: 'ellipsis'/);
+  assert.match(cell, /<RatingAvatar row=\{identity\} name=\{label\} size=\{32\} \/>/,
+    'each opponent keeps a face in the fixed column');
+  assert.match(cell, /<span className="min-w-0 truncate">\{label\}<\/span>/,
+    'the name is the part that truncates, never the avatar');
 });
 
 test('the table scrolls inside its own container, never the page', () => {

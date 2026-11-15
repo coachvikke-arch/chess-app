@@ -6,6 +6,9 @@ import { useToast } from '../components/Toast';
 import StudentAvatar from '../components/StudentAvatar';
 import { useAuth } from '../context/AuthContext';
 import Button from '../components/Button';
+import ReportDateFilter from '../components/reports/ReportDateFilter';
+import Pagination from '../components/Pagination';
+import { usePagination } from '../hooks/usePagination';
 
 function Avatar({ s, size = 32 }) {
   if (s.avatar_config) {
@@ -43,6 +46,8 @@ export default function AdminReports() {
   const [statusFilter, setStatusFilter] = useState('all');
   const [busyId, setBusyId] = useState(null);
   const [confirmId, setConfirmId] = useState(null);
+  const [dateRange, setDateRange] = useState({ from: '', to: '' });
+  const [pageSize, setPageSize] = useState(10);
 
   function load() {
     api
@@ -60,6 +65,9 @@ export default function AdminReports() {
     if (!students) return [];
     const q = search.trim().toLowerCase();
     return students.filter((s) => {
+      const joined = String(s.joined_at || s.created_at || '').slice(0, 10);
+      if (dateRange.from && (!joined || joined < dateRange.from)) return false;
+      if (dateRange.to && (!joined || joined > dateRange.to)) return false;
       if (statusFilter === 'active' && s.active === false) return false;
       if (statusFilter === 'inactive' && s.active !== false) return false;
       if (!q) return true;
@@ -69,16 +77,21 @@ export default function AdminReports() {
         (s.group_name || '').toLowerCase().includes(q)
       );
     });
-  }, [students, search, statusFilter]);
+  }, [students, search, statusFilter, dateRange]);
+
+  const pager = usePagination(visible, pageSize, { resetKeys: [search, statusFilter, dateRange.from, dateRange.to, pageSize] });
 
   const counts = useMemo(() => {
-    const all = students || [];
+    const all = (students || []).filter((s) => {
+      const joined = String(s.joined_at || s.created_at || '').slice(0, 10);
+      return (!dateRange.from || (joined && joined >= dateRange.from)) && (!dateRange.to || (joined && joined <= dateRange.to));
+    });
     return {
       total: all.length,
       active: all.filter((s) => s.active !== false).length,
       inactive: all.filter((s) => s.active === false).length,
     };
-  }, [students]);
+  }, [students, dateRange]);
 
   async function setActive(s, next) {
     setBusyId(s.id);
@@ -119,6 +132,7 @@ export default function AdminReports() {
           : 'Students assigned to you — open a full report or manage the account.'
       }
     >
+      <ReportDateFilter value={dateRange} onChange={setDateRange} />
       {/* Toolbar */}
       <div className="chess-card mb-5">
         <div className="flex flex-wrap items-center gap-3">
@@ -163,7 +177,7 @@ export default function AdminReports() {
             </tr>
           </thead>
           <tbody>
-            {visible.map((s, i) => (
+            {pager.currentItems.map((s, i) => (
               <tr key={s.id} style={{ animation: `fade-up .45s ${Math.min(i * 0.05, 0.5)}s both` }}>
                 <td className="font-medium text-ivory-300">
                   <div className="flex items-center gap-2.5">
@@ -248,16 +262,20 @@ export default function AdminReports() {
               <tr>
                 <td colSpan={6}>
                   <p className="chess-empty">
-                    {students.length === 0
+                    {(dateRange.from || dateRange.to) && students.length > 0
+                      ? 'No records found for this date range.'
+                      : students.length === 0
                       ? 'No students assigned to you yet.'
                       : 'No students match your search.'}
                   </p>
+                  {(dateRange.from || dateRange.to) && students.length > 0 && <Button variant="secondary" size="sm" onClick={() => setDateRange({ from: '', to: '' })}>Reset filter</Button>}
                 </td>
               </tr>
             )}
           </tbody>
         </table>
       </div>
+      <Pagination currentPage={pager.currentPage} totalPages={pager.totalPages} totalItems={pager.totalItems} pageSize={pageSize} onPageChange={pager.setPage} showPageSize onPageSizeChange={setPageSize} itemLabel="records" />
     </Page>
   );
 }

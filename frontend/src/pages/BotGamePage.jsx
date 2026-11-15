@@ -16,6 +16,8 @@ import usePageTitle from '../hooks/usePageTitle';
 import { useFittedSquare } from '../hooks/useBoardWidth';
 import { revealAfterCheckmate } from '../effects/moveEffect';
 import FullHeightContext, { useFullHeight } from '../context/FullHeightContext';
+import { useBot } from '../../matezone-bot/bot/BotContext.jsx';
+import { useGameResultBot } from '../../matezone-bot/bot/botTriggers.js';
 
 /**
  * /play/bot/:botId — a single bot match.
@@ -55,6 +57,8 @@ export default function BotGamePage() {
 }
 
 function Game({ bot, timeControl, colorChoice, navigate }) {
+  const { setSuppressed } = useBot();
+  const notifyGameResult = useGameResultBot();
   /* Board size. Fitted to BOTH axes, because this page must not scroll.
 
      Capped at 530 (408 + 30%), restoring the board to a comfortable playing size
@@ -100,9 +104,15 @@ function Game({ bot, timeControl, colorChoice, navigate }) {
   /* The completion card is shown once per game. Undo/redo (or a repeated
      onFinish for the same mate) replays the animation but never the card. */
   const completionShownRef = useRef(null);
+  const resultBotShownRef = useRef(null);
 
   const onFinish = useCallback(
     async (payload) => {
+      const resultKey = String(payload.gameId || `seq:${gameSeqRef.current}`);
+      if (resultBotShownRef.current !== resultKey) {
+        resultBotShownRef.current = resultKey;
+        notifyGameResult(payload.result);
+      }
       /* Show the result immediately; coins land a tick later from the API. */
       setOutcome({ ...payload, coinsEarned: 0 });
       if (resultRevealCancelRef.current) { resultRevealCancelRef.current(); resultRevealCancelRef.current = null; }
@@ -146,7 +156,7 @@ function Game({ bot, timeControl, colorChoice, navigate }) {
       }
       refresh();
     },
-    [bot, user, refresh],
+    [bot, user, refresh, notifyGameResult],
   );
 
   const game = useBotGame({
@@ -156,6 +166,11 @@ function Game({ bot, timeControl, colorChoice, navigate }) {
     chatEnabled: chatOn,
     onFinish,
   });
+
+  useEffect(() => {
+    setSuppressed(game.status === 'playing' && !outcome);
+    return () => setSuppressed(false);
+  }, [game.status, outcome, setSuppressed]);
 
   /* Clocks. `flagBot`/`flagPlayer` are wired to whichever side ran out, and the
      game hook classifies a flag by side-to-move, so the winner is always right. */

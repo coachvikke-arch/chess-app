@@ -180,6 +180,10 @@ export function AuthProvider({ children }) {
     const res = await api.post('/auth/login', {
       username: identifier,
       password,
+      localDate: (() => {
+        const now = new Date();
+        return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+      })(),
       ...getDeviceInfo(),
     });
     localStorage.setItem('token', res.data.token);
@@ -197,7 +201,7 @@ export function AuthProvider({ children }) {
     if (res.data.refresh_token) localStorage.setItem('refresh_token', res.data.refresh_token);
     try { localStorage.removeItem(PREF_KEY); } catch { /* ignore */ }
     setUser(res.data.user);
-    return res.data.user;
+    return { ...res.data.user, loginStreak: res.data.loginStreak, missedDays: res.data.missedDays };
   };
 
   /* No `signup` here any more. Self-registration is closed: the academy is

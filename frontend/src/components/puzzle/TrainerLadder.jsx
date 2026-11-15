@@ -1,6 +1,7 @@
 import StudentAvatar from '../StudentAvatar';
 import Button from '../Button';
 import { scoringNote } from '../../lib/puzzleScore';
+import { SkeletonList, SkeletonRegion } from '../skeleton';
 
 /**
  * The Puzzle Trainer's ladder.
@@ -47,9 +48,7 @@ export default function TrainerLadder({ board, loading = false, error = '', myUs
             </Button>
           </div>
         ) : !board ? (
-          <div className="pt-lb-state">
-            <div className="chess-spinner"><span>♞</span></div>
-          </div>
+          <SkeletonRegion label="Loading leaderboard"><SkeletonList rows={5} /></SkeletonRegion>
         ) : top.length === 0 ? (
           <div className="pt-lb-state">
             <p>{staff ? 'No student scores yet.' : 'No scores yet. Solve a puzzle and you open the ladder.'}</p>

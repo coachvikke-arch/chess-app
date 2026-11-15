@@ -400,13 +400,17 @@ exports.login = async (req, res) => {
     delete user.password;
 
     // Daily login streak — never allowed to break the auth flow.
+    let missedDays = 0;
     try {
-      const ls = await touchLoginStreak(user.id);
+      const ls = await touchLoginStreak(user.id, req.body?.localDate);
       user.login_streak = ls.streak;
       user.last_login = ls.lastLogin;
+      user.loginStreak = ls.streak;
+      missedDays = ls.missedDays;
     } catch (e) {
       user.login_streak = 0;
       user.last_login = null;
+      user.loginStreak = 0;
     }
 
     // Attach the student's coach-recommended board theme (admin default) when present.
@@ -445,6 +449,8 @@ exports.login = async (req, res) => {
     emitSessionRevoked(req, revoked, 'max_devices');
     res.json({
       user,
+      loginStreak: user.loginStreak,
+      missedDays,
       token,
       refresh_token: refreshToken,
       session: {

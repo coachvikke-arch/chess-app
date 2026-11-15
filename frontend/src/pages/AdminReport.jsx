@@ -4,6 +4,9 @@ import api from '../services/api';
 import { PageHeader, Chip, Spinner } from '../components/ui';
 import ClassDetailModal from '../components/ClassDetailModal';
 import Button from '../components/Button';
+import ReportDateFilter from '../components/reports/ReportDateFilter';
+import Pagination from '../components/Pagination';
+import { usePagination } from '../hooks/usePagination';
 
 /* Super admin report for a single admin/coach — opened from the Admins page at
    /admin/admins/:id/report. Shows everything that coach has done: assigned
@@ -52,10 +55,20 @@ export default function AdminReport() {
   const [report, setReport] = useState(null);
   const [error, setError] = useState('');
   const [detailClassId, setDetailClassId] = useState(null);
+  const [dateRange, setDateRange] = useState({ from: '', to: '' });
+  const [pageSize, setPageSize] = useState(10);
   const [cursor, setCursor] = useState(() => {
     const d = new Date();
     return { y: d.getFullYear(), m: d.getMonth() };
   });
+
+  const dateMatches = (value) => {
+    const day = String(value || '').slice(0, 10);
+    return (!dateRange.from && !dateRange.to) || (!!day && (!dateRange.from || day >= dateRange.from) && (!dateRange.to || day <= dateRange.to));
+  };
+  const allPastRows = report?.past || [];
+  const pastFiltered = allPastRows.filter((c) => dateMatches(c.classDate || c.class_date));
+  const pager = usePagination(pastFiltered, pageSize, { syncUrl: false, resetKeys: [dateRange.from, dateRange.to, pageSize] });
 
   useEffect(() => {
     api
@@ -74,7 +87,7 @@ export default function AdminReport() {
     for (let i = 0; i < startWeekday; i++) cells.push(null);
     for (let d = 1; d <= dim; d++) cells.push({ date: dateKey(cursor.y, cursor.m, d), day: d });
     return cells;
-  }, [report, cursor]);
+  }, [report, cursor, dateRange.from, dateRange.to]);
 
   if (error) {
     return (
@@ -93,8 +106,8 @@ export default function AdminReport() {
   }
 
   const p = report.profile || {};
-  const cn = report.classes || [];
-  const past = report.past || [];
+  const cn = (report.classes || []).filter((c) => dateMatches(c.classDate || c.class_date));
+  const past = pastFiltered;
   const batches = report.batches || [];
   const games = report.games || {};
 
@@ -130,6 +143,7 @@ export default function AdminReport() {
       <Button to="/admin/admins" variant="secondary" size="sm" className="!py-1.5 !px-3 !text-xs inline-flex items-center gap-1.5 mb-4">
         ← Back to admins
       </Button>
+      <ReportDateFilter value={dateRange} onChange={setDateRange} />
 
       {/* Identity */}
       <div className="chess-card p-5 mb-6">
@@ -207,7 +221,7 @@ export default function AdminReport() {
           <div className="grid grid-cols-1 min-[560px]:grid-cols-7 gap-1.5">
             {calendarCells.map((cell, i) => {
               if (!cell) return <div key={`pad-${i}`} />;
-              const dayClasses = (report.calendar || {})[cell.date] || [];
+              const dayClasses = dateMatches(cell.date) ? ((report.calendar || {})[cell.date] || []) : [];
               return (
                 <div
                   key={cell.date}
@@ -249,7 +263,7 @@ export default function AdminReport() {
                   </tr>
                 </thead>
                 <tbody>
-                  {past.map((c) => (
+                  {pager.currentItems.map((c) => (
                     <tr key={c.id} className="cursor-pointer hover:bg-white/[0.03]" onClick={() => setDetailClassId(c.id)}>
                       <td className="font-medium text-ivory-300">{c.topic || c.title}</td>
                       <td className="text-ivory-500">{fmtDate(c.classDate)} · {fmtTime(c.startTime)}</td>
@@ -266,6 +280,8 @@ export default function AdminReport() {
               </table>
             </div>
           )}
+          {past.length === 0 && (dateRange.from || dateRange.to) && <div className="mt-3 text-center text-sm text-ivory-500">No records found for this date range. <Button variant="secondary" size="sm" onClick={() => setDateRange({ from: '', to: '' })}>Reset filter</Button></div>}
+          <Pagination currentPage={pager.currentPage} totalPages={pager.totalPages} totalItems={pager.totalItems} pageSize={pageSize} onPageChange={pager.setPage} showPageSize onPageSizeChange={setPageSize} itemLabel="classes" />
         </section>
       </div>
       {detailClassId && (

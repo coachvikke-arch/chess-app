@@ -5,7 +5,7 @@ import { Link } from 'react-router-dom';
 import api from '../services/api';
 import { Page, Card, Stat, Bar, Spinner, Chip } from '../components/ui';
 import { LineChart } from '../utils/charts';
-import StudentAvatar from '../components/StudentAvatar';
+import RatingAvatar from '../components/RatingAvatar';
 
 const RESULT_TONE = { win: 'green', loss: 'red', draw: 'gold' };
 
@@ -40,17 +40,38 @@ function ago(iso) {
  *  left-aligned box that truncates with an ellipsis; tapping (or long-pressing)
  *  expands it to the full name instead of cutting it. `title` covers desktop
  *  hover. */
-function OpponentCell({ id, name, open, onToggle }) {
-  const label = name || '—';
+function OpponentCell({ id, name, row, open, onToggle }) {
+  const cleanName = String(name || '').trim();
+  const label = cleanName && cleanName !== '-' && cleanName !== '—' ? cleanName : '-';
+  const isPlaceholder = !cleanName || /^[-—]$/.test(cleanName) || /^(guest|computer|bot)(\b|\s)/i.test(cleanName);
+  const identity = {
+    student_id: row.opponent_student_id,
+    user_id: row.opponent_id,
+    avatar_config: row.opponent_avatar_config,
+    profile_image: row.opponent_profile_image,
+    updated_at: row.opponent_updated_at,
+  };
+
+  if (isPlaceholder) {
+    return (
+      <td className="py-2 pr-3 align-middle">
+        <span className="flex items-center gap-2 min-w-0">
+          <RatingAvatar row={{}} name="player" size={32} />
+          <span className="min-w-0 truncate">{label}</span>
+        </span>
+      </td>
+    );
+  }
+
   return (
-    <td className="py-2 pr-3 align-top">
+    <td className="py-2 pr-3 align-middle">
       <button
         type="button"
         title={label}
         aria-expanded={open}
         onClick={() => onToggle(id)}
         onContextMenu={(e) => { e.preventDefault(); onToggle(id, true); }}
-        className="block w-full text-left"
+        className="flex w-full min-w-0 items-center gap-2 text-left"
         style={{
           minWidth: 0,
           maxWidth: '100%',
@@ -61,13 +82,14 @@ function OpponentCell({ id, name, open, onToggle }) {
           border: 0,
           padding: 0,
           cursor: name ? 'pointer' : 'default',
-          whiteSpace: open ? 'normal' : 'nowrap',
-          overflow: open ? 'visible' : 'hidden',
-          textOverflow: open ? 'clip' : 'ellipsis',
-          overflowWrap: open ? 'anywhere' : 'normal',
+          whiteSpace: 'nowrap',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          textAlign: 'left',
         }}
       >
-        {label}
+        <RatingAvatar row={identity} name={label} size={32} />
+        <span className="min-w-0 truncate">{label}</span>
       </button>
     </td>
   );
@@ -81,12 +103,8 @@ function Delta({ value }) {
 
 function Person({ row, nameKey = 'name' }) {
   return (
-    <span className="flex items-center gap-2 min-w-0">
-      {row.profile_image ? (
-        <img src={row.profile_image} alt="" className="rounded-full object-cover object-center ring-1 ring-white/15" width={28} height={28} />
-      ) : (
-        <StudentAvatar config={row.avatar_config} seed={`student_${row.student_id || ''}`} size={28} />
-      )}
+    <span className="flex items-center gap-2 min-w-0 whitespace-nowrap">
+      <RatingAvatar row={row} name={row[nameKey]} size={32} className="ring-1 ring-white/15" />
       <span className="truncate">{row[nameKey]}</span>
     </span>
   );
@@ -448,6 +466,7 @@ export default function Ratings() {
                     <OpponentCell
                       id={r.id}
                       name={r.opponent_name}
+                      row={r}
                       open={openOpponent === r.id}
                       onToggle={toggleOpponent}
                     />

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import api from '../services/api';
 import { PageHeader, Spinner } from '../components/ui';
-import StudentAvatar from '../components/StudentAvatar';
+import RatingAvatar from '../components/RatingAvatar';
 import ChampionsPodium, { PlayerBadges } from '../components/ChampionsPodium';
 import LeaderboardCompareModal from '../components/LeaderboardCompareModal';
 import Pagination, { PAGE_SIZE } from '../components/Pagination';
@@ -10,6 +10,7 @@ import { useProfileChanged } from '../hooks/useProfileChanged';
 import { useAuth } from '../context/AuthContext';
 import { WHITE } from 'chess.js';
 import Button from '../components/Button';
+import { useBot } from '../../matezone-bot/bot/BotContext.jsx';
 
 /** Which endpoint ranks the players for this viewer.
  *
@@ -93,6 +94,7 @@ function changeMark(delta) {
 
 export default function Leaderboard() {
   const { user } = useAuth();
+  const { showBotFrom } = useBot();
   const isCoach = user?.role === 'admin' || user?.role === 'superadmin';
   const [rows, setRows] = useState(null);
   /* A failed request is NOT an empty leaderboard. Collapsing a 403 or a 500 into
@@ -258,6 +260,26 @@ export default function Leaderboard() {
     () => champRows.find((r) => Number(r.user_id) === Number(user?.id)) || null,
     [champRows, user?.id]
   );
+  useEffect(() => {
+    if (user?.role !== 'student' || !champ || champError) return;
+    const rank = Number(myChamp?.rank) || null;
+    const group = rank === 1
+      ? 'leaderboardFirst'
+      : rank && rank <= 5
+        ? 'leaderboardProgress'
+        : rank
+          ? 'leaderboardMotivation'
+          : champRows.length
+            ? 'leaderboardMotivation'
+            : 'leaderboardUnranked';
+    const key = `mz-bot-board-${user.id}-${rank || 'unranked'}`;
+    if (sessionStorage.getItem(key)) return;
+    sessionStorage.setItem(key, '1');
+    showBotFrom(group, rank === 1 ? 'happy' : 'calm', {
+      rank: rank || '',
+      total: champRows.length,
+    });
+  }, [champ, champError, champRows.length, myChamp?.rank, showBotFrom, user?.id, user?.role]);
   const weights = champ?.weights || null;
 
   return (
@@ -395,15 +417,7 @@ export default function Leaderboard() {
                       <span className={`lb-rank ${r.rank <= 4 ? 'top' : ''}`}>#{r.rank}</span>
                       <span className="lb-pname">
                         <span className="lb-pavatar">
-                          {r.profile_image ? (
-                            <img
-                              src={r.profile_image}
-                              alt=""
-                              className="lb-photo rounded-full object-cover ring-1 ring-slate-200"
-                            />
-                          ) : (
-                            <StudentAvatar config={r.avatar_config} seed={`student_${r.student_id || ''}`} size={38} />
-                          )}
+                          <RatingAvatar row={r} name={r.name} size={38} className="lb-photo rounded-full object-cover ring-1 ring-slate-200" />
                         </span>
                         <span className="lb-pmeta">
                           <span className="lb-line">
@@ -505,15 +519,7 @@ export default function Leaderboard() {
                   <span className={`lb-rank ${r.dr <= 4 ? 'top' : ''}`}>#{r.dr}</span>
                   <span className="lb-pname">
                     <span className="lb-pavatar">
-                      {r.profile_image ? (
-                        <img
-                          src={r.profile_image}
-                          alt=""
-                          className="lb-photo rounded-full object-cover ring-1 ring-slate-200"
-                        />
-                      ) : (
-                        <StudentAvatar config={r.avatar_config} seed={`student_${r.student_id || ''}`} size={38} />
-                      )}
+                      <RatingAvatar row={r} name={r.name} size={38} className="lb-photo rounded-full object-cover ring-1 ring-slate-200" />
                     </span>
                     <span className="lb-pmeta">
                       <span className="lb-line">

@@ -10,6 +10,7 @@ import { onGameUpdate, onLiveGamesChanged } from '../services/socket';
 import { formatDateTime12 } from '../utils/time';
 import { copyText } from '../utils/clipboard';
 import { buildRowPgn, pgnFilename, hasPgnMoves, pgnHasMoves } from '../utils/gamePgn';
+import ReportDateFilter from '../components/reports/ReportDateFilter';
 
 function resultTone(r) {
   if (!r) return '';
@@ -110,6 +111,8 @@ function StudentView({ embedded = false, onOpenGame }) {
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
   const [filter, setFilter] = useState('all');
+  const [dateRange, setDateRange] = useState({ from: '', to: '' });
+  const [pageSize, setPageSize] = useState(PAGE_SIZE);
   /* id of the row whose PGN was just copied / downloaded, so its button can
      show "Copied ✓" (or "Saved ✓") for a beat before reverting. */
   const [copiedId, setCopiedId] = useState(null);
@@ -156,8 +159,12 @@ function StudentView({ embedded = false, onOpenGame }) {
   }, [user?.id]);
 
   const games = useMemo(() => data?.games || [], [data]);
+  const dateFilteredGames = useMemo(() => games.filter((g) => {
+    const date = String(g.date || '').slice(0, 10);
+    return (!dateRange.from || (date && date >= dateRange.from)) && (!dateRange.to || (date && date <= dateRange.to));
+  }), [games, dateRange]);
   const filtered = useMemo(() => {
-    return games.filter((g) => {
+    return dateFilteredGames.filter((g) => {
       switch (filter) {
         case 'computer':   return g.type === 'computer';
         case 'online':     return g.type === 'online';
@@ -168,25 +175,44 @@ function StudentView({ embedded = false, onOpenGame }) {
         default:           return true;
       }
     });
-  }, [games, filter]);
+  }, [dateFilteredGames, filter]);
 
-  const pager = usePagination(filtered, PAGE_SIZE, {
-    resetKeys: [filter],
+  const pager = usePagination(filtered, pageSize, {
+    resetKeys: [filter, dateRange.from, dateRange.to, pageSize],
     scrollRef: listTopRef,
   });
 
   if (error) return <div className="chess-error">{error}</div>;
   if (!data) return <Spinner text="Loading game history…" />;
 
-  const { summary, periods } = data;
+  const summary = {
+    games: dateFilteredGames.length,
+    wins: dateFilteredGames.filter((g) => resultBucket(g) === 'win').length,
+    losses: dateFilteredGames.filter((g) => resultBucket(g) === 'loss').length,
+    draws: dateFilteredGames.filter((g) => resultBucket(g) === 'draw').length,
+    abandoned: dateFilteredGames.filter((g) => g.resultLabel === 'Abandoned').length,
+  };
+  const periodsByDay = new Map();
+  dateFilteredGames.forEach((g) => {
+    const day = String(g.date || '').slice(0, 10);
+    if (!day) return;
+    const p = periodsByDay.get(day) || { period_start: day, games: 0, wins: 0, losses: 0, draws: 0 };
+    p.games += 1;
+    const bucket = resultBucket(g);
+    if (bucket === 'win') p.wins += 1;
+    if (bucket === 'loss') p.losses += 1;
+    if (bucket === 'draw') p.draws += 1;
+    periodsByDay.set(day, p);
+  });
+  const periods = [...periodsByDay.values()].sort((a, b) => b.period_start.localeCompare(a.period_start));
   const winRate = summary.games > 0 ? Math.round((summary.wins / summary.games) * 100) : 0;
 
-  const computerCount   = games.filter((g) => g.type === 'computer').length;
-  const onlineCount     = games.filter((g) => g.type === 'online').length;
-  const tournamentCount = games.filter((g) => g.type === 'tournament').length;
-  const winsCount       = games.filter((g) => resultBucket(g) === 'win').length;
-  const lossesCount     = games.filter((g) => resultBucket(g) === 'loss').length;
-  const drawsCount      = games.filter((g) => resultBucket(g) === 'draw').length;
+  const computerCount   = dateFilteredGames.filter((g) => g.type === 'computer').length;
+  const onlineCount     = dateFilteredGames.filter((g) => g.type === 'online').length;
+  const tournamentCount = dateFilteredGames.filter((g) => g.type === 'tournament').length;
+  const winsCount       = summary.wins;
+  const lossesCount     = summary.losses;
+  const drawsCount      = summary.draws;
 
   const openGame = (g) => {
     if (!isReplayable(g)) return;
@@ -224,6 +250,7 @@ function StudentView({ embedded = false, onOpenGame }) {
 
   return (
     <Wrap embedded={embedded} title="Game History" piece="♟" sub="Your matches, moves and results at a glance.">
+      <ReportDateFilter value={dateRange} onChange={setDateRange} />
       <div className="grid md:grid-cols-5 gap-4 mb-8">
         <Card title="Games" piece="♞">
           <p className="text-3xl font-bold text-ivory-100">{summary.games}</p>
@@ -254,7 +281,7 @@ function StudentView({ embedded = false, onOpenGame }) {
           <button
             onClick={() => setFilter('all')}
             className={`chess-chip text-xs ${filter === 'all' ? 'chess-chip-gold' : ''}`}
-          >All ({games.length})</button>
+          >All ({dateFilteredGames.length})</button>
           <button
             onClick={() => setFilter('tournament')}
             className={`chess-chip text-xs ${filter === 'tournament' ? 'chess-chip-gold' : ''}`}
@@ -281,7 +308,7 @@ function StudentView({ embedded = false, onOpenGame }) {
           >Draws ({drawsCount})</button>
         </div>
 
-        {filtered.length === 0 && <p className="chess-empty">No games found — try a different filter.</p>}
+        {filtered.length === 0 && <div className="text-center"><p className="chess-empty">{dateRange.from || dateRange.to ? 'No records found for this date range.' : 'No games found — try a different filter.'}</p>{(dateRange.from || dateRange.to) && <Button variant="secondary" size="sm" onClick={() => setDateRange({ from: '', to: '' })}>Reset filter</Button>}</div>}
         {filtered.length > 0 && (
 <div ref={listTopRef} className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -395,7 +422,10 @@ function StudentView({ embedded = false, onOpenGame }) {
           currentPage={pager.currentPage}
           totalPages={pager.totalPages}
           totalItems={pager.totalItems}
+          pageSize={pageSize}
           onPageChange={pager.setPage}
+          showPageSize
+          onPageSizeChange={setPageSize}
           itemLabel="games"
         />
       </Card>

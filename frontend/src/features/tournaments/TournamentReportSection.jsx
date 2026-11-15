@@ -1,4 +1,8 @@
+import { useState } from 'react';
 import Button from '../../components/Button';
+import Pagination from '../../components/Pagination';
+import { usePagination } from '../../hooks/usePagination';
+import ReportDateFilter from '../../components/reports/ReportDateFilter';
 import { DonutChart, DonutLegend, resultSegments } from '../../utils/charts';
 import { downloadText } from './tournamentUtils';
 import {
@@ -70,12 +74,15 @@ function Skeleton() {
 }
 
 export default function TournamentReportSection({ state, studentMode }) {
+  const [pageSize, setPageSize] = useState(10);
   const payload = state.payload;
   const stats = payload?.stats;
   const rows = payload?.rows || [];
+  const pager = usePagination(rows, pageSize, { syncUrl: false, resetKeys: [state.range, state.dateRange?.from, state.dateRange?.to, state.format, state.status, state.sortDir, state.studentFilter, state.classFilter, pageSize] });
   const base = studentMode ? '/student' : '/admin';
   const filtersActive =
     state.range !== 'all' ||
+    !!state.dateRange?.from || !!state.dateRange?.to ||
     state.format !== 'all' ||
     state.status !== 'all' ||
     state.studentFilter !== 'all' ||
@@ -141,6 +148,8 @@ export default function TournamentReportSection({ state, studentMode }) {
           ⬇ Download report
         </Button>
       </div>
+
+      <ReportDateFilter value={state.dateRange || { from: '', to: '' }} onChange={state.setDateRange} allowFuture />
 
       <div className="chess-card !p-3 tr-filters">
         <label className="tr-field">
@@ -400,7 +409,7 @@ export default function TournamentReportSection({ state, studentMode }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {rows.map((r) => (
+                  {pager.currentItems.map((r) => (
                     <tr key={r.id}>
                       <td>
                         <span className="tr-name">{r.name}</span>
@@ -434,6 +443,7 @@ export default function TournamentReportSection({ state, studentMode }) {
                 </tbody>
               </table>
             </div>
+            <Pagination currentPage={pager.currentPage} totalPages={pager.totalPages} totalItems={pager.totalItems} pageSize={pageSize} onPageChange={pager.setPage} showPageSize onPageSizeChange={setPageSize} itemLabel="events" />
           </div>
         </>
       )}

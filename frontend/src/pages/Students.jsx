@@ -10,6 +10,7 @@ import { BatchesPanel } from './Batches';
 import { AdminsPanel } from './Admins';
 import Button from '../components/Button';
 import PhoneInput from '../components/PhoneInput';
+import { SkeletonRegion, SkeletonText } from '../components/skeleton';
 import { formatPhoneDisplay, splitPhone, toE164 } from '../utils/phone';
 
 const GENDERS = ['Male', 'Female', 'Non-binary', 'Prefer not to say'];
@@ -311,7 +312,7 @@ export default function Students() {
             {editOn && editForm ? (
               <EditDetailsForm form={editForm} setForm={setEditForm} onSave={saveEdit} onCancel={cancelEdit} saving={savingDetail} groups={groups} coaches={coaches} superAdmin={isSuper} />
             ) : detailLoading ? (
-              <p className="text-sm text-ivory-500 py-8 text-center animate-pulse">Loading details…</p>
+              <SkeletonRegion label="Loading student details" className="py-8"><SkeletonText lines={5} /></SkeletonRegion>
             ) : (
               <DetailContent d={detailData || detail} />
             )}

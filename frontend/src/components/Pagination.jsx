@@ -35,9 +35,11 @@ export default function Pagination({
   pageSize = PAGE_SIZE,
   itemLabel = 'items',
   className = '',
+  showPageSize = false,
+  onPageSizeChange,
 }) {
   const pages = useMemo(() => pageWindow(currentPage, totalPages), [currentPage, totalPages]);
-  if (!totalPages || totalPages <= 1 || totalItems === 0) return null;
+  if ((!totalPages || totalPages <= 1 || totalItems === 0) && !showPageSize) return null;
 
   const from = (currentPage - 1) * pageSize + 1;
   const to = Math.min(currentPage * pageSize, totalItems);
@@ -48,7 +50,7 @@ export default function Pagination({
 
   return (
     <nav className={`mg-pager ${className}`} aria-label="Pagination">
-      <div className="mg-pager-controls">
+      {totalPages > 1 && <div className="mg-pager-controls">
         <button
           type="button"
           className="mg-pager-btn"
@@ -89,11 +91,11 @@ export default function Pagination({
         >
           ▶
         </button>
-      </div>
+      </div>}
 
-      <p className="mg-pager-range" aria-live="polite">
-        Showing {from}–{to} of {totalItems} {itemLabel}
-      </p>
+      <div className="mg-pager-meta"><p className="mg-pager-range" aria-live="polite">Showing {totalItems ? from : 0}–{to} of {totalItems} {itemLabel}</p>
+        {showPageSize && <label className="mg-pager-size">Rows per page <select value={pageSize} onChange={(e) => onPageSizeChange?.(Number(e.target.value))}><option value={10}>10</option><option value={25}>25</option><option value={50}>50</option><option value={100}>100</option></select></label>}
+      </div>
     </nav>
   );
 }

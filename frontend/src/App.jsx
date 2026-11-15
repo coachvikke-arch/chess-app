@@ -1,4 +1,4 @@
-import { Suspense, useEffect, useState } from 'react';
+import { Fragment, Suspense } from 'react';
 import { Routes, Route, Navigate, Link, useLocation } from 'react-router-dom';
 import Navbar from './components/Navbar';
 import Logo from './components/Logo';
@@ -110,36 +110,20 @@ import {
   MessagesPage,
 } from './utils/lazyPages';
 
-/* The two portal shells, plus the two shared sections that have to render INSIDE
-   the caller's shell: the Openings Library and a single bot match are reachable
-   from both sidebars, so wrapping them keeps the header and sidebar on screen
-   instead of replacing the whole page. */
-function AdminLayout({ children }) {
-  return <AdminAppShell>{children}</AdminAppShell>;
-}
-
-function StudentLayout({ children }) {
-  return <StudentAppShell>{children}</StudentAppShell>;
-}
-
+/* Openings and bot pages may be reached from either portal's sidebar. The
+   persistent portal shell is selected once around the route tree below. */
 function OpeningsLayout({ children }) {
   const { user, loading } = useAuth();
   /* Don't guess while auth is resolving — rendering the public page and then
      swapping in a shell a frame later would flash the wrong header. */
   if (loading) return <Spinner />;
-  if (!user) return children;
-  return isAdminRole(user.role)
-    ? <AdminAppShell>{children}</AdminAppShell>
-    : <StudentAppShell>{children}</StudentAppShell>;
+  return children;
 }
 
 function PlayLayout({ children }) {
   const { user, loading } = useAuth();
   if (loading) return <Spinner />;
-  if (!user) return children;
-  return isAdminRole(user.role)
-    ? <AdminAppShell>{children}</AdminAppShell>
-    : <StudentAppShell>{children}</StudentAppShell>;
+  return children;
 }
 
 function LandingHeader() {
@@ -230,6 +214,7 @@ export default function App() {
   const pathname = location.pathname;
   const isAdmin = pathname.startsWith('/admin') || pathname.startsWith('/super') || pathname.startsWith('/coach');
   const isStudent = pathname.startsWith('/student');
+  const isStudentQuiz = pathname.startsWith('/quizzes/');
   const isLiveClass = pathname.startsWith('/live-class');
   const isOpeningsModule = pathname === '/openings' || pathname.startsWith('/openings/');
   /* A single bot match is a full-screen surface that renders inside the caller's
@@ -243,13 +228,21 @@ export default function App() {
     !isLiveClass &&
     (isAdmin ||
       pathname.startsWith('/student/') ||
+      (isStudentQuiz && user?.role === 'student') ||
       (isOpeningsModule && Boolean(user)) ||
       (isFullScreenGame && Boolean(user)));
-
-  // Scroll to the top of the page whenever the route changes.
-  useEffect(() => {
-    window.scrollTo({ top: 0, left: 0 });
-  }, [pathname]);
+  const authorizedShellUser = Boolean(user) && (
+    (isStudent && user.role === 'student') ||
+    (isStudentQuiz && user.role === 'student') ||
+    (isAdmin && isAdminRole(user.role)) ||
+    (!isStudent && !isAdmin && (isOpeningsModule || isFullScreenGame))
+  );
+  const shellPortalIsStudent = isStudent || user?.role === 'student';
+  const PortalShell = !usesShell || !authorizedShellUser
+    ? Fragment
+    : shellPortalIsStudent
+      ? StudentAppShell
+      : AdminAppShell;
 
   return (
     <div>
@@ -273,7 +266,8 @@ export default function App() {
         {!usesShell && (
           <BackButton className="max-w-[90rem] mx-auto px-3 sm:px-4" />
         )}
-        <div className="flex-1" key={location.pathname}>
+        <div className="flex-1">
+          <PortalShell>
           <Suspense fallback={<RouteFallback />}>
           <Routes location={location}>
             {/* Live classroom — full-screen, no portal shell */}
@@ -304,106 +298,107 @@ export default function App() {
             <Route path="/openings/:slug/practice" element={<OpeningsLayout><OpeningPractice /></OpeningsLayout>} />
             <Route path="/openings/:slug" element={<OpeningsLayout><OpeningDetail /></OpeningsLayout>} />
             {/* Student */}
-            <Route path="/student/dashboard" element={<ProtectedRoute role="student"><StudentLayout><StudentDashboard /></StudentLayout></ProtectedRoute>} />
-            <Route path="/student/live-meetings" element={<ProtectedRoute role="student"><FeatureRoute feature="live_game"><StudentLayout><LiveMeetings /></StudentLayout></FeatureRoute></ProtectedRoute>} />
-            <Route path="/student/attendance" element={<ProtectedRoute role="student"><StudentLayout><Attendance /></StudentLayout></ProtectedRoute>} />
-            <Route path="/student/puzzles" element={<ProtectedRoute role="student"><FeatureRoute feature="puzzle_trainer"><StudentLayout><Puzzles /></StudentLayout></FeatureRoute></ProtectedRoute>} />
-            <Route path="/student/trainer" element={<ProtectedRoute role="student"><FeatureRoute feature="puzzle_trainer"><StudentLayout><PuzzleTrainer /></StudentLayout></FeatureRoute></ProtectedRoute>} />
-            <Route path="/student/homework" element={<ProtectedRoute role="student"><FeatureRoute feature="puzzle_trainer"><StudentLayout><StudentHomework /></StudentLayout></FeatureRoute></ProtectedRoute>} />
-            <Route path="/student/homework/:assignmentId" element={<ProtectedRoute role="student"><FeatureRoute feature="puzzle_trainer"><StudentLayout><Puzzles /></StudentLayout></FeatureRoute></ProtectedRoute>} />
-            <Route path="/student/analysis" element={<ProtectedRoute role="student"><StudentLayout><AnalysisBoard /></StudentLayout></ProtectedRoute>} />
-            <Route path="/student/assignments" element={<ProtectedRoute role="student"><FeatureRoute feature="assignments"><StudentLayout><Assignments /></StudentLayout></FeatureRoute></ProtectedRoute>} />
+            <Route path="/student/dashboard" element={<ProtectedRoute role="student"><StudentDashboard /></ProtectedRoute>} />
+            <Route path="/student/live-meetings" element={<ProtectedRoute role="student"><FeatureRoute feature="live_game"><LiveMeetings /></FeatureRoute></ProtectedRoute>} />
+            <Route path="/student/attendance" element={<ProtectedRoute role="student"><Attendance /></ProtectedRoute>} />
+            <Route path="/student/puzzles" element={<ProtectedRoute role="student"><FeatureRoute feature="puzzle_trainer"><Puzzles /></FeatureRoute></ProtectedRoute>} />
+            <Route path="/student/trainer" element={<ProtectedRoute role="student"><FeatureRoute feature="puzzle_trainer"><PuzzleTrainer /></FeatureRoute></ProtectedRoute>} />
+            <Route path="/student/homework" element={<ProtectedRoute role="student"><FeatureRoute feature="puzzle_trainer"><StudentHomework /></FeatureRoute></ProtectedRoute>} />
+            <Route path="/student/homework/:assignmentId" element={<ProtectedRoute role="student"><FeatureRoute feature="puzzle_trainer"><Puzzles /></FeatureRoute></ProtectedRoute>} />
+            <Route path="/student/analysis" element={<ProtectedRoute role="student"><AnalysisBoard /></ProtectedRoute>} />
+            <Route path="/student/assignments" element={<ProtectedRoute role="student"><FeatureRoute feature="assignments"><Assignments /></FeatureRoute></ProtectedRoute>} />
             <Route path="/student/people" element={<ProtectedRoute role="student"><Navigate to="/student/messages?tab=people" replace /></ProtectedRoute>} />
-            <Route path="/student/messages" element={<ProtectedRoute role="student"><FeatureRoute feature="messaging_coach"><StudentLayout><MessagesPage /></StudentLayout></FeatureRoute></ProtectedRoute>} />
-            <Route path="/student/notifications" element={<ProtectedRoute role="student"><StudentLayout><Notifications /></StudentLayout></ProtectedRoute>} />
-            <Route path="/student/leaderboard" element={<ProtectedRoute role="student"><FeatureRoute feature="leaderboard"><StudentLayout><Leaderboard /></StudentLayout></FeatureRoute></ProtectedRoute>} />
-            <Route path="/student/tournaments" element={<ProtectedRoute role="student"><StudentLayout><StudentTournaments /></StudentLayout></ProtectedRoute>} />
-            <Route path="/student/tournaments/game/:gameId" element={<ProtectedRoute role="student"><StudentLayout><TournamentGame /></StudentLayout></ProtectedRoute>} />
-            <Route path="/student/tournaments/:id" element={<ProtectedRoute role="student"><StudentLayout><TournamentDetail /></StudentLayout></ProtectedRoute>} />
-            <Route path="/student/ratings" element={<ProtectedRoute role="student"><FeatureRoute feature="leaderboard"><StudentLayout><Ratings /></StudentLayout></FeatureRoute></ProtectedRoute>} />
-            <Route path="/student/profile" element={<ProtectedRoute role="student"><StudentLayout><Profile /></StudentLayout></ProtectedRoute>} />
-            <Route path="/student/chess-profile" element={<ProtectedRoute role="student"><StudentLayout><ChessProfile /></StudentLayout></ProtectedRoute>} />
-            <Route path="/student/report" element={<ProtectedRoute role="student"><StudentLayout><StudentReport studentMode studentId="me" /></StudentLayout></ProtectedRoute>} />
-            <Route path="/student/performances" element={<ProtectedRoute role="student"><StudentLayout><StudentPerformances /></StudentLayout></ProtectedRoute>} />
-            <Route path="/student/certificates" element={<ProtectedRoute role="student"><StudentLayout><MyCertificates /></StudentLayout></ProtectedRoute>} />
-            <Route path="/student/game-analysis" element={<ProtectedRoute role="student"><StudentLayout><GameAnalysis /></StudentLayout></ProtectedRoute>} />
-            <Route path="/student/review" element={<ProtectedRoute role="student"><FeatureRoute feature="game_analysis"><StudentLayout><GameReview /></StudentLayout></FeatureRoute></ProtectedRoute>} />
+            <Route path="/student/messages" element={<ProtectedRoute role="student"><FeatureRoute feature="messaging_coach"><MessagesPage /></FeatureRoute></ProtectedRoute>} />
+            <Route path="/student/notifications" element={<ProtectedRoute role="student"><Notifications /></ProtectedRoute>} />
+            <Route path="/student/leaderboard" element={<ProtectedRoute role="student"><FeatureRoute feature="leaderboard"><Leaderboard /></FeatureRoute></ProtectedRoute>} />
+            <Route path="/student/tournaments" element={<ProtectedRoute role="student"><StudentTournaments /></ProtectedRoute>} />
+            <Route path="/student/tournaments/game/:gameId" element={<ProtectedRoute role="student"><TournamentGame /></ProtectedRoute>} />
+            <Route path="/student/tournaments/:id" element={<ProtectedRoute role="student"><TournamentDetail /></ProtectedRoute>} />
+            <Route path="/student/ratings" element={<ProtectedRoute role="student"><FeatureRoute feature="leaderboard"><Ratings /></FeatureRoute></ProtectedRoute>} />
+            <Route path="/student/profile" element={<ProtectedRoute role="student"><Profile /></ProtectedRoute>} />
+            <Route path="/student/chess-profile" element={<ProtectedRoute role="student"><ChessProfile /></ProtectedRoute>} />
+            <Route path="/student/report" element={<ProtectedRoute role="student"><StudentReport studentMode studentId="me" /></ProtectedRoute>} />
+            <Route path="/student/performances" element={<ProtectedRoute role="student"><StudentPerformances /></ProtectedRoute>} />
+            <Route path="/student/certificates" element={<ProtectedRoute role="student"><MyCertificates /></ProtectedRoute>} />
+            <Route path="/student/game-analysis" element={<ProtectedRoute role="student"><GameAnalysis /></ProtectedRoute>} />
+            <Route path="/student/review" element={<ProtectedRoute role="student"><FeatureRoute feature="game_analysis"><GameReview /></FeatureRoute></ProtectedRoute>} />
             <Route path="/student/game-history" element={<ProtectedRoute role="student"><Navigate to="/student/review?tab=history" replace /></ProtectedRoute>} />
-            <Route path="/student/gm-games" element={<ProtectedRoute role="student"><FeatureRoute feature="gm_games"><StudentLayout><AdminGmGames readOnly /></StudentLayout></FeatureRoute></ProtectedRoute>} />
-            <Route path="/student/settings" element={<ProtectedRoute role="student"><FeatureRoute feature="profile_settings"><StudentLayout><Settings /></StudentLayout></FeatureRoute></ProtectedRoute>} />
-            <Route path="/student/openings" element={<ProtectedRoute role="student"><FeatureRoute feature="piece_lessons"><StudentLayout><AcademyHome /></StudentLayout></FeatureRoute></ProtectedRoute>} />
-            <Route path="/student/openings/level/:levelSlug" element={<ProtectedRoute role="student"><StudentLayout><AcademyLevel /></StudentLayout></ProtectedRoute>} />
-            <Route path="/student/openings/lessons/:levelSlug/:lessonSlug" element={<ProtectedRoute role="student"><StudentLayout><AcademyLesson /></StudentLayout></ProtectedRoute>} />
-            <Route path="/student/openings/course/:openingSlug" element={<ProtectedRoute role="student"><StudentLayout><AcademyOpening /></StudentLayout></ProtectedRoute>} />
-            <Route path="/quizzes/:id" element={<ProtectedRoute role="student"><StudentLayout><TakeQuiz /></StudentLayout></ProtectedRoute>} />
+            <Route path="/student/gm-games" element={<ProtectedRoute role="student"><FeatureRoute feature="gm_games"><AdminGmGames readOnly /></FeatureRoute></ProtectedRoute>} />
+            <Route path="/student/settings" element={<ProtectedRoute role="student"><FeatureRoute feature="profile_settings"><Settings /></FeatureRoute></ProtectedRoute>} />
+            <Route path="/student/openings" element={<ProtectedRoute role="student"><FeatureRoute feature="piece_lessons"><AcademyHome /></FeatureRoute></ProtectedRoute>} />
+            <Route path="/student/openings/level/:levelSlug" element={<ProtectedRoute role="student"><AcademyLevel /></ProtectedRoute>} />
+            <Route path="/student/openings/lessons/:levelSlug/:lessonSlug" element={<ProtectedRoute role="student"><AcademyLesson /></ProtectedRoute>} />
+            <Route path="/student/openings/course/:openingSlug" element={<ProtectedRoute role="student"><AcademyOpening /></ProtectedRoute>} />
+            <Route path="/quizzes/:id" element={<ProtectedRoute role="student"><TakeQuiz /></ProtectedRoute>} />
             {/* Admin / Coach */}
-            <Route path="/admin/dashboard" element={<ProtectedRoute role="admin"><AdminLayout><AdminDashboard /></AdminLayout></ProtectedRoute>} />
-            <Route path="/admin/command-center" element={<ProtectedRoute role="admin"><AdminLayout><CommandCenter /></AdminLayout></ProtectedRoute>} />
-            <Route path="/admin/reports" element={<ProtectedRoute role="admin"><AdminLayout><AdminReports /></AdminLayout></ProtectedRoute>} />
-            <Route path="/admin/students" element={<ProtectedRoute role="admin"><FeatureRoute feature="student_roster"><AdminLayout><Students /></AdminLayout></FeatureRoute></ProtectedRoute>} />
-            <Route path="/admin/admins" element={<ProtectedRoute role="superadmin"><AdminLayout><Admins /></AdminLayout></ProtectedRoute>} />
-            <Route path="/admin/admins/:id/report" element={<ProtectedRoute role="superadmin"><AdminLayout><AdminReport /></AdminLayout></ProtectedRoute>} />
-            <Route path="/admin/courses" element={<ProtectedRoute role="admin"><AdminLayout><ManageCourses /></AdminLayout></ProtectedRoute>} />
-            <Route path="/admin/courses/create-puzzles" element={<ProtectedRoute role="admin"><AdminLayout><PuzzleGenerator /></AdminLayout></ProtectedRoute>} />
-            <Route path="/admin/performances" element={<ProtectedRoute role="admin"><AdminLayout><ManagePerformances /></AdminLayout></ProtectedRoute>} />
-            <Route path="/admin/classes" element={<ProtectedRoute role="admin"><AdminLayout><ManageClasses /></AdminLayout></ProtectedRoute>} />
-            <Route path="/admin/batches" element={<ProtectedRoute role="admin"><AdminLayout><Batches /></AdminLayout></ProtectedRoute>} />
-            <Route path="/admin/attendance" element={<ProtectedRoute role="admin"><AdminLayout><Attendance /></AdminLayout></ProtectedRoute>} />
-            <Route path="/admin/assignments" element={<ProtectedRoute role="admin"><FeatureRoute feature="assign_lessons"><AdminLayout><ManageAssignments /></AdminLayout></FeatureRoute></ProtectedRoute>} />
+            <Route path="/admin/dashboard" element={<ProtectedRoute role="admin"><AdminDashboard /></ProtectedRoute>} />
+            <Route path="/admin/command-center" element={<ProtectedRoute role="admin"><CommandCenter /></ProtectedRoute>} />
+            <Route path="/admin/reports" element={<ProtectedRoute role="admin"><AdminReports /></ProtectedRoute>} />
+            <Route path="/admin/students" element={<ProtectedRoute role="admin"><FeatureRoute feature="student_roster"><Students /></FeatureRoute></ProtectedRoute>} />
+            <Route path="/admin/admins" element={<ProtectedRoute role="superadmin"><Admins /></ProtectedRoute>} />
+            <Route path="/admin/admins/:id/report" element={<ProtectedRoute role="superadmin"><AdminReport /></ProtectedRoute>} />
+            <Route path="/admin/courses" element={<ProtectedRoute role="admin"><ManageCourses /></ProtectedRoute>} />
+            <Route path="/admin/courses/create-puzzles" element={<ProtectedRoute role="admin"><PuzzleGenerator /></ProtectedRoute>} />
+            <Route path="/admin/performances" element={<ProtectedRoute role="admin"><ManagePerformances /></ProtectedRoute>} />
+            <Route path="/admin/classes" element={<ProtectedRoute role="admin"><ManageClasses /></ProtectedRoute>} />
+            <Route path="/admin/batches" element={<ProtectedRoute role="admin"><Batches /></ProtectedRoute>} />
+            <Route path="/admin/attendance" element={<ProtectedRoute role="admin"><Attendance /></ProtectedRoute>} />
+            <Route path="/admin/assignments" element={<ProtectedRoute role="admin"><FeatureRoute feature="assign_lessons"><ManageAssignments /></FeatureRoute></ProtectedRoute>} />
             <Route path="/admin/worklist" element={<ProtectedRoute role="admin"><Navigate to="/admin/homework" replace /></ProtectedRoute>} />
             <Route path="/admin/game-history" element={<ProtectedRoute role="admin"><Navigate to="/admin/review?tab=history" replace /></ProtectedRoute>} />
-            <Route path="/admin/leaderboard" element={<ProtectedRoute role="admin"><AdminLayout><Leaderboard /></AdminLayout></ProtectedRoute>} />
-            <Route path="/admin/tournaments" element={<ProtectedRoute role="admin"><AdminLayout><ManageTournaments /></AdminLayout></ProtectedRoute>} />
-            <Route path="/admin/tournaments/game/:gameId" element={<ProtectedRoute role="admin"><AdminLayout><TournamentGame /></AdminLayout></ProtectedRoute>} />
-            <Route path="/admin/tournaments/:id" element={<ProtectedRoute role="admin"><AdminLayout><TournamentDetail /></AdminLayout></ProtectedRoute>} />
-            <Route path="/admin/puzzle-listing" element={<ProtectedRoute role="admin"><FeatureRoute feature="puzzle_authoring"><AdminLayout><PuzzleListing /></AdminLayout></FeatureRoute></ProtectedRoute>} />
+            <Route path="/admin/leaderboard" element={<ProtectedRoute role="admin"><Leaderboard /></ProtectedRoute>} />
+            <Route path="/admin/tournaments" element={<ProtectedRoute role="admin"><ManageTournaments /></ProtectedRoute>} />
+            <Route path="/admin/tournaments/game/:gameId" element={<ProtectedRoute role="admin"><TournamentGame /></ProtectedRoute>} />
+            <Route path="/admin/tournaments/:id" element={<ProtectedRoute role="admin"><TournamentDetail /></ProtectedRoute>} />
+            <Route path="/admin/puzzle-listing" element={<ProtectedRoute role="admin"><FeatureRoute feature="puzzle_authoring"><PuzzleListing /></FeatureRoute></ProtectedRoute>} />
             {/* Staff practice. Ungated on purpose: the puzzle_trainer switch is a
                 student setting, and staff solves are not scored or ranked. */}
-            <Route path="/admin/trainer" element={<ProtectedRoute role="admin"><AdminLayout><PuzzleTrainer /></AdminLayout></ProtectedRoute>} />
-            <Route path="/admin/homework" element={<ProtectedRoute role="admin"><AdminLayout><AdminHomework /></AdminLayout></ProtectedRoute>} />
-            <Route path="/admin/messages" element={<ProtectedRoute role="admin"><AdminLayout><MessagesPage /></AdminLayout></ProtectedRoute>} />
-            <Route path="/admin/notifications" element={<ProtectedRoute role="admin"><AdminLayout><Notifications /></AdminLayout></ProtectedRoute>} />
-            <Route path="/admin/announcements" element={<ProtectedRoute role="admin"><AdminLayout><Announcements /></AdminLayout></ProtectedRoute>} />
-            <Route path="/admin/puzzle-assignments" element={<ProtectedRoute role="admin"><AdminLayout><PuzzleSolvingReport /></AdminLayout></ProtectedRoute>} />
-            <Route path="/admin/quizzes" element={<ProtectedRoute role="admin"><AdminLayout><ManageQuizzes /></AdminLayout></ProtectedRoute>} />
-            <Route path="/admin/game-analysis" element={<ProtectedRoute role="admin"><AdminLayout><GameAnalysis /></AdminLayout></ProtectedRoute>} />
-            <Route path="/admin/review" element={<ProtectedRoute role="admin"><FeatureRoute feature="live_review"><AdminLayout><GameReview /></AdminLayout></FeatureRoute></ProtectedRoute>} />
-            <Route path="/admin/analysis" element={<ProtectedRoute role="admin"><AdminLayout><AnalysisBoard /></AdminLayout></ProtectedRoute>} />
-            <Route path="/admin/openings" element={<ProtectedRoute role="admin"><AdminLayout><AcademyHome /></AdminLayout></ProtectedRoute>} />
-            <Route path="/admin/openings/level/:levelSlug" element={<ProtectedRoute role="admin"><AdminLayout><AcademyLevel /></AdminLayout></ProtectedRoute>} />
-            <Route path="/admin/openings/lessons/:levelSlug/:lessonSlug" element={<ProtectedRoute role="admin"><AdminLayout><AcademyLesson /></AdminLayout></ProtectedRoute>} />
-            <Route path="/admin/openings/course/:openingSlug" element={<ProtectedRoute role="admin"><AdminLayout><AcademyOpening /></AdminLayout></ProtectedRoute>} />
-            <Route path="/admin/gm-games" element={<ProtectedRoute role="admin"><AdminLayout><AdminGmGames /></AdminLayout></ProtectedRoute>} />
-            <Route path="/admin/chess-profile" element={<ProtectedRoute role="admin"><AdminLayout><ChessProfile /></AdminLayout></ProtectedRoute>} />
+            <Route path="/admin/trainer" element={<ProtectedRoute role="admin"><PuzzleTrainer /></ProtectedRoute>} />
+            <Route path="/admin/homework" element={<ProtectedRoute role="admin"><AdminHomework /></ProtectedRoute>} />
+            <Route path="/admin/messages" element={<ProtectedRoute role="admin"><MessagesPage /></ProtectedRoute>} />
+            <Route path="/admin/notifications" element={<ProtectedRoute role="admin"><Notifications /></ProtectedRoute>} />
+            <Route path="/admin/announcements" element={<ProtectedRoute role="admin"><Announcements /></ProtectedRoute>} />
+            <Route path="/admin/puzzle-assignments" element={<ProtectedRoute role="admin"><PuzzleSolvingReport /></ProtectedRoute>} />
+            <Route path="/admin/quizzes" element={<ProtectedRoute role="admin"><ManageQuizzes /></ProtectedRoute>} />
+            <Route path="/admin/game-analysis" element={<ProtectedRoute role="admin"><GameAnalysis /></ProtectedRoute>} />
+            <Route path="/admin/review" element={<ProtectedRoute role="admin"><FeatureRoute feature="live_review"><GameReview /></FeatureRoute></ProtectedRoute>} />
+            <Route path="/admin/analysis" element={<ProtectedRoute role="admin"><AnalysisBoard /></ProtectedRoute>} />
+            <Route path="/admin/openings" element={<ProtectedRoute role="admin"><AcademyHome /></ProtectedRoute>} />
+            <Route path="/admin/openings/level/:levelSlug" element={<ProtectedRoute role="admin"><AcademyLevel /></ProtectedRoute>} />
+            <Route path="/admin/openings/lessons/:levelSlug/:lessonSlug" element={<ProtectedRoute role="admin"><AcademyLesson /></ProtectedRoute>} />
+            <Route path="/admin/openings/course/:openingSlug" element={<ProtectedRoute role="admin"><AcademyOpening /></ProtectedRoute>} />
+            <Route path="/admin/gm-games" element={<ProtectedRoute role="admin"><AdminGmGames /></ProtectedRoute>} />
+            <Route path="/admin/chess-profile" element={<ProtectedRoute role="admin"><ChessProfile /></ProtectedRoute>} />
             {/* Student-wise view of ASSIGNED students' linked profiles. The role
                 guard keeps students out of the route; the API refuses them too. */}
-            <Route path="/admin/chess-profiles" element={<ProtectedRoute role="admin"><AdminLayout><StudentChessProfiles /></AdminLayout></ProtectedRoute>} />
-            <Route path="/admin/chat-requests" element={<ProtectedRoute role="admin"><AdminLayout><ChatRequestsPage /></AdminLayout></ProtectedRoute>} />
-            <Route path="/admin/admins/:id/performance" element={<ProtectedRoute role="superadmin"><AdminLayout><CoachReport /></AdminLayout></ProtectedRoute>} />
-            <Route path="/admin/settings" element={<ProtectedRoute role="admin"><AdminLayout><Settings /></AdminLayout></ProtectedRoute>} />
-            <Route path="/admin/profile" element={<ProtectedRoute role="admin"><AdminLayout><AdminProfile /></AdminLayout></ProtectedRoute>} />
+            <Route path="/admin/chess-profiles" element={<ProtectedRoute role="admin"><StudentChessProfiles /></ProtectedRoute>} />
+            <Route path="/admin/chat-requests" element={<ProtectedRoute role="admin"><ChatRequestsPage /></ProtectedRoute>} />
+            <Route path="/admin/admins/:id/performance" element={<ProtectedRoute role="superadmin"><CoachReport /></ProtectedRoute>} />
+            <Route path="/admin/settings" element={<ProtectedRoute role="admin"><Settings /></ProtectedRoute>} />
+            <Route path="/admin/profile" element={<ProtectedRoute role="admin"><AdminProfile /></ProtectedRoute>} />
             {/* Super Admin */}
-            <Route path="/super" element={<ProtectedRoute role="superadmin"><AdminLayout><SuperAdmin /></AdminLayout></ProtectedRoute>} />
+            <Route path="/super" element={<ProtectedRoute role="superadmin"><SuperAdmin /></ProtectedRoute>} />
             <Route path="/super/features" element={<ProtectedRoute role="superadmin"><Navigate to="/super" replace /></ProtectedRoute>} />
             <Route path="/super/sidebar-order" element={<ProtectedRoute role="superadmin"><Navigate to="/super?section=sidebar" replace /></ProtectedRoute>} />
-            <Route path="/super/certificates" element={<ProtectedRoute role="superadmin"><AdminLayout><Certificates /></AdminLayout></ProtectedRoute>} />
-            <Route path="/super/certificates/:studentId" element={<ProtectedRoute role="superadmin"><AdminLayout><StudentCertificates /></AdminLayout></ProtectedRoute>} />
-            <Route path="/super/certificate-settings" element={<ProtectedRoute role="superadmin"><AdminLayout><CertificateSettings /></AdminLayout></ProtectedRoute>} />
+            <Route path="/super/certificates" element={<ProtectedRoute role="superadmin"><Certificates /></ProtectedRoute>} />
+            <Route path="/super/certificates/:studentId" element={<ProtectedRoute role="superadmin"><StudentCertificates /></ProtectedRoute>} />
+            <Route path="/super/certificate-settings" element={<ProtectedRoute role="superadmin"><CertificateSettings /></ProtectedRoute>} />
             {/* Tatics */}
             <Route path="/tactics" element={<TacticsPage />} />
             <Route path="/tactics/:slug" element={<TacticPage />} />
-            <Route path="/student/tactics" element={<ProtectedRoute role="student"><FeatureRoute feature="chess_tactics"><StudentLayout><TacticsPage /></StudentLayout></FeatureRoute></ProtectedRoute>} />
-            <Route path="/student/tactics/:slug" element={<ProtectedRoute role="student"><FeatureRoute feature="chess_tactics"><StudentLayout><TacticPage /></StudentLayout></FeatureRoute></ProtectedRoute>} />
+            <Route path="/student/tactics" element={<ProtectedRoute role="student"><FeatureRoute feature="chess_tactics"><TacticsPage /></FeatureRoute></ProtectedRoute>} />
+            <Route path="/student/tactics/:slug" element={<ProtectedRoute role="student"><FeatureRoute feature="chess_tactics"><TacticPage /></FeatureRoute></ProtectedRoute>} />
             {/* Board Vision */}
-            <Route path="/student/board-vision" element={<ProtectedRoute role="student"><StudentLayout><BoardVision /></StudentLayout></ProtectedRoute>} />
-            <Route path="/admin/tactics" element={<ProtectedRoute role="admin"><FeatureRoute feature="chess_tactics"><AdminLayout><TacticsPage /></AdminLayout></FeatureRoute></ProtectedRoute>} />
-            <Route path="/admin/tactics/:slug" element={<ProtectedRoute role="admin"><FeatureRoute feature="chess_tactics"><AdminLayout><TacticPage /></AdminLayout></FeatureRoute></ProtectedRoute>} />
+            <Route path="/student/board-vision" element={<ProtectedRoute role="student"><BoardVision /></ProtectedRoute>} />
+            <Route path="/admin/tactics" element={<ProtectedRoute role="admin"><FeatureRoute feature="chess_tactics"><TacticsPage /></FeatureRoute></ProtectedRoute>} />
+            <Route path="/admin/tactics/:slug" element={<ProtectedRoute role="admin"><FeatureRoute feature="chess_tactics"><TacticPage /></FeatureRoute></ProtectedRoute>} />
             {/* 403 page */}
             <Route path="/access-denied" element={<AccessDenied />} />
             {/* Catch-all 404 — must be LAST */}
             <Route path="*" element={<NotFound />} />
           </Routes>
           </Suspense>
+          </PortalShell>
         </div>
       </div>
     </div>

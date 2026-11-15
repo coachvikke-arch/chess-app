@@ -19,6 +19,8 @@ import { useTournamentReport } from '../features/tournaments/useTournamentReport
 import TournamentReportSection from '../features/tournaments/TournamentReportSection';
 import usePageTitle from '../hooks/usePageTitle';
 import { APP_NAME } from '../config/brand';
+import ReportDateFilter from '../components/reports/ReportDateFilter';
+import Pagination from '../components/Pagination';
 
 /* Admin "Student report" — opened from the roster in a new tab at
    /students/:studentId/report. Fetches everything it needs from the URL and can
@@ -649,6 +651,13 @@ export default function StudentReport({ studentId: propId, studentMode = false }
   const [error, setError] = useState('');
   const [busyPdf, setBusyPdf] = useState(false);
   const [section, setSection] = useState('combined');
+  const [dateRange, setDateRange] = useState({ from: '', to: '' });
+  const [activityPage, setActivityPage] = useState(1);
+  const [activityPageSize, setActivityPageSize] = useState(10);
+  const [attendancePage, setAttendancePage] = useState(1);
+  const [attendancePageSize, setAttendancePageSize] = useState(10);
+  const [homeworkPage, setHomeworkPage] = useState(1);
+  const [homeworkPageSize, setHomeworkPageSize] = useState(10);
 
   /* ── Section switching must not disturb the rail, or the page ──────────────
    *
@@ -709,6 +718,12 @@ export default function StudentReport({ studentId: propId, studentMode = false }
   const [chessError, setChessError] = useState('');
   const [chessFetched, setChessFetched] = useState(false);
   const [printJob, setPrintJob] = useState(null); // { chess, tournaments } while the hidden print layout is mounted
+
+  useEffect(() => {
+    setActivityPage(1);
+    setAttendancePage(1);
+    setHomeworkPage(1);
+  }, [dateRange.from, dateRange.to, hwQuery, hwStatus, sort]);
 
   /* Tournament report: loads on the first visit to the tab (or when the PDF
      export needs it) so the report page stays light until it is opened. */
@@ -920,20 +935,44 @@ export default function StudentReport({ studentId: propId, studentMode = false }
   if (!report) return <div className="max-w-6xl mx-auto px-4 pt-8"><Spinner /></div>;
 
   const { profile, rating, performance, activity, coachNotes, assignmentsList, classes } = report;
-  const rated = performance.rated;
+  const inDateRange = (value) => {
+    const day = String(value || '').slice(0, 10);
+    return (!dateRange.from && !dateRange.to) || (!!day && (!dateRange.from || day >= dateRange.from) && (!dateRange.to || day <= dateRange.to));
+  };
+  const reportActivity = (activity || []).filter((a) => inDateRange(a.date));
+  const reportAssignments = (assignmentsList || []).filter((a) => inDateRange(a.assignedAt || a.submittedAt || a.dueDate));
+  const reportAttendance = (classes?.attended || []).filter((c) => inDateRange(c.classDate));
   const online = performance.online;
   const tdf = performance.tournaments;
 
-  const hist = (rating?.history || []).slice();
+  const hist = (rating?.history || []).filter((h) => inDateRange(h.played_at));
+  const rangeActive = Boolean(dateRange.from || dateRange.to);
+  const rated = rangeActive ? {
+    games: hist.length,
+    wins: hist.filter((h) => String(h.result || '').toLowerCase().includes('win')).length,
+    draws: hist.filter((h) => String(h.result || '').toLowerCase().includes('draw')).length,
+    losses: hist.filter((h) => String(h.result || '').toLowerCase().includes('loss')).length,
+  } : performance.rated;
+  const attendanceSummary = rangeActive ? (() => {
+    const present = reportAttendance.filter((c) => c.attendance === 'present').length;
+    const late = reportAttendance.filter((c) => c.attendance === 'late').length;
+    const total = reportAttendance.length;
+    return { present, late, total, pct: total ? Math.round((present / total) * 100) : 0 };
+  })() : performance.attendance;
+  const puzzleSummary = rangeActive ? (() => {
+    const puzzles = reportAssignments.filter((a) => a.kind === 'puzzle');
+    const solved = puzzles.filter((a) => a.submitted).length;
+    return { solved, accuracy: puzzles.length ? Math.round((solved / puzzles.length) * 100) : 0 };
+  })() : performance.puzzles;
   const chartStep = Math.max(1, Math.ceil(hist.length / 24));
   const chartData = hist.filter((h, i) => i % chartStep === 0 || i === hist.length - 1);
   const chartPoints = chartData.map((h, i) => ({ x: i, value: h.rating }));
   const chartLabels = chartData.map((h) => fmtDate(h.played_at).split(' ').slice(0, 2).join(' '));
 
-  const ledgerCompleted = assignmentsList.filter((a) => a.submitted);
-  const ledgerPending = assignmentsList.filter((a) => !a.submitted);
+  const ledgerCompleted = reportAssignments.filter((a) => a.submitted);
+  const ledgerPending = reportAssignments.filter((a) => !a.submitted);
 
-  const sorted = assignmentsList.slice().sort((a, b) => {
+  const sorted = reportAssignments.slice().sort((a, b) => {
     if (sort === 'title') return a.title.localeCompare(b.title);
     const da = new Date(a.assignedAt || 0).getTime();
     const db = new Date(b.assignedAt || 0).getTime();
@@ -956,16 +995,22 @@ export default function StudentReport({ studentId: propId, studentMode = false }
     return true;
   });
   const filteredFolders = buildFolders(filteredSorted, sort);
+  const homeworkPages = Math.max(1, Math.ceil(filteredFolders.length / homeworkPageSize));
+  const homeworkPageRows = filteredFolders.slice((homeworkPage - 1) * homeworkPageSize, homeworkPage * homeworkPageSize);
+  const activityPages = Math.max(1, Math.ceil(reportActivity.length / activityPageSize));
+  const attendancePages = Math.max(1, Math.ceil(reportAttendance.length / attendancePageSize));
+  const activityRows = reportActivity.slice((activityPage - 1) * activityPageSize, activityPage * activityPageSize);
+  const attendanceRows = reportAttendance.slice((attendancePage - 1) * attendancePageSize, attendancePage * attendancePageSize);
   const filteredCompleted = filteredSorted.filter((a) => a.submitted);
   const filteredPending = filteredSorted.filter((a) => !a.submitted);
-  const hwFilterActive = hwQuery.trim() !== '' || hwStatus !== 'all';
+  const hwFilterActive = hwQuery.trim() !== '' || hwStatus !== 'all' || !!dateRange.from || !!dateRange.to;
 
   /* Brand-new account: nothing recorded anywhere yet. One banner explains the
      empty sections below instead of leaving a wall of zeroes unexplained. */
   const isEmptyReport =
-    (activity || []).length === 0 &&
-    (assignmentsList || []).length === 0 &&
-    (classes?.attended || []).length === 0 &&
+    reportActivity.length === 0 &&
+    reportAssignments.length === 0 &&
+    reportAttendance.length === 0 &&
     (rated?.games || 0) === 0 &&
     (online?.games || 0) === 0 &&
     (performance?.attendance?.total || 0) === 0;
@@ -1055,9 +1100,9 @@ export default function StudentReport({ studentId: propId, studentMode = false }
         <SafeStat icon="♚" label="Rapid Rating" value={rating?.currentRating ?? '—'} sub={`peak ${rating?.peakRating ?? '—'}`} />
         <SafeStat icon="♞" label="Rated games" value={rated.games} sub={`${rated.wins}W · ${rated.draws}D · ${rated.losses}L`} />
         <SafeStat icon="♗" label="Win rate" value={`${winRate(rated.wins, rated.losses, rated.draws)}%`} sub="rated matches" />
-        <SafeStat icon="♘" label="Attendance" value={`${performance.attendance.pct}%`} sub={`${performance.attendance.present}/${performance.attendance.total} classes`} />
-        <SafeStat icon="♟" label="Puzzles solved" value={performance.puzzles.solved} sub={`${performance.puzzles.accuracy}% accuracy`} />
-        <SafeStat icon="♔" label="Academy XP" value={performance.academy.xp} sub={`${performance.academy.badges} badges`} />
+        <SafeStat icon="♘" label="Attendance" value={`${attendanceSummary.pct}%`} sub={`${attendanceSummary.present}/${attendanceSummary.total} classes`} />
+        <SafeStat icon="♟" label="Puzzles solved" value={puzzleSummary.solved} sub={`${puzzleSummary.accuracy}% accuracy`} />
+        <SafeStat icon="♔" label="Academy XP" value={rangeActive ? '—' : performance.academy.xp} sub={rangeActive ? 'No dated breakdown' : `${performance.academy.badges} badges`} />
       </div>
     );
   }
@@ -1111,9 +1156,9 @@ export default function StudentReport({ studentId: propId, studentMode = false }
     return (
       <div className="chess-card !p-5 mb-6">
         <h2 className="font-display font-semibold text-lg text-ivory-100 mb-3">Recent activity</h2>
-        {activity.length === 0 && <p className="text-sm text-ivory-500">No activity recorded yet.</p>}
+        {reportActivity.length === 0 && <p className="text-sm text-ivory-500">{dateRange.from || dateRange.to ? 'No records found for this date range.' : 'No activity recorded yet.'}</p>}
         <ul className="divide-y divide-white/5">
-          {activity.map((a, i) => {
+          {activityRows.map((a, i) => {
             const meta = TYPE_META[a.type] || TYPE_META.puzzle;
             return (
               <li key={i} className="flex items-center gap-3 py-2.5">
@@ -1127,12 +1172,13 @@ export default function StudentReport({ studentId: propId, studentMode = false }
             );
           })}
         </ul>
+        <Pagination currentPage={activityPage} totalPages={activityPages} totalItems={reportActivity.length} pageSize={activityPageSize} onPageChange={setActivityPage} showPageSize onPageSizeChange={(size) => { setActivityPageSize(size); setActivityPage(1); }} itemLabel="records" />
       </div>
     );
   }
 
   function renderClassesQuota() {
-    const att = performance.attendance;
+    const att = attendanceSummary;
     return (
       <div className="space-y-5">
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
@@ -1143,9 +1189,9 @@ export default function StudentReport({ studentId: propId, studentMode = false }
         </div>
         <div className="chess-card !p-5">
           <h2 className="font-display font-semibold text-lg text-ivory-100 mb-3">Attended classes</h2>
-          {classes.attended.length === 0 && <p className="text-sm text-ivory-500">No classes attended yet.</p>}
+          {reportAttendance.length === 0 && <p className="text-sm text-ivory-500">{dateRange.from || dateRange.to ? 'No records found for this date range.' : 'No classes attended yet.'}</p>}
           <ul className="divide-y divide-white/5">
-            {classes.attended.map((c, i) => (
+            {attendanceRows.map((c, i) => (
               <li key={i} className="flex items-center gap-3 py-2.5">
                 <span className="grid place-items-center w-9 h-9 rounded-xl text-base bg-[var(--ink-900)] text-gold-400">♘</span>
                 <div className="flex-1 min-w-0">
@@ -1156,6 +1202,7 @@ export default function StudentReport({ studentId: propId, studentMode = false }
               </li>
             ))}
           </ul>
+          <Pagination currentPage={attendancePage} totalPages={attendancePages} totalItems={reportAttendance.length} pageSize={attendancePageSize} onPageChange={setAttendancePage} showPageSize onPageSizeChange={(size) => { setAttendancePageSize(size); setAttendancePage(1); }} itemLabel="classes" />
         </div>
       </div>
     );
@@ -1179,7 +1226,7 @@ export default function StudentReport({ studentId: propId, studentMode = false }
   }
 
   function renderAssignmentsStat() {
-    const total = assignmentsList.length;
+    const total = reportAssignments.length;
     const completed = ledgerCompleted.length;
     const pending = total - completed;
     const avg = completed && ledgerCompleted.length
@@ -1264,7 +1311,7 @@ export default function StudentReport({ studentId: propId, studentMode = false }
             <option value="overdue">Overdue</option>
           </select>
           {hwFilterActive && (
-            <Button onClick={() => { setHwQuery(''); setHwStatus('all'); }} variant="secondary" size="md" className="!py-2 !px-3 !text-sm">
+            <Button onClick={() => { setHwQuery(''); setHwStatus('all'); setDateRange({ from: '', to: '' }); }} variant="secondary" size="md" className="!py-2 !px-3 !text-sm">
               Clear
             </Button>
           )}
@@ -1272,7 +1319,7 @@ export default function StudentReport({ studentId: propId, studentMode = false }
 
         {sorted.length === 0 && (
           <p className="text-sm text-ivory-500 py-6 text-center">
-            No puzzle homework yet. Puzzles the coach assigns (or the student solves in practice) appear here as completed / incomplete entries.
+            {dateRange.from || dateRange.to ? 'No records found for this date range.' : 'No puzzle homework yet. Puzzles the coach assigns (or the student solves in practice) appear here as completed / incomplete entries.'}
           </p>
         )}
         {sorted.length > 0 && filteredSorted.length === 0 && (
@@ -1282,7 +1329,7 @@ export default function StudentReport({ studentId: propId, studentMode = false }
         )}
 
         <div className="space-y-3">
-          {filteredFolders.map((f, i) => {
+          {homeworkPageRows.map((f, i) => {
             const open = isFolderOpen(f.key, i);
             const isPuzzle = f.kind === 'puzzle';
             return (
@@ -1331,6 +1378,7 @@ export default function StudentReport({ studentId: propId, studentMode = false }
             );
           })}
         </div>
+        <Pagination currentPage={homeworkPage} totalPages={homeworkPages} totalItems={filteredFolders.length} pageSize={homeworkPageSize} onPageChange={setHomeworkPage} showPageSize onPageSizeChange={(size) => { setHomeworkPageSize(size); setHomeworkPage(1); }} itemLabel="folders" />
       </div>
     );
   }
@@ -1439,6 +1487,7 @@ export default function StudentReport({ studentId: propId, studentMode = false }
 
       <div>
         {renderHeader()}
+        <ReportDateFilter value={dateRange} onChange={setDateRange} />
 
         {isEmptyReport && (
           <div className="chess-card !p-5 mb-6 text-center">

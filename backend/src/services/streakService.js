@@ -28,15 +28,18 @@ async function readLoginStreak(userId) {
  * Record activity "today" for a user and grow/reset their login streak.
  * Idempotent per day — calling it twice the same day never double counts.
  */
-async function touchLoginStreak(userId) {
-  const today = dayKey(new Date());
+async function touchLoginStreak(userId, localDate) {
+  const parsedLocalDate = typeof localDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(localDate)
+    ? parseDay(localDate)
+    : null;
+  const today = parsedLocalDate && dayKey(parsedLocalDate) === localDate ? localDate : dayKey(new Date());
   const { streak, lastLogin } = await readLoginStreak(userId);
 
   let next = streak;
   if (lastLogin !== today) {
     const last = parseDay(lastLogin);
-    const yesterday = new Date();
-    yesterday.setDate(yesterday.getDate() - 1);
+    const yesterday = parseDay(today);
+    yesterday.setUTCDate(yesterday.getUTCDate() - 1);
     next = last && last.toISOString().slice(0, 10) === dayKey(yesterday) ? streak + 1 : 1;
   }
 
@@ -46,7 +49,10 @@ async function touchLoginStreak(userId) {
     [userId, next, today]
   );
 
-  return { streak: next, lastLogin: today };
+  const prior = parseDay(lastLogin);
+  const current = parseDay(today);
+  const missedDays = prior ? Math.max(0, Math.floor((current - prior) / 86400000) - 1) : 0;
+  return { streak: next, lastLogin: today, missedDays };
 }
 
 async function getLoginStreak(userId) {

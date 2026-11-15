@@ -6,6 +6,7 @@ import TournamentFormModal from './TournamentFormModal';
 import Pagination, { PAGE_SIZE } from '../../components/Pagination';
 import { usePagination } from '../../hooks/usePagination';
 import './tournaments.css';
+import { SkeletonRegion, SkeletonCard } from '../../components/skeleton';
 import Button from '../../components/Button';
 import usePageTitle from '../../hooks/usePageTitle';
 
@@ -67,7 +68,7 @@ export default function TournamentList({ admin }) {
       )}
 
       {error && <div className="tn-error">{error}</div>}
-      {items === null && !error && <div className="tn-empty"><span className="big">♞</span>Loading tournaments…</div>}
+      {items === null && !error && <SkeletonRegion label="Loading tournaments" className="tn-grid"><SkeletonCard /><SkeletonCard /><SkeletonCard /></SkeletonRegion>}
       {items && shown.length === 0 && (
         <div className="tn-empty"><span className="big">🏆</span>
           {filter === 'all' ? (admin ? 'No tournaments yet - create the first one.' : 'No tournaments yet. Check back soon!') : 'Nothing here right now.'}

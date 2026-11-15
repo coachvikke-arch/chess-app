@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, Suspense } from 'react';
+import { useEffect, useState, useCallback, useRef, Suspense } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useChat } from '../context/ChatContext';
@@ -47,6 +47,7 @@ export default function AppShell({ portal = 'admin', children }) {
   const roleLabel = isSuper ? 'Super Admin' : portal === 'student' ? 'Student' : 'Coach';
   const basePath = portal === 'student' ? '/student' : '/admin';
   const location = useLocation();
+  const contentRef = useRef(null);
 
   const { orderFor } = useSidebarOrder();
 
@@ -79,6 +80,12 @@ export default function AppShell({ portal = 'admin', children }) {
      leave the drawer open over the section it had just replaced. */
   useEffect(() => {
     setMobileOpen(false);
+  }, [location.pathname]);
+
+  /* Keep route scroll management inside the content pane. The sidebar has an
+     independent scroll container and must not be affected by navigation. */
+  useEffect(() => {
+    contentRef.current?.scrollTo({ top: 0, left: 0 });
   }, [location.pathname]);
 
   /* Lock body scroll when mobile drawer is open. */
@@ -136,7 +143,7 @@ export default function AppShell({ portal = 'admin', children }) {
 
           <main className="admin-main" role="main">
             {/* Scrollable content area */}
-            <div className={`admin-content ${isFullHeight ? 'admin-content-full' : ''}`}>
+            <div ref={contentRef} className={`admin-content ${isFullHeight ? 'admin-content-full' : ''}`}>
               {!isFullHeight && <BackButton className="px-4" inShell />}
               {/* Keyed by pathname: ONLY this inner block remounts per route
                   (the page itself), never the shell. The 150ms fade is applied

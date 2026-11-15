@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { listTournaments, joinTournament, errorMessage } from '../../services/tournamentsApi';
 import { FORMAT_META, countdown, fmtDateTime, timeControlLabel, useNow } from './tournamentUtils';
 import Button from '../../components/Button';
+import { SkeletonList, SkeletonRegion } from '../../components/skeleton';
 
 /* Status shown on a dashboard card. "Registration open" is an upcoming
    tournament that students may join themselves. */
@@ -96,7 +97,7 @@ export default function DashboardTournaments({ role = 'student' }) {
       {err && <p className="text-sm text-red-400 mb-2">{err}</p>}
 
       {items === null && !err && (
-        <div className="chess-card text-sm text-ivory-500">Loading tournaments…</div>
+        <div className="chess-card" aria-busy="true"><SkeletonRegion label="Loading tournaments"><SkeletonList rows={3} /></SkeletonRegion></div>
       )}
 
       {items && items.length === 0 && (

@@ -1008,7 +1008,7 @@ async function leaderboard({ limit = 100, hidePrivate = true } = {}) {
        current_rating is still selected only so the API response shape does not
        break existing consumers; no screen displays it any more. */
     db.query(
-      `SELECT u.id AS user_id, u.name, u.avatar_config, u.profile_image, s.id AS student_id, s.current_rating,
+      `SELECT u.id AS user_id, u.name, u.avatar_config, u.profile_image, u.updated_at, s.id AS student_id, s.current_rating,
               s.peak_rating, s.highest_level, s.games_played, s.group_id, g.name AS group_name,
               rt.rating AS rapid_rating, rt.peak_rating AS rapid_peak,
               rt.games_played AS rapid_games, rt.highest_level AS rapid_level
@@ -1345,7 +1345,7 @@ async function ratingAnalytics({ limit = 20, hidePrivate = true, viewerStudentId
                 ) AS rn
          FROM per_class
        )
-       SELECT b.student_id, u.name, u.avatar_config, u.profile_image, b.time_class,
+       SELECT b.student_id, u.name, u.avatar_config, u.profile_image, u.updated_at, b.time_class,
               b.start_rating, b.end_rating,
               (b.end_rating - b.start_rating)::int AS delta, b.games
        FROM best b
@@ -1397,8 +1397,12 @@ async function ratingAnalytics({ limit = 20, hidePrivate = true, viewerStudentId
               h.time_control, h.time_class, h.game_type, h.played_at,
               h.opponent_id,
               COALESCE(ou.name, h.opponent_name) AS opponent_name,
+              os.id AS opponent_student_id,
+              ou.avatar_config AS opponent_avatar_config,
+              ou.profile_image AS opponent_profile_image,
+              ou.updated_at AS opponent_updated_at,
               s.id AS student_id, u.name AS student_name,
-              u.avatar_config, u.profile_image
+              u.avatar_config, u.profile_image, u.updated_at
        FROM rating_history h
        JOIN students s ON s.id = h.student_id
        JOIN users u ON u.id = s.user_id

@@ -2,6 +2,7 @@ import Portal from './Portal';
 
 import Button from './Button';
 import usePageTitle from '../hooks/usePageTitle';
+import { Skeleton, SkeletonRegion, SkeletonText } from './skeleton';
 
 export function Piece({ p = '♞', className = '', spin, soft }) {
   const cls = [
@@ -92,12 +93,11 @@ export function Chip({ children, tone = '' }) {
 
 export function Spinner({ text = 'Preparing the board…' }) {
   return (
-    <div className="p-12 text-center">
-      <div className="chess-spinner">
-        <span>♞</span>
-      </div>
-      <p className="mt-4 text-ivory-500 text-sm animate-pulse">{text}</p>
-    </div>
+    <SkeletonRegion label={text} className="mz-loading-region">
+      <Skeleton width="min(100%, 42rem)" height="1.4rem" />
+      <SkeletonText lines={3} />
+      <Skeleton width="min(100%, 42rem)" height="8rem" />
+    </SkeletonRegion>
   );
 }
 
@@ -108,11 +108,11 @@ export function Spinner({ text = 'Preparing the board…' }) {
  */
 export function RouteFallback() {
   return (
-    <div className="route-fallback" role="status" aria-label="Loading section">
-      <div className="chess-spinner">
-        <span>♞</span>
-      </div>
-    </div>
+    <SkeletonRegion label="Loading section" className="route-fallback">
+      <Skeleton width="38%" height="2rem" />
+      <div className="mz-route-skeleton-grid"><Skeleton height="7rem" /><Skeleton height="7rem" /><Skeleton height="7rem" /></div>
+      <Skeleton height="18rem" />
+    </SkeletonRegion>
   );
 }
 

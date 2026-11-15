@@ -28,6 +28,8 @@ import { useAuth } from '../context/AuthContext';
 import { useToast } from '../components/Toast';
 import { matchRequestKey } from '../utils/toastDedupe';
 import { useFullHeight } from '../context/FullHeightContext';
+import { useBot } from '../../matezone-bot/bot/BotContext.jsx';
+import { useGameResultBot } from '../../matezone-bot/bot/botTriggers.js';
 import {
   listUsers,
   listGames,
@@ -682,6 +684,8 @@ function useStableCallback(fn) {
 }
 
 export default function AnalysisBoard() {
+  const { setSuppressed } = useBot();
+  const notifyGameResult = useGameResultBot();
   usePageTitle('Analysis Board');
   const { requestFullHeight } = useFullHeight();
   /* Reset on unmount: the shell is now persistent across routes, so the
@@ -3661,6 +3665,10 @@ export default function AnalysisBoard() {
      legal move still has replies in it, so the board stayed draggable underneath
      a finished game. */
   const gameOver = onlineFinished || Boolean(clockOver) || (status.over && moves.length > 0);
+  useEffect(() => {
+    setSuppressed(Boolean(inOnline || (computerOn && !gameOver)));
+  }, [inOnline, computerOn, gameOver, setSuppressed]);
+  useEffect(() => () => setSuppressed(false), [setSuppressed]);
   const boardInteractive = reviewMode || liveReviewing ? false  // review: navigate only, no new moves
     : gameOver ? false
     : inOnline
@@ -3842,6 +3850,9 @@ export default function AnalysisBoard() {
     const key = gameId;
     if (resultSeenRef.current === key) return;
     resultSeenRef.current = key;
+    if (moves.length > 0 && ['win', 'loss', 'draw'].includes(finalResult.tone)) {
+      notifyGameResult(finalResult.tone);
+    }
     setResultPopup(finalResult);
     setResultDismiss(false);
 
@@ -3938,7 +3949,7 @@ export default function AnalysisBoard() {
       runGameAnalysis(true);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [finalResult, gameAnalysis, analyzing, onlineFinished, onlineGame?.id, user?.id]);
+  }, [finalResult, gameAnalysis, analyzing, onlineFinished, onlineGame?.id, user?.id, notifyGameResult]);
 
   /* move-quality stats for the student's side + rule-based coach message */
   const resultPopupProps = useMemo(() => {
