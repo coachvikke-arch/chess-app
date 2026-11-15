@@ -75,7 +75,7 @@
 .report-date-error { margin-top: .35rem; color: #dc2626; font-size: .72rem; }
 .mg-pager-meta { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: .75rem; }
 .mg-pager-size { display: inline-flex; align-items: center; gap: .4rem; font-size: .75rem; color: var(--ivory-500, #64748b); }
-@media (max-width: 640px) { .report-date-controls { align-items: stretch; flex-direction: column; } .report-date-controls label { width: 100%; } .report-date-actions { width: 100%; } }
+@media (max-width: 640px) { .report-date-controls { align-items: stretch; flex-direction: column; } .report-date-controls label { width: 100%; flex: 0 0 auto; } .report-date-actions { width: 100%; } }
 
 /* ── global font-weight bump ──────────────────────────────────────────────
    Every weight utility steps up one notch so all words and letters read
