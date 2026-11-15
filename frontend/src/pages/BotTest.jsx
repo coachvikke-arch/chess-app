@@ -68,6 +68,22 @@ function Panel() {
       .then(() => showBotFrom("classReminder5", "fly", vars, { duration: 6000, flyToEdge: true }));
   };
 
+  const winCombo = async () => {
+    await showBotFrom("win", "jump", {}, { duration: MOOD_MS.jump + 300 });
+    await showBotFrom("win", "happy", {}, { duration: 6200 });
+  };
+
+  const lossCombo = () => showBotFrom("loss", "sad", {}, { duration: 6200 });
+
+  const streakLossCombo = async () => {
+    await showBotFrom("loss", "sad", {}, { duration: 6200 });
+    await showBotFrom("cry", "cry", {}, { duration: 6200 });
+  };
+
+  const drawCombo = () => showBotFrom("draw", "neutral", {});
+
+  const chatCombo = () => showBotFrom("chatFirstMessage", "alert", {}, { duration: 3600 });
+
   return (
     <div style={{ padding: 24, maxWidth: 760, font: "500 15px/1.5 system-ui, sans-serif", color: "#0b2347" }}>
       <h1 style={{ font: "700 22px system-ui, sans-serif", margin: "0 0 6px" }}>Bot animation test</h1>
@@ -93,6 +109,11 @@ function Panel() {
         <button type="button" style={btn} onClick={loginCombo}>Login combo (streak 4)</button>
         <button type="button" style={btn} onClick={missedDayCombo}>Missed day combo</button>
         <button type="button" style={btn} onClick={reminderCombo}>Class reminder combo</button>
+        <button type="button" style={btn} onClick={winCombo}>Win (jump then happy)</button>
+        <button type="button" style={btn} onClick={lossCombo}>Loss (sad)</button>
+        <button type="button" style={btn} onClick={streakLossCombo}>Third loss (sad then cry)</button>
+        <button type="button" style={btn} onClick={drawCombo}>Draw (neutral)</button>
+        <button type="button" style={btn} onClick={chatCombo}>Chat first message (alert)</button>
       </div>
     </div>
   );
