@@ -1,7 +1,7 @@
-/* The helper sits above the app shell (sidebar 999) but below in-app dialogs
-   (modals 9100, popups 9200, toasts 9500, alerts 9999), so it never covers a
-   dialog the student has to answer. */
-.mzbot{position:fixed;z-index:8500;touch-action:none;user-select:none}
+/* The helper is a companion: it stays visible over every card, dialog, popup,
+   toast and tooltip in the student portal (--z-bot, 9800), yet still yields to
+   match/rematch alerts (9999) so a live challenge stays answerable. */
+.mzbot{position:fixed;z-index:var(--z-bot,9800);touch-action:none;user-select:none}
 .mzb-body{display:block;width:100%;cursor:grab;outline-offset:4px}
 .mzb-body:active{cursor:grabbing}
 .mzb-body:focus-visible{outline:3px solid #0b6bb0}

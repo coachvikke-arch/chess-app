@@ -22911,6 +22911,10 @@ html, body {
   --z-notification: 9600;
   --z-tooltip: 9700;
   --z-popover-tooltip: var(--z-tooltip);
+  /* The helper bot is a companion, so it rides above every card, dialog,
+     popup, toast and tooltip in the student portal. Match and rematch alerts
+     (--z-alert) still outrank it so a live challenge stays answerable. */
+  --z-bot: 9800;
   /* Requests and alerts — a match/rematch challenge, an emoji reaction. These
      must outrank every surface the Play Arena can open, including Play Mode
      (--z-popup) and the result card, or a request that arrives mid-game is
