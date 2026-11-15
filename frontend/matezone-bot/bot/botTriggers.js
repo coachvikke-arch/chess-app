@@ -2,7 +2,9 @@ import { useEffect } from "react";
 import { useBot } from "./BotContext.jsx";
 import { MOOD_MS } from "./botConfig";
 
-const CRY_BUBBLE_MS = 5200;
+/* A finished game is the moment the character exists for, so the happy, sad
+   and cry reactions are held on screen for at least six seconds. */
+const RESULT_MS = 6200;
 
 // 1. Game result. Call when a game ends. result is "win", "loss" or "draw".
 // extra: { gameId, ratingChange } — the rating number arrives a moment later,
@@ -18,7 +20,7 @@ export function useGameResultBot() {
       localStorage.setItem(streakKey, "0");
       (async () => {
         await showBotFrom("win", "jump", {}, { duration: MOOD_MS.jump + 300 });
-        await showBotFrom("win", "happy", {});
+        await showBotFrom("win", "happy", {}, { duration: RESULT_MS });
       })();
       return;
     }
@@ -34,16 +36,16 @@ export function useGameResultBot() {
       localStorage.setItem(streakKey, String(losses));
       const bigDrop = Number(extra.ratingChange) <= -15;
       (async () => {
-        await showBotFrom("loss", "sad", {}, { duration: 3000 });
+        await showBotFrom("loss", "sad", {}, { duration: RESULT_MS });
         if (losses >= 3 || bigDrop) {
-          await showBotFrom("cry", "cry", {}, { duration: CRY_BUBBLE_MS, key: cryKey });
+          await showBotFrom("cry", "cry", {}, { duration: RESULT_MS, key: cryKey });
         }
       })();
       return;
     }
 
     if (result === "cry") {
-      showBotFrom("cry", "cry", {}, { duration: CRY_BUBBLE_MS, key: cryKey });
+      showBotFrom("cry", "cry", {}, { duration: RESULT_MS, key: cryKey });
     }
   };
 }

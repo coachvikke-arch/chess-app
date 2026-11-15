@@ -3851,7 +3851,7 @@ export default function AnalysisBoard() {
     if (resultSeenRef.current === key) return;
     resultSeenRef.current = key;
     if (moves.length > 0 && ['win', 'loss', 'draw'].includes(finalResult.tone)) {
-      notifyGameResult(finalResult.tone);
+      notifyGameResult(finalResult.tone, { gameId: onlineGame?.id });
     }
     setResultPopup(finalResult);
     setResultDismiss(false);
