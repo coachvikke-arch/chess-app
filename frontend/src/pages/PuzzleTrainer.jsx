@@ -60,6 +60,9 @@ export default function PuzzleTrainer() {
   const [boardError, setBoardError] = useState('');
   const [boardLoading, setBoardLoading] = useState(false);
   const [ladderSheet, setLadderSheet] = useState(false);
+  /* The rank the last award moved this student to, so the page can show the
+     change instead of only the new number. */
+  const [rankFlash, setRankFlash] = useState(null);
 
   /* A phone has no height for a ten-row table under the board, so the ladder
      lives in a sheet there and in the side column on a desktop — the same split
@@ -75,6 +78,11 @@ export default function PuzzleTrainer() {
   /* A clean solve is one with no wrong try in it — that is what the streak counts
      and what the server pays 10 points for instead of 5. */
   const mistakeRef = useRef(false);
+  /* Wrong tries on the position currently on the board. Sent with the solve so
+     the ledger stores how many attempts it actually took. */
+  const attemptsRef = useRef(0);
+  const boardRef = useRef(null);
+  boardRef.current = board;
   const pendingRef = useRef(null);   // { level, promise } — the next puzzle, already on its way
   const loadingRef = useRef(false);
   const timersRef = useRef([]);
@@ -177,6 +185,7 @@ export default function PuzzleTrainer() {
   const show = useCallback((p) => {
     puzzleRef.current = p;
     mistakeRef.current = false;
+    attemptsRef.current = 0;
     shownAtRef.current = Date.now();
     rememberSeenId(p.id);
     setPuzzle(p);
@@ -193,6 +202,9 @@ export default function PuzzleTrainer() {
        that is no longer on the board. */
     solveSeqRef.current += 1;
     setCountdown(0);
+    /* The rank move belonged to the beat that just ended; leaving it up would
+       hold an extra row under the board for the whole next puzzle. */
+    setRankFlash(null);
     setLocked(true);
     setFailed(false);
     setStatus({ text: 'Loading a puzzle…', tone: '' });
@@ -232,7 +244,12 @@ export default function PuzzleTrainer() {
     const seq = solveSeqRef.current;
     const puzzleId = puzzleRef.current?.id;
     const solveMs = shownAtRef.current ? Date.now() - shownAtRef.current : null;
+    const attempts = attemptsRef.current + 1;
+    /* The rank before this award. The response carries the ladder it produced,
+       so the two numbers are the whole "where did I move" answer. */
+    const previousRank = boardRef.current?.me?.rank || null;
 
+    setRankFlash(null);
     setCounts(countSolve(lv));
     setStreakRun(messy ? 0 : streakRef.current + 1);
     /* Locked for the whole beat. PuzzlePlayer ANDs this with its own "still
@@ -251,14 +268,25 @@ export default function PuzzleTrainer() {
        ladder, but never the status line of a puzzle it was not about. */
     if (puzzleId) {
       api.post('/puzzles/trainer/solve', {
-        puzzleId, line: moves, firstTry: !messy, solveMs, level: lv,
+        puzzleId, line: moves, firstTry: !messy, attempts, solveMs, level: lv,
       })
         .then((r) => {
           const award = r.data;
           if (award?.leaderboard) {
             setBoard(award.leaderboard);
             setBoardError('');
+            const nextRank = award.leaderboard.me?.rank || null;
+            if (nextRank) {
+              setRankFlash({
+                from: previousRank,
+                to: nextRank,
+                delta: previousRank ? previousRank - nextRank : null,
+              });
+            }
           }
+          /* Points have moved, so every other board (dashboard position card,
+             Overall Champion ladder) re-reads now rather than on its next tick. */
+          if (award?.credited) window.dispatchEvent(new Event('puzzle-solved'));
           if (seq !== solveSeqRef.current) return;
           setStatus({
             text: solveMessage({ credited: award.credited, points: award.points, messy, counted: award.counted }),
@@ -297,6 +325,7 @@ export default function PuzzleTrainer() {
        thing the page owns here is the wording and the streak. A wrong move scores
        nothing, and the solve that follows it is worth 5 instead of 10. */
     mistakeRef.current = true;
+    attemptsRef.current += 1;
     setStreakRun(0);
     setStatus({ text: 'Not quite — 0 points. Try another move.', tone: 'bad' });
   }, [setStreakRun]);
@@ -315,6 +344,7 @@ export default function PuzzleTrainer() {
     if (i === level) return;
     clearTimers();            // a scheduled "load next" must not fire on the new band
     setCountdown(0);
+    setRankFlash(null);
     solveSeqRef.current += 1;
     pendingRef.current = null;
     writeLevel(i);
@@ -432,6 +462,26 @@ export default function PuzzleTrainer() {
             </div>
             <div className="pt-stat"><b>{counts[level]}</b><span>Solved here</span></div>
             <div className="pt-stat"><b>{streak}</b><span>Streak</span></div>
+            {/* The ladder move caused by the solve just played. It joins the
+                stats row rather than adding a line, so the board above never
+                loses height for the three-second beat it is up. */}
+            {rankFlash && (
+              <div
+                className={`pt-stat pt-rank${rankFlash.delta > 0 ? ' is-up' : rankFlash.delta < 0 ? ' is-down' : ''}`}
+                role="status"
+              >
+                <b>{rankFlash.delta > 0
+                  ? `▲ ${rankFlash.delta}`
+                  : rankFlash.delta < 0
+                    ? `▼ ${-rankFlash.delta}`
+                    : `#${rankFlash.to}`}</b>
+                <span>{rankFlash.delta === 0
+                  ? 'holding'
+                  : rankFlash.delta === null
+                    ? 'ranked'
+                    : `now #${rankFlash.to}`}</span>
+              </div>
+            )}
           </div>
 
           {/* A phone has no room for ten rows under the board, so the ladder is

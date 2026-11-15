@@ -14,9 +14,11 @@
  *
  * The award is decided here, not on the device: 10 for a clean first try, 5 once
  * a wrong move has been made, 0 for the wrong move itself, plus 2 for finishing
- * inside 30 s. `first_try` and `solve_ms` are client claims — the board judges
- * moves locally, so only the client knows them — but the LINE is verified against
- * the pool row before anything is written, and the bonus window is capped here.
+ * inside 30 s. `first_try`, `attempts` and `solve_ms` are client claims — the
+ * board judges moves locally, so only the client knows them — but the LINE is
+ * verified against the pool row before anything is written, and the bonus window
+ * and attempt count are capped here. `attempts` is the number of tries the solve
+ * took (wrong tries plus the one that worked), stored for the academy record.
  *
  * Both tables install themselves, the same idempotent-DDL way the puzzle pool
  * does, because a migration file is not something every database this app runs
@@ -40,6 +42,8 @@ const UCI_RE = /^[a-h][1-8][a-h][1-8][qrbn]?$/;
 /* puzzle_id is VARCHAR(20) in the pool. */
 const MAX_PUZZLE_ID = 20;
 const MAX_STORED_MS = 86400000;
+/* Wrong tries plus the winning one; a hand-crafted body cannot store more. */
+const MAX_ATTEMPTS = 99;
 
 /* Sent with every leaderboard response so the page can explain its own numbers
    instead of hard-coding a second copy of the rule. */
@@ -64,11 +68,14 @@ const DDL = [
      puzzle_id VARCHAR(20) NOT NULL,
      points    INTEGER NOT NULL DEFAULT 0,
      first_try BOOLEAN NOT NULL DEFAULT FALSE,
+     attempts  SMALLINT NOT NULL DEFAULT 1,
      solve_ms  INTEGER,
      level     SMALLINT,
      solved_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
      PRIMARY KEY (user_id, puzzle_id)
    )`,
+  /* Tables created before attempts existed get the column added in place. */
+  'ALTER TABLE puzzle_trainer_solves ADD COLUMN IF NOT EXISTS attempts SMALLINT NOT NULL DEFAULT 1',
   'CREATE INDEX IF NOT EXISTS puzzle_trainer_scores_ladder_idx ON puzzle_trainer_scores (total_points DESC, solved_count DESC)',
   'CREATE INDEX IF NOT EXISTS puzzle_trainer_solves_user_idx ON puzzle_trainer_solves (user_id, solved_at DESC)',
 ];
@@ -181,7 +188,7 @@ async function trainerLeaderboard({ viewerId, limit = TOP_LIMIT } = {}) {
  * student's, but nothing is written and `counted` comes back false. The trainer
  * is open to staff; the ladder is not theirs.
  */
-async function recordSolve({ userId, puzzleId, line, firstTry = false, solveMs = null, level = null, count = true }) {
+async function recordSolve({ userId, puzzleId, line, firstTry = false, attempts = 1, solveMs = null, level = null, count = true }) {
   const id = String(puzzleId || '').trim();
   if (!id || id.length > MAX_PUZZLE_ID) return { ok: false, reason: 'puzzle' };
   const played = normalizeLine(line);
@@ -214,6 +221,7 @@ async function recordSolve({ userId, puzzleId, line, firstTry = false, solveMs =
       base_points: 0,
       bonus_points: 0,
       first_try: firstTry === true || firstTry === 'true',
+      attempts: 1,
       total_points: 0,
       solved_count: 0,
       leaderboard: await trainerLeaderboard({ viewerId: userId }),
@@ -221,6 +229,9 @@ async function recordSolve({ userId, puzzleId, line, firstTry = false, solveMs =
   }
 
   const clean = firstTry === true || firstTry === 'true';
+  const tries = Number.isInteger(Number(attempts)) && Number(attempts) > 0
+    ? Math.min(Number(attempts), MAX_ATTEMPTS)
+    : 1;
   const base = clean ? FIRST_TRY_POINTS : AFTER_MISS_POINTS;
   /* Number(null) and Number('') are both 0, which would hand the speed bonus to
      a client that reported no time at all. Only a real number (or a non-empty
@@ -247,11 +258,11 @@ async function recordSolve({ userId, puzzleId, line, firstTry = false, solveMs =
        between them would leave a solve that can never be credited again, because
        the retry hits the primary key and is told "already counted". */
     const insert = await client.query(
-      `INSERT INTO puzzle_trainer_solves (user_id, puzzle_id, points, first_try, solve_ms, level)
-       VALUES ($1, $2, $3, $4, $5, $6)
+      `INSERT INTO puzzle_trainer_solves (user_id, puzzle_id, points, first_try, attempts, solve_ms, level)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
        ON CONFLICT (user_id, puzzle_id) DO NOTHING
        RETURNING points`,
-      [userId, id, points, clean, storedMs, band]
+      [userId, id, points, clean, tries, storedMs, band]
     );
     const credited = insert.rows.length > 0;
 
@@ -286,6 +297,7 @@ async function recordSolve({ userId, puzzleId, line, firstTry = false, solveMs =
       base_points: credited ? base : 0,
       bonus_points: credited ? bonus : 0,
       first_try: clean,
+      attempts: tries,
       total_points: asRank(totals.total_points),
       solved_count: asRank(totals.solved_count),
       leaderboard,

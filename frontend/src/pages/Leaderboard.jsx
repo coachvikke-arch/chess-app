@@ -2,7 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import api from '../services/api';
 import { PageHeader, Spinner } from '../components/ui';
 import RatingAvatar from '../components/RatingAvatar';
-import ChampionsPodium, { PlayerBadges } from '../components/ChampionsPodium';
+import ChampionsPodium, { PlayerBadges, RankIcon } from '../components/ChampionsPodium';
+import { SkeletonRegion, SkeletonTable } from '../components/skeleton';
 import LeaderboardCompareModal from '../components/LeaderboardCompareModal';
 import Pagination, { PAGE_SIZE } from '../components/Pagination';
 import { usePagination } from '../hooks/usePagination';
@@ -160,6 +161,14 @@ export default function Leaderboard() {
     };
   }, [tab, loadChamp]);
 
+  /* A Puzzle Trainer solve changes a champion score, so the board re-reads the
+     moment the trainer announces one instead of waiting for the next tick. */
+  useEffect(() => {
+    const onSolved = () => loadChamp();
+    window.addEventListener('puzzle-solved', onSolved);
+    return () => window.removeEventListener('puzzle-solved', onSolved);
+  }, [loadChamp]);
+
   /* My own picture hangs out in these lists too, so a photo or avatar change made
      on this device has to pull the ladder again. */
   const [profileTick, setProfileTick] = useState(0);
@@ -253,6 +262,7 @@ export default function Leaderboard() {
     scrollRef: listTopRef,
   });
   const champPodium = champShown.slice(0, 3);
+  const champLeader = champRows[0] || null;
   const champTable = champPager.currentPage === 1
     ? champPager.currentItems.filter((r) => r.rank > 3)
     : champPager.currentItems;
@@ -287,7 +297,7 @@ export default function Leaderboard() {
       title="Leaderboard"
       icon="♛"
       subtitle={isChampion
-        ? 'Overall Champion score across games, puzzles and class attendance'
+        ? 'Overall Champion score across games, puzzles, the Puzzle Trainer and class attendance'
         : 'ELO ratings from rated matches — who\'s climbing fastest?'}
     >
       <div className="kt-arena" style={{ animation: 'fade-up .45s both' }}>
@@ -322,7 +332,7 @@ export default function Leaderboard() {
             <span className="text-slate-500">·</span>
             <span>{myChamp.games} games · {pct(myChamp.winRate)} wins · {pct(myChamp.attendance)} attendance</span>
             <span className="text-slate-500">·</span>
-            <span>{myChamp.puzzlesSolved} puzzles · {myChamp.streak}-day streak</span>
+            <span>{myChamp.puzzlesSolved} puzzles · {myChamp.puzzleTrainerPoints} puzzle pts · {myChamp.streak}-day streak</span>
           </div>
         )}
 
@@ -344,7 +354,9 @@ export default function Leaderboard() {
 
         {isChampion ? (
           champ === null ? (
-            <div className="py-16 text-center"><Spinner text="Loading Overall Champion scores…" /></div>
+            <SkeletonRegion label="Loading Overall Champion scores" className="champ-skeleton">
+              <SkeletonTable rows={8} columns={6} />
+            </SkeletonRegion>
           ) : champError ? (
             <div className="py-16 text-center text-sm">
               <p className="text-slate-600">{champError}</p>
@@ -358,6 +370,20 @@ export default function Leaderboard() {
             </div>
           ) : (
             <>
+              {champLeader && (
+                <div className="champ-leader">
+                  <span className="champ-leader-crown" aria-hidden="true"><RankIcon rank={1} /></span>
+                  <span className="champ-leader-copy">
+                    <span className="champ-leader-eyebrow">Overall Champion</span>
+                    <b className="champ-leader-name">{champLeader.name}</b>
+                  </span>
+                  <span className="champ-leader-stats">
+                    <span><b>{champLeader.score.toFixed(1)}</b><small>overall score</small></span>
+                    <span><b>{champLeader.puzzleTrainerPoints}</b><small>puzzle points</small></span>
+                  </span>
+                </div>
+              )}
+
               <ChampionsPodium
                 list={champPodium}
                 elo={(p) => p.score.toFixed(1)}
@@ -382,17 +408,20 @@ export default function Leaderboard() {
                   to a point and no single metric can dominate the ranking.
                 </p>
                 <ul>
-                  <li><b>Games ({weights?.games ?? 20})</b> — up to 100 finished games (online, computer or bot). Every game is counted once.</li>
+                  <li><b>Games ({weights?.games ?? 15})</b> — up to 100 finished games (online, computer or bot). Every game is counted once.</li>
                   <li><b>Win rate ({weights?.winRate ?? 15})</b> — wins plus half of draws, smoothed so a single game cannot top the board.</li>
                   <li><b>Attendance ({weights?.attendance ?? 15})</b> — classes attended (present or late) over every class marked.</li>
-                  <li><b>Puzzles ({weights?.puzzles ?? 20})</b> — distinct puzzles solved, Easy 0.6 / Medium 1.0 / Hard 1.4, capped at 60 weighted puzzles.</li>
+                  <li><b>Puzzles ({weights?.puzzles ?? 15})</b> — distinct puzzles solved, Easy 0.6 / Medium 1.0 / Hard 1.4, capped at 60 weighted puzzles.</li>
                   <li><b>Puzzle accuracy ({weights?.puzzleAccuracy ?? 10})</b> — correct attempts over all attempts, smoothed.</li>
+                  <li><b>Puzzle Trainer ({weights?.puzzleTrainer ?? 10})</b> — points earned in the Puzzle Trainer, capped at {champ?.caps?.puzzleTrainerPoints ?? 500}.</li>
                   <li><b>Streak ({weights?.streak ?? 10})</b> — consecutive days with a game, puzzle or class, capped at 30.</li>
                   <li><b>Consistency ({weights?.consistency ?? 10})</b> — regular activity over the last 30 days, balanced across games, puzzles and classes.</li>
                 </ul>
                 <p>
-                  The same score drives the position card on the student dashboard, and it refreshes on
-                  its own as new games, puzzles and classes are recorded.
+                  Ties fall to the Puzzle Trainer record: more trainer points first, then more
+                  puzzles solved, then whoever reached their last solve earlier. The same score drives
+                  the position card on the student dashboard, and it refreshes on its own as new games,
+                  puzzles and classes are recorded.
                 </p>
               </details>
 
@@ -404,6 +433,7 @@ export default function Leaderboard() {
                   <span>Win %</span>
                   <span>Attendance</span>
                   <span>Puzzles</span>
+                  <span>Puzzle Pts</span>
                   <span>Streak</span>
                   <span className="champ-score">Score</span>
                   {canCompare && <span className="champ-cmp">Compare</span>}
@@ -434,6 +464,7 @@ export default function Leaderboard() {
                         <span className="champ-metric"><b>{pct(r.winRate)}</b><span>win</span></span>
                         <span className="champ-metric"><b>{pct(r.attendance)}</b><span>attend</span></span>
                         <span className="champ-metric"><b>{r.puzzlesSolved}</b><span>puzzles</span></span>
+                        <span className="champ-metric"><b>{r.puzzleTrainerPoints}</b><span>puzzle pts</span></span>
                         <span className="champ-metric"><b>{r.streak}</b><span>streak</span></span>
                       </span>
                       <span className="champ-score"><b>{r.score.toFixed(1)}</b><span>pts</span></span>

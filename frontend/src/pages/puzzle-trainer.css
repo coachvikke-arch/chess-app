@@ -402,6 +402,20 @@
   text-overflow: ellipsis;
 }
 
+/* Where the solve just moved you on the ladder, as a fourth stat tile. It is
+   blue while it is only a rank, green for a climb and red for a fall. */
+.pt-rank b {
+  color: var(--tn-blue);
+}
+
+.pt-rank.is-up b {
+  color: var(--tn-green);
+}
+
+.pt-rank.is-down b {
+  color: var(--tn-red);
+}
+
 /* ── the ladder ─────────────────────────────────────────────────────────────
    Same card language as the rest of the page: white panel, hairline edge, blue
    for the one thing that matters (your own row). On a desktop it takes the

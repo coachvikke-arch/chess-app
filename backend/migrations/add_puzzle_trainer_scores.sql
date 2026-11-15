@@ -20,11 +20,16 @@ CREATE TABLE IF NOT EXISTS puzzle_trainer_solves (
   puzzle_id VARCHAR(20) NOT NULL,
   points    INTEGER NOT NULL DEFAULT 0,
   first_try BOOLEAN NOT NULL DEFAULT FALSE,
+  attempts  SMALLINT NOT NULL DEFAULT 1,
   solve_ms  INTEGER,
   level     SMALLINT,
   solved_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   PRIMARY KEY (user_id, puzzle_id)
 );
+
+-- Databases that installed the ledger before attempts existed.
+ALTER TABLE puzzle_trainer_solves
+  ADD COLUMN IF NOT EXISTS attempts SMALLINT NOT NULL DEFAULT 1;
 
 CREATE INDEX IF NOT EXISTS puzzle_trainer_scores_ladder_idx
   ON puzzle_trainer_scores (total_points DESC, solved_count DESC);

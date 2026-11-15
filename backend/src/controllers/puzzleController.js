@@ -1393,7 +1393,7 @@ exports.trainerNext = async (req, res) => {
 
 /**
  * POST /api/puzzles/trainer/solve
- * body: { puzzleId, line: string[] (solver-first UCI), firstTry, solveMs, level }
+ * body: { puzzleId, line: string[] (solver-first UCI), firstTry, attempts, solveMs, level }
  *
  * The award is computed server-side and written once per (user, puzzle). The
  * response carries the fresh ladder with it, so the page never has to race a
@@ -1401,9 +1401,9 @@ exports.trainerNext = async (req, res) => {
  */
 exports.trainerSolve = async (req, res) => {
   try {
-    const { puzzleId, line, firstTry, solveMs, level } = req.body || {};
+    const { puzzleId, line, firstTry, attempts, solveMs, level } = req.body || {};
     const result = await recordSolve({
-      userId: req.user.id, puzzleId, line, firstTry, solveMs, level,
+      userId: req.user.id, puzzleId, line, firstTry, attempts, solveMs, level,
       /* Staff get the trainer as practice; only a student's solve is scored. */
       count: req.user.role === 'student',
     });

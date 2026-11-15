@@ -1,4 +1,5 @@
 const db = require('../config/database');
+const { ensureScores } = require('./puzzleTrainerScore');
 
 /* NOTE: certificateService is deliberately NOT imported here.
  *
@@ -956,6 +957,9 @@ async function buildProfile(studentId, { limit = 60, fullHistory = false } = {})
  */
 async function leaderboard({ limit = 100, hidePrivate = true } = {}) {
   const hideClause = hidePrivate ? 'AND s.hide_from_leaderboard = FALSE' : '';
+  /* The trainer tables are created on first use; a reader must not 500 on a
+     database where the trainer has never been opened. */
+  await ensureScores();
 
   const streakSQL = `
     WITH sides AS (
@@ -997,7 +1001,7 @@ async function leaderboard({ limit = 100, hidePrivate = true } = {}) {
     SELECT rn.user_id, rn.n AS defeats, u.name AS nemesis
     FROM rn JOIN users u ON u.id = rn.opp WHERE rn.r = 1`;
 
-  const [base, wldR, puzzleR, histR, rapidHistR, streakR, nemR, timePoolsR, tcHistR2] = await Promise.all([
+  const [base, wldR, puzzleR, histR, rapidHistR, streakR, nemR, timePoolsR, tcHistR2, trainerR] = await Promise.all([
     /* RANKING IS RAPID-BASED.
        The common/unified `current_rating` is no longer the ladder: the overall
        champion is the strongest RAPID player, so `student_time_ratings` is
@@ -1080,12 +1084,20 @@ async function leaderboard({ limit = 100, hidePrivate = true } = {}) {
        JOIN students s ON s.id = h.student_id
        WHERE h.rn <= 14`
     ),
+    /* Puzzle Trainer points. This is the number the trainer's own ladder shows;
+       it is deliberately separate from `puzzlePoints` (assignment puzzle score),
+       which the Puzzle Rush tab ranks by. */
+    db.query(
+      `SELECT user_id, total_points, solved_count
+       FROM puzzle_trainer_scores`
+    ),
   ]);
 
   const wld = new Map(wldR.rows.map(r => [r.user_id, r]));
   const puzzle = new Map(puzzleR.rows.map(r => [r.student_id, r.pts]));
   const streaks = new Map(streakR.rows.map(r => [r.user_id, r.streak]));
   const nemeses = new Map(nemR.rows.map(r => [r.user_id, r]));
+  const trainer = new Map(trainerR.rows.map(r => [r.user_id, r]));
   const history = new Map();
   for (const r of histR.rows) {
     if (!history.has(r.student_id)) history.set(r.student_id, []);
@@ -1193,6 +1205,10 @@ async function leaderboard({ limit = 100, hidePrivate = true } = {}) {
       losses: rowWld?.losses || 0,
       draws: rowWld?.draws || 0,
       puzzlePoints: pts,
+      /* The Puzzle Trainer total, by user id. Same number the trainer ladder
+         and the Overall Champion board read. */
+      puzzleTrainerPoints: Number(trainer.get(row.user_id)?.total_points) || 0,
+      puzzleTrainerSolved: Number(trainer.get(row.user_id)?.solved_count) || 0,
       streak,
       spark,
       weeklyRating: rapidWeekly,

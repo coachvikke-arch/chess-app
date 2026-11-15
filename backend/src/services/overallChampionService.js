@@ -1,4 +1,9 @@
 const db = require('../config/database');
+/* The trainer ledger and its totals. Importing the service (rather than the same
+   tables through a second query builder) keeps ONE definition of the points, and
+   `ensureScores` installs the tables for a database that has never served the
+   trainer before. */
+const { ensureScores } = require('./puzzleTrainerScore');
 
 /**
  * Overall Champion Score — ONE formula for the whole app.
@@ -40,11 +45,12 @@ const db = require('../config/database');
  * its weight. The caps stop a marathon player from burying everyone on volume
  * alone, and no single weight exceeds 20 of the 100 available points.
  *
- *   games played .......... min(games, 100) / 100                × 20
+ *   games played .......... min(games, 100) / 100                × 15
  *   win rate .............. (wins + ½·draws + 1) / (decided + 2) × 15
  *   attendance ............ attended / marked                    × 15
- *   puzzles solved ........ min(weighted solved, 60) / 60        × 20
+ *   puzzles solved ........ min(weighted solved, 60) / 60        × 15
  *   puzzle accuracy ....... (correct + 1) / (attempts + 2)       × 10
+ *   trainer points ........ min(trainer points, 500) / 500       × 10
  *   active-day streak ..... min(streak, 30) / 30                 × 10
  *   consistency ........... ½·regularity + ½·balance              × 10
  *
@@ -62,11 +68,12 @@ const db = require('../config/database');
  */
 
 const DEFAULT_WEIGHTS = Object.freeze({
-  games: 20,
+  games: 15,
   winRate: 15,
   attendance: 15,
-  puzzles: 20,
+  puzzles: 15,
   puzzleAccuracy: 10,
+  puzzleTrainer: 10,
   streak: 10,
   consistency: 10,
 });
@@ -74,6 +81,7 @@ const DEFAULT_WEIGHTS = Object.freeze({
 const CAPS = Object.freeze({
   games: 100,
   puzzlesWeighted: 60,
+  puzzleTrainerPoints: 500,
   streakDays: 30,
   consistencyDays: 20,
 });
@@ -143,7 +151,11 @@ function emptyDays() {
 async function champions({ hidePrivate = true, limit = 1000 } = {}) {
   const hideClause = hidePrivate ? 'AND s.hide_from_leaderboard = FALSE' : '';
 
-  const [baseR, rollupR, onlineR, computerR, puzzleR, attendanceR, activityR] = await Promise.all([
+  /* The trainer tables install themselves on first use; without this a fresh
+     database would fail the trainer query below before anyone had solved one. */
+  await ensureScores();
+
+  const [baseR, rollupR, onlineR, computerR, puzzleR, attendanceR, trainerR, activityR] = await Promise.all([
     db.query(
       `SELECT s.id AS student_id, u.id AS user_id, u.name, u.avatar_config, u.profile_image, u.updated_at,
               g.name AS group_name
@@ -240,6 +252,13 @@ async function champions({ hidePrivate = true, limit = 1000 } = {}) {
        GROUP BY a.student_id`
     ),
 
+    /* Puzzle Trainer ledger, keyed by USER id. `updated_at` is the last solve
+       and is the final tie-break, so a drawn score still has a stable winner. */
+    db.query(
+      `SELECT user_id, total_points, solved_count, updated_at
+       FROM puzzle_trainer_scores`
+    ),
+
     /* Every active day in the window, tagged with the area that caused it.
        Game days come from the permanent rollups plus games not yet rolled up,
        so deleting old raw online rows never shortens a streak. */
@@ -328,6 +347,7 @@ async function champions({ hidePrivate = true, limit = 1000 } = {}) {
   }
 
   const attendanceBy = new Map(attendanceR.rows.map((r) => [r.student_id, r]));
+  const trainerBy = new Map(trainerR.rows.map((r) => [r.user_id, r]));
 
   const daysBy = new Map();
   for (const row of activityR.rows) {
@@ -353,6 +373,7 @@ async function champions({ hidePrivate = true, limit = 1000 } = {}) {
       attempts: 0, correct: 0, solved: 0, easy: 0, medium: 0, hard: 0, weighted: 0,
     };
     const att = attendanceBy.get(student.student_id) || { marked: 0, attended: 0 };
+    const trainer = trainerBy.get(uid) || { total_points: 0, solved_count: 0, updated_at: null };
     const days = daysBy.get(uid) || emptyDays();
 
     /* Streak: consecutive distinct active days ending today (or yesterday, so
@@ -397,6 +418,8 @@ async function champions({ hidePrivate = true, limit = 1000 } = {}) {
     const puzzleAccuracyNorm = puzzles.attempts > 0
       ? clamp01((puzzles.correct + 1) / (puzzles.attempts + 2))
       : 0;
+    const trainerPoints = Number(trainer.total_points) || 0;
+    const trainerNorm = clamp01(trainerPoints / CAPS.puzzleTrainerPoints);
     const streakNorm = clamp01(streak / CAPS.streakDays);
 
     const breakdown = {
@@ -405,6 +428,7 @@ async function champions({ hidePrivate = true, limit = 1000 } = {}) {
       attendance: round1(weights.attendance * attendanceNorm),
       puzzles: round1(weights.puzzles * puzzleVolumeNorm),
       puzzleAccuracy: round1(weights.puzzleAccuracy * puzzleAccuracyNorm),
+      puzzleTrainer: round1(weights.puzzleTrainer * trainerNorm),
       streak: round1(weights.streak * streakNorm),
       consistency: round1(weights.consistency * consistencyNorm),
     };
@@ -433,6 +457,9 @@ async function champions({ hidePrivate = true, limit = 1000 } = {}) {
       puzzleCorrect: puzzles.correct,
       puzzleAccuracy: puzzles.attempts > 0 ? round1((puzzles.correct / puzzles.attempts) * 100) : null,
       puzzleDifficulty: { easy: puzzles.easy, medium: puzzles.medium, hard: puzzles.hard },
+      puzzleTrainerPoints: trainerPoints,
+      puzzleTrainerSolved: Number(trainer.solved_count) || 0,
+      puzzleTrainerLastSolvedAt: trainer.updated_at || null,
       streak,
       activeDays30,
       consistency: round1(consistencyNorm * 100),
@@ -440,8 +467,18 @@ async function champions({ hidePrivate = true, limit = 1000 } = {}) {
     };
   });
 
+  /* Champion ties fall to the Puzzle Trainer record: more trainer points, then
+     more puzzles solved, then whoever reached their last solve EARLIER. A
+     student with no solve has no time and loses that last tie-break. */
+  const lastSolvedMs = (row) => {
+    const t = row.puzzleTrainerLastSolvedAt ? new Date(row.puzzleTrainerLastSolvedAt).getTime() : NaN;
+    return Number.isFinite(t) ? t : Number.POSITIVE_INFINITY;
+  };
   rows.sort((a, b) => (
     b.score - a.score
+    || b.puzzleTrainerPoints - a.puzzleTrainerPoints
+    || b.puzzleTrainerSolved - a.puzzleTrainerSolved
+    || lastSolvedMs(a) - lastSolvedMs(b)
     || b.winRate - a.winRate
     || (b.wins + b.losses + b.draws) - (a.wins + a.losses + a.draws)
     || a.name.localeCompare(b.name)
@@ -453,7 +490,7 @@ async function champions({ hidePrivate = true, limit = 1000 } = {}) {
     rows: ranked,
     weights,
     caps: CAPS,
-    scoringVersion: 1,
+    scoringVersion: 2,
     generatedAt: new Date().toISOString(),
   };
 }

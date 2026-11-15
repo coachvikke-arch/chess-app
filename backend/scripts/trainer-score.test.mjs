@@ -71,7 +71,7 @@ function stubDb({ users = { 7: 'Meera', 8: 'Arjun' }, ladder = [], failAt = null
       return { rows: [] };
     }
     if (sql.includes('to_regclass')) return { rows: [{ t: 'lichess_puzzles' }] };
-    if (sql.startsWith('CREATE')) { state.ddl.push(flat); return { rows: [] }; }
+    if (sql.startsWith('CREATE') || sql.startsWith('ALTER')) { state.ddl.push(flat); return { rows: [] }; }
     if (sql.includes('count(*)::int AS n FROM lichess_puzzles')) return { rows: [{ n: SEED.length }] };
     if (flat.startsWith('SELECT puzzle_id, fen, moves FROM lichess_puzzles WHERE puzzle_id')) {
       const row = POOL.find((r) => r.puzzle_id === params[0]);
@@ -82,10 +82,10 @@ function stubDb({ users = { 7: 'Meera', 8: 'Arjun' }, ladder = [], failAt = null
       return { rows: name ? [{ name }] : [] };
     }
     if (flat.startsWith('INSERT INTO puzzle_trainer_solves')) {
-      const [userId, puzzleId, points, firstTry, solveMs, level] = params;
+      const [userId, puzzleId, points, firstTry, attempts, solveMs, level] = params;
       const key = `${userId}|${puzzleId}`;
       if (state.solves.has(key)) return { rows: [] };   // ON CONFLICT DO NOTHING
-      state.solves.set(key, { userId, puzzleId, points, firstTry, solveMs, level });
+      state.solves.set(key, { userId, puzzleId, points, firstTry, attempts, solveMs, level });
       return { rows: [{ points }] };
     }
     if (flat.startsWith('INSERT INTO puzzle_trainer_scores')) {
@@ -150,6 +150,8 @@ test('a clean first try inside the speed window is worth 10 + 2', async () => {
   assert.equal(out.solved_count, 1);
   assert.equal(state.scores.get(7).name, 'Meera', 'the name snapshot was not stored');
   assert.equal(state.solves.get(`7|${POOL_ID}`).firstTry, true);
+  assert.equal(state.solves.get(`7|${POOL_ID}`).attempts, 1, 'a clean solve stores one attempt');
+  assert.equal(out.attempts, 1);
   assert.equal(state.commit, 1);
   assert.equal(state.rollback, 0);
   assert.equal(state.released, 1, 'the connection leaked');
@@ -371,9 +373,11 @@ test('the score tables install themselves once, and a failure is not memoised', 
   const svc = loadService();
   await svc.ensureScores();
   await svc.ensureScores();
-  assert.equal(state.ddl.length, 4, 'the install ran twice for one container');
+  assert.equal(state.ddl.length, 5, 'the install ran twice for one container');
   assert.ok(state.ddl.some((d) => d.startsWith('CREATE TABLE IF NOT EXISTS puzzle_trainer_scores')));
   assert.ok(state.ddl.some((d) => d.startsWith('CREATE TABLE IF NOT EXISTS puzzle_trainer_solves')));
+  assert.ok(state.ddl.some((d) => d.startsWith('ALTER TABLE puzzle_trainer_solves ADD COLUMN IF NOT EXISTS attempts')),
+    'an existing ledger never gains the attempts column');
   assert.ok(state.ddl.every((d) => d.includes('IF NOT EXISTS')), 'an install could overwrite a live table');
 
   const broken = stubDb({ failAt: 'CREATE TABLE IF NOT EXISTS puzzle_trainer_solves' });
@@ -426,6 +430,7 @@ test('the migration file carries the same tables and columns as the self-install
     'CREATE TABLE IF NOT EXISTS puzzle_trainer_solves',
     'total_points INTEGER NOT NULL DEFAULT 0',
     'solved_count INTEGER NOT NULL DEFAULT 0',
+    'attempts  SMALLINT NOT NULL DEFAULT 1',
     'updated_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()',
     'PRIMARY KEY (user_id, puzzle_id)',
     'puzzle_trainer_scores_ladder_idx',

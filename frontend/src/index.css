@@ -12524,7 +12524,7 @@ button.live-drill-move:hover { border-color: #93c5fd; }
    metric wrapper is `display: contents` on wide screens so its five cells sit
    in the parent grid; below 700px it becomes the second line of a card, so no
    metric is dropped on a phone. */
-.champ-grid { display: grid; grid-template-columns: 46px minmax(0, 1.6fr) 74px 74px 96px 74px 70px 86px; gap: 10px; align-items: center; padding: 11px 14px; }
+.champ-grid { display: grid; grid-template-columns: 46px minmax(0, 1.6fr) 74px 74px 96px 74px 84px 70px 86px; gap: 10px; align-items: center; padding: 11px 14px; }
 .champ-head { background: rgba(10,20,14,.85); border: 1px solid rgba(255,255,255,.09); border-radius: 14px 14px 0 0; color: #a3a3a3; font-size: 11px; text-transform: uppercase; letter-spacing: .8px; font-weight: 700; }
 .champ-row { transition: background .15s ease, box-shadow .15s ease; }
 .champ-row:nth-child(odd) { background: rgba(23, 12, 10, 0.03); }
@@ -12545,8 +12545,28 @@ button.live-drill-move:hover { border-color: #93c5fd; }
 .champ-help ul { margin: 8px 0 0; padding-left: 18px; display: grid; gap: 4px; line-height: 1.45; }
 .champ-help b { color: var(--ivory-300); }
 
+/* The single winner strip above the podium: crown, name, overall score and the
+   Puzzle Trainer total that now feeds the score. */
+.champ-leader { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: 0 0 14px; padding: 10px 14px; border: 1px solid #bfdbfe; border-radius: 14px; background: #f0f7ff; color: #16233f; }
+.champ-leader-crown { flex: none; display: grid; place-items: center; width: 38px; height: 38px; border-radius: 10px; background: #2563eb; color: #fff; }
+.champ-leader-crown svg { width: 22px; height: 22px; }
+.champ-leader-copy { display: flex; flex-direction: column; min-width: 0; }
+.champ-leader-eyebrow { font-size: 10px; font-weight: 800; letter-spacing: .09em; text-transform: uppercase; color: #2563eb; }
+.champ-leader-name { font-size: 17px; font-weight: 800; overflow-wrap: anywhere; }
+.champ-leader-stats { display: flex; gap: 18px; margin-left: auto; }
+.champ-leader-stats span { display: flex; flex-direction: column; align-items: flex-end; line-height: 1.1; }
+.champ-leader-stats b { font-size: 18px; font-weight: 800; color: #0b7ea8; font-variant-numeric: tabular-nums; }
+.champ-leader-stats small { font-size: 10px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: #64748b; }
+.champ-skeleton { padding: 8px 0 16px; }
+
+@media (max-width: 560px) {
+  .champ-leader { gap: 10px; padding: 10px 12px; }
+  .champ-leader-stats { width: 100%; margin-left: 0; justify-content: space-between; }
+  .champ-leader-stats span { align-items: flex-start; }
+}
+
 @media (max-width: 900px) {
-  .champ-grid { grid-template-columns: 42px minmax(0, 1.4fr) 64px 64px 84px 64px 62px 78px; gap: 8px; padding: 10px 12px; }
+  .champ-grid { grid-template-columns: 42px minmax(0, 1.4fr) 64px 64px 84px 64px 74px 62px 78px; gap: 8px; padding: 10px 12px; }
 }
 @media (max-width: 700px) {
   .champ-head { display: none; }
@@ -23301,10 +23321,10 @@ html, body {
 }
 
 /* Champion ladder: base = 9 visible cells. */
-.champ-grid--cmp { grid-template-columns: 46px minmax(0, 1.6fr) 74px 74px 96px 74px 70px 86px 92px; }
+.champ-grid--cmp { grid-template-columns: 46px minmax(0, 1.6fr) 74px 74px 96px 74px 84px 70px 86px 92px; }
 
 @media (max-width: 900px) {
-  .champ-grid--cmp { grid-template-columns: 42px minmax(0, 1.4fr) 64px 64px 84px 64px 62px 78px 84px; }
+  .champ-grid--cmp { grid-template-columns: 42px minmax(0, 1.4fr) 64px 64px 84px 64px 74px 62px 78px 84px; }
 }
 @media (max-width: 700px) {
   /* Same card layout, but the Compare pill sits at the end of the metrics line
