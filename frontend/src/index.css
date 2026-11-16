@@ -22840,6 +22840,33 @@ html, body {
   }
 }
 
+/* ─── Play Arena full-screen (student /student/analysis, desktop only) ─────── */
+/* AppShell adds `play-arena-fullscreen` from the route, so the sidebar column
+   leaves the layout and its 240px go to the board page. Every rule below is
+   gated at 901px: the phone/tablet tree — including the off-canvas drawer and
+   its hamburger — is untouched. The drawer only becomes display:none from
+   1024px, where it was a permanent column; between 901 and 1023 it is already
+   translated off-canvas, so it takes no width and the hamburger still opens a
+   working menu. */
+@media (min-width: 901px) {
+  /* The top bar keeps its logo, bell and profile chip but sheds the vertical
+     padding that only cost the board height. useNavHeight re-measures it, so
+     the board formula and the page's back button follow automatically. */
+  .admin-shell.play-arena-fullscreen .admin-top-navbar > div {
+    padding-top: 4px;
+    padding-bottom: 4px;
+  }
+  .admin-shell.play-arena-fullscreen .admin-content {
+    padding-bottom: 0;
+  }
+}
+
+@media (min-width: 1024px) {
+  .admin-shell.play-arena-fullscreen .admin-sidebar {
+    display: none;
+  }
+}
+
 /* A bot match is fitted to the space under the shared header, exactly like Play
    Arena: the page root is h-full and must not scroll, only the side panel's
    inner list does. */

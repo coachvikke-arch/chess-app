@@ -49,6 +49,11 @@ export default function AppShell({ portal = 'admin', children }) {
   const location = useLocation();
   const contentRef = useRef(null);
 
+  /* Play Arena owns the whole window on desktop: the sidebar column steps out
+     of the layout for this route only. The class is inert below 901px, where
+     the sidebar is an off-canvas drawer that already takes no width. */
+  const isPlayArena = portal === 'student' && location.pathname === '/student/analysis';
+
   const { orderFor } = useSidebarOrder();
 
   /* Stable identity so the memoized Sidebar is not woken by shell re-renders. */
@@ -108,7 +113,7 @@ export default function AppShell({ portal = 'admin', children }) {
 
   return (
     <HeaderProvider>
-      <div className="admin-shell">
+      <div className={`admin-shell${isPlayArena ? ' play-arena-fullscreen' : ''}`}>
         {/* Full-width top navbar */}
         <TopNavbar
           isSuper={isSuper}

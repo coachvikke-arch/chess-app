@@ -686,13 +686,13 @@ const PLAY_ARENA_UI_CSS = `
    viewport tall and only the FEN box scrolls inside it. */
 @media (min-width:901px){
   .ab-root.ab-root{
-    --board:min(calc(100dvh - var(--app-nav-h,68px) - 134px),calc(100vw - 424px));
+    --board:min(calc(100dvh - var(--app-nav-h,68px) - 134px),calc(100vw - 528px));
     --panel:360px;
   }
   .ab-root.ab-root .ab-layout{
     grid-template-columns:var(--board) var(--panel);
     justify-content:center;align-items:stretch;
-    gap:14px;padding:8px 16px;
+    gap:14px;padding:8px 52px;
     height:100%;max-width:none;
   }
 
@@ -751,6 +751,25 @@ const PLAY_ARENA_UI_CSS = `
   }
   .ab-root.ab-root .ab-side-card-controls .ab-ctrl-row .ab-ctrl-btn{height:34px}
   .ab-root.ab-root .ab-side-card-controls .ab-action-btn{height:36px}
+}
+
+/* Back to the student dashboard, top-left. Desktop only: at 901px+ this route
+   hides the sidebar column, so the arrow is the way out of the page. Below
+   901px the shell's Back row and the drawer already cover it, so the button is
+   not drawn at all. It is fixed (not absolute) because .ab-root is the scroll
+   none page root and anchors nothing itself. */
+.ab-root .ab-back-btn{display:none}
+@media (min-width:901px){
+  .ab-root .ab-back-btn{
+    position:fixed;top:calc(var(--app-nav-h,68px) + 10px);left:14px;z-index:45;
+    width:38px;height:38px;padding:0;display:grid;place-items:center;
+    border-radius:10px;border:1px solid #E3E8F0;background:#fff;color:#475569;
+    font:inherit;font-size:18px;line-height:1;cursor:pointer;
+    box-shadow:0 1px 2px rgba(15,23,42,.06);
+    transition:background .15s,border-color .15s,color .15s;
+  }
+  .ab-root .ab-back-btn:hover{background:#EAF1FF;border-color:#2563EB;color:#2563EB}
+  .ab-root .ab-back-btn:focus-visible{outline:2px solid #2563EB;outline-offset:2px}
 }
 `;
 
@@ -4255,6 +4274,19 @@ export default function AnalysisBoard() {
   return (
     <div className="ab-root">
       <style>{PLAY_ARENA_UI_CSS}</style>
+      {/* Way out of the full-screen page on desktop, where this route hides the
+          sidebar. Hidden below 901px and while Play Mode owns the screen. */}
+      {!playMode && (
+        <button
+          type="button"
+          className="ab-back-btn"
+          onClick={() => navigate('/student/dashboard')}
+          title="Back to dashboard"
+          aria-label="Back to student dashboard"
+        >
+          <span aria-hidden="true">←</span>
+        </button>
+      )}
       {/* ── party burst ── */}
       {confetti.length > 0 && (
         <div className="confetti-wrap">
