@@ -23939,9 +23939,7 @@ html, body {
   font-size: 10px;
   line-height: 1;
   font-weight: 800;
-  opacity: 0.6;
   pointer-events: none;
-  color: #14212b;
   user-select: none;
 }
 /* Player rows: name ellipsizes, clock never moves. */

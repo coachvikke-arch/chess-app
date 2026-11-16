@@ -3,7 +3,8 @@ import { Chess } from 'chess.js';
 import { exactlyOnePly } from '../../utils/positionDiff';
 import { CBURNETT_SVGS } from '../cburnettPieces';
 import { resolveBoardAnimation, useBoardAnimationId } from '../../config/boardAnimation';
-import { lum } from '../../config/ornateTheme';
+import { useSquareInk } from '../../hooks/useSquareInk';
+import { contrastInk } from '../../utils/colorContrast';
 
 const FILES = 'abcdefgh';
 let pieceIdCounter = 0;
@@ -176,6 +177,7 @@ export default function AnimatedBoard({
   const [dragTargets, setDragTargets] = useState(null);
 
   const rootRef = useRef(null);
+  const squareInk = useSquareInk(rootRef);
   const prevRef = useRef({ key: mapKey(parsedInitial.map), fen: parsedInitial.fen });
   const dragRef = useRef(null);
   const timersRef = useRef([]);
@@ -400,19 +402,25 @@ export default function AnimatedBoard({
 
   /* Inside-square coordinates for frameless mode. Rank numbers go in the
      top-left corner of the left-most file squares; file letters go in the
-     bottom-right corner of the bottom-rank squares. Colors are chosen to
-     contrast with the square's own colour. */
+     bottom-right corner of the bottom-rank squares. */
   const insideSq = boardWidth / 8;
   const coordFontSize = Math.max(10, Math.round(insideSq * 0.22));
-  /* Coordinate ink has to contrast with the square it sits on. The old pair
-     reused the OPPOSITE square's fill, which is pretty but only ever ~2.8:1;
-     at 10px that is barely readable. Pick dark ink on a light square and light
-     ink on a dark one, so both orientations clear 4.5:1. */
-  const darkSqFill = (typeof dark.backgroundColor === 'string' && dark.backgroundColor) || '#b58863';
-  const lightSqFill = (typeof light.backgroundColor === 'string' && light.backgroundColor) || '#f0d9b5';
-  const inkFor = (fill) => (lum(fill) > 0.45 ? '#1f2937' : '#f8fafc');
-  const darkCoordColor = inkFor(lightSqFill);   /* drawn on a light square */
-  const lightCoordColor = inkFor(darkSqFill);   /* drawn on a dark square */
+  /* Coordinate ink follows the fill of the square the label sits on: the
+     theme's hex (ornate boards paint per-square colours) or the
+     --board-light/--board-dark pair the theme or the custom picker writes.
+     contrastInk() keeps whichever of the app's two inks reads better, so a pale
+     theme can never leave white coordinates on a pale square. */
+  const darkSqFill = (typeof dark.backgroundColor === 'string' && dark.backgroundColor) || '#769656';
+  const lightSqFill = (typeof light.backgroundColor === 'string' && light.backgroundColor) || '#EEEED2';
+  const inkForSquare = (isDark, fill) => (
+    contrastInk(fill) || (isDark ? squareInk.dark : squareInk.light)
+  );
+  /* The corner labels sit on the edge squares, so their ink is that square's. */
+  const inkAt = (col, row) => {
+    const sq = displayToSquare(col, row, boardOrientation);
+    const isDarkSq = ((sq.charCodeAt(0) - 97) + (Number(sq[1]) - 1)) % 2 === 0;
+    return inkForSquare(isDarkSq, isDarkSq ? darkSqFill : lightSqFill);
+  };
 
   /* Legal-move hints, keyed by destination square (true = capture → ring,
      false = quiet → dot). Both the click-selected targets (legalTargets) and the
@@ -465,7 +473,11 @@ export default function AnimatedBoard({
             <span
               className="ab-inside-coord ab-inside-rank"
               style={{
-                color: isDark ? lightCoordColor : darkCoordColor,
+                color: inkForSquare(
+                  isDark,
+                  (extra && typeof extra.backgroundColor === 'string' && extra.backgroundColor)
+                    || (isDark ? darkSqFill : lightSqFill),
+                ),
                 fontSize: coordFontSize,
               }}
             >
@@ -476,7 +488,11 @@ export default function AnimatedBoard({
             <span
               className="ab-inside-coord ab-inside-file"
               style={{
-                color: isDark ? lightCoordColor : darkCoordColor,
+                color: inkForSquare(
+                  isDark,
+                  (extra && typeof extra.backgroundColor === 'string' && extra.backgroundColor)
+                    || (isDark ? darkSqFill : lightSqFill),
+                ),
                 fontSize: coordFontSize,
               }}
             >
@@ -611,7 +627,7 @@ export default function AnimatedBoard({
               <span
                 key={`f-${f}`}
                 className="ab-coord ab-coord-file"
-                style={{ left: `${i * 12.5}%`, width: '12.5%', ...(customNotationStyle || {}) }}
+                style={{ left: `${i * 12.5}%`, width: '12.5%', ...(customNotationStyle || { color: inkAt(i, 7) }) }}
               >
                 {shown}
               </span>
@@ -623,7 +639,7 @@ export default function AnimatedBoard({
               <span
                 key={`r-${r}`}
                 className="ab-coord ab-coord-rank"
-                style={{ top: `${i * 12.5}%`, height: '12.5%', ...(customNotationStyle || {}) }}
+                style={{ top: `${i * 12.5}%`, height: '12.5%', ...(customNotationStyle || { color: inkAt(0, i) }) }}
               >
                 {shown}
               </span>

@@ -5,6 +5,7 @@ import ChessBoard from './ChessBoard';
 import { fitBoardWidth } from './ResponsiveBoard';
 import { frameInsetFor, squaresForOuter } from '../utils/boardFrame';
 import { useAuth } from '../context/AuthContext';
+import { useSquareInk } from '../hooks/useSquareInk';
 import { buildScoreRows, gameStartsBlack } from '../lib/scoreSheet';
 import { useBoardWidth } from '../pages/Library';
 import {
@@ -74,6 +75,7 @@ function resultLabel(status, result, reason, whiteName, blackName) {
  */
 export default function SpectatorBoard({ session, outerWidth = 380, onClose, onBack, embedded = false, bare = false, boardCap = 460, lockBlackTop = false, compact = false, defaultOrientation = 'white', autoFlip = true }) {
   const { boardFrame } = useAuth();
+  const squareInk = useSquareInk();
   const [snap, setSnap] = useState(() => seed(session));
   const [boardRef, fittedWidth] = useBoardWidth();
   const gameRef = useRef(null);
@@ -279,6 +281,17 @@ export default function SpectatorBoard({ session, outerWidth = 380, onClose, onB
   const framePad = framedBoard ? frameInsetFor(squares) + 2 : 0;
   const fileLetters = orientation === 'white' ? 'abcdefgh' : 'hgfedcba';
   const rankNumbers = orientation === 'white' ? [8, 7, 6, 5, 4, 3, 2, 1] : [1, 2, 3, 4, 5, 6, 7, 8];
+  /* Each label sits on the edge square it names, so its ink is that square's:
+     rank labels on the displayed left file, file labels on the displayed
+     bottom rank. The pair comes from the live board palette, never a fixed
+     colour, so a theme or custom-colour change recolours them. */
+  const squareIsDark = (file, rank) => ((file.charCodeAt(0) - 97) + (rank - 1)) % 2 === 0;
+  const inkForRank = (rank) => (
+    squareIsDark(orientation === 'white' ? 'a' : 'h', rank) ? squareInk.dark : squareInk.light
+  );
+  const inkForFile = (file) => (
+    squareIsDark(file, orientation === 'white' ? 1 : 8) ? squareInk.dark : squareInk.light
+  );
   const boardOuter = boardW;
 
   return (
@@ -331,13 +344,13 @@ export default function SpectatorBoard({ session, outerWidth = 380, onClose, onB
                 style={{ left: framePad, top: framePad, width: squares, height: squares }}
               >
                 {rankNumbers.map((rank, j) => (
-                  <span key={`r${rank}`} className="spec-coord" style={{ top: j * sq + 2, left: 2 }}>{rank}</span>
+                  <span key={`r${rank}`} className="spec-coord" style={{ top: j * sq + 2, left: 2, color: inkForRank(rank) }}>{rank}</span>
                 ))}
                 {fileLetters.split('').map((file, i) => (
                   <span
                     key={`f${file}`}
                     className="spec-coord"
-                    style={{ left: (i + 1) * sq - 2, bottom: 2, transform: 'translateX(-100%)' }}
+                    style={{ left: (i + 1) * sq - 2, bottom: 2, transform: 'translateX(-100%)', color: inkForFile(file) }}
                   >
                     {file}
                   </span>

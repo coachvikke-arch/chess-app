@@ -4,8 +4,14 @@ import { useAuth } from '../../context/AuthContext';
 import { getBoardTheme, getBoardThemeStyles } from '../../config/boardThemes';
 import { ornateSquareStyles } from '../../config/ornateTheme';
 import { LABEL_MIN_SQUARES } from '../../utils/boardFrame';
+import { useSquareInk } from '../../hooks/useSquareInk';
+import { COORD_DARK_INK, COORD_LIGHT_INK } from '../../utils/colorContrast';
 import { boardGrid, pieceGlyph, squareColor } from './boardVisionLogic';
 import './boardVision.css';
+
+/* High-contrast drill mode paints its own white/black squares, so it needs no
+   palette lookup — the two inks are the same pair the rest of the app uses. */
+const HC_COORD_INK = { light: COORD_DARK_INK, dark: COORD_LIGHT_INK };
 
 /**
  * InteractiveChessboard — lightweight 8x8 grid of real <button> squares.
@@ -71,6 +77,7 @@ function InteractiveChessboard({
      so in that mode the squares keep their CSS palette and nothing is painted
      over them. The map is memoised because each square is a memoized button —
      a fresh style object per render would re-render all sixty-four. */
+  const squareInk = useSquareInk(wrapRef);
   const painted = !highContrast;
   const squareStyles = useMemo(() => {
     if (!painted) return null;
@@ -97,23 +104,27 @@ function InteractiveChessboard({
         ...(painted ? themeStyles.boardStyle : null),
       }}
     >
-      {grid.map((row, ri) => row.map((sq, ci) => (
-        <BoardSquare
-          key={sq}
-          square={sq}
-          color={squareColor(sq)}
-          themeStyle={squareStyles?.[sq] || null}
-          piece={hidePieces ? null : pieces[sq]}
-          showCoord={showCoordinates && !hideCoords && !bandLabels && (ci === 0 || ri === 7 || (orientation === 'black' && (ci === 7 || ri === 0)))}
-          coordLabel={sq}
-          isHighlight={highlight === sq}
-          isSelected={highlightSelected && selected === sq}
-          result={lastResult && lastResult.square === sq ? lastResult : null}
-          isReveal={revealSquare === sq}
-          disabled={disabled}
-          onTap={onSquareTap}
-        />
-      )))}
+      {grid.map((row, ri) => row.map((sq, ci) => {
+        const color = squareColor(sq);
+        return (
+          <BoardSquare
+            key={sq}
+            square={sq}
+            color={color}
+            coordColor={highContrast ? HC_COORD_INK[color] : squareInk[color]}
+            themeStyle={squareStyles?.[sq] || null}
+            piece={hidePieces ? null : pieces[sq]}
+            showCoord={showCoordinates && !hideCoords && !bandLabels && (ci === 0 || ri === 7 || (orientation === 'black' && (ci === 7 || ri === 0)))}
+            coordLabel={sq}
+            isHighlight={highlight === sq}
+            isSelected={highlightSelected && selected === sq}
+            result={lastResult && lastResult.square === sq ? lastResult : null}
+            isReveal={revealSquare === sq}
+            disabled={disabled}
+            onTap={onSquareTap}
+          />
+        );
+      }))}
     </div>
   );
 
@@ -145,7 +156,7 @@ function InteractiveChessboard({
 }
 
 const BoardSquare = memo(function BoardSquare({
-  square, color, themeStyle, piece, showCoord, coordLabel,
+  square, color, coordColor, themeStyle, piece, showCoord, coordLabel,
   isHighlight, isSelected, result, isReveal, disabled, onTap,
 }) {
   const label = piece
@@ -174,7 +185,7 @@ const BoardSquare = memo(function BoardSquare({
         </span>
       )}
       {showCoord && (
-        <span className="bv-coord" aria-hidden="true">{coordLabel}</span>
+        <span className="bv-coord" style={{ color: coordColor }} aria-hidden="true">{coordLabel}</span>
       )}
       {result && (
         <span className={`bv-mark ${result.ok ? 'bv-mark-good' : 'bv-mark-bad'}`} aria-hidden="true">

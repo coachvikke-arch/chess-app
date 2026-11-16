@@ -91,14 +91,7 @@
 .bv-piece-b { color: #1c1a16; text-shadow: 0 1px 1px rgba(255,255,255,0.55); }
 .bv-coord {
   position: absolute; left: 3px; bottom: 2px; font-size: 0.62rem; font-weight: 800;
-  opacity: 0.85; pointer-events: none;
-}
-.bv-sq-light .bv-coord { color: #7a5230; }
-.bv-sq-dark .bv-coord {
-  color: #ffffff;
-  background: rgba(15, 23, 42, 0.62);
-  border-radius: 3px;
-  padding: 0 2px;
+  pointer-events: none;
 }
 .bv-sq-spot::after {
   content: ''; position: absolute; inset: 6%;
