@@ -626,6 +626,12 @@ const PLAY_ARENA_UI_CSS = `
 }
 .ab-root.ab-root .ab-action-btn:hover{background:#EAF1FF;border-color:#2563EB;color:#2563EB}
 
+/* Card wrappers used only by the desktop right column. Below 901px they
+   collapse into their parent (display:contents) and their titles are hidden,
+   so the phone/tablet tree is unchanged. */
+.ab-root.ab-root .ab-side-card{display:contents}
+.ab-root.ab-root .ab-card-title{display:none}
+
 /* short screens: shave the fixed rows, never the board */
 @media (max-height:800px){
   .ab-root.ab-root .ab-layout{padding:10px 12px;gap:10px}
@@ -670,6 +676,81 @@ const PLAY_ARENA_UI_CSS = `
   }
   .ab-root.ab-root .ab-tool-icon{font-size:14px;width:22px;height:22px;border-radius:6px}
   .ab-root.ab-root .ab-tool-label{white-space:normal}
+}
+
+/* ── laptops / desktops (901px+): the chess.com two-column board page ────────
+   Everything in this block is gated at 901px, so the stacked phone/tablet
+   rules above are the last word below it. The board is a square sized from
+   the viewport — height first, then whatever width the 360px side column
+   leaves over — and the page itself never scrolls: the layout is exactly one
+   viewport tall and only the FEN box scrolls inside it. */
+@media (min-width:901px){
+  .ab-root.ab-root{
+    --board:min(calc(100dvh - var(--app-nav-h,68px) - 134px),calc(100vw - 424px));
+    --panel:360px;
+  }
+  .ab-root.ab-root .ab-layout{
+    grid-template-columns:var(--board) var(--panel);
+    justify-content:center;align-items:stretch;
+    gap:14px;padding:8px 16px;
+    height:100%;max-width:none;
+  }
+
+  /* left column — [opponent] [toolbar] [board] [you] */
+  .ab-root.ab-root .ab-board-col{
+    width:var(--board);height:100%;gap:4px;justify-content:flex-start;
+  }
+  .ab-root.ab-root .ab-player-row{height:40px;min-height:40px;max-height:40px;padding:0 10px}
+  .ab-root.ab-root .ab-board-toolbar{width:100% !important;height:26px;min-height:26px}
+  .ab-root.ab-root .ab-boardarea{flex:0 0 auto;width:var(--board);height:var(--board)}
+  .ab-root.ab-root .ab-note{display:none}
+
+  /* right column — one card per job, all the same height as the board column */
+  .ab-root.ab-root .ab-side-panel{
+    height:100%;gap:10px;overflow:hidden;
+  }
+  .ab-root.ab-root .ab-side-card{
+    display:flex;flex-direction:column;gap:8px;min-height:0;
+    padding:10px;box-sizing:border-box;
+    background:#fff;border:1px solid #E3E8F0;border-radius:14px;
+    box-shadow:0 1px 2px rgba(15,23,42,.06);
+  }
+  .ab-root.ab-root .ab-card-title{
+    display:block;flex:0 0 auto;
+    font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;
+    color:#64748B;
+  }
+  .ab-root.ab-root .ab-side-card-play{flex:0 0 auto}
+  .ab-root.ab-root .ab-side-card-moves{flex:0 1 auto}
+  .ab-root.ab-root .ab-side-card-controls{flex:1 1 auto}
+
+  /* Play — four full-width rows, icon and label. The selector carries the
+     whole path because index.css styles the grid's tiles at a higher
+     specificity (and pins min-height:68px there). */
+  .ab-root.ab-root .ab-tool-grid{grid-template-columns:minmax(0,1fr) !important;gap:6px}
+  .ab-root.ab-root .ab-side-panel .ab-tool-grid .ab-tool-tile{
+    height:44px;min-height:44px;padding:0 12px;font-size:14px;border-radius:10px;
+  }
+  .ab-root.ab-root .ab-tool-icon{width:24px;height:24px}
+
+  /* Moves — the same horizontal strip, now a card of its own */
+  .ab-root.ab-root .ab-side-card-moves .ab-movestrip{
+    height:40px;min-height:40px;max-height:40px;width:100%;
+  }
+  .ab-root.ab-root .ab-side-card-moves .ab-review-panel{
+    max-height:280px;overflow:auto;
+  }
+
+  /* Controls — nav row, FEN/PGN tabs, Share/Download, then the text box */
+  .ab-root.ab-root .ab-side-card-controls .ab-info-card{display:contents}
+  .ab-root.ab-root .ab-side-card-controls .ab-ctrl-row{order:1}
+  .ab-root.ab-root .ab-side-card-controls .ab-info-tabs{order:2;margin-bottom:0}
+  .ab-root.ab-root .ab-side-card-controls .ab-actions{order:3}
+  .ab-root.ab-root .ab-side-card-controls .ab-info-body{
+    order:4;flex:1 1 auto;min-height:90px;
+  }
+  .ab-root.ab-root .ab-side-card-controls .ab-ctrl-row .ab-ctrl-btn{height:34px}
+  .ab-root.ab-root .ab-side-card-controls .ab-action-btn{height:36px}
 }
 `;
 
@@ -750,6 +831,20 @@ export default function AnalysisBoard() {
   /* Play Mode — fullscreen immersive overlay. Purely a VIEW switch: the page
      (and every game/time/connection state) stays mounted underneath. */
   const [playMode,      setPlayMode]      = useState(false);
+
+  /* Mirrors the CSS breakpoint exactly (the stacked block stops at 900px). It
+     only decides WHERE the moves pane is rendered — on desktop it is the right
+     column's "Moves" card, below 901px it stays between the board and the
+     bottom player strip, untouched. */
+  const [wideArena, setWideArena] = useState(() => (
+    typeof window !== 'undefined' && window.matchMedia('(min-width: 901px)').matches
+  ));
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 901px)');
+    const onChange = (event) => setWideArena(event.matches);
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, []);
 
   /* The two boards this page mounts: the page board and the full-screen Play
      Mode board (a portal above the page). They share ONE Chess instance, so a
@@ -1109,7 +1204,10 @@ export default function AnalysisBoard() {
       /* A 4px shave keeps the board's edge from sitting flush against the band,
          where sub-pixel rounding can clip a border. */
       const budget = Math.max(160, raw - 4);
-      const cap = vw < 640 ? 420 : vw < 1024 ? 480 : 620;
+      /* Desktop has no room cap of its own: the band is already exactly one
+         square (--board in the 901px+ block), so the old 620px ceiling would
+         only stop the board from growing with the screen. Phones keep it. */
+      const cap = vw < 640 ? 420 : vw < 901 ? 480 : 1600;
 
       setBoardOuter(Math.round(Math.max(160, Math.min(cap, budget))));
     };
@@ -4119,6 +4217,40 @@ export default function AnalysisBoard() {
     document.body,
   ) : null;
 
+  /* One moves pane, mounted once. Phones/tablets get it in its original slot
+     between the board and the bottom player strip; desktop moves it into the
+     right column's "Moves" card (see `wideArena`). */
+  const movesPane = (
+    <>
+      {reviewMode ? (
+        <ReviewPanel
+          moves={moves}
+          moveIndex={moveIndex}
+          verdicts={gameAnalysis?.verdicts ?? null}
+          analyzing={analyzing}
+          analyzeProgress={analyzeProgress}
+          onNavigate={goToMove}
+          onExitReview={() => setReviewMode(false)}
+          onRematch={rematch}
+          onNewGame={fullReset}
+          canRematch={moves.length > 0 && (Boolean(onlineRematchTarget(onlineGame)) || computerOn || Boolean(clockOver))}
+        />
+      ) : (
+        <MoveList
+          moves={moves}
+          moveIndex={moveIndex}
+          verdicts={verdictList}
+          navLocked={navLocked}
+          goToMove={handleNavMove}
+          containerRef={stripRef}
+          emptyText="No moves yet. Play on the board or load a game."
+          resultToken={moveResultToken}
+        />
+      )}
+      {liveReviewing && <LiveReviewBar moveIndex={moveIndex} total={moves.length} onReturn={returnToLive} />}
+    </>
+  );
+
   /* ========================= RENDER ========================= */
   return (
     <div className="ab-root">
@@ -4337,33 +4469,10 @@ export default function AnalysisBoard() {
             </div>
           )}
 
-          {/* ── moves — ONE horizontal row (or the review panel while reviewing) ── */}
-          {reviewMode ? (
-            <ReviewPanel
-              moves={moves}
-              moveIndex={moveIndex}
-              verdicts={gameAnalysis?.verdicts ?? null}
-              analyzing={analyzing}
-              analyzeProgress={analyzeProgress}
-              onNavigate={goToMove}
-              onExitReview={() => setReviewMode(false)}
-              onRematch={rematch}
-              onNewGame={fullReset}
-              canRematch={moves.length > 0 && (Boolean(onlineRematchTarget(onlineGame)) || computerOn || Boolean(clockOver))}
-            />
-          ) : (
-            <MoveList
-              moves={moves}
-              moveIndex={moveIndex}
-              verdicts={verdictList}
-              navLocked={navLocked}
-              goToMove={handleNavMove}
-              containerRef={stripRef}
-              emptyText="No moves yet. Play on the board or load a game."
-              resultToken={moveResultToken}
-            />
-          )}
-          {liveReviewing && <LiveReviewBar moveIndex={moveIndex} total={moves.length} onReturn={returnToLive} />}
+          {/* ── moves — ONE horizontal row (or the review panel while reviewing) ──
+              On desktop this pane is rendered in the right column instead, so
+              the left column is exactly [opponent] [board] [you]. */}
+          {!wideArena && movesPane}
 
           {/* bottom player card (me) — under the moves strip */}
           <div className="ab-player-row ab-player-row-reactions">
@@ -4407,7 +4516,11 @@ export default function AnalysisBoard() {
         } : undefined}>
 
           {/* Tool tiles — one per option. Clicking one opens the shared
-              centered modal above the page; the board stays mounted behind it. */}
+              centered modal above the page; the board stays mounted behind it.
+              `ab-side-card` is display:contents below 901px, so on phones this
+              wrapper does not exist visually. */}
+          <div className="ab-side-card ab-side-card-play">
+          <span className="ab-card-title">Play</span>
           <div className="ab-tool-grid" role="group" aria-label="Play Arena options">
             {ARENA_TILES.map((tile) => {
               const active = activePopup === tile.id;
@@ -4432,6 +4545,20 @@ export default function AnalysisBoard() {
               );
             })}
           </div>
+          </div>
+
+          {/* Moves — a card of its own on desktop; below 901px the same pane
+              still renders under the board and this node is not mounted. */}
+          {wideArena && (
+            <div className="ab-side-card ab-side-card-moves">
+              <span className="ab-card-title">Moves</span>
+              {movesPane}
+            </div>
+          )}
+
+          {/* Controls — nav row, FEN/PGN tabs, Share/Download, FEN box. */}
+          <div className="ab-side-card ab-side-card-controls">
+          <span className="ab-card-title">Controls</span>
 
           {/* Navigation controls — same handlers as the Play Mode controls. */}
           <div className="ab-ctrl-row" role="group" aria-label="Board navigation">
@@ -4485,6 +4612,7 @@ export default function AnalysisBoard() {
               <span>Download</span>
             </button>
           </div>
+          </div>{/* end Controls card */}
 
         </div>{/* end side panel */}
       </div>

@@ -834,7 +834,7 @@ export function sacrificeCore(fen, mv, prevMv) {
 
   return {
     recapture, moved, gained, dealt,
-    theirAtk, theirCheapest, ourDef, ourKingDef, canBeTaken,
+    theirAtk, theirCheapest, ourDef, ourKingDef, canBeTaken, kingCanTake,
   };
 }
 
@@ -852,10 +852,14 @@ export function heuristicIsSacrifice(fen, mv, prevMv) {
       a quiet move, NOT a sacrifice — it reads as Brilliant today only because
       the king was counted as no defender at all. */
   const profitableTake = c.ourDef > 0 ? c.moved > c.theirCheapest : c.moved > 0;
+  /* A king is a capturer too. When the offer lands next to the enemy king on a
+     square no other piece attacks, theirAtk is 0 (VAL.k = 0) — yet the king can
+     legally collect, which is the purest form of a sacrifice (13...Bg4+ Kxg4). */
+  const enemyCanTake = c.theirAtk >= VAL.p || c.kingCanTake;
   const offeredLoose = !mv.captured
     && c.moved >= VAL.n
     && c.canBeTaken
-    && c.theirAtk >= VAL.p
+    && enemyCanTake
     && c.ourDef < c.moved
     && !c.ourKingDef
     && profitableTake;
@@ -927,10 +931,13 @@ export function sacrificeCandidate(fen, mv, prevMv) {
   const c = sacrificeCore(fen, mv, prevMv);
   if (!c || c.recapture) return false;
   const profitableTake = c.ourDef > 0 ? c.moved > c.theirCheapest : c.moved > 0;
+  /* King-only collection counts (13...Bg4+ Kxg4): the king is not scored by
+     attackValueBy, so an offer it can legally take used to read as unattacked. */
+  const enemyCanTake = c.theirAtk >= VAL.p || c.kingCanTake;
   const looseOffer = !mv.captured
     && c.moved >= VAL.n
     && c.canBeTaken
-    && c.theirAtk >= VAL.p
+    && enemyCanTake
     && c.ourDef < c.moved
     && !c.ourKingDef
     && profitableTake;

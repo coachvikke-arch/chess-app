@@ -62,7 +62,7 @@ import { Chess } from 'chess.js';
 import { searchTopMoves as realSearchTopMoves, evaluateGame as realEvaluateGame } from './nnueEngine.js';
 import { REVIEW_DISPATCH_WIDTH } from './engineConfig.js';
 import { resolveBookMove, openingTag } from './openings.js';
-import { classifyMove, moveMetrics, sacrificeCandidate, protectedSacrificeGeometry, protectedSacrificeValidated, acceptCaptureUcis, settledNetSacrifice, isQuietPosition, moveAccuracy, winPercentDrop, withTrustFloor, sacrificeAttribution, betterNonSacrificialLine, attackingSacrifice } from './reviewClassify.js';
+import { classifyMove, moveMetrics, sacrificeCandidate, protectedSacrificeGeometry, protectedSacrificeValidated, acceptCaptureUcis, settledNetSacrifice, isQuietPosition, moveAccuracy, winPercentDrop, withTrustFloor, sacrificeAttribution, betterNonSacrificialLine, attackingSacrifice, sumMaterialFor } from './reviewClassify.js';
 import { classifySigmaFromPly, SIGMA_TYPE_META, SIGMA_TYPES_IN_PRIORITY_ORDER, SIGMA_VERDICT, isSigmaVerdict } from './sigmaType.js';
 import { aggregateSide } from './reviewAccuracy.js';
 import {
@@ -257,6 +257,14 @@ export async function reviewGame(
      hidden. The locals are now distinctly named. */
   const searchImpl = (engine && engine.searchTopMoves) || realSearchTopMoves;
   const evaluateImpl = (engine && engine.evaluateGame) || realEvaluateGame;
+
+  /* Per-move classification trace: eval before/after, best reply, material on
+     both sides, every sacrifice input and the final verdict. DEV in the browser,
+     REVIEW_DEBUG=1 for the Node analysis worker. Read-only diagnostics. */
+  const wantMoveDebug = Boolean(
+    (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.DEV)
+    || (typeof process !== 'undefined' && process.env && process.env.REVIEW_DEBUG === '1'),
+  );
 
 /* Every engine call in the review goes through the position cache, so a re-run
    of the same game costs no engine time and two plies that ask for the same
@@ -780,10 +788,31 @@ const PIECE_VAL = { p: 100, n: 320, b: 330, r: 500, q: 900, k: 0 };
       } catch { bestSan = null; }
     }
 
+    if (wantMoveDebug) {
+      const material = (fen) => ({ w: sumMaterialFor(fen, 'w'), b: sumMaterialFor(fen, 'b') });
+      /* eslint-disable no-console */
+      console.log('[review:move]', JSON.stringify({
+        ply: pl.ply + 1, san: pl.san, mover: pl.player,
+        evalBefore: bestScore, evalAfter: playedScore, cpl,
+        best: bestSan, verdict: verdictRaw, final: verdict,
+        materialBefore: material(pl.fenBefore), materialAfter: material(pl.fenAfter),
+        sacrifice, hasNetSacrifice, sacrificeAttributed, attackingSac, betterNonSacLine,
+        settled: settled ? {
+          offeredTaken: settled.offeredTaken,
+          pressed: settled.pressed,
+          netDown: settled.netDown,
+          forcedMate: settled.forcedMate === true,
+          connectedTacticalSacrifice: settled.connectedTacticalSacrifice === true,
+        } : null,
+      }));
+      /* eslint-enable no-console */
+    }
+
     const row = {
       ply: pl.ply, player: pl.player, san: pl.san, uci: pl.uci,
       verdict,
       sigma,
+      fenBefore: pl.fenBefore,
       /* Canonical per-move metadata every surface compares and displays
          directly: forced status, the engine's best move in SAN, and the final
          sacrifice decision (true only after the settlement guards, including
