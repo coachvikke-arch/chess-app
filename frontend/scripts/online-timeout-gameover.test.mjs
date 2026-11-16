@@ -265,8 +265,8 @@ test('the move list closes with the score and how it ended', () => {
   assert.match(resultToken, /'1-0'/);
   assert.match(resultToken, /'0-1'/);
   assert.match(resultToken, /'½-½'/);
-  assert.equal((page.match(/resultToken=\{moveResultToken\}/g) || []).length, 2,
-    'the strip is given it on the page and inside Play Mode');
+  assert.equal((page.match(/resultToken=\{moveResultToken\}/g) || []).length, 1,
+    'the page strip is given it');
   assert.equal((page.match(/\{resultToken && <span className="ab-mv-result">\{resultToken\}<\/span>\}/g) || []).length, 2,
     'rendered in the zero-move branch too — a flag on move 1 is still a result');
   assert.match(css, /\.ab-root\.ab-root \.ab-mv-result \{[^}]*white-space: nowrap/,

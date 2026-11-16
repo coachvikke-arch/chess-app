@@ -179,8 +179,8 @@ test('the board is memoised, the clock ticks on its own, and analysis is off in 
 
 test('a piece in a live match glides at most 200ms, whatever the saved preference says', () => {
   assert.match(board, /const ONLINE_MOVE_MS = 200/, 'the ceiling');
-  assert.equal(count(board, /maxMoveMs=\{inOnline \? ONLINE_MOVE_MS : undefined\}/), 2,
-    'applied at both board surfaces (page and Play Mode)');
+  assert.equal(count(board, /maxMoveMs=\{inOnline \? ONLINE_MOVE_MS : undefined\}/), 1,
+    'applied at the page board');
   assert.match(chessBoard, /maxMoveMs/, 'ChessBoard forwards it');
   assert.match(animatedBoard, /Math\.min\(preset\.duration, maxMoveMs\)/, 'and the board clamps it');
   assert.match(animatedBoard, /buildPieces\(parsed\.map\)/,

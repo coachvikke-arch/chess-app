@@ -137,25 +137,3 @@ test('the Play Mode overlay fades in without scaling the board', () => {
     'and nothing at all for reduced motion');
 });
 
-test('the mobile Play Mode panel reserves its height so the board keeps its size', () => {
-  const scroll = rule('.play-mode-panel-scroll {\n    flex: 0 0 auto;');
-  assert.match(scroll, /height: 38dvh/, 'a viewport-true height (the URL bar is not content)');
-
-  const area = rule('.play-mode-board-area { order: -1; flex: 1 1 0;');
-  assert.match(area, /min-height: 0/, 'and it can shrink to what is left');
-  assert.doesNotMatch(css, /\.play-mode-board-area \{[^{}]*flex: 1 1 auto/,
-    'a content basis is the feedback loop that jumped the board twice');
-});
-
-test('the Play Mode board is measured before paint and only re-fits on a real change', () => {
-  const measureIdx = ab.indexOf('const el = pmAreaRef.current;');
-  assert.ok(measureIdx > 0, 'the overlay area is measured');
-  const head = ab.slice(Math.max(0, measureIdx - 900), measureIdx);
-  assert.match(head, /useLayoutEffect\(\(\) => \{/, 'measured before the first paint');
-  assert.match(ab, /Math\.abs\(prev\.w - w\) <= 2 && Math\.abs\(prev\.h - h\) <= 2/,
-    'a sub-pixel reading keeps the previous size instead of rebuilding the board');
-  assert.match(ab, /if \(w <= 0 \|\| h <= 0\) return;/,
-    'a collapsed reading is not a size and cannot drop the board onto the fallback');
-  assert.doesNotMatch(ab, /setPmSize\(\{ w: Math\.floor\(w\), h: Math\.floor\(h\) \}\)/,
-    'the unconditional setter is gone');
-});

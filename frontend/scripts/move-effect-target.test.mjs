@@ -108,16 +108,11 @@ test('the effect core resolves the target through the shared chain', () => {
 
 /* ── the surfaces declare their board ─────────────────────────────────────── */
 
-test('the Play Arena names both boards and declares the one on top', () => {
+test('the Play Arena names its board and declares it visible', () => {
   assert.match(ARENA, /const pageBoardHostId = useId\(\)/);
-  assert.match(ARENA, /const playModeBoardHostId = useId\(\)/);
-  assert.match(ARENA, /useVisibleEffectHost\(playMode \? playModeBoardHostId : pageBoardHostId\)/,
-    'Play Mode must own the effect target while it is open');
-  /* The two boards are rendered by the ONE shared board component, which takes
-     the host id as a prop. */
+  assert.match(ARENA, /useVisibleEffectHost\(pageBoardHostId\)/);
   assert.match(ARENA, /<ArenaBoard/);
   assert.match(ARENA, /effectHostId=\{pageBoardHostId\}/);
-  assert.match(ARENA, /effectHostId=\{playModeBoardHostId\}/);
 });
 
 test('the review page and the imported-game card name their boards', () => {

@@ -81,18 +81,12 @@ test('the card fills the screen', () => {
 
 /* ── 2. ONE board component, ONE completion card ────────────────────────── */
 
-test('the Play Arena renders ONE board component in both surfaces', () => {
+test('the Play Arena renders ONE board component', () => {
   assert.match(ARENA, /import ArenaBoard from '\.\.\/components\/ArenaBoard'/);
   assert.doesNotMatch(ARENA, /<ChessBoard/,
     'the board must not be written out twice any more');
   const uses = (ARENA.match(/<ArenaBoard/g) || []).length;
-  assert.equal(uses, 2, 'the page board and the Play Mode board both use it');
-  /* ONE live board at a time: the page board unmounts while Play Mode is open.
-     Both surfaces hand the same mutable Chess instance to ChessBoard, and two
-     mounted boards each ran their own position watcher against one game, which
-     is what replayed a move the visible board had already animated. */
-  assert.match(ARENA, /!playMode && \(\s*<ArenaBoard/,
-    'the page board must not stay mounted behind the Play Mode board');
+  assert.equal(uses, 1, 'the page has exactly one board');
   assert.match(ARENA_BOARD, /export default memo\(ArenaBoard/,
     'the one board is memoised, with a FEN-aware compare');
   assert.match(ARENA_BOARD, /moveEffectHostId=\{effectHostId\}/);
@@ -104,8 +98,8 @@ test('there is ONE completion card, and it waits for the mate animation', () => 
   assert.match(ARENA, /<PostGameResultPopup/);
   assert.match(ARENA, /open=\{!resultDismiss && !resultRevealPending\}/,
     'the card must not open before the checkmate animation has finished');
-  assert.match(ARENA, /\{!playMode && resultCard\}/,
-    'the page shows the same card the Play Mode board shows');
+  assert.match(ARENA, /\{resultCard\}/,
+    'the page shows the result card');
   /* The rating moved into the one card, so nothing was lost with the old one. */
   assert.match(ARENA, /rating=\{resultPopupProps\.rating\}/);
   assert.match(POPUP, /rating\.opponent/,

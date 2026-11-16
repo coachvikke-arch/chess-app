@@ -46,8 +46,8 @@ const clock = body(board, 'function GameClock(');
 /* ─── one shared clock, no bypasses ──────────────────────────────────────── */
 
 test('every clock in the arena is the shared component', () => {
-  assert.equal((board.match(/<GameClock\b/g) || []).length, 4,
-    'expected four clock sites: page top, page bottom, Play Mode top, Play Mode bottom');
+  assert.equal((board.match(/<GameClock\b/g) || []).length, 2,
+    'expected two clock sites: page top and page bottom');
   assert.equal((board.match(/<ClockBox\b/g) || []).length, 1,
     'a raw ClockBox is being rendered again — it must only be used by GameClock');
   assert.ok(clock.includes('<ClockBox'), 'GameClock no longer renders the presentational box');
@@ -79,12 +79,12 @@ test('it triggers only while that clock is running, and never at zero', () => {
 /* ─── the tick sound ─────────────────────────────────────────────────────── */
 
 test('the tick is one per second, starts with the warning and stops with it', () => {
-  const tickEffect = clock.slice(clock.indexOf("if (!low || silent || !soundOn) return undefined;"));
+  const tickEffect = clock.slice(clock.indexOf("if (!low || !soundOn) return undefined;"));
   assert.ok(tickEffect.length > 0, 'the tick effect has no stop condition');
   assert.match(tickEffect, /\n\s*playSound\('tick'\);/, 'no immediate first beat');
   assert.match(tickEffect, /setInterval\(\(\) => playSound\('tick'\), 1000\)/);
   assert.match(tickEffect, /return \(\) => clearInterval\(t\)/, 'the interval outlives the warning');
-  assert.match(clock, /\}, \[low, silent, soundOn, playSound\]\);/);
+  assert.match(clock, /\}, \[low, soundOn, playSound\]\);/);
 });
 
 test('the tick is a synthesized cue, and muting the app mutes it', () => {
@@ -102,16 +102,6 @@ test('it reads the app-wide sound switch, not a page-local one', () => {
   assert.match(clock, /const \{ soundOn, playSound \} = useSound\(\);/);
   assert.match(soundCtx, /export function useSound\(\)/);
   assert.ok(board.includes("import { useSound } from '../context/SoundContext'"));
-});
-
-test('only one copy of a clock makes noise', () => {
-  /* Play Mode portals a full-screen arena while .ab-layout stays mounted, so
-     the same side is on screen twice. The hidden copy is silenced. */
-  assert.match(clock, /function GameClock\(\{ clock, running, color, forceFloor, silent = false \}\)/);
-  assert.equal((board.match(/silent=\{playMode\}/g) || []).length, 2,
-    'expected exactly the two page clocks to be silenced under Play Mode');
-  assert.doesNotMatch(board, /silent=\{!playMode\}/,
-    'a Play Mode clock is silenced — that is the visible one');
 });
 
 /* ─── every stop condition ───────────────────────────────────────────────── */
