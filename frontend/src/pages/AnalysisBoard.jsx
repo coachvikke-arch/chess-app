@@ -383,9 +383,11 @@ const PLAY_ARENA_UI_CSS = `
   display:flex;align-items:center;justify-content:center;
   width:auto;min-width:0;max-width:100%;
 }
-/* Game options bar — exactly the board's width (the inline width IS the board's
-   own solved outer size), so its right edge sits on the board's right edge at
-   every breakpoint. The ⋮ button is vertically centred in it. */
+/* Incoming-draw-offer row — exactly the board's width, so the chip lines up
+   with the board instead of floating beside it. The row is mounted only while
+   an offer is pending (the ⋮ trigger moved into the white player card), so it
+   costs no space in normal play; the board band below is the flexible item and
+   hands the row its 40px while it is on screen. */
 .ab-root.ab-root .ab-board-toolbar{
   flex:0 0 auto;display:flex;align-items:center;justify-content:flex-end;gap:8px;
   height:40px;min-height:40px;max-height:40px;
@@ -419,6 +421,17 @@ const PLAY_ARENA_UI_CSS = `
      the right; the viewport cap covers a very narrow window. */
   max-width:min(240px,calc(100vw - 16px));
 }
+
+/* ── Game options trigger, inside the white player card ───────────────────
+   The ⋮ button sits next to the reaction button and the clock on every device.
+   The anchor takes over the row's auto margin (so it and everything after it
+   are pushed to the right) and the clock that follows drops its own auto
+   margin, or the clock would split away from the pair. The menu grows UPWARD
+   from this card: opening downward would leave the viewport from the bottom
+   player row. */
+.ab-root.ab-root .ab-player-row .ab-menu-anchor{margin-left:auto}
+.ab-root.ab-root .ab-player-row .ab-menu-anchor ~ .ab-clock{margin-left:0}
+.ab-root.ab-root .ab-player-row .ab-menu-pop{top:auto;bottom:calc(100% + 6px)}
 .ab-menu-note{
   margin:0 0 2px;padding:2px 10px 4px;font-size:11px;font-weight:600;color:#64748B;
 }
@@ -692,13 +705,16 @@ const PLAY_ARENA_UI_CSS = `
    viewport tall and only the FEN box scrolls inside it. */
 @media (min-width:901px){
   .ab-root.ab-root{
-    /* 134px of chrome is all the column keeps for itself: the two 40px player
-       rows, the 40px options bar, three 2px gaps and the layout's 4px top and
-       bottom padding. Every other pixel of the viewport height goes to the
-       board, so this is the largest the square can be with no page scroll.
+    /* 92px of chrome is all the column keeps for itself: the two 40px player
+       rows, the two 2px gaps and the layout's 4px top and bottom padding. The
+       options row is no longer part of the budget — the ⋮ trigger lives in the
+       white player card and the draw-offer row is mounted only while an offer
+       is pending, taking its 40px from the board band below when it appears.
+       Every other pixel of the viewport height goes to the board, so this is
+       the largest the square can be with no page scroll.
        Across, the 360px side column, the 14px gap and the two 52px paddings
        add up to 478px — the extra 6px is a rounding shave, not reserved space. */
-    --board:min(calc(100dvh - var(--app-nav-h,68px) - 134px),calc(100vw - 484px));
+    --board:min(calc(100dvh - var(--app-nav-h,68px) - 92px),calc(100vw - 484px));
     --panel:360px;
   }
   .ab-root.ab-root .ab-layout{
@@ -716,7 +732,13 @@ const PLAY_ARENA_UI_CSS = `
   /* The bar's inline width is the solved board size, so it stays exactly as wide
      as the board here too. */
   .ab-root.ab-root .ab-board-toolbar{height:40px;min-height:40px}
-  .ab-root.ab-root .ab-boardarea{flex:0 0 auto;width:var(--board);height:var(--board)}
+  .ab-root.ab-root .ab-boardarea{
+    /* Flexible height, fixed width: normally the band fills everything left in
+       the column (which is exactly --board), and if the draw-offer row mounts
+       the band shrinks by its 40px and the board re-solves one step smaller
+       instead of pushing the white player card out of the page. */
+    flex:1 1 0;width:var(--board);min-height:0;
+  }
   .ab-root.ab-root .ab-note{display:none}
 
   /* right column — one card per job, all the same height as the board column */
@@ -4263,37 +4285,23 @@ export default function AnalysisBoard() {
 
           {/* The setup-mode banner is gone with the editor it belonged to. */}
 
-          {/* Game options bar — exactly the board's width, so the ⋮ button sits
-              on the board's right edge instead of floating beside it. It stays
-              mounted outside a game as well, which keeps the board from resizing
-              when a game starts; the menu simply reads every action as disabled.
-              An incoming draw offer is the one other thing that shares this row:
-              it is a question the player has to answer, so it is never hidden
-              behind the menu. A waiting state is NOT shown here — that lives in
-              the Online Match popup, with its Cancel button. */}
-          <div className="ab-board-toolbar" style={{ width: boardOuter }}>
-            {inOnline && drawOffer && !drawOffer.mine && (
+          {/* Incoming draw offer — a question the player has to answer, so it
+              gets its own row above the board instead of hiding behind the
+              menu. It is the only thing this row still holds now that the ⋮
+              trigger lives in the white player card, so the row is mounted only
+              while an offer is pending and the board band below flexes to take
+              its height back when it goes. A waiting state is NOT shown here —
+              that lives in the Online Match popup, with its Cancel button. */}
+          {inOnline && drawOffer && !drawOffer.mine && (
+            <div className="ab-board-toolbar" style={{ width: boardOuter }}>
               <DrawOfferPrompt
                 busy={onlineBusy}
                 drawOffer={drawOffer}
                 opponentName={opponentName}
                 onRespondDraw={respondDrawOnline}
               />
-            )}
-            <ResignDrawMenu
-              inGame={Boolean(inOnline || (computerOn && !gameOver))}
-              isBot={!inOnline && computerOn}
-              /* The server accepts an abort only before both sides have moved
-                 (< 2 half-moves); offering the row after that would be a dead
-                 button that always 400s. */
-              canAbort={Boolean(inOnline && moves.length < 2)}
-              busy={onlineBusy}
-              drawOffer={drawOffer}
-              onResign={inOnline ? resignOnlineCurrent : computerOn ? exitComputer : undefined}
-              onOfferDraw={offerDrawOnline}
-              onAbort={() => { if (onlineGame) abortOnline(onlineGame); }}
-            />
-          </div>
+            </div>
+          )}
 
           {/* board — the flexible band; the square board is sized to fit it */}
           <div className="ab-boardarea" ref={boardAreaRef}>
@@ -4414,6 +4422,24 @@ export default function AnalysisBoard() {
             </span>
             <CapturedTray pieces={bottomCaptured}
               diff={captured[`${orientation}Value`] - captured[`${orientation === 'white' ? 'black' : 'white'}Value`]} />
+            {/* Game options (⋮) ride beside the reaction button and the clock —
+                the CSS gives this anchor the row's auto margin so the three stay
+                together at the right edge on every device. It stays mounted
+                outside a game as well, so the row never reflows when a game
+                starts; the menu simply reads every action as disabled. */}
+            <ResignDrawMenu
+              inGame={Boolean(inOnline || (computerOn && !gameOver))}
+              isBot={!inOnline && computerOn}
+              /* The server accepts an abort only before both sides have moved
+                 (< 2 half-moves); offering the row after that would be a dead
+                 button that always 400s. */
+              canAbort={Boolean(inOnline && moves.length < 2)}
+              busy={onlineBusy}
+              drawOffer={drawOffer}
+              onResign={inOnline ? resignOnlineCurrent : computerOn ? exitComputer : undefined}
+              onOfferDraw={offerDrawOnline}
+              onAbort={() => { if (onlineGame) abortOnline(onlineGame); }}
+            />
             {canReact && <EmojiReactControl open={showReactPicker} disabled={reactionCooling} pressed={pressedReaction} onToggle={() => setShowReactPicker((value) => !value)} onReact={onReact} onClose={() => setShowReactPicker(false)} />}
             <GameClock
               clock={clock}
