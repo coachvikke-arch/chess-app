@@ -302,9 +302,9 @@ const ARENA_CONFIRM_MOVE_KEY = 'knightpath-play-arena-confirm-move';
 const ARENA_HINTS_KEY = 'knightpath-play-arena-hints';
 const ARENA_TAKEBACK_KEY = 'knightpath-play-arena-takeback';
 
-/* Same line the live classroom draw uses, so an arrow looks identical wherever
-   the instructor draws it. */
-const BOARD_ARROW_COLOR = 'rgba(0, 255, 0, 0.7)';
+/* Yellow reads clearly on both the light and the dark squares of every board
+   theme — the green classroom line disappeared on a green board. */
+const BOARD_ARROW_COLOR = 'rgba(255, 214, 0, 0.9)';
 
 /* Online time control is picked in <TimeControlPicker>: presets plus separate
    hours / minutes / increment chip rows, so every value is its own option. */
@@ -3719,10 +3719,10 @@ export default function AnalysisBoard() {
 
   /* ── hand-drawn arrows ──
      This is a PLAYABLE board, so its annotations are mouse-only: RIGHT-drag
-     draws an arrow (the right button never moves a piece), a plain RIGHT-click
-     removes the last one and Shift+RIGHT-click clears them all. The left
-     button stays entirely with the pieces, and no touch gesture is armed —
-     a long-press on a phone belongs to dragging a piece, not to drawing. */
+     draws an arrow (the right button never moves a piece) and ANY plain
+     right-click wipes every arrow. The left button stays entirely with the
+     pieces, and no touch gesture is armed — a long-press on a phone belongs
+     to dragging a piece, not to drawing. */
   const drawnArrows = useMemo(
     () => (arrowDraft && arrowDraft.fen === fen ? arrowDraft.arrows : []),
     [arrowDraft, fen],
@@ -3737,13 +3737,8 @@ export default function AnalysisBoard() {
     });
   }, [fen]);
 
-  const handleBoardRightClick = useCallback((_square, mods) => {
-    setArrowDraft((prev) => {
-      const arrows = prev && prev.fen === fen ? prev.arrows : [];
-      if (!arrows.length) return prev;
-      if (mods?.shiftKey) return { fen, arrows: [] };
-      return { fen, arrows: arrows.slice(0, -1) };
-    });
+  const handleBoardRightClick = useCallback(() => {
+    setArrowDraft((prev) => (prev && prev.arrows.length ? { fen, arrows: [] } : prev));
   }, [fen]);
 
   /* The arrows array has to be identity-stable or the memoized board re-renders
