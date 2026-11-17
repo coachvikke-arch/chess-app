@@ -40,37 +40,30 @@ test('the game-end effect does NOT change the board orientation', () => {
     'no winner-driven orientation logic belongs in the game-end effect');
 });
 
-test('dismissing the result does NOT reset the board', () => {
-  /* The user asked for reset on the BUTTON only. An earlier version reset the
-     board here automatically; the board must stay on the final position so the
-     finished game can still be read, replayed or reviewed. */
-  const closeIdx = src.indexOf('onClose: () => { setResultPopup(null); setResultDismiss(true); }');
-  assert.notEqual(closeIdx, -1, 'onClose must be the plain dismiss (no reset)');
-  const onClose = src.slice(closeIdx, closeIdx + 220);
-  assert.ok(!/startNewGame\(\)/.test(onClose),
-    'closing the result must NOT reset the board');
-  assert.ok(!/goToMove\(/.test(onClose),
-    'closing the result must NOT move the board');
-  /* It must still clear the popup / dismissal flag, or the overlay sticks. */
-  assert.match(onClose, /setResultPopup\(null\)/);
-  assert.match(onClose, /setResultDismiss\(true\)/);
+test('dismissing the result starts a fresh board', () => {
+  /* Reset happens on DISMISS, not the instant the game ends: `goToGameReview()`
+     and the backend save both still need the live board. Closing the card then
+     clears the finished game and leaves an empty board. */
+  const closeIdx = src.indexOf('onClose: () => { markCurrentResultSeen(); fullReset(); }');
+  assert.notEqual(closeIdx, -1, 'onClose must dismiss the result and reset the board');
+  assert.match(src.slice(closeIdx, closeIdx + 120), /fullReset\(\)/);
 });
 
-test('reset is the explicit ↺ button, and it keeps the game', () => {
-  /* `reset()` is position-only: it returns the board to the start via
-     goToMove(0) while KEEPING the move list, so the game can be replayed with
-     ⏮ ◀ ▶ ⏭. It used to call setMoves([]), which silently destroyed a rated
-     game on a "Reset position" click. */
-  /* Strip /* … *\/ comments first: the function's own comment explains that it
-     USED to call setMoves([]), which would otherwise satisfy a naive match. */
+test('reset is the ↺ button and it clears the game', () => {
+  /* The ↺ button used to be position-only: it jumped to move 0 but left every
+     move (and its verdicts) in the list, so it looked like it did nothing.
+     It now clears a practice/bot game and restarts a bot game; a live online
+     match is owned by the server, so there it only walks back to the start. */
   const raw = src.slice(src.indexOf('function reset()'), src.indexOf('function startNewGame()'));
   const fn = raw.replace(/\/\*[\s\S]*?\*\//g, '');
-  assert.match(fn, /goToMove\(0\)/,
-    'the reset button must return the board to the starting position');
-  assert.ok(!/setMoves\(\[\]\)/.test(fn),
-    'the reset button must NOT wipe the move list — that loses the game');
+  assert.match(fn, /if \(onlineGame\) \{ goToMove\(0\); return; \}/,
+    'a live online match must not have its move list cleared locally');
+  assert.match(fn, /setMoves\(\[\]\)/,
+    'reset must wipe the move list on a practice board');
+  assert.match(fn, /startComputerGame\(computerColor\)/,
+    'reset must restart a bot game with the same settings');
   /* The button must actually be wired to it. */
-  assert.match(src, /onClick=\{reset\}[^>]*title="Reset position"/,
+  assert.match(src, /onClick=\{reset\}[^>]*title="Reset board"/,
     'the ↺ control must still be wired to reset()');
 });
 

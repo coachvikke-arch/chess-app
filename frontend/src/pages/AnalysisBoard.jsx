@@ -1722,12 +1722,46 @@ export default function AnalysisBoard() {
   }
 
   function reset() {
-    /* Position-only reset. This used to call setMoves([]), which silently
-       deleted the entire game — a rated game lost to a "Reset position"
-       click, with no way to get it back. Keeping the move list means the game
-       can simply be replayed with ▶ / ⏭. Starting a genuinely fresh game is
-       the separate "♞ New game" button (startNewGame / fullReset). */
-    goToMove(0);
+    /* A live online match is owned by the server: its move list IS the game,
+       and clearing it locally would leave the board behind the match until the
+       opponent's next push. There the button keeps its review meaning of
+       jumping back to the starting position. */
+    if (onlineGame) { goToMove(0); return; }
+
+    /* A computer game restarts on the spot with the same settings (level,
+       clock, colours) — this is the bot-game equivalent of starting over. */
+    if (computerOn) {
+      setResultPopup(null); setResultDismiss(false); setResultRevealPending(false);
+      setConfetti([]);
+      analysisToken.current += 1;
+      setGameAnalysis(null); setAnalyzing(false); setShowReviewPopup(false);
+      startComputerGame(computerColor);
+      return;
+    }
+
+    /* Practice board: a true reset. The empty move list is the point — the old
+       position-only reset left every move (and their verdicts) on screen, so
+       the ↺ button looked like it did nothing. */
+    clearMoveEffects('reset');
+    clearMateReveal();
+    clearReactionBubbles();
+    analysisToken.current += 1;
+    liveReviewGameRef.current = null;
+    setPendingConfirm(null);
+    const g = new Chess();
+    gameRef.current = g;
+    setInitialFen('start');
+    setMoves([]); setMoveIndex(0);
+    setFen(g.fen()); setLastMove(null);
+    setStatus(getStatus(g));
+    setClock(null); setClockRunning(false); setClockOver(null);
+    setGameAnalysis(null); setAnalyzing(false); setAnalyzeProgress(0);
+    setShowReviewPopup(false); setReviewMode(false);
+    setResultPopup(null); setResultDismiss(false); setResultRevealPending(false);
+    setRatingResult(null); setConfetti([]);
+    setThinking(false); setBest(null); setBestFen(''); setLines([]);
+    refreshEngine();
+    if (soundOn) playSound('select');
   }
 
   function startNewGame() {
@@ -4089,13 +4123,10 @@ export default function AnalysisBoard() {
       onReview: (resultPopup.wantsReview && moves.length > 0)
         ? () => { markCurrentResultSeen(); setResultPopup(null); setResultDismiss(true); goToGameReview(); }
         : null,
-      /* Dismissing the result deliberately does NOT touch the board. The board
-         stays on the final position so the finished game can still be read,
-         replayed (⏮ ◀ ▶ ⏭) or reviewed. Resetting is the user's explicit
-         choice, via the ↺ "Reset position" button (`reset()` → `goToMove(0)`),
-         which returns the board to the start while KEEPING the move list.
-         An earlier version reset here automatically; the user asked for reset
-         on the button only. */
+      /* Dismissing the result starts a fresh board. The ↺ button in Controls
+         does the same for a practice or bot game (`reset()` clears the move
+         list); an online game's move list belongs to the server, so there the
+         button only walks back to the starting position. */
       onClose: () => { markCurrentResultSeen(); fullReset(); },
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -4519,7 +4550,7 @@ export default function AnalysisBoard() {
             <button type="button" onClick={undoMove} disabled={navLocked || moveIndex === 0} className="ab-ctrl-btn" title="Previous move">◀</button>
             <button type="button" onClick={redoMove} disabled={navLocked || moveIndex >= moves.length} className="ab-ctrl-btn" title="Next move">▶</button>
             <button type="button" onClick={() => goToMove(moves.length)} disabled={navLocked || moveIndex >= moves.length} className="ab-ctrl-btn" title="Last move">⏭</button>
-            <button type="button" onClick={reset} disabled={navLocked} className="ab-ctrl-btn" title="Reset position">↺</button>
+            <button type="button" onClick={reset} disabled={navLocked} className="ab-ctrl-btn" title="Reset board">↺</button>
             <button type="button"
               onClick={() => { setOrientation((o) => (o === 'white' ? 'black' : 'white')); if (soundOn) playSound('select'); }}
               className="ab-ctrl-btn" title="Flip board">⇄</button>
