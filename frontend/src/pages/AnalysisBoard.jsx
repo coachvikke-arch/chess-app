@@ -692,19 +692,25 @@ const PLAY_ARENA_UI_CSS = `
    viewport tall and only the FEN box scrolls inside it. */
 @media (min-width:901px){
   .ab-root.ab-root{
-    --board:min(calc(100dvh - var(--app-nav-h,68px) - 148px),calc(100vw - 528px));
+    /* 134px of chrome is all the column keeps for itself: the two 40px player
+       rows, the 40px options bar, three 2px gaps and the layout's 4px top and
+       bottom padding. Every other pixel of the viewport height goes to the
+       board, so this is the largest the square can be with no page scroll.
+       Across, the 360px side column, the 14px gap and the two 52px paddings
+       add up to 478px — the extra 6px is a rounding shave, not reserved space. */
+    --board:min(calc(100dvh - var(--app-nav-h,68px) - 134px),calc(100vw - 484px));
     --panel:360px;
   }
   .ab-root.ab-root .ab-layout{
     grid-template-columns:var(--board) var(--panel);
     justify-content:center;align-items:stretch;
-    gap:14px;padding:8px 52px;
+    gap:14px;padding:4px 52px;
     height:100%;max-width:none;
   }
 
   /* left column — [opponent] [toolbar] [board] [you] */
   .ab-root.ab-root .ab-board-col{
-    width:var(--board);height:100%;gap:4px;justify-content:flex-start;
+    width:var(--board);height:100%;gap:2px;justify-content:flex-start;
   }
   .ab-root.ab-root .ab-player-row{height:40px;min-height:40px;max-height:40px;padding:0 10px}
   /* The bar's inline width is the solved board size, so it stays exactly as wide
