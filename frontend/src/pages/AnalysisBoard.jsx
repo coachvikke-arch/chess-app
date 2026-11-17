@@ -383,59 +383,90 @@ const PLAY_ARENA_UI_CSS = `
   display:flex;align-items:center;justify-content:center;
   width:auto;min-width:0;max-width:100%;
 }
-/* Resign / offer draw — its own compact row above the board, right-aligned */
+/* Game options bar — exactly the board's width (the inline width IS the board's
+   own solved outer size), so its right edge sits on the board's right edge at
+   every breakpoint. The ⋮ button is vertically centred in it. */
 .ab-root.ab-root .ab-board-toolbar{
-  flex:0 0 auto;display:flex;justify-content:flex-end;align-items:center;gap:8px;
-  margin:0 auto;padding:0;min-height:0;max-width:100%;
-}
-.ab-root.ab-root .ab-board-toolbar button{
-  display:inline-flex;align-items:center;gap:6px;
-  height:28px;padding:0 12px !important;font-size:12px !important;line-height:1;
-  border-radius:8px !important;box-shadow:0 1px 2px rgba(15,23,42,.06) !important;
+  flex:0 0 auto;display:flex;align-items:center;justify-content:flex-end;gap:8px;
+  height:40px;min-height:40px;max-height:40px;
+  margin:0 auto;padding:0 2px;box-sizing:border-box;max-width:100%;
 }
 
-/* ── Resign / Offer Draw, behind the ⋮ menu ────────────────────────────────
-   The two buttons used to sit permanently in the banner, which on a phone is
-   exactly where a thumb lands — one mistap ended a game. They now live in a
-   popover opened from a 3-dot button in the toolbar above the board.
-   The trigger keeps its own size: the toolbar rule above shrinks every button to
-   28px, and 28px is below the 44px minimum touch target.
-   Deliberately NOT scoped under .ab-root: the menu is portalled, so it renders
-   outside that subtree. */
+/* ── Game options, behind the ⋮ menu ───────────────────────────────────────
+   Resign / Offer Draw / Abort live behind one small settings-style icon button
+   so a mistap while reaching for the board cannot end a game. The menu is
+   right-aligned to the button and grows leftwards, so it can never run off the
+   right edge of a phone. Its z-index is the app's dropdown layer: above the
+   board, clocks and move list, below modals and the helper bot. */
 .ab-menu-anchor{position:relative;display:inline-flex;flex:0 0 auto}
 .ab-menu-btn{
-  width:44px;height:44px;min-width:44px;min-height:44px;padding:0 !important;
+  width:38px;height:38px;min-width:38px;min-height:38px;padding:0 !important;
   display:inline-flex;align-items:center;justify-content:center;
-  border-radius:10px !important;font-size:20px;line-height:1;
-  color:#334155;background:rgba(255,255,255,.72);
+  border-radius:10px !important;font-size:18px;line-height:1;
+  color:#475569;background:#fff;
   border:1px solid #D7E0EE !important;box-shadow:0 1px 2px rgba(15,23,42,.06) !important;
-  -webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);
+  cursor:pointer;transition:background .15s ease,border-color .15s ease,color .15s ease;
 }
+.ab-menu-btn:hover{background:#F1F5F9;border-color:#2563EB !important;color:#2563EB}
+.ab-menu-btn:focus-visible{outline:2px solid #2563EB;outline-offset:2px}
 .ab-menu-btn[aria-expanded="true"]{background:#EEF2F7;border-color:#2563EB !important;color:#2563EB}
 .ab-menu-pop{
-  position:absolute;top:calc(100% + 8px);right:0;z-index:60;
-  display:flex;flex-direction:column;gap:4px;min-width:190px;padding:6px;
-  background:rgba(248,250,252,.92);border:1px solid #D7E0EE;border-radius:12px;
+  position:absolute;top:calc(100% + 6px);right:0;z-index:var(--z-dropdown,1000);
+  display:flex;flex-direction:column;gap:3px;min-width:196px;padding:6px;
+  background:#fff;border:1px solid #D7E0EE;border-radius:12px;
   box-shadow:0 10px 28px rgba(15,23,42,.18);
-  -webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);
-  /* Never run off the screen: the anchor sits at the right edge of a row that is
-     already as wide as the board, so on a narrow phone this can only overshoot
-     to the right. */
-  max-width:min(190px,72vw);
+  /* Right-aligned, so it extends to the LEFT and cannot leave the screen from
+     the right; the viewport cap covers a very narrow window. */
+  max-width:min(240px,calc(100vw - 16px));
 }
-.ab-menu-pop button{
-  min-height:44px;justify-content:flex-start;gap:8px;width:100%;
-  padding:0 12px !important;font-size:13px !important;font-weight:600;
-  border-radius:9px !important;
+.ab-menu-note{
+  margin:0 0 2px;padding:2px 10px 4px;font-size:11px;font-weight:600;color:#64748B;
+}
+.ab-menu-row{
+  display:flex;align-items:center;gap:10px;width:100%;min-height:38px;
+  padding:0 10px;border:0;border-radius:9px;background:transparent;
+  color:#0F172A;font:inherit;font-size:13px;font-weight:600;text-align:left;
+  cursor:pointer;transition:background .12s ease,color .12s ease;
+}
+.ab-menu-row:hover:not(:disabled){background:#F1F5F9}
+.ab-menu-row:focus-visible{outline:2px solid #2563EB;outline-offset:-2px}
+.ab-menu-row:disabled{opacity:.45;cursor:not-allowed}
+.ab-menu-row.is-danger{color:#B42318}
+.ab-menu-row.is-danger:hover:not(:disabled){background:#FEF3F2}
+.ab-menu-ico{
+  flex:0 0 16px;display:inline-flex;align-items:center;justify-content:center;
+  font-size:14px;line-height:1;
 }
 .ab-menu-confirm{
-  min-height:44px;display:flex;align-items:center;justify-content:space-between;gap:8px;
-  padding:0 10px;font-size:12px;font-weight:600;color:#B42318;
-  background:#FEF3F2;border:1px solid #FDA29B;border-radius:9px;
+  min-height:44px;display:flex;align-items:center;justify-content:space-between;gap:6px;
+  padding:0 6px 0 10px;font-size:12px;font-weight:600;color:#334155;
+  background:#F8FAFC;border:1px solid #D7E0EE;border-radius:9px;
 }
 .ab-menu-confirm>span{flex:1 1 auto;min-width:0}
-.ab-menu-confirm>button{
-  flex:0 0 auto;min-height:36px;width:auto;padding:0 10px !important;font-size:12px !important;
+.ab-menu-yes,.ab-menu-no{
+  flex:0 0 auto;min-height:30px;padding:0 10px;border-radius:8px;
+  font:inherit;font-size:12px;font-weight:700;cursor:pointer;
+}
+.ab-menu-yes{background:#B42318;color:#fff;border:1px solid #B42318}
+.ab-menu-yes:disabled{opacity:.55;cursor:not-allowed}
+.ab-menu-no{background:#fff;color:#334155;border:1px solid #CBD5E1}
+
+/* ── An incoming draw offer, sharing the options bar ──────────────────────
+   One 32px chip: the prompt on the left, ✓ / ✕ on the right. It fits inside the
+   40px bar so a live offer never pushes the board down, and the prompt text
+   ellipsises instead of wrapping on a narrow phone. */
+.ab-root.ab-root .ab-board-toolbar .ab-draw-offer{
+  flex:1 1 auto;min-width:0;min-height:32px;max-height:32px;
+  flex-wrap:nowrap;justify-content:space-between;gap:6px;
+  padding:0 6px 0 9px;border-radius:8px;font-size:12px;
+}
+.ab-root.ab-root .ab-board-toolbar .ab-draw-offer-text{
+  display:block;flex:1 1 auto;min-width:0;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+.ab-root.ab-root .ab-board-toolbar .ab-draw-offer-actions{align-items:center;gap:4px}
+.ab-root.ab-root .ab-board-toolbar .ab-draw-offer-actions>button{
+  height:24px;min-height:24px;width:28px;padding:0 !important;font-size:12px !important;
 }
 
 /* ── Rematch card ─────────────────────────────────────────────────────────
@@ -661,7 +692,7 @@ const PLAY_ARENA_UI_CSS = `
    viewport tall and only the FEN box scrolls inside it. */
 @media (min-width:901px){
   .ab-root.ab-root{
-    --board:min(calc(100dvh - var(--app-nav-h,68px) - 134px),calc(100vw - 528px));
+    --board:min(calc(100dvh - var(--app-nav-h,68px) - 148px),calc(100vw - 528px));
     --panel:360px;
   }
   .ab-root.ab-root .ab-layout{
@@ -676,7 +707,9 @@ const PLAY_ARENA_UI_CSS = `
     width:var(--board);height:100%;gap:4px;justify-content:flex-start;
   }
   .ab-root.ab-root .ab-player-row{height:40px;min-height:40px;max-height:40px;padding:0 10px}
-  .ab-root.ab-root .ab-board-toolbar{width:100% !important;height:26px;min-height:26px}
+  /* The bar's inline width is the solved board size, so it stays exactly as wide
+     as the board here too. */
+  .ab-root.ab-root .ab-board-toolbar{height:40px;min-height:40px}
   .ab-root.ab-root .ab-boardarea{flex:0 0 auto;width:var(--board);height:var(--board)}
   .ab-root.ab-root .ab-note{display:none}
 
@@ -1190,15 +1223,15 @@ export default function AnalysisBoard() {
   }, [moveIndex, moves.length]);
 
   /* Side-panel alignment — keep the ♟/🤖/👁/⚙ cards level with the BOARD.
-     The board column puts a player row (and, online, the resign toolbar) ABOVE
-     the board, so the measured distance from the top of the grid down to the
-     top of the board is exactly the amount the side panel needs to be nudged to
+     The board column puts a player row and the game-options bar ABOVE the
+     board, so the measured distance from the top of the grid down to the top
+     of the board is exactly the amount the side panel needs to be nudged to
      line up with it.
 
      This is measured rather than hard-coded because the offset is not a
-     constant: the setup banner appears/disappears above the board, the player
-     rows wrap, and the board itself is responsive — so any fixed value would
-     drift out of alignment on some viewport.
+     constant: an incoming challenge banner appears/disappears above the board,
+     the player rows wrap, and the board itself is responsive — so any fixed
+     value would drift out of alignment on some viewport.
 
      Below 960px `.ab-layout` collapses to a single column and the panel drops
      UNDER the board, so the offset is removed entirely (and re-measured when
@@ -3658,25 +3691,24 @@ export default function AnalysisBoard() {
         ? humanIsComputerTurn && !computerThinking
         : true;
 
-  /* Keep the setup/accept status in the banner, but never cover the board with a
-     waiting animation. */
+  /* A waiting opponent paints nothing over or beside the board any more: the
+     sent request's waiting card (and its Cancel) lives inside the Online Match
+     popup, which stays open until the request is answered. This flag only keeps
+     the pieces locked while the other side is on move. */
   const waitingForOpponent = Boolean(onlineGame) && !onlineFinished && (
     onlineGame.status === 'pending'
       ? !onlineGame.canAccept
       : (inOnline && onlineTurn !== onlineMyColor && moves.length === 0)
   );
 
-  /* Pieces cannot be picked up while the overlay is up, and the banner strip that
-     used to carry the message is replaced by it — except when it still has a
-     button the player needs (Accept / Abort). */
   const boardLive = boardInteractive && !waitingForOpponent;
-  /* online banner */
+  /* The board column now carries only prompts the player has to answer (an
+     incoming challenge) or read (the finished result). The old "Your move!" /
+     "Waiting for opponent…" strip is gone. */
   let onlineBanner = null;
-  if (inOnline) {
-    onlineBanner = { text: onlineTurn === onlineMyColor ? 'Your move!' : 'Waiting for opponent…', actions: 'active' };
-  } else if (onlineGame && onlineGame.status === 'pending') {
+  if (onlineGame?.status === 'pending' && onlineGame.canAccept) {
     onlineBanner = {
-      text: onlineGame.canAccept ? 'Challenge waiting — accept it to start.' : 'Waiting for opponent to accept…',
+      text: 'Challenge received — accept it to start.',
       actions: 'pending',
     };
   } else if (onlineFinished) {
@@ -4214,20 +4246,37 @@ export default function AnalysisBoard() {
 
           {/* The setup-mode banner is gone with the editor it belonged to. */}
 
-          {/* Resign / offer draw — its own row above the board, matched to the
-              board's width. Only present while an online game can still end. */}
-          {inOnline && !onlineFinished && (
-            <div className="ab-board-toolbar" style={{ width: boardOuter }}>
-              <ResignDrawMenu
+          {/* Game options bar — exactly the board's width, so the ⋮ button sits
+              on the board's right edge instead of floating beside it. It stays
+              mounted outside a game as well, which keeps the board from resizing
+              when a game starts; the menu simply reads every action as disabled.
+              An incoming draw offer is the one other thing that shares this row:
+              it is a question the player has to answer, so it is never hidden
+              behind the menu. A waiting state is NOT shown here — that lives in
+              the Online Match popup, with its Cancel button. */}
+          <div className="ab-board-toolbar" style={{ width: boardOuter }}>
+            {inOnline && drawOffer && !drawOffer.mine && (
+              <DrawOfferPrompt
                 busy={onlineBusy}
-                isBot={onlineGame?.isBot}
                 drawOffer={drawOffer}
                 opponentName={opponentName}
-                onResign={resignOnlineCurrent}
-                onOfferDraw={offerDrawOnline}
+                onRespondDraw={respondDrawOnline}
               />
-            </div>
-          )}
+            )}
+            <ResignDrawMenu
+              inGame={Boolean(inOnline || (computerOn && !gameOver))}
+              isBot={!inOnline && computerOn}
+              /* The server accepts an abort only before both sides have moved
+                 (< 2 half-moves); offering the row after that would be a dead
+                 button that always 400s. */
+              canAbort={Boolean(inOnline && moves.length < 2)}
+              busy={onlineBusy}
+              drawOffer={drawOffer}
+              onResign={inOnline ? resignOnlineCurrent : computerOn ? exitComputer : undefined}
+              onOfferDraw={offerDrawOnline}
+              onAbort={() => { if (onlineGame) abortOnline(onlineGame); }}
+            />
+          </div>
 
           {/* board — the flexible band; the square board is sized to fit it */}
           <div className="ab-boardarea" ref={boardAreaRef}>
@@ -4295,33 +4344,23 @@ export default function AnalysisBoard() {
           </div>
           </div>{/* end board area */}
 
-          {/* Match status stays above the board while the board remains visible
-              during an unanswered challenge. */}
+          {/* Only two states reach the board column now: an incoming challenge
+              that needs an answer, and the finished result. The old "Your move!"
+              / "Waiting for opponent…" strip is gone — a sent request waits in
+              the Online Match popup, where its Cancel button is. */}
           {onlineBanner && (
             <div className={`ab-banner ${
-              onlineBanner.actions === 'active'   ? 'ab-banner-active'   :
               onlineBanner.actions === 'finished' ? 'ab-banner-finished' : 'ab-banner-pending'
             }`}>
               <span className="ab-banner-icon">
-                {onlineBanner.actions === 'active' ? '⚔' : onlineBanner.actions === 'finished' ? '🏁' : '⏳'}
+                {onlineBanner.actions === 'finished' ? '🏁' : '⏳'}
               </span>
               <span className="ab-banner-text">{onlineBanner.text}</span>
               <div className="ab-banner-actions">
-                {onlineBanner.actions === 'active' && (
-                  <DrawOfferPrompt
-                    busy={onlineBusy}
-                    drawOffer={drawOffer}
-                    opponentName={opponentName}
-                    onRespondDraw={respondDrawOnline}
-                  />
-                )}
                 {onlineBanner.actions === 'pending' && onlineGame?.canAccept && (
                   <Button onClick={() => acceptOnline(onlineGame)} disabled={onlineBusy} variant="primary" size="sm" className="!py-1 !px-2.5 text-xs">
                     {onlineBusy ? 'Accepting…' : '✔ Accept'}
                   </Button>
-                )}
-                {onlineBanner.actions === 'pending' && onlineGame?.canAbort && (
-                  <Button onClick={() => abortOnline(onlineGame)} disabled={onlineBusy} variant="danger" size="sm" className="!py-1 !px-2.5 text-xs">✕ Abort</Button>
                 )}
                 {onlineBanner.actions === 'finished' && (
                   <Button onClick={resetPlayArena} disabled={resettingPlayArena} variant="primary" size="sm" className="!py-1 !px-2.5 text-xs">♞ New</Button>
@@ -4958,91 +4997,75 @@ function GameClock({ clock, running, color, forceFloor }) {
   );
 }
 
-/* Resign / Offer draw, plus the pending draw-offer prompt.
+/* An opponent's draw offer, in the game-options bar beside the ⋮ button.
  *
- * The two buttons YOU press (Resign / Offer Draw) live behind the ⋮ toolbar
- * menu; the prompt below is the opponent asking something of you.
+ * It is a question the player has to answer, so it is never hidden behind a
+ * menu they would have to open. The offer YOU made is the opposite — nothing to
+ * click but waiting — so it is not painted on the board at all: the ⋮ menu's
+ * Draw row reads "Draw offered — waiting" while it is outstanding.
  *
- * Draw is an OFFER. Clicking it asks the opponent; the game only ends if they
- * accept. While an offer is outstanding this renders one of two states, told
- * apart by the server's `mine` flag rather than inferred from the name:
- *
- *   mine  → "Draw offered — waiting for <opponent>"   (nothing to click but info)
- *   !mine → "<opponent> offers a draw"  + Accept / Decline
- *
- * The offer is hidden against a computer: there is nobody to accept it, and the
- * endpoint refuses it anyway.
- *
- * This prompt stays always-visible — it is the OPPONENT asking something of you,
- * so hiding it behind a menu you have to open would silently ignore them. The
- * two buttons YOU press (Resign / Offer Draw) moved to ResignDrawMenu.
+ * Hidden against a computer: there is nobody to accept, and the endpoint
+ * refuses it anyway.
  */
-function DrawOfferPrompt({
-  busy, drawOffer, opponentName = 'your opponent', onRespondDraw,
-}) {
-  const theirs = drawOffer && !drawOffer.mine;
-  const mine   = drawOffer && drawOffer.mine;
-  const who    = drawOffer?.byName || opponentName;
-
-  if (!theirs && !mine) return null;
+function DrawOfferPrompt({ busy, drawOffer, opponentName = 'your opponent', onRespondDraw }) {
+  if (!drawOffer || drawOffer.mine) return null;
+  const who = drawOffer.byName || opponentName;
 
   return (
-    <>
-      {theirs && (
-        <div className="ab-draw-offer" role="alertdialog" aria-label="Draw offer">
-          <span className="ab-draw-offer-text">
-            <span aria-hidden="true">🤝</span> {who} offers a draw
-          </span>
-          <span className="ab-draw-offer-actions">
-            <Button
-              type="button"
-              onClick={() => onRespondDraw(true)}
-              disabled={busy}
-              variant="primary" size="sm" className="!py-1 !px-2.5 text-xs"
-            >
-              ✓ Accept
-            </Button>
-            <Button
-              type="button"
-              onClick={() => onRespondDraw(false)}
-              disabled={busy}
-              variant="secondary" size="sm" className="!py-1 !px-2.5 text-xs"
-            >
-              ✕ Decline
-            </Button>
-          </span>
-        </div>
-      )}
-
-      {mine && (
-        <span className="ab-draw-pending" role="status">
-          <span aria-hidden="true">🤝</span> Draw offered — waiting for {who}
-        </span>
-      )}
-    </>
+    <div className="ab-draw-offer" role="alertdialog" aria-label="Draw offer">
+      <span className="ab-draw-offer-text">
+        <span aria-hidden="true">🤝</span> {who} offers a draw
+      </span>
+      <span className="ab-draw-offer-actions">
+        <Button
+          type="button"
+          onClick={() => onRespondDraw(true)}
+          disabled={busy}
+          variant="primary" size="sm" className="!py-1 !px-2.5 text-xs"
+          title="Accept the draw"
+        >
+          ✓
+        </Button>
+        <Button
+          type="button"
+          onClick={() => onRespondDraw(false)}
+          disabled={busy}
+          variant="secondary" size="sm" className="!py-1 !px-2.5 text-xs"
+          title="Decline the draw"
+        >
+          ✕
+        </Button>
+      </span>
+    </div>
   );
 }
 
-/* The ⋮ menu that holds Resign and Offer Draw.
+/* The ⋮ menu that holds Resign, Offer Draw and Abort.
  *
- * Both used to sit permanently beside the board. On a phone that is thumb height
- * and thumb reach at once, and a single mistap ended a live game — so they are
- * behind one 44px icon button now, anchored to it.
+ * All three used to sit permanently beside the board, one mistap away from the
+ * board itself. They are now behind one 38px settings-style button that lives in
+ * a bar exactly as wide as the board, and every action is a two-tap confirm:
+ * the row turns into "...?  Yes · No" instead of ending the game immediately.
  *
- * Each action is a two-tap confirm: the row turns into "Resign this game? /
- * Yes · No" instead of firing immediately. That replaces the confirm dialog the
- * page never had, and keeps the actual `onResign` / `onOfferDraw` calls — and the
- * draw-offer logic behind them — exactly as they were.
+ * The menu always opens — outside a game it explains itself with "No game in
+ * progress" and every row is disabled — so the bar's shape never changes when a
+ * game starts or ends.
+ *
+ * Abort only appears while the server would still accept it (before both sides
+ * have moved). A draw already offered becomes a disabled "waiting" row rather
+ * than a second offer.
  *
  * Closes on an outside tap, on Escape, and after an action is taken. The popover
  * is a child of the anchor (not a portal), so `contains()` is a valid outside
- * test here.
+ * test here; it is right-aligned to the button and grows leftwards, so it can
+ * never run off the right edge of a phone.
  */
 function ResignDrawMenu({
-  busy, isBot, drawOffer, opponentName = 'your opponent', onResign, onOfferDraw,
+  inGame, isBot, canAbort, busy,
+  drawOffer, onResign, onOfferDraw, onAbort,
 }) {
   const [open,     setOpen]    = useState(false);
-  const [confirm,  setConfirm] = useState(null);   // 'resign' | 'draw' | null
+  const [confirm,  setConfirm] = useState(null);   // 'resign' | 'draw' | 'abort' | null
   const anchorRef  = useRef(null);
 
   const close = useCallback(() => {
@@ -5066,35 +5089,41 @@ function ResignDrawMenu({
     };
   }, [open, close]);
 
-  const alreadyOffered = Boolean(drawOffer && drawOffer.mine);
+  const drawSent = Boolean(drawOffer && drawOffer.mine);
 
   /* First tap arms the row, second tap runs the original handler and closes. */
   const run = (kind) => {
     if (confirm !== kind) { setConfirm(kind); return; }
     close();
-    if (kind === 'resign') onResign();
-    else onOfferDraw();
+    if (kind === 'resign') onResign?.();
+    else if (kind === 'abort') onAbort?.();
+    else onOfferDraw?.();
   };
 
-  const row = (kind, label, disabled, variant) => (
+  const confirmText = confirm === 'resign' ? 'Resign this game?'
+    : confirm === 'abort' ? 'Abort this game?'
+    : 'Offer a draw?';
+  const confirmYes = confirm === 'resign' ? 'Resign' : confirm === 'abort' ? 'Abort' : 'Offer';
+
+  const row = (kind, icon, label, disabled) => (
     confirm === kind ? (
       <div className="ab-menu-confirm" key={kind}>
-        <span>{kind === 'resign' ? 'Resign this game?' : 'Offer a draw?'}</span>
-        <Button type="button" variant="danger" size="sm" disabled={busy} onClick={() => run(kind)}>Yes</Button>
-        <Button type="button" variant="secondary" size="sm" onClick={() => setConfirm(null)}>No</Button>
+        <span>{confirmText}</span>
+        <button type="button" className="ab-menu-yes" onClick={() => run(kind)} disabled={busy}>{confirmYes}</button>
+        <button type="button" className="ab-menu-no" onClick={() => setConfirm(null)}>No</button>
       </div>
     ) : (
-      <Button
+      <button
         type="button"
         role="menuitem"
         key={kind}
+        className={`ab-menu-row${kind === 'resign' ? ' is-danger' : ''}`}
         onClick={() => run(kind)}
         disabled={busy || disabled}
-        variant={variant}
-        size="sm"
       >
-        {label}
-      </Button>
+        <span className="ab-menu-ico" aria-hidden>{icon}</span>
+        <span>{label}</span>
+      </button>
     )
   );
 
@@ -5104,7 +5133,7 @@ function ResignDrawMenu({
         type="button"
         className="ab-menu-btn"
         onClick={() => (open ? close() : setOpen(true))}
-        aria-haspopup="true"
+        aria-haspopup="menu"
         aria-expanded={open}
         aria-label="Game options"
         title="Game options"
@@ -5113,8 +5142,10 @@ function ResignDrawMenu({
       </button>
       {open && (
         <div className="ab-menu-pop" role="menu" aria-label="Game options">
-          {row('resign', '♟ Resign', false, 'danger')}
-          {!isBot && row('draw', alreadyOffered ? '🤝 Draw already offered' : '🤝 Offer Draw', alreadyOffered, 'secondary')}
+          {!inGame && <p className="ab-menu-note" role="none">No game in progress</p>}
+          {row('resign', '⚑', 'Resign', !inGame)}
+          {!isBot && row('draw', '½', drawSent ? 'Draw offered — waiting' : 'Offer Draw', !inGame || drawSent)}
+          {canAbort && row('abort', '⏹', 'Abort game', !inGame)}
         </div>
       )}
     </div>
