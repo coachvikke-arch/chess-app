@@ -93,8 +93,20 @@ test('the arena board can draw annotation arrows', () => {
     'ArenaBoard must forward onArrowDrawn to ChessBoard');
   assert.match(arena, /onSquareRightClick=\{onSquareRightClick\}/,
     'ArenaBoard must forward onSquareRightClick to ChessBoard');
+  assert.match(arena, /onClearArrows=\{onClearArrows\}/,
+    'ArenaBoard must forward onClearArrows to ChessBoard');
+  assert.match(arena, /extraSquareStyles=\{extraSquareStyles\}/,
+    'ArenaBoard must forward extraSquareStyles to ChessBoard');
+  assert.match(arena, /arrowColorForModifiers=\{arrowColorForModifiers\}/,
+    'ArenaBoard must forward the modifier colour picker to ChessBoard');
   assert.match(src, /onArrowDrawn=\{handleBoardArrowDrawn\}/,
     'the page must wire the board to its own arrow store');
-  assert.match(src, /onSquareRightClick=\{handleBoardRightClick\}/,
-    'the page must wire right-click erasing');
+  assert.match(src, /onSquareRightClick=\{handleBoardSquareRightClick\}/,
+    'the page must wire right-click square marks');
+  assert.match(src, /onClearArrows=\{clearBoardAnnotations\}/,
+    'the page must wire left-click clearing both annotation stores');
+  assert.match(src, /extraSquareStyles=\{boardSquareStyles\}/,
+    'the page must paint its square marks and the check glow on the board');
+  assert.match(src, /knightArrows/,
+    'knight moves must be drawn as the chess.com L-shaped arrow');
 });

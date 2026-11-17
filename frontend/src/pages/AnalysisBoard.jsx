@@ -302,9 +302,38 @@ const ARENA_CONFIRM_MOVE_KEY = 'knightpath-play-arena-confirm-move';
 const ARENA_HINTS_KEY = 'knightpath-play-arena-hints';
 const ARENA_TAKEBACK_KEY = 'knightpath-play-arena-takeback';
 
-/* Yellow reads clearly on both the light and the dark squares of every board
-   theme — the green classroom line disappeared on a green board. */
-const BOARD_ARROW_COLOR = 'rgba(255, 214, 0, 0.9)';
+/* ── Board annotations (Play Arena only) ────────────────────────────────────
+   Chess.com's four drawing colours, picked with the modifier keys held when
+   the right-click or the arrow drag begins:
+
+     plain → red      Shift → green      Alt → yellow      Ctrl → blue
+
+   `arrow` is the semi-transparent line colour for the SVG overlay, `fill` the
+   wash painted on a marked square and `ring` its edge. The ARROW colour is
+   what carries the identity; fills are a little paler so a piece on top of a
+   marked square stays readable. */
+const ANNOTATION_COLORS = {
+  red:    { arrow: 'rgba(235, 97, 80, 0.8)',  fill: 'rgba(235, 97, 80, 0.5)',   ring: 'rgba(235, 97, 80, 0.95)' },
+  green:  { arrow: 'rgba(120, 180, 70, 0.8)', fill: 'rgba(120, 180, 70, 0.5)',  ring: 'rgba(120, 180, 70, 0.95)' },
+  yellow: { arrow: 'rgba(255, 214, 0, 0.8)',  fill: 'rgba(255, 214, 0, 0.5)',   ring: 'rgba(255, 214, 0, 0.95)' },
+  blue:   { arrow: 'rgba(82, 176, 220, 0.8)', fill: 'rgba(82, 176, 220, 0.5)',  ring: 'rgba(82, 176, 220, 0.95)' },
+};
+
+const ANNOTATION_DEFAULT = ANNOTATION_COLORS.red;
+
+/* Most specific chord wins: Ctrl → blue, else Alt → yellow, else Shift → green,
+   else red. */
+function annotationKeyForModifiers(mods) {
+  if (!mods) return 'red';
+  if (mods.ctrlKey) return 'blue';
+  if (mods.altKey) return 'yellow';
+  if (mods.shiftKey) return 'green';
+  return 'red';
+}
+
+/* Module-level so its identity never changes: ArenaBoard is memoised and this
+   prop reaches the preview colour on every drag frame. */
+const arrowColorForModifiers = (mods) => (ANNOTATION_COLORS[annotationKeyForModifiers(mods)] || ANNOTATION_DEFAULT).arrow;
 
 /* Online time control is picked in <TimeControlPicker>: presets plus separate
    hours / minutes / increment chip rows, so every value is its own option. */
@@ -329,6 +358,13 @@ function writeBoolPref(key, value) {
 /* ================================ component ================================ */
 
 const PLAY_ARENA_UI_CSS = `
+/* Red danger pulse on the king in check (page-local: ChessBoard's own
+   cb-check-glow keyframes paint the shared yellow marker, and those live in
+   the global stylesheet this page must not depend on). */
+@keyframes ab-red-check-glow{
+  0%,100%{box-shadow:inset 0 0 0 3px rgba(248,65,65,.95),0 0 22px 5px rgba(248,65,65,.65)}
+  50%{box-shadow:inset 0 0 0 3px rgba(248,65,65,1),0 0 28px 10px rgba(248,65,65,.85)}
+}
 /* ===== Play Arena UI refresh (CSS only, no logic changes) ===== */
 .ab-root.ab-root{
   height:100%;min-height:0;max-width:none;margin:0;padding:0;
@@ -927,10 +963,13 @@ export default function AnalysisBoard() {
   const [confirmMove,   setConfirmMoveState] = useState(() => readBoolPref(ARENA_CONFIRM_MOVE_KEY, false));
   const [computerHints, setComputerHintsState] = useState(() => readBoolPref(ARENA_HINTS_KEY, false));
   const [computerTakeback, setComputerTakebackState] = useState(() => readBoolPref(ARENA_TAKEBACK_KEY, false));
-  /* Arrows the player draws on the board with the mouse. Each batch remembers
-     the FEN it was drawn on, so playing a move (or stepping through the move
-     list) retires it without a clearing call at every position-update site. */
+  /* Board annotations the player draws with the mouse or a long-press. Each
+     batch remembers the FEN it belongs to, so playing a move (or stepping
+     through the move list) retires it without a clearing call at every
+     position-update site. Arrows live in one store, square marks in another:
+     a left-click clears both together. */
   const [arrowDraft, setArrowDraft] = useState(null);
+  const [markDraft,  setMarkDraft]  = useState(null);
   /* One state value drives all six popups: null | online | computer | live |
      annotate | saved | settings. The Modal instance below reads it. */
   const [activePopup, setActivePopup] = useState(null);
@@ -1340,6 +1379,11 @@ export default function AnalysisBoard() {
 
   function sync() {
     const g = gameRef.current;
+    /* Any move ends here, so a move clears the player's drawings (the fen store
+       would retire them anyway, but an undo lands back on the SAME fen and must
+       not resurrect arrows from before the move). */
+    setArrowDraft(null);
+    setMarkDraft(null);
     const { san, last } = getHistory(g);
     const reviewingLive = (onlineGame || computerOn) && moveIndex < moves.length;
     setMoves(san);
@@ -1494,6 +1538,9 @@ export default function AnalysisBoard() {
     try {
       const g = new Chess(f);
       liveReviewGameRef.current = null;
+      /* Annotations belong to the position that is leaving. */
+      setArrowDraft(null);
+      setMarkDraft(null);
       /* A new position is not the move the previous effect belonged to. */
       clearMoveEffects('load-fen');
       const hist = getHistory(g);
@@ -1518,6 +1565,8 @@ export default function AnalysisBoard() {
       g.loadPgn(pgn, { strict: false });
       /* Loading a PGN lands somewhere other than the effect's move. */
       clearMoveEffects('load-pgn');
+      setArrowDraft(null);
+      setMarkDraft(null);
       const hist = getHistory(g);
       liveReviewGameRef.current = null;
       gameRef.current = g;
@@ -1659,6 +1708,8 @@ export default function AnalysisBoard() {
 
   /* ─── navigation ─────────────────────────────────────────── */
   function goToMove(idx) {
+    setArrowDraft(null);
+    setMarkDraft(null);
     const target = Math.max(0, Math.min(moves.length, idx));
     const g = rebuildGame(initialFen, moves.slice(0, target));
     if (onlineGame || computerOn) {
@@ -1733,6 +1784,7 @@ export default function AnalysisBoard() {
     /* Arrows drawn on the old position must not survive the reset, even when
        the reset lands on the same FEN (the starting position). */
     setArrowDraft(null);
+    setMarkDraft(null);
     /* A live online match is owned by the server: its move list IS the game,
        and clearing it locally would leave the board behind the match until the
        opponent's next push. There the button keeps its review meaning of
@@ -1812,6 +1864,7 @@ export default function AnalysisBoard() {
     setResultPopup(null);
     setResultDismiss(false);
     setArrowDraft(null);
+    setMarkDraft(null);
     startNewGame();
   }
 
@@ -3717,29 +3770,93 @@ export default function AnalysisBoard() {
     return humanTurn ? [{ from: best.from, to: best.to, color: '#19c9c3' }] : [];
   }, [computerOn, computerHints, reviewMode, liveReviewing, status.over, best, bestFen, fen, computerColor]);
 
-  /* ── hand-drawn arrows ──
-     This is a PLAYABLE board, so its annotations are mouse-only: RIGHT-drag
-     draws an arrow (the right button never moves a piece) and ANY plain
-     right-click wipes every arrow. The left button stays entirely with the
-     pieces, and no touch gesture is armed — a long-press on a phone belongs
-     to dragging a piece, not to drawing. */
+  /* ── hand-drawn annotations ──
+     Chess.com gestures, and they are LOCAL: nothing here is stored in the game,
+     the PGN or anything sent to the opponent.
+
+       right-click a square      toggle a coloured square mark
+       right-drag square → square draw an arrow (drag the same one again erases)
+       left-click anywhere        clear every arrow and mark
+       long-press (touch)         the same two gestures, since a phone has no
+                                  right button
+
+     Drawing is allowed even when it is not the player's turn (a premove thought),
+     but this layer never touches move validation — the pieces stay locked. */
   const drawnArrows = useMemo(
     () => (arrowDraft && arrowDraft.fen === fen ? arrowDraft.arrows : []),
     [arrowDraft, fen],
   );
+  const drawnMarks = useMemo(
+    () => (markDraft && markDraft.fen === fen ? markDraft.marks : null),
+    [markDraft, fen],
+  );
 
-  const handleBoardArrowDrawn = useCallback((from, to) => {
+  const handleBoardArrowDrawn = useCallback((from, to, _source, mods) => {
     if (!from || !to || from === to) return;
+    const color = (ANNOTATION_COLORS[annotationKeyForModifiers(mods)] || ANNOTATION_DEFAULT).arrow;
     setArrowDraft((prev) => {
       const arrows = prev && prev.fen === fen ? prev.arrows : [];
-      if (arrows.some((a) => a.from === from && a.to === to)) return prev;
-      return { fen, arrows: [...arrows, { from, to, color: BOARD_ARROW_COLOR }] };
+      /* The same source→target drag again is the erase gesture. */
+      const existing = arrows.find((a) => a.from === from && a.to === to);
+      if (existing) {
+        const left = arrows.filter((a) => a !== existing);
+        return left.length ? { fen, arrows: left } : null;
+      }
+      return { fen, arrows: [...arrows, { from, to, color }] };
     });
   }, [fen]);
 
-  const handleBoardRightClick = useCallback(() => {
-    setArrowDraft((prev) => (prev && prev.arrows.length ? { fen, arrows: [] } : prev));
+  const handleBoardSquareRightClick = useCallback((square, mods) => {
+    if (!square) return;
+    const key = annotationKeyForModifiers(mods);
+    setMarkDraft((prev) => {
+      const marks = prev && prev.fen === fen ? { ...prev.marks } : {};
+      if (marks[square] === key) delete marks[square];
+      else marks[square] = key;
+      return Object.keys(marks).length ? { fen, marks } : null;
+    });
   }, [fen]);
+
+  const clearBoardAnnotations = useCallback(() => {
+    setArrowDraft(null);
+    setMarkDraft(null);
+  }, []);
+
+  /* Square marks + the king's red danger glow. ChessBoard keeps its own yellow
+     check marker for every other page; the arena overlay paints red over it,
+     and as `extraSquareStyles` it always merges last, so a mark on that square
+     cannot hide the check. */
+  const boardSquareStyles = useMemo(() => {
+    const styles = {};
+    if (drawnMarks) {
+      for (const [sq, key] of Object.entries(drawnMarks)) {
+        const c = ANNOTATION_COLORS[key] || ANNOTATION_DEFAULT;
+        styles[sq] = {
+          backgroundColor: c.fill,
+          boxShadow: `inset 0 0 0 2px ${c.ring}`,
+        };
+      }
+    }
+    try {
+      if (boardGame && boardGame.inCheck() && !boardGame.isCheckmate()) {
+        const turn = boardGame.turn();
+        for (const row of boardGame.board()) {
+          for (const cell of row) {
+            if (cell && cell.type === 'k' && cell.color === turn && cell.square) {
+              styles[cell.square] = {
+                backgroundColor: 'rgba(248, 65, 65, 0.5)',
+                boxShadow: 'inset 0 0 0 3px rgba(248, 65, 65, 0.95), 0 0 22px 5px rgba(248, 65, 65, 0.65)',
+                animation: 'ab-red-check-glow 1.1s ease-in-out infinite',
+              };
+            }
+          }
+        }
+      }
+    } catch {
+      /* a half-built review position — the next render repaints it */
+    }
+    return Object.keys(styles).length ? styles : null;
+  }, [drawnMarks, boardGame, fen]);
 
   /* The arrows array has to be identity-stable or the memoized board re-renders
      on every parent render — and `reviewArrows` above is a fresh literal each
@@ -4401,9 +4518,15 @@ export default function AnalysisBoard() {
                 lastMove={lastMove}
                 pieceTheme={pieceSel}
                 customArrows={boardArrows}
-                arrowPreviewColor={BOARD_ARROW_COLOR}
+                arrowPreviewColor={ANNOTATION_DEFAULT.arrow}
+                arrowColorForModifiers={arrowColorForModifiers}
+                knightArrows
+                longPressTogglesSquare
+                arrowsBelowPieces
                 onArrowDrawn={handleBoardArrowDrawn}
-                onSquareRightClick={handleBoardRightClick}
+                onSquareRightClick={handleBoardSquareRightClick}
+                onClearArrows={clearBoardAnnotations}
+                extraSquareStyles={boardSquareStyles}
                 engineOn={engineOn && !inOnline}
                 reviewVerdictColor={reviewVerdictColor}
                 moveBadge={reviewMoveBadge}

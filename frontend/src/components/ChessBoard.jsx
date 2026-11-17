@@ -93,6 +93,14 @@ function isPromotion(game, from, to) {
   return game.moves({ square: from, verbose: true }).some((m) => m.to === to);
 }
 
+/** True for a knight's 1×2 jump — the moves an L-shaped arrow draws. */
+function isKnightJump(from, to) {
+  if (!from || !to || from.length !== 2 || to.length !== 2) return false;
+  const df = Math.abs(from.charCodeAt(0) - to.charCodeAt(0));
+  const dr = Math.abs(Number(from[1]) - Number(to[1]));
+  return (df === 1 && dr === 2) || (df === 2 && dr === 1);
+}
+
 /* ── "Did exactly one move just happen?" ────────────────────────────────────
  * Used to sound moves that were applied to the game from OUTSIDE this board's
  * own drag handler (a bot reply, an opponent's move over a socket, a coach
@@ -180,7 +188,11 @@ export default function ChessBoard({
   onArrowsChange = null,       // fired with drawn native arrows [[from,to,color],...] so callers can broadcast
   arrowTool = false,           // OUR drag-to-draw arrows (pointer capture); native arrows disabled while on
   arrowPreviewColor = '#7dd3fc', // colour of the in-progress drag line; callers pass the same value they will commit so the preview does not flip colour on release
-  onArrowDrawn = null,           // called (from, to) when the user finishes dragging an arrow (right-drag)
+  arrowColorForModifiers = null, // optional (mods) => colour: the drag preview follows the modifier keys held at drag start
+  knightArrows = false,          // draw knight moves as an L-shaped arrow (chess.com style) instead of a straight line
+  arrowsBelowPieces = false,     // paint the arrow overlay UNDER the pieces (chess.com); default keeps it above, as it always was
+  longPressTogglesSquare = false, // touch: a long-press released in place calls onSquareRightClick (toggles a square mark)
+  onArrowDrawn = null,           // called (from, to, source, modifiers) when the user finishes dragging an arrow (right-drag)
   onEraseArrow = null,           // called when a plain right-click happens (erase last arrow)
   onClearArrows = null,          // called when a plain LEFT-click happens (clear all arrows)
   onSquareRightClick = null,     // called with the square on a plain right-click (no drag)
@@ -964,6 +976,10 @@ export default function ChessBoard({
   const [dragFrom, setDragFrom] = useState(null);
   const [dragTo, setDragTo] = useState(null);
   const [dragButton, setDragButton] = useState(null);
+  /* Modifier keys held when the current drag began — they pick the arrow
+     colour, and they have to be read at pointer-down because a drag cannot
+     change its own colour halfway through. */
+  const [dragMods, setDragMods] = useState(null);
   /* Mobile annotation gesture state (touch only; mouse/pen unchanged).
      - long-press ARMS an arrow drag; releasing over another square commits the
        arrow, releasing on the same square cancels.
@@ -1008,6 +1024,7 @@ export default function ChessBoard({
     setDragFrom(null);
     setDragTo(null);
     setDragButton(null);
+    setDragMods(null);
     touchPointerRef.current = null;
     clearLongPress();
   }, [clearLongPress]);
@@ -1034,6 +1051,12 @@ export default function ChessBoard({
       if (isRight) boardRef.current?.setPointerCapture?.(e.pointerId);
       if (isTouch) touchPointerRef.current = e.pointerId;
       setDragButton(isRight ? 2 : 0);
+      setDragMods({
+        shiftKey: Boolean(e.shiftKey),
+        altKey: Boolean(e.altKey),
+        ctrlKey: Boolean(e.ctrlKey),
+        metaKey: Boolean(e.metaKey),
+      });
       setDragFrom(sq);
       setDragTo(sq);
 
@@ -1074,14 +1097,20 @@ export default function ChessBoard({
       const isTouch = e.pointerType !== 'mouse';
       const longPressFired = longPressFiredRef.current;
       longPressFiredRef.current = false;
-      const mods = e || {};
+      /* Read the modifiers captured at pointer-down, not the release event: the
+         drag preview has been showing that colour all along, and a player who
+         lets go of Shift just before releasing must get the arrow they saw. */
+      const mods = dragMods || e || {};
       clearLongPress();
       if (isTouch) touchPointerRef.current = null;
 
       if (dragFrom && dragTo) {
         if (dragTo === dragFrom) {
           if (dragButton === DRAG_BUTTON_LONG_PRESS) {
-            /* long-press released on the start square — nothing to draw */
+            /* Long-press released on the start square. Opt-in callers treat it
+               as a square mark (mobile has no right button); everyone else
+               keeps the old "nothing to draw" behaviour. */
+            if (longPressTogglesSquare) onSquareRightClick?.(dragFrom, {});
           } else if (longPressFired) {
             /* legacy press already ran a caller action — never clear the board */
           } else if (dragButton === 2) {
@@ -1119,13 +1148,20 @@ export default function ChessBoard({
           } else onClearArrows?.();
         } else if (dragButton === 2 || dragButton === DRAG_BUTTON_LONG_PRESS || arrowTool) {
           /* `'touch'` lets the caller toggle an existing arrow only for the
-             mobile gesture, leaving mouse behaviour untouched. */
-          onArrowDrawn?.(dragFrom, dragTo, isTouch ? 'touch' : undefined);
+             mobile gesture, leaving mouse behaviour untouched. The modifier
+             keys are handed over too, so the caller can pick the arrow colour
+             (Shift/Alt/Ctrl) without re-reading a keydown map. */
+          onArrowDrawn?.(dragFrom, dragTo, isTouch ? 'touch' : undefined, {
+            shiftKey: Boolean(mods.shiftKey),
+            altKey: Boolean(mods.altKey),
+            ctrlKey: Boolean(mods.ctrlKey),
+            metaKey: Boolean(mods.metaKey),
+          });
         }
       }
       resetDragArrow();
     },
-    [dragFrom, dragTo, dragButton, arrowTool, onClearArrows, onArrowDrawn, onEraseArrow, onSquareRightClick, clearLongPress, clearTapClearTimer, resetDragArrow]
+    [dragFrom, dragTo, dragButton, dragMods, arrowTool, onClearArrows, onArrowDrawn, onEraseArrow, onSquareRightClick, longPressTogglesSquare, clearLongPress, clearTapClearTimer, resetDragArrow]
   );
 
   /* ── one square, in px (used by the FX + picker overlays) ── */
@@ -1184,7 +1220,10 @@ export default function ChessBoard({
       .filter(Boolean);
   }, [lineBadges, orientation, boardWidth]);
 
-  /* draw one arrow line (+ its marker) in the overlay */
+  /* draw one arrow line (+ its marker) in the overlay.
+     Knight moves can be drawn as an L (long leg first, then the short one), the
+     chess.com shape: a straight diagonal across a 1×2 jump reads as a bishop
+     move. Opt-in only — other boards keep the straight line. */
   const renderArrow = (from, to, color, markerId) => {
     const a = squareCenter(from, boardWidth, orientation);
     const b = squareCenter(to, boardWidth, orientation);
@@ -1194,24 +1233,63 @@ export default function ChessBoard({
     const r = Math.hypot(dyl, dxl);
     if (r < 1) return null;
     const reducer = boardWidth / 32;
-    const end = { x: a.x + (dxl * (r - reducer)) / r, y: a.y + (dyl * (r - reducer)) / r };
     const c = color || arrowPreviewColor;
+    const strokeWidth = boardWidth / 40;
+    /* Only a real knight gets the L shape: a diagonal 1×2 drag between two
+       other squares is still a straight line. */
+    const lShape = knightArrows && isKnightJump(from, to) && game.get(from)?.type === 'n';
+    let shape;
+    if (lShape) {
+      /* Corner on the long leg's end: a 2-file jump turns after the horizontal
+         leg, a 2-rank jump turns after the vertical one. */
+      const corner = Math.abs(dxl) >= Math.abs(dyl)
+        ? { x: b.x, y: a.y }
+        : { x: a.x, y: b.y };
+      const vx = b.x - corner.x;
+      const vy = b.y - corner.y;
+      const vr = Math.hypot(vx, vy);
+      if (vr < 1) return null;
+      const end = { x: corner.x + (vx * (vr - reducer)) / vr, y: corner.y + (vy * (vr - reducer)) / vr };
+      shape = (
+        <polyline
+          points={`${a.x},${a.y} ${corner.x},${corner.y} ${end.x},${end.y}`}
+          fill="none"
+          opacity="0.9"
+          stroke={c}
+          strokeWidth={strokeWidth}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          markerEnd={`url(#${markerId})`}
+        />
+      );
+    } else {
+      const end = { x: a.x + (dxl * (r - reducer)) / r, y: a.y + (dyl * (r - reducer)) / r };
+      shape = (
+        <line
+          x1={a.x} y1={a.y} x2={end.x} y2={end.y}
+          opacity="0.9"
+          stroke={c}
+          strokeWidth={strokeWidth}
+          strokeLinecap="round"
+          markerEnd={`url(#${markerId})`}
+        />
+      );
+    }
     return (
       <g key={`${from}-${to}-${markerId}`}>
         <marker id={markerId} markerWidth="2" markerHeight="2.5" refX="1.25" refY="1.25" orient="auto">
           <polygon points="0.3 0, 2 1.25, 0.3 2.5" fill={c} />
         </marker>
-        <line
-          x1={a.x} y1={a.y} x2={end.x} y2={end.y}
-          opacity="0.9"
-          stroke={c}
-          strokeWidth={boardWidth / 40}
-          strokeLinecap="round"
-          markerEnd={`url(#${markerId})`}
-        />
+        {shape}
       </g>
     );
   };
+
+  /* The live drag preview follows the modifier keys held when the drag began,
+     so Shift/Alt/Ctrl colour the line before it is even released. */
+  const previewColor = arrowColorForModifiers && dragMods
+    ? (arrowColorForModifiers(dragMods) || arrowPreviewColor)
+    : arrowPreviewColor;
 
   /* Only show a drag preview when that drag will actually commit an arrow —
      a right-drag, or a left-drag with the arrow tool on. A plain left-drag is
@@ -1311,12 +1389,13 @@ export default function ChessBoard({
         {/* ── annotation arrows (our own svg overlay — reliable on every board) ── */}
         {showOverlay && (
           <svg
+            className="cb-arrow-overlay"
             width={boardWidth}
             height={boardWidth}
-            style={{ position: 'absolute', top: framePad, left: framePad, pointerEvents: 'none', zIndex: 12 }}
+            style={{ position: 'absolute', top: framePad, left: framePad, pointerEvents: 'none', zIndex: arrowsBelowPieces ? 4 : 12 }}
           >
             {normalizedArrows.map((arrow, i) => renderArrow(arrow[0], arrow[1], arrow[2], `${arrowUid}-h-${i}`))}
-            {dragPreviewing && renderArrow(dragFrom, dragTo, arrowPreviewColor, `${arrowUid}-drag`)}
+            {dragPreviewing && renderArrow(dragFrom, dragTo, previewColor, `${arrowUid}-drag`)}
           </svg>
         )}
 
