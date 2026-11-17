@@ -767,6 +767,17 @@ const PLAY_ARENA_UI_CSS = `
   .ab-root.ab-root .ab-side-card-controls .ab-action-btn{height:36px}
 }
 
+/* Play Arena owns the whole window on desktop: the shared top bar steps out of
+   the layout here exactly like the sidebar does, and the height it frees goes
+   straight to the board. Gated at 1024px — between 901px and 1023px that bar
+   still carries the hamburger for the off-canvas menu, and the board is
+   width-limited there anyway. Below 901px the stacked page keeps the bar.
+   useNavHeight then publishes --app-nav-h:0, so the board formula above grows
+   by the bar's own height with no other number to change. */
+@media (min-width:1024px){
+  .admin-shell.play-arena-fullscreen .admin-top-navbar{display:none}
+}
+
 /* Back to the student dashboard, top-left. Desktop only: at 901px+ this route
    hides the sidebar column, so the arrow is the way out of the page. Below
    901px the shell's Back row and the drawer already cover it, so the button is
