@@ -302,6 +302,10 @@ const ARENA_CONFIRM_MOVE_KEY = 'knightpath-play-arena-confirm-move';
 const ARENA_HINTS_KEY = 'knightpath-play-arena-hints';
 const ARENA_TAKEBACK_KEY = 'knightpath-play-arena-takeback';
 
+/* Same line the live classroom draw uses, so an arrow looks identical wherever
+   the instructor draws it. */
+const BOARD_ARROW_COLOR = 'rgba(0, 255, 0, 0.7)';
+
 /* Online time control is picked in <TimeControlPicker>: presets plus separate
    hours / minutes / increment chip rows, so every value is its own option. */
 
@@ -923,6 +927,10 @@ export default function AnalysisBoard() {
   const [confirmMove,   setConfirmMoveState] = useState(() => readBoolPref(ARENA_CONFIRM_MOVE_KEY, false));
   const [computerHints, setComputerHintsState] = useState(() => readBoolPref(ARENA_HINTS_KEY, false));
   const [computerTakeback, setComputerTakebackState] = useState(() => readBoolPref(ARENA_TAKEBACK_KEY, false));
+  /* Arrows the player draws on the board with the mouse. Each batch remembers
+     the FEN it was drawn on, so playing a move (or stepping through the move
+     list) retires it without a clearing call at every position-update site. */
+  const [arrowDraft, setArrowDraft] = useState(null);
   /* One state value drives all six popups: null | online | computer | live |
      annotate | saved | settings. The Modal instance below reads it. */
   const [activePopup, setActivePopup] = useState(null);
@@ -1722,6 +1730,9 @@ export default function AnalysisBoard() {
   }
 
   function reset() {
+    /* Arrows drawn on the old position must not survive the reset, even when
+       the reset lands on the same FEN (the starting position). */
+    setArrowDraft(null);
     /* A live online match is owned by the server: its move list IS the game,
        and clearing it locally would leave the board behind the match until the
        opponent's next push. There the button keeps its review meaning of
@@ -1800,6 +1811,7 @@ export default function AnalysisBoard() {
     setReviewMode(false);
     setResultPopup(null);
     setResultDismiss(false);
+    setArrowDraft(null);
     startNewGame();
   }
 
@@ -3705,14 +3717,43 @@ export default function AnalysisBoard() {
     return humanTurn ? [{ from: best.from, to: best.to, color: '#19c9c3' }] : [];
   }, [computerOn, computerHints, reviewMode, liveReviewing, status.over, best, bestFen, fen, computerColor]);
 
+  /* ── hand-drawn arrows ──
+     This is a PLAYABLE board, so its annotations are mouse-only: RIGHT-drag
+     draws an arrow (the right button never moves a piece), a plain RIGHT-click
+     removes the last one and Shift+RIGHT-click clears them all. The left
+     button stays entirely with the pieces, and no touch gesture is armed —
+     a long-press on a phone belongs to dragging a piece, not to drawing. */
+  const drawnArrows = useMemo(
+    () => (arrowDraft && arrowDraft.fen === fen ? arrowDraft.arrows : []),
+    [arrowDraft, fen],
+  );
+
+  const handleBoardArrowDrawn = useCallback((from, to) => {
+    if (!from || !to || from === to) return;
+    setArrowDraft((prev) => {
+      const arrows = prev && prev.fen === fen ? prev.arrows : [];
+      if (arrows.some((a) => a.from === from && a.to === to)) return prev;
+      return { fen, arrows: [...arrows, { from, to, color: BOARD_ARROW_COLOR }] };
+    });
+  }, [fen]);
+
+  const handleBoardRightClick = useCallback((_square, mods) => {
+    setArrowDraft((prev) => {
+      const arrows = prev && prev.fen === fen ? prev.arrows : [];
+      if (!arrows.length) return prev;
+      if (mods?.shiftKey) return { fen, arrows: [] };
+      return { fen, arrows: arrows.slice(0, -1) };
+    });
+  }, [fen]);
+
   /* The arrows array has to be identity-stable or the memoized board re-renders
      on every parent render — and `reviewArrows` above is a fresh literal each
      time. */
-  const boardArrows = useMemo(
-    () => (reviewMode ? reviewArrows : hintArrows),
+  const boardArrows = useMemo(() => {
+    const auto = reviewMode ? reviewArrows : hintArrows;
+    return drawnArrows.length ? [...drawnArrows, ...auto] : auto;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [reviewMode, reviewArrow, hintArrows],
-  );
+  }, [reviewMode, reviewArrow, hintArrows, drawnArrows]);
 
 
   const savedStorageKey = `kpa_analyses:${user?.id ?? 'guest'}`;
@@ -4365,6 +4406,9 @@ export default function AnalysisBoard() {
                 lastMove={lastMove}
                 pieceTheme={pieceSel}
                 customArrows={boardArrows}
+                arrowPreviewColor={BOARD_ARROW_COLOR}
+                onArrowDrawn={handleBoardArrowDrawn}
+                onSquareRightClick={handleBoardRightClick}
                 engineOn={engineOn && !inOnline}
                 reviewVerdictColor={reviewVerdictColor}
                 moveBadge={reviewMoveBadge}

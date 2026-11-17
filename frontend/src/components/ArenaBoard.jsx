@@ -46,6 +46,9 @@ function ArenaBoard({
   lastMove = null,
   pieceTheme = 'auto',
   customArrows = [],
+  arrowPreviewColor = undefined,
+  onArrowDrawn = null,
+  onSquareRightClick = null,
   engineOn = false,
   reviewVerdictColor = null,
   moveBadge = null,
@@ -69,6 +72,9 @@ function ArenaBoard({
       lastMove={lastMove}
       pieceTheme={pieceTheme}
       customArrows={customArrows}
+      arrowPreviewColor={arrowPreviewColor}
+      onArrowDrawn={onArrowDrawn}
+      onSquareRightClick={onSquareRightClick}
       engineOn={engineOn}
       reviewVerdictColor={reviewVerdictColor}
       moveBadge={moveBadge}

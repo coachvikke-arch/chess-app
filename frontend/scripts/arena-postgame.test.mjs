@@ -84,3 +84,17 @@ test('the once-per-game guard still precedes everything in the effect', () => {
   assert.ok(guardIdx < effect.indexOf('setResultPopup(finalResult)'),
     'the dedupe guard must run before the popup is opened');
 });
+
+test('the arena board can draw annotation arrows', () => {
+  /* The wrapper used to forward no arrow props at all, so ChessBoard refused
+     every right-drag and arrows could not be drawn on the Play Arena board. */
+  const arena = readFileSync(join(ROOT, 'src', 'components', 'ArenaBoard.jsx'), 'utf8');
+  assert.match(arena, /onArrowDrawn=\{onArrowDrawn\}/,
+    'ArenaBoard must forward onArrowDrawn to ChessBoard');
+  assert.match(arena, /onSquareRightClick=\{onSquareRightClick\}/,
+    'ArenaBoard must forward onSquareRightClick to ChessBoard');
+  assert.match(src, /onArrowDrawn=\{handleBoardArrowDrawn\}/,
+    'the page must wire the board to its own arrow store');
+  assert.match(src, /onSquareRightClick=\{handleBoardRightClick\}/,
+    'the page must wire right-click erasing');
+});
