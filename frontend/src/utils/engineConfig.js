@@ -4,14 +4,14 @@
    scripts/copy-stockfish.mjs):
 
      REVIEW_ENGINE_URL  → stockfish.js       = FULL NNUE build (large net
-                                               nn-c288c895ea92 + compact net,
-                                               ~113 MB). Used ONLY by the Game
+                                               nn-1a298aa575a0 + compact net,
+                                               ~99 MB). Used ONLY by the Game
                                                Review pipeline so verdicts stay
                                                aligned with Chess.com's NNUE
                                                evaluation.
      ANALYSIS_ENGINE_URL → stockfish-lite.js = LITE build (small net
-                                               nn-9067e33176e8, ~7 MB, loads in
-                                               a blink). Used by live board
+                                               nn-61e7af4bb97d, ~1.8 MB, loads
+                                               in a blink). Used by live board
                                                analysis, the engine bar, and
                                                computer games — a separate,
                                                lighter engine that keeps the
@@ -21,8 +21,8 @@
    Ponder=false and fixed-depth searches are identical wherever they run, so
    run-to-run determinism is preserved.
 
-   NOTE: Stockfish 18 no longer exposes the "Use NNUE" UCI toggle, so the two
-   modes genuinely need two builds (kept in one npm `stockfish` package).
+   NOTE: Stockfish 18 dropped the "Use NNUE" UCI toggle, so the two modes
+   genuinely need two builds (kept in one npm `stockfish` package).
 */
 
 import { REVIEW_WORKER_POOL, REVIEW_HASH_MB, REVIEW_THREADS, REVIEW_POOL_MAX } from './reviewConfig.js';
@@ -36,10 +36,10 @@ export const BASE_URL = import.meta.env?.BASE_URL ?? '';
    every worker pins Threads=1 / Hash / Ponder=false and fixed-depth searches
    are identical wherever they run (see the determinism notes above).
 
-   The FULL review network is ≈113 MB of WASM per worker plus a 128MB hash
+   The FULL review network is ≈99 MB of WASM per worker plus a 128MB hash
    table, so the pool is also clamped by the device's reported memory: ≤4 GB
    machines (many phones / low-RAM laptops) get at most 2 workers — a third
-   concurrent 113 MB download + instance is exactly where "Stockfish WebAssembly
+   concurrent 99 MB download + instance is exactly where "Stockfish WebAssembly
    failed to load or boot" comes from on constrained hardware. */
 function detectReviewPoolSize() {
   const hw = typeof navigator !== 'undefined' ? navigator.hardwareConcurrency : 0;

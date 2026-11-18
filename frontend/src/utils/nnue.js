@@ -2,7 +2,7 @@
 
    This is a separate worker pool from ./stockfish.js (the analysis pool).
    Review keeps the big-network NNUE build so its classifications match
-   Chess.com; board analysis never pays for that 113 MB download because it
+   Chess.com; board analysis never pays for that 99 MB download because it
    uses the dedicated lite engine instead. See ./engineConfig.js + the pool
    factory in ./stockfish.js.
 */

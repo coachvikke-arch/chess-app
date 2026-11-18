@@ -1,12 +1,12 @@
 /* Bot engine service — turns a bot's personality into an actual chess move.
  *
  * The engine itself is NOT reimplemented here. This project already ships a
- * Stockfish 18 worker pool with MultiPV support in `utils/stockfish.js`,
+ * Stockfish 19 worker pool with MultiPV support in `utils/stockfish.js`,
  * exposed through `utils/engine.js` (`searchTopMoves`). That pool runs the
  * engines in Web Workers, so the UI thread is never blocked — which is exactly
  * the requirement this feature has. Reusing it also means the bot game and the
  * Play Arena's live analysis share one warm pool instead of downloading the
- * 7 MB lite WASM build twice.
+ * 1.8 MB lite WASM build twice.
  *
  * WHAT THIS SERVICE IS RESPONSIBLE FOR
  *   1. Choosing the engine profile (skill level / move time / depth / candidate

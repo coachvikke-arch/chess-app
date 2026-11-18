@@ -1,4 +1,4 @@
-/* Stockfish 18 (bundled SF.js WASM, Node UCI mode) exposed with the SAME
+/* Stockfish 19 (bundled SF.js WASM, Node UCI mode) exposed with the SAME
    interface the in-browser review pipeline expects — a drop-in `engine`
    replacement for reviewGame when running under Node:
      searchTopMoves(fen, { maxDepth, multiPv })

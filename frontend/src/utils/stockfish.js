@@ -40,7 +40,7 @@ import { scoreFields } from './engineScore.js';
    boot fails loudly (rejects all pending searches) instead of hanging callers
    forever — a worker that never finishes its handshake would otherwise strand
    every pipeline that awaits it. The window is generous because the FULL NNUE
-   review build is a ~113 MB .wasm download + compile per worker: on a slow
+   review build is a ~99 MB .wasm download + compile per worker: on a slow
    first load (mobile data, busy disk) even a single worker needs far more than
    a glance. Warm-up runs on page mount, so steady-state clicks ride an already
    booted pool. */
@@ -113,7 +113,7 @@ export function createPool({ poolSize, workerUrl, name = 'stockfish', hashMb = 1
     if (bootFailedAt && Date.now() - bootFailedAt < 150000) {
       return Promise.reject(new Error(
         `Stockfish engine ${name} is unavailable (previous boot failed${lastBootError ? `: ${lastBootError}` : ''}). ` +
-        'Check your connection (the review engine is a ~113 MB download on first use) and reload the page. '
+        'Check your connection (the review engine is a ~99 MB download on first use) and reload the page. '
       ));
     }
     if (bootAttempts >= BOOT_MAX_ATTEMPTS) {
@@ -134,13 +134,13 @@ export function createPool({ poolSize, workerUrl, name = 'stockfish', hashMb = 1
       bootTimer = setTimeout(() => {
         failAll(new Error(`Stockfish engine ${name} failed to boot within ${BOOT_TIMEOUT_MS / 1000}s`));
       }, BOOT_TIMEOUT_MS);
-      /* Boot ONE worker at a time. Every review worker is its own 113 MB .wasm
+      /* Boot ONE worker at a time. Every review worker is its own 99 MB .wasm
          download and compile, so a pool of N used to put N of those on the wire
          simultaneously — and the connection that cannot carry them is the one
          whose stream aborts mid-download. The bytes themselves are not fetched
          N times: the browser caches the .wasm, so each later worker's load is a
          revalidation that returns no body. Series therefore costs an extra
-         handshake per worker, not another 113 MB, and removes the concurrent
+         handshake per worker, not another 99 MB, and removes the concurrent
          downloads that made the first load fail on phones. */
       const launch = () => {
         if (run.cancelled || run.next >= slots.length) return;
@@ -471,7 +471,7 @@ export function createPool({ poolSize, workerUrl, name = 'stockfish', hashMb = 1
     status: () => ({ state: poolState, readySlots, totalSlots: slots.length, lastError: lastBootError }),
     /* Clear a POISONED pool so the user's "try again" gets a fresh boot.
        A pool that is already 'ready' is left completely alone: tearing down a
-       healthy NNUE pool discards ~113 MB of downloaded+compiled WASM per worker
+       healthy NNUE pool discards ~99 MB of downloaded+compiled WASM per worker
        and forces the whole review to wait for a cold re-boot, which is both
        slow and pointless. The review pipeline's own searches settle on
        terminate() anyway, and a ready pool has no boot timer left to leak. */

@@ -11,7 +11,7 @@
 //      after the click that started it.
 //   2. terminate() dropped the in-flight boot promise and every queued/running
 //      search WITHOUT settling them, so an awaiting caller waited forever.
-//   3. reset() tore down a perfectly 'ready' pool, discarding ~113MB of
+//   3. reset() tore down a perfectly 'ready' pool, discarding ~99MB of
 //      downloaded+compiled WASM per worker and forcing a cold re-boot.
 //
 // createPool() takes its worker URL as a parameter and reaches `Worker`
@@ -157,7 +157,7 @@ test('reset() leaves a healthy ready pool completely alone', async () => {
 
   assert.equal(pool.status().state, 'ready', 'a healthy pool must stay ready');
   assert.equal(workerBefore.terminated, false,
-    'reset() must not throw away a booted 113MB NNUE worker');
+    'reset() must not throw away a booted 99MB NNUE worker');
   /* And it must still be usable — the review that follows the click depends on
      this, so a no-op reset must not strand the pool. */
   const res = await pool.search(FEN, { depth: 18 });

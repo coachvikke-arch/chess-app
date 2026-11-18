@@ -232,7 +232,7 @@ export const REVIEW_THREADS = 1;          // pinned — the SF.js WASM build is 
 export const REVIEW_WORKER_POOL = 3;
 
 /* Hard ceiling for the browser's auto-scaled review worker pool. More workers
-   = faster reviews, but each holds the full NNUE wasm (≈113 MB) + its own
+   = faster reviews, but each holds the full NNUE wasm (≈99 MB) + its own
    128MB hash, so the cap balances wall-clock (cores − 1) against memory.
 
    The cap was 3, which on any machine with more than 4 cores left spare cores

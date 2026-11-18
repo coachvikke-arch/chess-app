@@ -15,7 +15,7 @@
    When provided, per-game and global match rates (OLD vs NEW) are printed.
    PGN files in `--dir` must be plain text; the first movetext line is used.
 
-   The bridge spawns the same engine (stockfish-18-single.js = NNUE) that
+   The bridge spawns the same engine (stockfish-19-single.js = NNUE) that
    scripts/copy-stockfish.mjs deploys to public/, so calibration is done on
    the exact binary that runs in the browser.
 */

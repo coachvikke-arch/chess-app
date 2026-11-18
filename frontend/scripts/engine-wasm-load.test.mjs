@@ -4,7 +4,7 @@
 //      no longer turns an aborted .wasm stream into an infinite recursion.
 //
 // Both defects showed up together on the deployed analysis page. The review
-// pool boots up to four workers, and every one of them pulls a 113 MB .wasm;
+// pool boots up to four workers, and every one of them pulls a 99 MB .wasm;
 // four concurrent pulls is what aborts mid-stream on a phone. The abort then
 // hit the wrapper's own bug — a `.catch` that called itself — so a single
 // dropped connection became a wall of "Maximum call stack size exceeded" and
@@ -26,10 +26,12 @@ const COPY_SRC = new URL('../scripts/copy-stockfish.mjs', import.meta.url);
 const FULL_WRAPPER = new URL('../public/stockfish.js', import.meta.url);
 const LITE_WRAPPER = new URL('../public/stockfish-lite.js', import.meta.url);
 
-/* The upstream bug, verbatim from node_modules/stockfish/bin/stockfish-18-*.js,
-   and the one-token fix copy-stockfish.mjs writes over it. */
-const RECURSION = '.catch(function e(n){r.error(n),e(n)})';
-const FIXED = '.catch(function e(n){r.error(n)})';
+/* The upstream bug, verbatim from node_modules/stockfish/bin/stockfish-19-*.js
+   (SF 18 used `e(n)` / `r.error(n)`; SF 19 renamed the minified identifiers):
+   a progress-stream `.catch` that calls itself. copy-stockfish.mjs matches it by
+   shape rather than by literal text. */
+const SELF_RECURSION = /\.catch\(function (\w+)\((\w+)\)\{(\w+)\.error\(\2\),\1\(\2\)\}\)/;
+const PATCHED = /\.catch\(function \w+\(\w+\)\{\w+\.error\(\w+\)\}\)/;
 
 const tick = () => new Promise((r) => setTimeout(r, 0));
 
@@ -84,7 +86,7 @@ test('a multi-slot pool creates only ONE worker until it answers', async () => {
   await tick();
 
   assert.equal(FakeWorker.instances.length, 1,
-    'four workers used to start four simultaneous 113 MB downloads; boot is series now');
+    'four workers used to start four simultaneous 99 MB downloads; boot is series now');
   const r = await Promise.race([
     boot.then(() => 'resolved'),
     tick().then(() => 'pending'),
@@ -153,9 +155,11 @@ test('terminate() mid-sequence stops the remaining workers from launching', asyn
 
 test('the copied wrappers have no self-calling stream catch', () => {
   const copyScript = readFileSync(COPY_SRC, 'utf8');
-  assert.ok(copyScript.includes(RECURSION),
-    'copy-stockfish.mjs must name the exact upstream pattern it patches');
-  assert.match(copyScript, /writeFileSync\(file, src\.replace\(ABORT_RECURSION, ABORT_FIX\)\)/,
+  assert.match(copyScript, /const ABORT_RECURSION = \//,
+    'copy-stockfish.mjs must match the upstream pattern by shape');
+  assert.ok(copyScript.includes(String.raw`\.error\(\2\),\1\(\2\)`),
+    'and the shape it matches is a catch that calls itself with the same error');
+  assert.match(copyScript, /src\.replace\(ABORT_RECURSION, '\.catch\(function \$1\(\$2\)\{\$3\.error\(\$2\)\}\)'\)/,
     'and replace it with the non-recursive form');
   assert.match(copyScript, /fixAbortRecursion\(full\)[\s\S]*fixAbortRecursion\(lite\)/,
     'both engine wrappers are patched, not just the review one');
@@ -165,8 +169,8 @@ test('the copied wrappers have no self-calling stream catch', () => {
   for (const url of [FULL_WRAPPER, LITE_WRAPPER]) {
     if (!existsSync(fileURLToPath(url))) continue; // wasm-only checkout
     const src = readFileSync(url, 'utf8');
-    assert.ok(!src.includes(RECURSION), `${url}: recursion still present`);
-    assert.ok(src.includes(FIXED), `${url}: catch was not rewritten`);
+    assert.ok(!SELF_RECURSION.test(src), `${url}: recursion still present`);
+    assert.match(src, PATCHED, `${url}: catch was not rewritten`);
   }
 });
 

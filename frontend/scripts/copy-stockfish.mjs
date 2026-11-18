@@ -1,4 +1,4 @@
-/* Copies the Stockfish 18 engines from node_modules into public/, where Vite
+/* Copies the Stockfish 19 engines from node_modules into public/, where Vite
    serves them verbatim. Each single-file build locates its .wasm next to
    itself using its OWN basename, so matching names are required:
 
@@ -6,7 +6,7 @@
                                              used by GAME REVIEW (parity with
                                              Chess.com's classification needs the
                                              big network weights).
-     stockfish-lite.js / stockfish-lite.wasm — LITE build (small net, ~7 MB, much
+     stockfish-lite.js / stockfish-lite.wasm — LITE build (small net, much
                                              faster to load) used by board
                                              ANALYSIS / engine bar / computer
                                              games — a deliberately separate,
@@ -25,28 +25,28 @@ import { fileURLToPath } from 'node:url';
    to the worker) pumps itself with `read().then(...).catch(...)`, and its catch
    is a named function expression that calls ITSELF:
 
-     .catch(function e(n){ r.error(n), e(n) })
+     .catch(function e(n){ r.error(n), e(n) })        // SF 18
+     .catch(function t(r){ e.error(r), t(r) })        // SF 19
 
-   So the moment a read rejects — which is what happens when a 113 MB stream is
+   So the moment a read rejects — which is what happens when a 99 MB stream is
    cut, by a dropped connection, a phone leaving the page, or our own boot timer
    terminating the worker — the catch re-enters synchronously, rejects again, and
    runs until the stack is gone:
 
      Uncaught (in promise) RangeError: Maximum call stack size exceeded
 
-   The stream is already erroring after `r.error(n)`, so the self-call adds
+   The stream is already erroring after `x.error(y)`, so the self-call adds
    nothing but the crash; it also buries the real message ("WASM streaming
    failed") under a wall of stack overflows. Dropping the self-call leaves the
    upstream behaviour intact and lets the rejection surface once, where the pool
-   can report it. */
-const ABORT_RECURSION = '.catch(function e(n){r.error(n),e(n)})';
-const ABORT_FIX = '.catch(function e(n){r.error(n)})';
+   can report it. Matched by shape rather than by literal text so an upstream
+   rename of the minified identifiers cannot quietly skip the patch. */
+const ABORT_RECURSION = /\.catch\(function (\w+)\((\w+)\)\{(\w+)\.error\(\2\),\1\(\2\)\}\)/;
 
 function fixAbortRecursion(file) {
   const src = readFileSync(file, 'utf8');
-  if (src.includes(ABORT_FIX)) return `${file}: already patched`;
-  if (!src.includes(ABORT_RECURSION)) return `${file}: no progress stream to patch`;
-  writeFileSync(file, src.replace(ABORT_RECURSION, ABORT_FIX));
+  if (!ABORT_RECURSION.test(src)) return `${file}: no progress stream to patch`;
+  writeFileSync(file, src.replace(ABORT_RECURSION, '.catch(function $1($2){$3.error($2)})'));
   return `${file}: abort recursion removed`;
 }
 
@@ -57,10 +57,14 @@ const dstDir = join(root, 'public');
 mkdirSync(dstDir, { recursive: true });
 const full = join(dstDir, 'stockfish.js');
 const lite = join(dstDir, 'stockfish-lite.js');
-copyFileSync(join(srcDir, 'stockfish-18-single.js'), full);
-copyFileSync(join(srcDir, 'stockfish-18-single.wasm'), join(dstDir, 'stockfish.wasm'));
-copyFileSync(join(srcDir, 'stockfish-18-lite-single.js'), lite);
-copyFileSync(join(srcDir, 'stockfish-18-lite-single.wasm'), join(dstDir, 'stockfish-lite.wasm'));
+const pkg = JSON.parse(readFileSync(join(root, 'node_modules', 'stockfish', 'package.json'), 'utf8'));
+if (pkg.buildVersion !== '19') {
+  throw new Error(`copy-stockfish expects the Stockfish 19 package, found ${pkg.version}`);
+}
+copyFileSync(join(srcDir, 'stockfish-19-single.js'), full);
+copyFileSync(join(srcDir, 'stockfish-19-single.wasm'), join(dstDir, 'stockfish.wasm'));
+copyFileSync(join(srcDir, 'stockfish-19-lite-single.js'), lite);
+copyFileSync(join(srcDir, 'stockfish-19-lite-single.wasm'), join(dstDir, 'stockfish-lite.wasm'));
 console.log(fixAbortRecursion(full));
 console.log(fixAbortRecursion(lite));
-console.log('Stockfish 18 full NNUE (review) + lite (analysis) engines copied to public/');
+console.log('Stockfish 19 full NNUE (review) + lite (analysis) engines copied to public/');
