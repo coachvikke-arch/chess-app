@@ -45,6 +45,7 @@ const boardVisionRoutes = require('./routes/boardVisionRoutes');
 const sigmaRoutes = require('./routes/sigmaRoutes');
 const analysisRoutes = require('./routes/analysisRoutes');
 const topPerformanceRoutes = require('./routes/topPerformanceRoutes');
+const playerReportRoutes = require('./routes/playerReportRoutes');
 const reviewedGamesRoutes = require('./routes/reviewedGamesRoutes');
 const { studentRouter: homeworkStudentRoutes, adminRouter: homeworkAdminRoutes } = require('./routes/homeworkRoutes');
 
@@ -155,6 +156,8 @@ app.use('/api/analysis', analysisRoutes);
 /* Top Performances showcase. Mounted BEFORE the bare `/api` catch-all below
    for the same reason as sigma. */
 app.use('/api/performances', topPerformanceRoutes);
+/* Player Report — exact prefix, mounted before the bare `/api` catch-all. */
+app.use('/api/player-report', playerReportRoutes);
 /* Homework — a view over the existing puzzle-assignment model. Both prefixes
    are exact and mounted before the bare `/api` router below. */
 app.use('/api/student/homework', homeworkStudentRoutes);
