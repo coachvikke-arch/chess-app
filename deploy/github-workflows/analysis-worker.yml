@@ -1,5 +1,8 @@
 name: Analysis worker
 
+# Copy this file to .github/workflows/analysis-worker.yml in the GitHub web UI
+# (the CLI token used for deployment does not have the `workflow` scope).
+#
 # Render's free plan has no background worker, and the worker needs the full
 # repo (it imports the review pipeline from frontend/src). GitHub Actions is
 # free for this public repository, so it runs the existing worker on a schedule

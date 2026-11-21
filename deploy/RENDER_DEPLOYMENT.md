@@ -51,8 +51,13 @@ In GitHub → repo → **Settings → Secrets and variables → Actions**, add:
 - `SUPER_ADMIN_PASSWORD` — a strong password for the first admin (optional,
   only needed when creating the admin).
 
-Then run **Actions → Create super admin → Run workflow** with your email and
-name. The analysis worker runs automatically every 30 minutes.
+Then copy the two templates in `deploy/github-workflows/` into
+`.github/workflows/` using the GitHub web UI (Add file → Upload files). The CLI
+token used for this deployment does not have GitHub's `workflow` scope, so it
+cannot create workflow files directly.
+
+After that, run **Actions → Create super admin → Run workflow** with your email
+and name. The analysis worker runs automatically every 30 minutes.
 
 ### 4. Vercel
 
