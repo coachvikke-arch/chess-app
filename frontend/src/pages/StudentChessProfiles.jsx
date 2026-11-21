@@ -13,6 +13,7 @@ import {
 import {
   OverviewTab, GamesTab, StatsTab, OpeningsTab, InsightsTab,
 } from './ChessProfile';
+import PlayerReportTab from '../components/playerReport/PlayerReportTab';
 
 /* ============================================================ helpers */
 
@@ -316,6 +317,7 @@ const PROFILE_TABS = [
   ['stats', '📊 Statistics'],
   ['openings', '♘ Openings'],
   ['insights', '💡 Insights'],
+  ['report', '📄 Player Report'],
 ];
 
 /* What the profile cards show for a student who has never had a Mate Zone
@@ -625,6 +627,7 @@ function StudentProfileView({ student, onSynced, onBack }) {
           {tab === 'stats' && <StatsTab scope={scope} />}
           {tab === 'openings' && <OpeningsTab scope={scope} />}
           {tab === 'insights' && <InsightsTab scope={scope} />}
+          {tab === 'report' && <PlayerReportTab scope={scope} studentId={studentId} student={student} gamesVersion={gamesVersion} />}
         </div>
       )}
 

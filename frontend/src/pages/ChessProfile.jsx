@@ -20,6 +20,8 @@ import {
 import { fetchReviewed, markReviewed, reviewedKey } from '../services/reviewedGames';
 import useAccountSync from '../hooks/useAccountSync';
 import Button from '../components/Button';
+import PlayerReportTab from '../components/playerReport/PlayerReportTab';
+import CoachFeedbackPanel from '../components/playerReport/CoachFeedbackPanel';
 
 /* ============================================================ helpers */
 
@@ -302,6 +304,7 @@ export default function ChessProfile() {
           ['stats', '📊 Statistics'],
           ['openings', '♘ Openings'],
           ['insights', '💡 Insights'],
+          ['report', '📄 Player Report'],
         ].map(([key, label]) => (
           <button
             key={key}
@@ -329,6 +332,7 @@ export default function ChessProfile() {
       {tab === 'stats' && <StatsTab />}
       {tab === 'openings' && <OpeningsTab />}
       {tab === 'insights' && <InsightsTab />}
+      {tab === 'report' && <PlayerReportTab />}
     </Page>
     </div>
   );
@@ -910,6 +914,10 @@ export function GamesTab({ gamesVersion = 0, scope = null }) {
      game open. The id is the imported game's own row id - the unique identity
      inside the 'chess_profile' source. */
   const [selectedId, setSelectedId] = useUrlView('game');
+  /* New Coach Feedback panel state. It never affects the existing viewer URL
+     except when a critical moment explicitly asks the viewer to jump to a move. */
+  const [feedbackGame, setFeedbackGame] = useState(null);
+  const [viewerMove, setViewerMove] = useState(null);
   /* Colour-from-the-owner's-seat layer. The server filters below narrow the
      list; these chips narrow it further on the client. The outcome select is
      OWNER-relative ("Win" means the owner won, from either seat) and is
@@ -995,9 +1003,12 @@ export function GamesTab({ gamesVersion = 0, scope = null }) {
     /* eslint-disable-next-line react-hooks/exhaustive-deps */
   }, [gamesVersion]);
 
-  /* Open ONE game: the row's own id, as a string (URL values are strings). */
-  const openViewer = (id) => {
+  /* Open ONE game: the row's own id, as a string (URL values are strings).
+     `initialMoveIndex` is additive: normal row clicks leave it null, while
+     Coach Feedback can open the same viewer directly on a critical move. */
+  const openViewer = (id, initialMoveIndex = null) => {
     if (id == null) return;
+    setViewerMove(initialMoveIndex);
     setSelectedId(String(id));
   };
 
@@ -1005,6 +1016,7 @@ export function GamesTab({ gamesVersion = 0, scope = null }) {
      returns to the page the user came from instead of re-opening the game
      that was just closed. */
   const closeViewer = () => {
+    setViewerMove(null);
     setSelectedId(null, { replace: true });
   };
 
@@ -1149,7 +1161,7 @@ export function GamesTab({ gamesVersion = 0, scope = null }) {
                   <>
                     <p className="cp-colour-group-label">⚪ White games ({whiteGames.length})</p>
                     {whiteGames.map((a) => (
-                      <GameRow key={a.game.id} game={a.game} colour={a.colour} userResult={a.userResult} reviewedMark={!scope?.readOnly && reviewed.has(reviewedKey(a.game.platform, a.game.id))} active={String(selectedId) === String(a.game.id)} onOpen={() => openViewer(a.game.id)} />
+                      <div className="pr-game-row-wrap" key={a.game.id}><GameRow game={a.game} colour={a.colour} userResult={a.userResult} reviewedMark={!scope?.readOnly && reviewed.has(reviewedKey(a.game.platform, a.game.id))} active={String(selectedId) === String(a.game.id)} onOpen={() => openViewer(a.game.id)} /><button type="button" className="pr-coach-feedback-btn" onClick={() => setFeedbackGame(a.game)}>Coach Feedback</button></div>
                     ))}
                   </>
                 )}
@@ -1157,7 +1169,7 @@ export function GamesTab({ gamesVersion = 0, scope = null }) {
                   <>
                     <p className="cp-colour-group-label">⚫ Black games ({blackGames.length})</p>
                     {blackGames.map((a) => (
-                      <GameRow key={a.game.id} game={a.game} colour={a.colour} userResult={a.userResult} reviewedMark={!scope?.readOnly && reviewed.has(reviewedKey(a.game.platform, a.game.id))} active={String(selectedId) === String(a.game.id)} onOpen={() => openViewer(a.game.id)} />
+                      <div className="pr-game-row-wrap" key={a.game.id}><GameRow game={a.game} colour={a.colour} userResult={a.userResult} reviewedMark={!scope?.readOnly && reviewed.has(reviewedKey(a.game.platform, a.game.id))} active={String(selectedId) === String(a.game.id)} onOpen={() => openViewer(a.game.id)} /><button type="button" className="pr-coach-feedback-btn" onClick={() => setFeedbackGame(a.game)}>Coach Feedback</button></div>
                     ))}
                   </>
                 )}
@@ -1165,7 +1177,7 @@ export function GamesTab({ gamesVersion = 0, scope = null }) {
                   <>
                     <p className="cp-colour-group-label">❔ Seat unknown ({unknownGames.length})</p>
                     {unknownGames.map((a) => (
-                      <GameRow key={a.game.id} game={a.game} colour={a.colour} userResult={a.userResult} reviewedMark={!scope?.readOnly && reviewed.has(reviewedKey(a.game.platform, a.game.id))} active={String(selectedId) === String(a.game.id)} onOpen={() => openViewer(a.game.id)} />
+                      <div className="pr-game-row-wrap" key={a.game.id}><GameRow game={a.game} colour={a.colour} userResult={a.userResult} reviewedMark={!scope?.readOnly && reviewed.has(reviewedKey(a.game.platform, a.game.id))} active={String(selectedId) === String(a.game.id)} onOpen={() => openViewer(a.game.id)} /><button type="button" className="pr-coach-feedback-btn" onClick={() => setFeedbackGame(a.game)}>Coach Feedback</button></div>
                     ))}
                   </>
                 )}
@@ -1173,7 +1185,7 @@ export function GamesTab({ gamesVersion = 0, scope = null }) {
             ) : (
               <div className="cp-games-list">
                 {visible.map((a) => (
-                  <GameRow key={a.game.id} game={a.game} colour={a.colour} userResult={a.userResult} reviewedMark={!scope?.readOnly && reviewed.has(reviewedKey(a.game.platform, a.game.id))} active={String(selectedId) === String(a.game.id)} onOpen={() => openViewer(a.game.id)} />
+                  <div className="pr-game-row-wrap" key={a.game.id}><GameRow game={a.game} colour={a.colour} userResult={a.userResult} reviewedMark={!scope?.readOnly && reviewed.has(reviewedKey(a.game.platform, a.game.id))} active={String(selectedId) === String(a.game.id)} onOpen={() => openViewer(a.game.id)} /><button type="button" className="pr-coach-feedback-btn" onClick={() => setFeedbackGame(a.game)}>Coach Feedback</button></div>
                 ))}
               </div>
             )}
@@ -1209,11 +1221,23 @@ export function GamesTab({ gamesVersion = 0, scope = null }) {
 
       {selectedGameId && (
         <GameViewer
-          key={selectedGameId}
+          key={`${selectedGameId}:${viewerMove ?? 'end'}`}
           gameId={selectedGameId}
           studentId={scope?.studentId || null}
           onClose={closeViewer}
           onReviewed={markGameReviewed}
+          initialMoveIndex={viewerMove}
+        />
+      )}
+      {feedbackGame && (
+        <CoachFeedbackPanel
+          game={feedbackGame}
+          studentId={scope?.studentId || null}
+          onClose={() => setFeedbackGame(null)}
+          onJumpToMove={(ply) => {
+            openViewer(feedbackGame.id, ply);
+            setFeedbackGame(null);
+          }}
         />
       )}
     </div>
@@ -1272,7 +1296,7 @@ function GameRow({ game: g, active, onOpen, colour, userResult, reviewedMark }) 
    classification source — rather than building a parallel second one. This page
    passes the game's identity plus the stored-analysis accessors; the card itself
    knows nothing about where a game came from. */
-export function GameViewer({ gameId, onClose, onReviewed, studentId = null }) {
+export function GameViewer({ gameId, onClose, onReviewed, studentId = null, initialMoveIndex = null }) {
   /* The card opens IMMEDIATELY and resolves the game itself, so a slow or
      failed load is reported INSIDE the card instead of leaving a dead click
      with nothing on screen. The resolver is memoised: the card re-runs its
@@ -1297,6 +1321,7 @@ export function GameViewer({ gameId, onClose, onReviewed, studentId = null }) {
       resolveGame={resolveGame}
       onClose={onClose}
       gameId={gameId}
+      initialMoveIndex={initialMoveIndex}
       loadAnalysis={loadAnalysis}
       saveAnalysis={storeAnalysis}
       onReviewComplete={reviewComplete}
