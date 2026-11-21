@@ -1,0 +1,50 @@
+# One-click Render Blueprint for the MATE ZONE backend.
+# Free Web Service (Express + Socket.IO) + an external free Neon Postgres.
+# Render's own free Postgres expires after 30 days, so DATABASE_URL points at Neon.
+#
+# Create the service from: Render Dashboard → New → Blueprint → this repository.
+
+services:
+  - type: web
+    name: mate-zone-chess-api
+    runtime: node
+    plan: free
+    region: oregon
+    rootDir: backend
+    buildCommand: npm ci && node scripts/bootstrapDb.js
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 5000
+      - key: DATABASE_URL
+        sync: false # paste the Neon connection string here
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_EXPIRES_IN
+        value: 7d
+      - key: CLIENT_URL
+        value: https://mate-zone-chess-academy.vercel.app,https://mate-zone-chess-academy-kkcgru9oq-chess-app4.vercel.app
+      - key: FRONTEND_URL
+        value: https://mate-zone-chess-academy.vercel.app
+      - key: ANALYSIS_ENGINE_POOL
+        value: 1
+      # Optional integrations. Leave blank if unused.
+      - key: LIVEKIT_URL
+        sync: false
+      - key: LIVEKIT_API_KEY
+        sync: false
+      - key: LIVEKIT_API_SECRET
+        sync: false
+      - key: MAIL_TRANSPORT
+        value: relay
+      - key: MAIL_RELAY_URL
+        value: https://mate-zone-chess-academy.vercel.app/api/mail-relay
+      - key: MAIL_RELAY_SECRET
+        sync: false
+      - key: MAIL_FROM
+        sync: false
+      - key: MAIL_FROM_NAME
+        value: MATE ZONE Chess Academy

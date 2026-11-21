@@ -11,11 +11,11 @@
   "rewrites": [
     {
       "source": "/api/:path*",
-      "destination": "https://mate-zone-api-production.up.railway.app/api/:path*"
+      "destination": "https://mate-zone-chess-api.onrender.com/api/:path*"
     },
     {
       "source": "/uploads/:path*",
-      "destination": "https://mate-zone-api-production.up.railway.app/uploads/:path*"
+      "destination": "https://mate-zone-chess-api.onrender.com/uploads/:path*"
     },
     {
       "source": "/(.*)",
