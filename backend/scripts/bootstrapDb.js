@@ -70,21 +70,42 @@ function splitStatements(sql) {
     current += ch;
   }
   if (current.trim()) statements.push(current.trim());
-  return statements.filter((s) => s && !/^--/.test(s));
+
+  /* Most statements are preceded by explanatory comments, so strip those
+   * before deciding whether the block is empty. */
+  return statements.map((s) => {
+    let out = s.trim();
+    for (;;) {
+      if (out.startsWith('--')) {
+        const nl = out.indexOf('\n');
+        if (nl < 0) return '';
+        out = out.slice(nl + 1).trim();
+      } else if (out.startsWith('/*')) {
+        const end = out.indexOf('*/');
+        if (end < 0) return '';
+        out = out.slice(end + 2).trim();
+      } else {
+        return out;
+      }
+    }
+  }).filter(Boolean);
 }
 
 async function main() {
-  const schemaPath = path.join(__dirname, '..', 'src', 'db', 'schema.sql');
+  const schemaFiles = ['src/db/schema.sql', 'src/db/tournament_schema.sql'];
   const migrationsDir = path.join(__dirname, '..', 'migrations');
 
   console.log('[bootstrap-db] applying base schema statement by statement');
   let schemaApplied = 0;
-  for (const statement of splitStatements(fs.readFileSync(schemaPath, 'utf8'))) {
-    try {
-      await pool.query(statement);
-      schemaApplied += 1;
-    } catch (err) {
-      console.warn(`[bootstrap-db] schema statement skipped: ${err.message.split('\n')[0]}`);
+  for (const file of schemaFiles) {
+    const sql = fs.readFileSync(path.join(__dirname, '..', file), 'utf8');
+    for (const statement of splitStatements(sql)) {
+      try {
+        await pool.query(statement);
+        schemaApplied += 1;
+      } catch (err) {
+        console.warn(`[bootstrap-db] schema statement skipped: ${err.message.split('\n')[0]}`);
+      }
     }
   }
   console.log(`[bootstrap-db] base schema: ${schemaApplied} statements applied`);
@@ -93,14 +114,25 @@ async function main() {
     .filter((name) => name.endsWith('.sql'))
     .sort();
 
-  const failed = [];
-  for (const name of files) {
-    try {
-      await pool.query(fs.readFileSync(path.join(migrationsDir, name), 'utf8'));
-    } catch (err) {
-      failed.push(name);
-      console.warn(`[bootstrap-db] skipped ${name}: ${err.message.split('\n')[0]}`);
+  /* Alphabetical order is not dependency order (e.g. add_chat_attachments
+   * runs before add_chat_messages). Re-run the failures a few times so tables
+   * created by later files are available to the earlier ones. */
+  let failed = files;
+  for (let pass = 1; pass <= 3 && failed.length; pass += 1) {
+    const pending = failed;
+    const stillFailing = [];
+    for (const name of pending) {
+      try {
+        await pool.query(fs.readFileSync(path.join(migrationsDir, name), 'utf8'));
+      } catch (err) {
+        stillFailing.push(name);
+        if (pass === 3) {
+          console.warn(`[bootstrap-db] skipped ${name}: ${err.message.split('\n')[0]}`);
+        }
+      }
     }
+    console.log(`[bootstrap-db] migration pass ${pass}: ${pending.length - stillFailing.length} applied`);
+    failed = stillFailing;
   }
 
   console.log(
