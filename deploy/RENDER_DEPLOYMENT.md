@@ -11,6 +11,16 @@ This is the easiest permanently-free setup for this app:
 
 Only the Render web service URL is `https://mate-zone-chess-api.onrender.com`.
 
+## Current status (deployed)
+
+- Render service `mate-zone-chess-api` is live on `main` and healthy.
+- Neon schema + migrations are bootstrapped automatically by the build command.
+- Vercel production uses `VITE_SOCKET_URL=https://mate-zone-chess-api.onrender.com`
+  and proxies `/api/*` and `/uploads/*` to Render.
+- The first super admin has been created (`superadmin@chessacademy.com`).
+- GitHub secrets `DATABASE_URL` and `SUPER_ADMIN_PASSWORD` are set, so the
+  workflow templates can be copied to `.github/workflows/` and used as-is.
+
 ## Trade-offs (important)
 
 - **Sleeps after 15 minutes idle.** The first request after inactivity takes about
@@ -64,11 +74,13 @@ and name. The analysis worker runs automatically every 30 minutes.
 I set `VITE_SOCKET_URL=https://mate-zone-chess-api.onrender.com` with the Vercel
 CLI. `frontend/vercel.json` was already updated in this branch.
 
-## What I do after you provide access
+## Done after access was provided
 
-- Verify `/api/health` and the player-report routes.
-- Set the Vercel env var and redeploy the frontend.
-- Confirm REST calls and the Socket.IO handshake stop returning 404/CORS errors.
+- Neon connection verified; schema and migrations bootstrapped.
+- Render service created from `render.yaml`; `/api/health` returns `{"status":"ok"}`.
+- Player Report routes return `401` without a token and real data with one.
+- Socket.IO handshake succeeds with the Vercel origin allowed.
+- Vercel env var set and frontend proxy verified.
 
 ## Verification
 
