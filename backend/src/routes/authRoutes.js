@@ -2,17 +2,16 @@ const express = require('express');
 const router = express.Router();
 const multer = require('multer');
 const path = require('path');
-const crypto = require('crypto');
 const auth = require('../controllers/authController');
 const authMiddleware = require('../middleware/authMiddleware');
 const { loginLimiter, resetLimiter } = require('../middleware/rateLimits');
+const { makeStorage, folderName } = require('../services/uploadService');
 
-const storage = multer.diskStorage({
+const storage = makeStorage({
   destination: path.join(__dirname, '..', '..', 'uploads'),
-  filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname) || '.jpg';
-    cb(null, `avatar-${Date.now()}-${crypto.randomBytes(6).toString('hex')}${ext}`);
-  },
+  folder: `${folderName()}/avatars`,
+  prefix: 'avatar',
+  resourceType: 'image',
 });
 
 const upload = multer({

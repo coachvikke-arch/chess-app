@@ -10,16 +10,18 @@
  * braces: it also covers the edge that cached the URL before the file was
  * replaced or deleted.
  *
- * A relative `/uploads/...` is deliberately left relative: in production it
- * resolves against the Vercel domain, which rewrites it to the API host, and in
- * dev the Vite proxy sends it to the local backend. Prefixing an absolute origin
- * here is what would pin the app to localhost.
+ * Cloudinary photos are already absolute URLs. Legacy `/uploads/...` values are
+ * resolved with VITE_UPLOAD_BASE_URL (the Render backend origin); without it the
+ * relative URL keeps working through the local Vite proxy.
  */
+import resolveUploadUrl from './uploadUrl.js';
+
 export function profileImageSrc(url, version) {
   if (!url) return url;
+  const resolved = resolveUploadUrl(url, 'profile_image');
   const stamp = typeof version === 'number' ? version : Date.parse(version ?? '');
-  if (!Number.isFinite(stamp) || stamp <= 0) return url;
-  return `${url}${url.includes('?') ? '&' : '?'}v=${stamp}`;
+  if (!Number.isFinite(stamp) || stamp <= 0) return resolved;
+  return `${resolved}${String(resolved).includes('?') ? '&' : '?'}v=${stamp}`;
 }
 
 /** Same URL from the user/row object, using its own `updated_at` as the version. */

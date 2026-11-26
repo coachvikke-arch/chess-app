@@ -12,18 +12,18 @@ const { isRecentlyMailed, markMailed, buildLoginUrl } = mailService;
 const { generateRecoveryCode, hashRecoveryCode } = require('../services/recoveryCode');
 const { normalisePhone } = require('../utils/phone');
 const { fetchProfile } = require('../services/profileService');
+const uploads = require('../services/uploadService');
 const bcrypt = require('bcryptjs');
-const fs = require('fs');
 const path = require('path');
 
-/* Uploaded photos are served straight from disk, so a photo replaced by an
-   avatar has to be removed here — nothing else ever deletes it. */
+/* A photo replaced by an avatar is removed from Cloudinary (or from the local
+   uploads folder in development). Cleanup is best-effort and never fails the
+   avatar update that triggered it. */
 function unlinkUploadedPhoto(profileImage) {
   if (!profileImage) return;
-  const fileName = String(profileImage).split('/').pop();
-  if (!fileName) return;
-  const filePath = path.join(__dirname, '..', '..', 'uploads', fileName);
-  try { if (fs.existsSync(filePath)) fs.unlinkSync(filePath); } catch {}
+  Promise.resolve(uploads.deleteStoredFile(profileImage, {
+    localDir: path.join(__dirname, '..', '..', 'uploads'),
+  })).catch((err) => console.warn('[upload] student photo cleanup failed:', err && err.message));
 }
 
 // Get student record id for a given user id
@@ -244,7 +244,7 @@ exports.resendRegistrationEmail = async (req, res) => {
       });
     }
     markMailed(s.id);
-    res.json({ ok: true, sent: true, mode: sent.mode || 'smtp', email: s.email });
+    res.json({ ok: true, sent: true, mode: sent.mode || 'brevo', email: s.email });
   } catch (err) {
     res.status(500).json({ message: 'Failed to send the confirmation email', error: err.message });
   }

@@ -1,8 +1,9 @@
-# One-click Render Blueprint for the MATE ZONE backend.
-# Free Web Service (Express + Socket.IO) + an external free Neon Postgres.
-# Render's own free Postgres expires after 30 days, so DATABASE_URL points at Neon.
+# Render Blueprint for the MATE ZONE backend.
+# Free Web Service (Express + Socket.IO) + external free Neon PostgreSQL.
+# Render's own free Postgres expires after 30 days; DATABASE_URL points at Neon.
 #
-# Create the service from: Render Dashboard → New → Blueprint → this repository.
+# Create from: Render Dashboard → New → Blueprint → this repository.
+# Secret values marked `sync: false` are entered in the Render dashboard.
 
 services:
   - type: web
@@ -17,20 +18,39 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
+      - key: NODE_VERSION
+        value: "20"
       - key: PORT
-        value: 5000
+        value: 10000
       - key: DATABASE_URL
-        sync: false # paste the Neon connection string here
+        sync: false # Neon pooled connection string
       - key: JWT_SECRET
         generateValue: true
       - key: JWT_EXPIRES_IN
         value: 7d
+      # Paste the exact Cloudflare Pages URL(s) here (comma-separated).
       - key: CLIENT_URL
-        value: https://mate-zone-chess-academy.vercel.app,https://mate-zone-chess-academy-kkcgru9oq-chess-app4.vercel.app
+        sync: false
       - key: FRONTEND_URL
-        value: https://mate-zone-chess-academy.vercel.app
+        sync: false
       - key: ANALYSIS_ENGINE_POOL
         value: 1
+      # Brevo HTTPS email — no SMTP, no Vercel relay.
+      - key: BREVO_API_KEY
+        sync: false
+      - key: MAIL_FROM_EMAIL
+        sync: false
+      - key: MAIL_FROM_NAME
+        value: MATE ZONE Chess Academy
+      # Cloudinary uploads — Render's disk is temporary.
+      - key: CLOUDINARY_CLOUD_NAME
+        sync: false
+      - key: CLOUDINARY_API_KEY
+        sync: false
+      - key: CLOUDINARY_API_SECRET
+        sync: false
+      - key: CLOUDINARY_FOLDER
+        value: mate-zone
       # Optional integrations. Leave blank if unused.
       - key: LIVEKIT_URL
         sync: false
@@ -38,13 +58,3 @@ services:
         sync: false
       - key: LIVEKIT_API_SECRET
         sync: false
-      - key: MAIL_TRANSPORT
-        value: relay
-      - key: MAIL_RELAY_URL
-        value: https://mate-zone-chess-academy.vercel.app/api/mail-relay
-      - key: MAIL_RELAY_SECRET
-        sync: false
-      - key: MAIL_FROM
-        sync: false
-      - key: MAIL_FROM_NAME
-        value: MATE ZONE Chess Academy

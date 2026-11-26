@@ -1,6 +1,6 @@
 const db = require('../config/database');
-const fs = require('fs');
 const path = require('path');
+const uploads = require('../services/uploadService');
 
 exports.uploadDocument = async (req, res) => {
   try {
@@ -13,7 +13,13 @@ exports.uploadDocument = async (req, res) => {
     );
     res.status(201).json(result.rows[0]);
   } catch (err) {
-    if (req.file) { try { fs.unlinkSync(req.file.path); } catch {} }
+    if (req.file) {
+      Promise.resolve(uploads.deleteStoredFile(req.file.filename, {
+        publicId: req.file.cloudinaryPublicId,
+        resourceType: req.file.cloudinaryResourceType,
+        localDir: path.join(__dirname, '..', '..', 'uploads'),
+      })).catch(() => {});
+    }
     res.status(500).json({ message: 'Upload failed', error: err.message });
   }
 };
@@ -38,8 +44,11 @@ exports.deleteDocument = async (req, res) => {
     if (result.rows.length === 0) return res.status(404).json({ message: 'Document not found' });
 
     const doc = result.rows[0];
-    const filePath = path.join(__dirname, '..', '..', 'uploads', doc.file_name);
-    if (fs.existsSync(filePath)) { try { fs.unlinkSync(filePath); } catch {} }
+    if (doc.file_name) {
+      Promise.resolve(uploads.deleteStoredFile(doc.file_name, {
+        localDir: path.join(__dirname, '..', '..', 'uploads'),
+      })).catch((err) => console.warn('[upload] document cleanup failed:', err && err.message));
+    }
 
     res.json({ message: 'Document deleted' });
   } catch (err) {

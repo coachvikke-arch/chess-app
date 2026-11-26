@@ -1,50 +1,40 @@
 
-const nodemailer = require('nodemailer');
+/* Mail goes through Brevo's HTTPS API. Render's free plan blocks outbound SMTP,
+   but HTTPS works everywhere. No nodemailer, no SMTP ports, no mail relay. */
 const { APP_NAME } = require('../config/brand');
 
 const INSTITUTE_NAME = APP_NAME;
 const DEFAULT_SUBJECT = `Welcome to ${APP_NAME} 🎉`;
+const BREVO_ENDPOINT = 'https://api.brevo.com/v3/smtp/email';
 
-/* A relay call that hangs must not hold a request or a retry loop forever. */
-const RELAY_TIMEOUT_MS = 20000;
+/* A Brevo call that hangs must not hold a request or a retry loop forever. */
+const BREVO_TIMEOUT_MS = 20000;
 
-let transporter = null;
-let transporterChecked = false;
-
-/* Some hosts (Railway Hobby, most PaaS free tiers) block outbound SMTP while
-   allowing HTTPS. MAIL_TRANSPORT=relay sends the message to a small HTTPS
-   endpoint that owns the SMTP credentials instead of dialling the mail server
-   from here. */
-function isRelayTransport() {
-  return String(process.env.MAIL_TRANSPORT || '').toLowerCase() === 'relay';
+/* MAIL_FROM_EMAIL is the new name. MAIL_FROM is accepted only so an older local
+   .env does not silently lose its sender; production should use MAIL_FROM_EMAIL. */
+function brevoFromEmail() {
+  return String(process.env.MAIL_FROM_EMAIL || process.env.MAIL_FROM || '').trim();
 }
 
-function isRelayConfigured() {
-  return Boolean(process.env.MAIL_RELAY_URL && process.env.MAIL_RELAY_SECRET);
+function brevoFromName() {
+  return String(process.env.MAIL_FROM_NAME || INSTITUTE_NAME).trim() || INSTITUTE_NAME;
 }
 
-/** Is there enough configuration to attempt a send at all? */
-function isMailConfigured() {
-  if (isRelayTransport()) return isRelayConfigured();
-  return Boolean(
-    process.env.MAIL_HOST
-    && process.env.MAIL_USER
-    && process.env.MAIL_PASS
-    && process.env.MAIL_FROM,
-  );
-}
-
-/** The dummy transport: nothing leaves the machine, the mail is logged. */
+/** The dummy mode prints the message instead of sending it (local/offline use). */
 function isDummyTransport() {
   return String(process.env.MAIL_TRANSPORT || '').toLowerCase() === 'dummy';
+}
+
+/** Is there enough configuration to attempt a Brevo send at all? */
+function isMailConfigured() {
+  return Boolean(String(process.env.BREVO_API_KEY || '').trim() && brevoFromEmail());
 }
 
 /**
  * What the mail setup can actually do right now.
  *
- *   'smtp'  a real mail server is configured - messages are sent
- *   'relay' an HTTPS relay is configured - messages are sent through it
- *   'dummy' the dummy transport is on - messages are only printed to the log
+ *   'brevo' Brevo API key + sender are configured - messages are sent via HTTPS
+ *   'dummy' MAIL_TRANSPORT=dummy - messages are only printed to the log
  *   'off'   nothing is configured - messages are skipped
  *
  * The caller uses this to tell the truth in the UI: a registration must never
@@ -52,17 +42,13 @@ function isDummyTransport() {
  */
 function mailStatus() {
   if (isDummyTransport()) return 'dummy';
-  if (isRelayTransport()) return isRelayConfigured() ? 'relay' : 'off';
-  return isMailConfigured() ? 'smtp' : 'off';
+  return isMailConfigured() ? 'brevo' : 'off';
 }
 
 /**
- * A one-time warning about the mail setup.
- *
- * The From address is the one thing that silently breaks delivery on the most
- * common provider: Gmail refuses a message whose From is an address the
- * account does not own ("Sender address not owned"). So the check is here, once,
- * at start-up, where somebody will actually see it.
+ * One start-up check. Brevo refuses sends from a sender that has not been
+ * verified in the Brevo account, so the address is named here where somebody
+ * will actually see the warning. The API key itself is never logged.
  */
 function checkMailSetup() {
   const status = mailStatus();
@@ -71,63 +57,15 @@ function checkMailSetup() {
     return status;
   }
   if (status === 'off') {
-    console.warn('[mail] SMTP is not configured (MAIL_HOST/MAIL_USER/MAIL_PASS/MAIL_FROM) - no email will be sent.');
+    console.warn('[mail] Brevo is not configured (BREVO_API_KEY / MAIL_FROM_EMAIL) - no email will be sent.');
     return status;
   }
-  if (status === 'relay') {
-    console.log(`[mail] HTTPS relay ready: ${process.env.MAIL_RELAY_URL} as ${process.env.MAIL_FROM || process.env.MAIL_USER}`);
-    return status;
-  }
-  const from = String(process.env.MAIL_FROM || '');
-  const user = String(process.env.MAIL_USER || '');
-  const fromDomain = from.split('@')[1] || '';
-  const userDomain = user.split('@')[1] || '';
-  if (fromDomain && userDomain && fromDomain !== userDomain) {
-    console.warn(`[mail] MAIL_FROM (${from}) and MAIL_USER (${user}) are on different domains - most SMTP servers (Gmail included) will refuse to send it.`);
-  }
-  if (user.endsWith('@gmail.com') && !String(process.env.MAIL_PASS || '').trim()) {
-    console.warn('[mail] MAIL_PASS is empty - a Gmail account needs an App Password, not the account password.');
-  }
-  console.log(`[mail] SMTP ready: ${process.env.MAIL_HOST}:${process.env.MAIL_PORT || 587} as ${user}`);
+  console.log(`[mail] Brevo HTTP API ready as ${brevoFromName()} <${brevoFromEmail()}> - the sender must be verified in Brevo.`);
   return status;
 }
 
-function getTransporter() {
-  if (transporterChecked) return transporter;
-  transporterChecked = true;
-
-  if (isDummyTransport()) {
-    /* jsonTransport builds the exact message and hands it back instead of
-       sending it - the perfect way to try the whole flow with a dummy address. */
-    transporter = nodemailer.createTransport({ jsonTransport: true });
-    return transporter;
-  }
-
-  if (!isMailConfigured()) {
-    console.warn('[mail] SMTP is not configured (MAIL_HOST/MAIL_USER/MAIL_PASS/MAIL_FROM) - emails are disabled.');
-    transporter = null;
-    return transporter;
-  }
-
-  const port = Number(process.env.MAIL_PORT || 587);
-  const secure = String(process.env.MAIL_SECURE || '').toLowerCase() === 'true' || port === 465;
-
-  transporter = nodemailer.createTransport({
-    host: process.env.MAIL_HOST,
-    port,
-    secure,
-    auth: { user: process.env.MAIL_USER, pass: process.env.MAIL_PASS },
-    pool: true,
-    maxConnections: 3,
-  });
-  return transporter;
-}
-
-/** Reset the cached transporter (used by the tests and after a config change). */
-function resetMailTransport() {
-  transporter = null;
-  transporterChecked = false;
-}
+/** Kept for compatibility with the tests and older callers; there is no cached transport now. */
+function resetMailTransport() {}
 
 /**
  * Send one message.
@@ -139,7 +77,7 @@ function resetMailTransport() {
  * @param {string} mail.text
  * @param {string} [mail.mask]  a secret that must never appear in a LOG
  *   (the temporary password). The message itself still carries it - that is the
- *   point of the mail - but the DUMMY TRANSPORT prints the message to the log,
+ *   point of the mail - but DUMMY MODE prints the message to the log,
  *   so the printed copy is masked.
  * @returns {Promise<{ok: boolean, error?: string, id?: string, skipped?: string, mode?: string}>}
  *   NEVER rejects.
@@ -149,78 +87,75 @@ async function sendMail({ to, subject, html, text, mask = null }) {
     console.warn('[mail] no recipient - skipped.');
     return { ok: false, skipped: 'no-recipient' };
   }
+
+  const fromName = brevoFromName();
+  const fromEmail = brevoFromEmail() || 'no-reply@example.invalid';
+
   if (isDummyTransport()) {
-    const t = getTransporter();
-    const info = await t.sendMail({
-      from: formatFrom(),
-      to,
-      subject,
-      text,
-      html,
-    });
-    /* The dummy transport hands back the rendered message - logging it is how
-       you actually SEE what would have been sent. The password is masked in
-       that print: a log is not a place for a live credential. */
-    const printed = mask ? maskSecret(info.message, mask) : info.message;
-    console.log('[mail] DUMMY TRANSPORT - message that would have been sent:\n', printed);
+    /* No nodemailer: render the message ourselves. Logging it is how you SEE
+       what would have been sent, and the password/recovery code are masked in
+       that print - a log is not a place for a live credential. */
+    const printed = [
+      `From: "${fromName}" <${fromEmail}>`,
+      `To: ${to}`,
+      `Subject: ${subject}`,
+      '',
+      '--- TEXT ---',
+      text || '',
+      '',
+      '--- HTML ---',
+      html || '',
+    ].join('\n');
+    console.log('[mail] DUMMY MODE - message that would have been sent:\n', mask ? maskSecret(printed, mask) : printed);
     return { ok: true, id: 'dummy', mode: 'dummy' };
   }
-  if (isRelayTransport()) {
-    if (!isRelayConfigured()) {
-      console.warn('[mail] MAIL_TRANSPORT=relay but MAIL_RELAY_URL/MAIL_RELAY_SECRET are missing - the message was not sent.');
-      return { ok: false, skipped: 'not-configured' };
-    }
-    try {
-      const response = await fetch(process.env.MAIL_RELAY_URL, {
-        method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-          'x-mail-relay-secret': process.env.MAIL_RELAY_SECRET,
-        },
-        body: JSON.stringify({ to, subject, html, text }),
-        signal: AbortSignal.timeout(RELAY_TIMEOUT_MS),
-      });
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok || !data.ok) {
-        const reason = data.error || `HTTP ${response.status}`;
-        console.error('[mail] relay send failed:', reason);
-        return { ok: false, error: reason };
-      }
-      console.log(`[mail] sent via relay to ${to} (${data.id || 'no id'})`);
-      return { ok: true, id: data.id, mode: 'relay' };
-    } catch (err) {
-      console.error('[mail] relay send failed:', err && err.message);
-      return { ok: false, error: (err && err.message) || 'relay send failed' };
-    }
-  }
+
   if (!isMailConfigured()) {
-    console.warn('[mail] SMTP is not configured - the message was not sent.');
+    console.warn('[mail] Brevo is not configured - the message was not sent.');
     return { ok: false, skipped: 'not-configured' };
   }
-  try {
-    const t = getTransporter();
-    const info = await t.sendMail({
-      from: formatFrom(),
-      to,
-      subject,
-      text,
-      html,
-    });
-    console.log(`[mail] sent to ${to} (${(info && info.messageId) || 'no id'})`);
-    return { ok: true, id: info && info.messageId, mode: 'smtp' };
-  } catch (err) {
-    console.error('[mail] send failed:', err && err.message);
-    return { ok: false, error: (err && err.message) || 'send failed' };
-  }
-}
 
-function formatFrom() {
-  const name = process.env.MAIL_FROM_NAME || INSTITUTE_NAME;
-  /* The placeholder address is only ever used by the DUMMY transport (a real
-     send is refused when MAIL_FROM/MAIL_USER are missing), so it can never
-     reach a mail server. */
-  const address = process.env.MAIL_FROM || process.env.MAIL_USER || 'no-reply@example.invalid';
-  return `"${name}" <${address}>`;
+  try {
+    const response = await fetch(BREVO_ENDPOINT, {
+      method: 'POST',
+      headers: {
+        'api-key': String(process.env.BREVO_API_KEY).trim(),
+        'content-type': 'application/json',
+        accept: 'application/json',
+      },
+      body: JSON.stringify({
+        sender: { name: fromName, email: fromEmail },
+        to: [{ email: to }],
+        subject,
+        htmlContent: html || '',
+        textContent: text || '',
+      }),
+      signal: AbortSignal.timeout(BREVO_TIMEOUT_MS),
+    });
+
+    const raw = await response.text();
+    let data = {};
+    try { data = raw ? JSON.parse(raw) : {}; } catch { /* non-JSON error body */ }
+    const providerMessage = String(data.message || '').trim();
+    const safeMessage = mask ? maskSecret(providerMessage, mask) : providerMessage;
+
+    if (!response.ok) {
+      const reason = safeMessage || (mask ? maskSecret(raw, mask) : raw) || `HTTP ${response.status}`;
+      console.error(`[mail] Brevo send failed: HTTP ${response.status} ${reason}`);
+      return { ok: false, error: reason, status: response.status, mode: 'brevo' };
+    }
+
+    const id = data.messageId || `brevo-${response.status}`;
+    console.log(
+      `[mail] Brevo accepted: HTTP ${response.status} to ${to} (id ${id})`
+      + (safeMessage ? ` message=${safeMessage}` : '')
+    );
+    return { ok: true, id, mode: 'brevo', status: response.status, providerMessage: safeMessage };
+  } catch (err) {
+    const reason = (err && err.message) || 'Brevo send failed';
+    console.error('[mail] Brevo send failed:', mask ? maskSecret(reason, mask) : reason);
+    return { ok: false, error: mask ? maskSecret(reason, mask) : reason, mode: 'brevo' };
+  }
 }
 
 /* ── sending the same mail twice ────────────────────────────────────────────

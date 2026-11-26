@@ -1,7 +1,7 @@
 import { io } from 'socket.io-client';
 
-/* Deployed frontends reach the Express/Socket.io server directly: Vercel
-   rewrites cannot carry WebSocket upgrades. Same-origin locally. */
+/* Deployed frontends reach the Express/Socket.io server directly: Cloudflare
+   Pages cannot proxy WebSocket upgrades. Same-origin locally via Vite. */
 const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || window.location.origin;
 
 let socket = null;
@@ -32,7 +32,7 @@ export function getSocket() {
     path: '/socket.io',
     transports: ['websocket', 'polling'],
     /* WebSocket first — it is the transport a mobile browser keeps when the page
-       is backgrounded and the one Railway serves without a CORS round trip — but
+       is backgrounded and the one Render serves without a CORS round trip — but
        a network that blocks the upgrade must not end up with no realtime at all.
        Without this, engine.io retries only the transport that last succeeded and
        a killed socket never falls back to polling. */

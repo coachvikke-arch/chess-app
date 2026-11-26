@@ -16,12 +16,12 @@ require('dotenv').config();
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-/* This suite must NEVER reach a real mail server, whatever the developer's
-   .env says. The SMTP block is removed before the first test, and the tests
-   that need a configured server put it back themselves. */
-delete process.env.MAIL_HOST;
-delete process.env.MAIL_USER;
-delete process.env.MAIL_PASS;
+/* This suite must NEVER reach Brevo (or any mail provider), whatever the
+   developer's .env says. The Brevo block is removed before the first test, and
+   the test that needs a configured provider puts it back itself. */
+delete process.env.BREVO_API_KEY;
+delete process.env.MAIL_FROM_EMAIL;
+delete process.env.MAIL_FROM_NAME;
 delete process.env.MAIL_FROM;
 delete process.env.MAIL_TRANSPORT;
 
@@ -145,7 +145,7 @@ test('the password is MASKED in the log, never printed', async () => {
   mail.resetMailTransport();
   const original = console.log;
   const printed = [];
-  console.log = (...args) => { if (String(args[0]).includes('DUMMY TRANSPORT')) printed.push(String(args[1])); };
+  console.log = (...args) => { if (String(args[0]).includes('DUMMY MODE')) printed.push(String(args[1])); };
   try {
     await mail.sendRegistrationEmail({
       name: 'Aarav Sharma', email: 'aarav@example.com', password: 'SuperSecret123',
@@ -201,11 +201,11 @@ test('the same student cannot be mailed twice in a row', () => {
 
 /* ── it never throws ──────────────────────────────────────────────────────── */
 
-test('a broken mail server cannot break the caller', async () => {
-  /* No SMTP configured and no dummy transport: the service must report that it
-     skipped rather than reject. */
+test('a broken mail provider cannot break the caller', async () => {
+  /* No Brevo key and no dummy mode: the service must report that it skipped
+     rather than reject. */
   delete process.env.MAIL_TRANSPORT;
-  delete process.env.MAIL_HOST;
+  delete process.env.BREVO_API_KEY;
   mail.resetMailTransport();
   const result = await mail.sendRegistrationEmail({ name: 'Aarav', email: 'aarav@example.com' });
   assert.equal(result.ok, false);
@@ -216,30 +216,25 @@ test('a broken mail server cannot break the caller', async () => {
 
 test('the setup status says what will really happen', () => {
   delete process.env.MAIL_TRANSPORT;
-  delete process.env.MAIL_HOST;
-  delete process.env.MAIL_USER;
-  delete process.env.MAIL_PASS;
+  delete process.env.BREVO_API_KEY;
+  delete process.env.MAIL_FROM_EMAIL;
   delete process.env.MAIL_FROM;
   mail.resetMailTransport();
   assert.equal(mail.mailStatus(), 'off', 'nothing configured -> nothing is sent');
 
   process.env.MAIL_TRANSPORT = 'dummy';
   mail.resetMailTransport();
-  assert.equal(mail.mailStatus(), 'dummy', 'the dummy transport only prints');
+  assert.equal(mail.mailStatus(), 'dummy', 'dummy mode only prints');
 
   delete process.env.MAIL_TRANSPORT;
-  process.env.MAIL_HOST = 'smtp.example.com';
-  process.env.MAIL_USER = 'you@gmail.com';
-  process.env.MAIL_PASS = 'app-password';
-  process.env.MAIL_FROM = 'you@gmail.com';
+  process.env.BREVO_API_KEY = 'test-key';
+  process.env.MAIL_FROM_EMAIL = 'mail@example.com';
   mail.resetMailTransport();
-  assert.equal(mail.mailStatus(), 'smtp', 'a configured server really sends');
+  assert.equal(mail.mailStatus(), 'brevo', 'a configured Brevo account really sends');
 
   /* Leave the environment as it was. */
-  delete process.env.MAIL_HOST;
-  delete process.env.MAIL_USER;
-  delete process.env.MAIL_PASS;
-  delete process.env.MAIL_FROM;
+  delete process.env.BREVO_API_KEY;
+  delete process.env.MAIL_FROM_EMAIL;
   mail.resetMailTransport();
 });
 

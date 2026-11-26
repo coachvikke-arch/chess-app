@@ -52,8 +52,28 @@ const adminReq = require('../services/chatAdminRequestService');
  * requires this file, so there is no cycle. */
 const adminReqCtrl = require('./chatAdminRequestController');
 const { isAdminRole } = require('../middleware/roleMiddleware');
-const fs = require('fs');
+const uploads = require('../services/uploadService');
 const path = require('path');
+
+const CHAT_UPLOAD_DIR = path.join(__dirname, '..', '..', 'uploads', 'chat');
+
+/* Uploads are Cloudinary URLs in production and local filenames in dev. Both
+   cleanup helpers are intentionally best-effort: a deleted message must never
+   fail because an asset was already gone. */
+function cleanupUpload(file) {
+  if (!file) return;
+  Promise.resolve(uploads.deleteStoredFile(file.filename || file.path, {
+    publicId: file.cloudinaryPublicId,
+    resourceType: file.cloudinaryResourceType,
+    localDir: CHAT_UPLOAD_DIR,
+  })).catch((err) => console.warn('[upload] chat upload cleanup failed:', err && err.message));
+}
+
+function cleanupStoredUrl(value) {
+  if (!value) return;
+  Promise.resolve(uploads.deleteStoredFile(value, { localDir: CHAT_UPLOAD_DIR }))
+    .catch((err) => console.warn('[upload] chat asset cleanup failed:', err && err.message));
+}
 
 const GRACE_MS = 60 * 1000;            /* presence buffer after last disconnect */
 const DISCONNECT_TRACKER = new Map();  /* userId -> Date.now() of disconnect */
@@ -200,7 +220,7 @@ async function chatGate(req, res, otherId) {
       // multer already wrote the upload to disk before this handler ran, so a
       // blocked send would otherwise leave an orphaned file nobody references.
       // Same cleanup the error path does.
-      if (req.file) { try { fs.unlinkSync(req.file.path); } catch {} }
+      cleanupUpload(req.file);
       res.status(403).json({
         message: err.message,
         code: err.code,
@@ -888,7 +908,7 @@ exports.sendDirectMessage = async (req, res) => {
      * the INSERT records. */
     const cancelled = await chatPerm.cancelledChatRequest(me, otherId);
     if (cancelled) {
-      if (req.file) { try { fs.unlinkSync(req.file.path); } catch {} }
+      cleanupUpload(req.file);
       return res.status(403).json({
         message: 'This chat was cancelled. You can no longer send messages.',
         code: 'chat_cancelled',
@@ -1224,7 +1244,11 @@ exports.sweptDisconnecting = sweptDisconnecting;
 /* Group chat: admin-created rooms, 1:many real-time chat + attachments */
 /* ================================================================== */
 
-const ATTACHMENT_PATH = (filename) => `/uploads/chat/${filename}`;
+/* Cloudinary already stored a secure URL in req.file.filename; local uploads
+   still need the old /uploads/chat/... prefix. */
+const ATTACHMENT_PATH = (filename) => (
+  /^https?:\/\//i.test(String(filename || '')) ? filename : `/uploads/chat/${filename}`
+);
 
 async function isGroupMember(groupId, userId) {
   const r = await db.query(
@@ -1612,7 +1636,7 @@ exports.updateGroupAvatar = async (req, res) => {
 
     const g = await db.query('SELECT avatar FROM chat_groups WHERE id = $1', [groupId]);
     if (g.rows.length === 0) {
-      try { fs.unlinkSync(req.file.path); } catch {}
+      cleanupUpload(req.file);
       return res.status(404).json({ message: 'Group not found' });
     }
 
@@ -1620,12 +1644,8 @@ exports.updateGroupAvatar = async (req, res) => {
     const oldUrl = g.rows[0].avatar;
     await db.query('UPDATE chat_groups SET avatar = $1 WHERE id = $2', [newUrl, groupId]);
 
-    /* Remove the previous avatar file so uploads/chat stays tidy. Only touch
-       files under uploads/chat. */
-    if (oldUrl && oldUrl.startsWith('/uploads/chat/')) {
-      const oldPath = path.join(__dirname, '..', '..', 'uploads', 'chat', path.basename(oldUrl));
-      if (fs.existsSync(oldPath)) { try { fs.unlinkSync(oldPath); } catch {} }
-    }
+    /* Remove the previous avatar asset (Cloudinary or local uploads/chat). */
+    cleanupStoredUrl(oldUrl);
 
     const io = req.app.get('io');
     if (io) {
@@ -1637,7 +1657,7 @@ exports.updateGroupAvatar = async (req, res) => {
 
     res.json({ ok: true, group: { id: groupId, avatar: newUrl } });
   } catch (err) {
-    if (req.file) { try { fs.unlinkSync(req.file.path); } catch {} }
+    cleanupUpload(req.file);
     console.error('[chat:updateGroupAvatar] error', err);
     res.status(500).json({ message: 'Failed to update group avatar', error: err.message });
   }
@@ -1666,13 +1686,10 @@ exports.deleteGroup = async (req, res) => {
 
     await db.query('DELETE FROM chat_groups WHERE id = $1', [groupId]);
 
-    /* Same guard as the avatar swap: only files this folder owns. */
+    /* Same guard as the avatar swap: only assets this feature owns. */
     [g.rows[0].avatar, ...files.rows.map((f) => f.attachment)]
-      .filter((u) => typeof u === 'string' && u.startsWith('/uploads/chat/'))
-      .forEach((u) => {
-        const p = path.join(__dirname, '..', '..', 'uploads', 'chat', path.basename(u));
-        if (fs.existsSync(p)) { try { fs.unlinkSync(p); } catch {} }
-      });
+      .filter((u) => typeof u === 'string')
+      .forEach(cleanupStoredUrl);
 
     const io = req.app.get('io');
     if (io) {

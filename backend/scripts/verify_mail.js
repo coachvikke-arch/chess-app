@@ -1,15 +1,11 @@
-/* Send a real test email, and say exactly what happened.
+/* Send a real test email through Brevo, and say exactly what happened.
  *
- *   npm run test:mail -- you@gmail.com
+ *   npm run test:mail -- you@example.com
  *
- * This is the check that tells you whether the mail will actually arrive:
- * it uses the SAME service, the SAME transport and the SAME environment as the
- * registration flow, and it reports the provider's own answer (a Gmail
- * "535-5.7.1" or a "Sender address not owned" comes back here instead of
- * disappearing into a log nobody reads).
- *
- * With MAIL_TRANSPORT=dummy it prints the message instead of sending it - use
- * that to check the content without a mail server.
+ * This uses the SAME service, the SAME HTTP API and the SAME environment as the
+ * registration flow, and prints Brevo's own answer instead of hiding it. With
+ * MAIL_TRANSPORT=dummy it prints the message instead of sending it - use that to
+ * check the content without an account.
  */
 require('dotenv').config();
 const mail = require('../src/services/mailService');
@@ -17,7 +13,7 @@ const mail = require('../src/services/mailService');
 const to = String(process.argv[2] || '').trim();
 
 if (!to) {
-  console.error('Usage: npm run test:mail -- you@gmail.com');
+  console.error('Usage: npm run test:mail -- you@example.com');
   process.exit(1);
 }
 if (!mail.isValidEmail(to)) {
@@ -28,13 +24,11 @@ if (!mail.isValidEmail(to)) {
 const status = mail.checkMailSetup();
 console.log(`\nmail status: ${status}`);
 if (status === 'off') {
-  console.error('\nSMTP is not configured, so nothing can be sent.');
+  console.error('\nBrevo is not configured, so nothing can be sent.');
   console.error('Add these to backend/.env and restart the server:\n');
-  console.error('  MAIL_HOST=smtp.gmail.com');
-  console.error('  MAIL_PORT=587');
-  console.error('  MAIL_USER=you@gmail.com');
-  console.error('  MAIL_PASS=your-16-character-app-password');
-  console.error('  MAIL_FROM=you@gmail.com\n');
+  console.error('  BREVO_API_KEY=your-brevo-api-key');
+  console.error('  MAIL_FROM_EMAIL=sender@example.com');
+  console.error('  MAIL_FROM_NAME="MATE ZONE Chess Academy"\n');
   process.exit(1);
 }
 
@@ -49,17 +43,16 @@ if (status === 'off') {
     loginUrl: mail.buildLoginUrl(),
   });
   if (!result.ok) {
-    console.error(`\nFAILED: ${result.error || result.skipped}`);
-    if (result.error && /Sender address|not owned|550|535|553/i.test(result.error)) {
-      console.error('\nThat is the classic "From address not owned" refusal:');
-      console.error('MAIL_FROM must be the SAME address as MAIL_USER (or an alias of it).');
+    console.error(`\nFAILED${result.status ? ` (HTTP ${result.status})` : ''}: ${result.error || result.skipped}`);
+    if (result.error && /sender|not authorized|invalid sender|403/i.test(result.error)) {
+      console.error('\nBrevo refuses an unverified sender. Add MAIL_FROM_EMAIL in');
+      console.error('Brevo → Senders & Domains → Sender addresses, then confirm it by email.');
     }
-    if (result.error && /auth|login|invalid credentials|535/i.test(result.error)) {
-      console.error('\nThat is a sign-in failure: with Gmail, MAIL_PASS must be an APP PASSWORD');
-      console.error('(Google Account -> Security -> 2-Step Verification -> App passwords).');
+    if (result.error && /api key|unauthorized|401/i.test(result.error)) {
+      console.error('\nThat is an API-key problem. Copy a fresh key from Brevo → API keys.');
     }
     process.exit(1);
   }
-  console.log(`\nSENT (${result.mode}). Check ${to} - and the SPAM folder if it is not in the inbox.`);
+  console.log(`\nACCEPTED (${result.mode}${result.status ? `, HTTP ${result.status}` : ''}). Check ${to} - and the SPAM folder if it is not in the inbox.`);
   process.exit(0);
 })();

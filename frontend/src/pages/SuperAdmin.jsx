@@ -229,10 +229,10 @@ export default function SuperAdmin() {
       const label = form.role === 'admin' ? 'Coach account' : 'Student account';
       /* The server reports what ACTUALLY happened with the confirmation mail, so
          the toast never claims "sent" for a message that was only printed to
-         the log (dummy transport) or could not be sent at all (no SMTP). */
+         the log (dummy mode) or could not be sent at all (no Brevo key). */
       const emailStatus = res.data?.emailStatus;
       if (form.role === 'student' && emailStatus === 'dummy') {
-        showToast(`${label} created — the confirmation email was only printed to the server log (dummy transport).`, {
+        showToast(`${label} created — the confirmation email was only printed to the server log (dummy mode).`, {
           tone: 'warning',
           title: 'Registered, email not sent',
         });
@@ -242,7 +242,7 @@ export default function SuperAdmin() {
           title: 'Registered, email not sent',
         });
       } else {
-        showToast(`${label} created — confirmation email sent.`, {
+        showToast(`${label} created — confirmation email queued via Brevo.`, {
           tone: 'success',
           title: `${label} created`,
         });

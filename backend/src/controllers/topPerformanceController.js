@@ -1,6 +1,6 @@
 const db = require('../config/database');
 const path = require('path');
-const fs = require('fs');
+const uploads = require('../services/uploadService');
 
 /* Top Performances showcase.
  *
@@ -69,7 +69,7 @@ exports.create = async (req, res) => {
     if (!title) return res.status(400).json({ message: 'A title is required' });
     if (title.length > 120) return res.status(400).json({ message: 'Title must be 120 characters or less' });
     if (details.length > 2000) return res.status(400).json({ message: 'Details must be 2000 characters or less' });
-    const imageUrl = req.file ? `/uploads/${req.file.filename}` : null;
+    const imageUrl = req.file ? req.file.filename : null;
     const result = await db.query(
       `INSERT INTO top_performances (title, details, image_url, created_by)
        VALUES ($1, $2, $3, $4)
@@ -95,10 +95,11 @@ exports.remove = async (req, res) => {
     }
     await db.query('DELETE FROM top_performances WHERE id = $1', [req.params.id]);
     /* Tidy the upload so deleted posts do not pile up files nobody references.
-       Only touch files under /uploads (never an absolute or remote URL). */
-    if (row.image_url && row.image_url.startsWith('/uploads/')) {
-      const file = path.join(__dirname, '..', '..', 'uploads', path.basename(row.image_url));
-      fs.unlink(file, () => {});
+       Cloudinary URLs are destroyed; local filenames are unlinked. */
+    if (row.image_url) {
+      Promise.resolve(uploads.deleteStoredFile(row.image_url, {
+        localDir: path.join(__dirname, '..', '..', 'uploads'),
+      })).catch((err) => console.warn('[upload] performance cleanup failed:', err && err.message));
     }
     res.json({ message: 'Performance deleted' });
   } catch (err) {
