@@ -35,13 +35,7 @@ services:
         sync: false
       - key: ANALYSIS_ENGINE_POOL
         value: 1
-      # Brevo HTTPS email — no SMTP, no Vercel relay.
-      - key: BREVO_API_KEY
-        sync: false
-      - key: MAIL_FROM_EMAIL
-        sync: false
-      - key: MAIL_FROM_NAME
-        value: MATE ZONE Chess Academy
+      # Email is intentionally disabled: do NOT set BREVO_API_KEY / MAIL_* here.
       # Cloudinary uploads — Render's disk is temporary.
       - key: CLOUDINARY_CLOUD_NAME
         sync: false
@@ -51,10 +45,5 @@ services:
         sync: false
       - key: CLOUDINARY_FOLDER
         value: mate-zone
-      # Optional integrations. Leave blank if unused.
-      - key: LIVEKIT_URL
-        sync: false
-      - key: LIVEKIT_API_KEY
-        sync: false
-      - key: LIVEKIT_API_SECRET
-        sync: false
+      # Optional integrations are intentionally NOT declared here so the
+      # blueprint never waits for unused secrets. They can be added later.

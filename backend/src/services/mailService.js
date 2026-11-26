@@ -57,7 +57,7 @@ function checkMailSetup() {
     return status;
   }
   if (status === 'off') {
-    console.warn('[mail] Brevo is not configured (BREVO_API_KEY / MAIL_FROM_EMAIL) - no email will be sent.');
+    console.warn('[mail] disabled (no BREVO_API_KEY) - no email will be sent.');
     return status;
   }
   console.log(`[mail] Brevo HTTP API ready as ${brevoFromName()} <${brevoFromEmail()}> - the sender must be verified in Brevo.`);
@@ -111,7 +111,8 @@ async function sendMail({ to, subject, html, text, mask = null }) {
   }
 
   if (!isMailConfigured()) {
-    console.warn('[mail] Brevo is not configured - the message was not sent.');
+    /* Mail is intentionally optional. Do not log once per send - the single
+       start-up line above is enough, and a request must never be delayed. */
     return { ok: false, skipped: 'not-configured' };
   }
 
