@@ -1,0 +1,699 @@
+/* ── MATE ZONE launch splash ───────────────────────────────────────────────
+   Recreates logo.mp4 in the browser: every element of the mark (ring, knight,
+   eye, flash, flare, edge glow, particles, wordmark, tagline) is its own layer
+   and the GSAP timeline in components/LogoIntro.jsx drives them one after
+   another over ~4.6s. components/SplashGate.jsx owns the surface that carries
+   them — the full-screen curtain the swipe lifts to open the login page.
+
+   Imported AFTER theme/academy-theme.css on purpose: the hero band has to
+   outrank the light-theme token overrides there, and these class names are new
+   so nothing else can collide with them.
+
+   Colour + size tuning lives in the :root block below; the sequencing lives in
+   INTRO_TIMELINE in LogoIntro.jsx and the gesture tuning in SWIPE in
+   SplashGate.jsx. */
+
+:root {
+  /* surfaces */
+  --li-navy-1: #0a2145;
+  --li-navy-2: #04132b;
+  --li-navy-3: #020817;
+
+  /* brand */
+  --li-cyan: #1fc8ff;
+  --li-cyan-hi: #8fe3ff;
+  --li-cyan-lo: #0a8fd8;
+  --li-teal: #3fb8c8;
+  --li-gem: #2f66ff;
+  --li-silver-1: #ffffff;
+  --li-silver-2: #c5d2de;
+  --li-silver-3: #8798a9;
+  --li-silver-4: #e6eef5;
+  --li-tagline-ink: #9fb3c8;
+
+  /* hero band text (forced: the light theme maps ivory-* to dark ink) */
+  --li-hero-h1: #eaf6ff;
+  --li-hero-body: #9fb3c8;
+  --li-hero-muted: #7f93aa;
+
+  /* geometry — desktop 16:9. The wordmark is ~7.2em wide in Orbitron 800, so
+     5.4vw puts its full width at ~38vw of the viewport, as the reference does. */
+  --li-mark-size: min(42vh, 420px);
+  --li-word-fs: min(5.4vw, 4.6rem);
+  --li-tag-fs: clamp(0.7rem, 1.05vw, 0.95rem);
+  --li-ring-stroke: 3.2;
+  --li-eye-x: 52%;
+  --li-eye-y: 30%;
+  --li-knight-mask-x: 49%;
+  --li-knight-mask-y: 40%;
+}
+
+/* Portrait phones: the mark is 60vw, the wordmark ~78vw (7.2em wide), and the
+   tagline opens up to a tighter track so it never wraps or clips. */
+@media (max-width: 700px) {
+  :root {
+    --li-mark-size: 60vw;
+    --li-word-fs: 10.8vw;
+    --li-tag-fs: clamp(0.55rem, 2.9vw, 0.8rem);
+  }
+}
+
+/* Paint the document the intro colour before React mounts, so the light app
+   background never flashes behind the veil (set by the inline script in
+   index.html). */
+html.li-booting,
+html.li-booting body {
+  background: var(--li-navy-2) !important;
+}
+
+/* Scroll is frozen while the brand is in flight. */
+html[data-logo-intro],
+html[data-logo-intro] body {
+  overflow: hidden;
+}
+
+/* ── the splash surface ─────────────────────────────────────────────────── */
+
+/* The gate is the layer that takes the gestures and never moves. */
+.sg-root {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100dvh;
+  z-index: 9999;
+  overflow: hidden;
+  /* a vertical drag here is a swipe, never a scroll or a pull-to-refresh */
+  touch-action: none;
+  overscroll-behavior: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* The curtain is what a swipe moves: the brand animation over the navy field,
+   plus an identical skirt below the fold so lifting it never exposes the page
+   underneath before the gesture has been accepted. */
+.sg-curtain {
+  position: absolute;
+  inset: 0;
+  will-change: transform;
+}
+.sg-curtain::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  height: 100%;
+  background: var(--li-navy-3);
+}
+
+/* The brand animation itself, sized to the curtain it rides on. The non-auto
+   z-index makes it a stacking context, which is what keeps mix-blend-mode on
+   the knight and on the sweep reading against the navy field inside the splash
+   instead of against the page behind it. */
+.li-veil {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+}
+
+/* The navy field the mark sits in. */
+.li-backdrop {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    circle at 50% 40%,
+    var(--li-navy-1) 0%,
+    var(--li-navy-2) 40%,
+    var(--li-navy-3) 100%
+  );
+  will-change: opacity;
+}
+
+/* 1 — soft blue ambient glow */
+.li-glow {
+  position: absolute;
+  inset: -10%;
+  background: radial-gradient(
+    circle at 50% 42%,
+    rgba(31, 200, 255, 0.2) 0%,
+    rgba(31, 200, 255, 0.07) 34%,
+    rgba(31, 200, 255, 0) 68%
+  );
+  opacity: 0;
+  will-change: opacity;
+  pointer-events: none;
+}
+
+/* 6 — brief inset glow at the screen edges */
+.li-edge {
+  position: absolute;
+  inset: 0;
+  box-shadow: inset 0 0 200px rgba(31, 200, 255, 0.5);
+  opacity: 0;
+  will-change: opacity;
+  pointer-events: none;
+}
+
+/* 5 — full-width lens flare */
+.li-flare {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  width: 100vw;
+  height: 2px;
+  transform: scaleX(0);
+  transform-origin: 50% 50%;
+  background: linear-gradient(
+    90deg,
+    rgba(31, 200, 255, 0) 0%,
+    rgba(31, 200, 255, 0.45) 26%,
+    #ffffff 50%,
+    rgba(31, 200, 255, 0.45) 74%,
+    rgba(31, 200, 255, 0) 100%
+  );
+  opacity: 0;
+  will-change: transform, opacity;
+  pointer-events: none;
+}
+.li-flare::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: -7px;
+  width: 100%;
+  height: 16px;
+  background: linear-gradient(
+    90deg,
+    rgba(31, 200, 255, 0) 10%,
+    rgba(31, 200, 255, 0.5) 50%,
+    rgba(31, 200, 255, 0) 90%
+  );
+  filter: blur(9px);
+}
+
+/* 3 — knight eye glow (dot on the horse's head) */
+.li-eye {
+  position: absolute;
+  left: var(--li-eye-x);
+  top: var(--li-eye-y);
+  width: 7%;
+  aspect-ratio: 1;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: radial-gradient(circle, #ffffff 0%, var(--li-cyan) 42%, rgba(31, 200, 255, 0) 72%);
+  opacity: 0;
+  will-change: transform, opacity;
+  pointer-events: none;
+}
+
+/* ── layers 7 + 8: particles ─────────────────────────────────────────────── */
+
+.li-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  pointer-events: none;
+}
+
+/* ── the brand lockup ────────────────────────────────────────────────────── */
+
+.li-brand {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  will-change: transform;
+}
+
+.li-mark {
+  position: relative;
+  width: var(--li-mark-size);
+  height: var(--li-mark-size);
+  flex: none;
+  will-change: transform;
+}
+
+.li-halo {
+  position: absolute;
+  inset: -6%;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(31, 200, 255, 0.34) 0%, rgba(31, 200, 255, 0) 66%);
+  opacity: 0;
+  will-change: opacity;
+  pointer-events: none;
+}
+
+.li-ring {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  /* hidden at rest so the very first painted frame is never the finished mark */
+  opacity: 0;
+  filter: drop-shadow(0 0 8px rgba(31, 200, 255, 0.55));
+  pointer-events: none;
+}
+.li-ring path {
+  fill: none;
+  stroke: var(--li-cyan);
+  stroke-width: var(--li-ring-stroke);
+  stroke-linecap: round;
+  stroke-dasharray: 100;
+  stroke-dashoffset: 100;
+}
+.li-ring .li-comet {
+  stroke: #e8fbff;
+  stroke-width: calc(var(--li-ring-stroke) * 1.25);
+  stroke-dasharray: 5 95;
+  stroke-dashoffset: 100;
+  opacity: 0;
+  filter: drop-shadow(0 0 6px rgba(232, 251, 255, 0.9));
+}
+
+/* 3 — the knight lifted out of the logo plate. The source is the real logo, so
+   the artwork is exact; the ellipse mask keeps only the piece and screen
+   blending drops the dark navy behind it. */
+.li-knight {
+  position: absolute;
+  inset: 0;
+  background-image: var(--li-logo);
+  background-size: 100% 100%;
+  background-repeat: no-repeat;
+  mix-blend-mode: screen;
+  -webkit-mask-image: radial-gradient(
+    ellipse 19% 28% at var(--li-knight-mask-x) var(--li-knight-mask-y),
+    #000 52%,
+    transparent 88%
+  );
+  mask-image: radial-gradient(
+    ellipse 19% 28% at var(--li-knight-mask-x) var(--li-knight-mask-y),
+    #000 52%,
+    transparent 88%
+  );
+  opacity: 0;
+  filter: blur(14px) brightness(3);
+  will-change: transform, opacity, filter;
+  pointer-events: none;
+}
+
+/* 4 — white/cyan centre burst */
+.li-flash {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 150%;
+  aspect-ratio: 1;
+  transform: translate(-50%, -50%) scale(0);
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    #ffffff 0%,
+    rgba(180, 240, 255, 0.85) 12%,
+    rgba(31, 200, 255, 0.35) 32%,
+    rgba(31, 200, 255, 0) 62%
+  );
+  opacity: 0;
+  will-change: transform, opacity;
+  pointer-events: none;
+}
+
+/* ── 9 wordmark / 10 tagline ─────────────────────────────────────────────── */
+
+.li-compose {
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.9em;
+  will-change: transform;
+}
+
+.li-wordline {
+  position: relative;
+  display: flex;
+  align-items: baseline;
+  gap: 0.34em;
+  font-family: Orbitron, 'Segoe UI', sans-serif;
+  font-weight: 800;
+  font-size: var(--li-word-fs);
+  letter-spacing: 0.04em;
+  line-height: 1;
+  text-transform: uppercase;
+  white-space: nowrap;
+  opacity: 0;
+  will-change: transform, filter, opacity;
+}
+
+.li-mate,
+.li-zone {
+  position: relative;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+}
+
+.li-mate {
+  /* clips the chrome shine to the word itself */
+  overflow: hidden;
+  background-image: linear-gradient(
+    178deg,
+    var(--li-silver-1) 0%,
+    var(--li-silver-2) 38%,
+    var(--li-silver-3) 62%,
+    var(--li-silver-4) 100%
+  );
+}
+
+.li-zone {
+  background-image: linear-gradient(
+    178deg,
+    var(--li-cyan-hi) 0%,
+    var(--li-cyan) 48%,
+    var(--li-cyan-lo) 100%
+  );
+}
+
+/* blue diamond set into the counter of the A */
+.li-a {
+  position: relative;
+}
+.li-gem {
+  position: absolute;
+  left: 50%;
+  top: 58%;
+  width: 0.26em;
+  height: 0.26em;
+  background: var(--li-gem);
+  box-shadow: 0 0 0.4em rgba(47, 102, 255, 0.95), inset 0 0 0.1em rgba(255, 255, 255, 0.7);
+  transform: translate(-50%, -50%) rotate(45deg);
+  /* background-clip is not inherited, so this child paints normally */
+  -webkit-background-clip: border-box;
+  background-clip: border-box;
+}
+
+/* the blurred twin behind the wordmark — bloom without touching fill colours */
+.li-wordglow {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 0.34em;
+  font-family: Orbitron, 'Segoe UI', sans-serif;
+  font-weight: 800;
+  font-size: var(--li-word-fs);
+  letter-spacing: 0.04em;
+  line-height: 1;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: var(--li-cyan);
+  -webkit-text-fill-color: var(--li-cyan);
+  filter: blur(16px);
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* motion-blur trail left behind by the incoming wordmark */
+.li-streak {
+  position: absolute;
+  right: 92%;
+  top: 50%;
+  width: 70%;
+  height: 0.16em;
+  transform: translateY(-50%);
+  background: linear-gradient(90deg, rgba(143, 227, 255, 0) 0%, rgba(143, 227, 255, 0.75) 60%, #ffffff 100%);
+  filter: blur(6px);
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* one chrome highlight crossing MATE */
+.li-shine {
+  position: absolute;
+  top: -20%;
+  bottom: -20%;
+  left: -40%;
+  width: 26%;
+  background: linear-gradient(
+    100deg,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 255, 255, 0.92) 50%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  transform: skewX(-16deg);
+  mix-blend-mode: screen;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.li-tagrow {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: clamp(0.6rem, 2vw, 1.3rem);
+  overflow: hidden;
+  padding: 0.5em 0;
+  font-family: Rajdhani, 'Segoe UI', sans-serif;
+  font-weight: 500;
+  font-size: var(--li-tag-fs);
+  letter-spacing: 0.35em;
+  text-transform: uppercase;
+  color: var(--li-tagline-ink);
+  white-space: nowrap;
+  /* hidden until the timeline brings it in */
+  opacity: 0;
+}
+
+@media (max-width: 700px) {
+  .li-tagrow {
+    letter-spacing: 0.25em;
+  }
+}
+
+.li-tagrow .li-diamond {
+  color: var(--li-cyan);
+  margin: 0 0.1em;
+}
+
+.li-rule {
+  height: 1px;
+  width: clamp(54px, 13vw, 170px);
+  flex: none;
+  transform: scaleX(0);
+  will-change: transform;
+}
+.li-rule-l {
+  transform-origin: 100% 50%;
+  background: linear-gradient(90deg, rgba(31, 200, 255, 0), rgba(31, 200, 255, 0.85));
+}
+.li-rule-r {
+  transform-origin: 0% 50%;
+  background: linear-gradient(90deg, rgba(31, 200, 255, 0.85), rgba(31, 200, 255, 0));
+}
+
+/* 11 — sweep flare crossing the tagline */
+.li-sweep {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 34%;
+  background: linear-gradient(
+    100deg,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(143, 227, 255, 0.55) 45%,
+    #ffffff 52%,
+    rgba(143, 227, 255, 0.55) 60%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  filter: blur(5px);
+  mix-blend-mode: screen;
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* ── reduced-motion fallback: one fade, nothing else ─────────────────────── */
+
+.li-simple {
+  width: min(64vw, 340px);
+  height: auto;
+  opacity: 0;
+  filter: drop-shadow(0 0 26px rgba(31, 200, 255, 0.35));
+}
+
+/* ── hero band ─────────────────────────────────────────────────────────────
+   The first viewport of the landing page is the same navy as the veil, so the
+   intro hands over without a visible cut. Everything below it stays white. */
+
+.landing-hero {
+  position: relative;
+  display: flex;
+  align-items: center;
+  /* the veil is a viewport, so the band it hands over to has to be one too */
+  min-height: calc(100vh - 7rem);
+  min-height: calc(100svh - 7rem);
+  background: radial-gradient(
+    circle at 50% 40%,
+    var(--li-navy-1) 0%,
+    var(--li-navy-2) 40%,
+    var(--li-navy-3) 100%
+  );
+}
+
+.landing-hero::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 1px;
+  background: linear-gradient(90deg, rgba(31, 200, 255, 0), rgba(31, 200, 255, 0.4), rgba(31, 200, 255, 0));
+  pointer-events: none;
+}
+
+.li-dust {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  pointer-events: none;
+}
+
+.landing-hero > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* Out of the flex row and behind the content: the band owns the gradient, the
+   dust only sparkles on top of it. */
+.landing-hero .li-dust {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+}
+
+/* Forced light ink: the light theme maps ivory-* to dark charcoal. */
+.landing-hero .text-ivory-100,
+.landing-hero .text-ivory-100 * {
+  color: var(--li-hero-h1);
+}
+.landing-hero .text-ivory-300 {
+  color: var(--li-hero-body);
+}
+.landing-hero .text-ivory-500 {
+  color: var(--li-hero-muted);
+}
+.landing-hero .chess-chip,
+.landing-hero .chess-chip-gold {
+  background: rgba(31, 200, 255, 0.09);
+  border: 1px solid rgba(31, 200, 255, 0.32);
+  color: var(--li-cyan-hi);
+}
+.landing-hero .text-gold-400,
+.landing-hero .text-gold-500 {
+  color: var(--li-cyan);
+}
+.landing-hero .chess-gradient-text {
+  background: linear-gradient(100deg, var(--li-cyan-hi), var(--li-cyan), var(--li-cyan-hi));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+}
+
+/* ── "Swipe up to Login" ──────────────────────────────────────────────────
+   Bottom-centre, clear of the iPhone home bar. SplashGate only mounts it once
+   the brand timeline has ended, so it can never appear over a running
+   animation; and it fills `backwards`, not `both`, because the drag and the
+   departure move this same element with inline transforms. */
+
+.sg-prompt {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: max(1.5rem, env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.7rem;
+  will-change: transform, opacity;
+  animation: sg-prompt-in 0.5s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+
+.sg-text {
+  font-family: Rajdhani, 'Segoe UI', sans-serif;
+  font-weight: 600;
+  font-size: clamp(0.74rem, 2.7vw, 0.98rem);
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  color: var(--li-tagline-ink);
+  text-shadow: 0 0 18px rgba(31, 200, 255, 0.3);
+}
+
+/* two carets climbing out of each other — the swipe indicator */
+.sg-chev {
+  position: relative;
+  width: 20px;
+  height: 26px;
+  animation: sg-bob 1.9s ease-in-out infinite;
+}
+.sg-chev i {
+  position: absolute;
+  left: 50%;
+  width: 13px;
+  height: 13px;
+  margin-left: -6.5px;
+  border-top: 2px solid var(--li-cyan);
+  border-right: 2px solid var(--li-cyan);
+  border-radius: 2px;
+  transform: rotate(-45deg);
+  filter: drop-shadow(0 0 6px rgba(31, 200, 255, 0.6));
+}
+.sg-chev i:first-child {
+  top: 0;
+}
+.sg-chev i:last-child {
+  top: 11px;
+  opacity: 0.4;
+}
+
+@keyframes sg-prompt-in {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes sg-bob {
+  0%,
+  100% {
+    transform: translateY(4px);
+    opacity: 0.6;
+  }
+  50% {
+    transform: translateY(-4px);
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sg-prompt,
+  .sg-chev {
+    animation: none;
+  }
+}

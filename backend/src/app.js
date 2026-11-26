@@ -46,6 +46,10 @@ const sigmaRoutes = require('./routes/sigmaRoutes');
 const analysisRoutes = require('./routes/analysisRoutes');
 const topPerformanceRoutes = require('./routes/topPerformanceRoutes');
 const reviewedGamesRoutes = require('./routes/reviewedGamesRoutes');
+const publicCardRoutes = require('./routes/publicCardRoutes');
+const profileCardRoutes = require('./routes/profileCardRoutes');
+const performanceReportRoutes = require('./routes/performanceReportRoutes');
+const playerReportRoutes = require('./routes/playerReportRoutes');
 const { studentRouter: homeworkStudentRoutes, adminRouter: homeworkAdminRoutes } = require('./routes/homeworkRoutes');
 
 const app = express();
@@ -94,6 +98,10 @@ app.use('/api', limiter);
 app.get('/api/health', (req, res) => res.json({ status: 'ok' }));
 
 app.use('/api/auth', authRoutes);
+/* QR player card — public read (what a scan opens) and the signed-in member's
+   own card controls. Both sit before the bare `/api` catch-all below. */
+app.use('/api/public', publicCardRoutes);
+app.use('/api/profile', profileCardRoutes);
 app.use('/api/students', studentRoutes);
 app.use('/api/students/ratings', ratingRoutes);
 /* Student-vs-student comparison sheet on the Leaderboard. Mounted on its own
@@ -155,6 +163,11 @@ app.use('/api/analysis', analysisRoutes);
 /* Top Performances showcase. Mounted BEFORE the bare `/api` catch-all below
    for the same reason as sigma. */
 app.use('/api/performances', topPerformanceRoutes);
+/* Performance Report — mounted before the bare `/api` catch-all, like the
+   other exact report prefixes above. */
+app.use('/api/reports', performanceReportRoutes);
+/* Player Report — exact prefix, mounted before the bare `/api` catch-all. */
+app.use('/api/player-report', playerReportRoutes);
 /* Homework — a view over the existing puzzle-assignment model. Both prefixes
    are exact and mounted before the bare `/api` router below. */
 app.use('/api/student/homework', homeworkStudentRoutes);

@@ -26,6 +26,8 @@
     "test:permission-resolution": "node scripts/test-permission-resolution.js",
     "test:permissions-api": "node scripts/test-permissions-api.js",
     "test:live-class-dm": "node scripts/test-live-class-dm.js",
+    "db:live-class-variations": "node run_migration_live_class_variations.js",
+    "test:live-class-variations": "node --test scripts/test-live-class-variations.js",
     "test:puzzle-drill": "node --test scripts/test-puzzle-drill.js",
     "test:trainer-pool": "node --test scripts/trainer-pool.test.mjs",
     "test:trainer-score": "node --test scripts/trainer-score.test.mjs",
@@ -80,7 +82,8 @@
     "db:trainer-scores": "node run_migration.js migrations/add_puzzle_trainer_scores.sql",
     "test:reviewed-games": "node --test scripts/test-reviewed-games.mjs",
     "test:offline-attendance": "node --test scripts/test-offline-attendance-markers.mjs scripts/test-offline-attendance-admin.mjs",
-    "test:class-list-exclude-status": "node --test scripts/test-class-list-exclude-status.mjs"
+    "test:class-list-exclude-status": "node --test scripts/test-class-list-exclude-status.mjs",
+    "db:public-card": "node run_migration.js migrations/add_public_player_card.sql"
   },
   "dependencies": {
     "adm-zip": "^0.6.1",

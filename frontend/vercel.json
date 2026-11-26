@@ -18,6 +18,10 @@
       "destination": "https://mate-zone-api-production.up.railway.app/uploads/:path*"
     },
     {
+      "source": "/card/:token",
+      "destination": "/api/card?token=:token"
+    },
+    {
       "source": "/(.*)",
       "destination": "/index.html"
     }

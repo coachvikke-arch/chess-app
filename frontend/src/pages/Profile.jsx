@@ -7,11 +7,13 @@ import { useAuth } from '../context/AuthContext';
 import StudentAvatar from '../components/StudentAvatar';
 import AvatarBuilder from '../components/AvatarBuilder';
 import ProfilePhotoCropper from '../components/ProfilePhotoCropper';
+import QrCard from '../components/QrCard';
 import { coachListFrom } from '../utils/coachNames';
 import Button from '../components/Button';
 import PhoneInput from '../components/PhoneInput';
 import { formatPhoneDisplay, splitPhone, toE164 } from '../utils/phone';
 import { profileImageFromUser } from '../utils/profileImage';
+import { BOT } from '../components/bot/botTriggers';
 
 function fmtDate(d) {
   if (!d) return '—';
@@ -224,6 +226,7 @@ export default function Profile() {
       setEditing(false);
       load();
       refreshUser();
+      BOT.saved();
       showToast(phone ? `Profile details updated — phone ${formatPhoneDisplay(phone)}.` : 'Profile details updated.', { tone: 'success', title: 'Profile' });
     } catch (err) {
       showToast(err.response?.data?.message || 'Could not save details.', { tone: 'error', title: 'Profile' });
@@ -254,8 +257,12 @@ export default function Profile() {
 
   return (
     <Page title="My Profile" piece="♙" sub="Your account details — keep your info up to date.">
+      {/* Two columns on desktop (photo + details left, QR card sticky right);
+          one column on phones, where the QR card follows the photo card. */}
+      <div className="profile-cards-grid">
+      <div className="profile-cards-main">
       {/* ── Photo card ── */}
-      <Card title="Profile photo" piece="♟" className="mb-6">
+      <Card title="Profile photo" piece="♟">
         <div className="flex flex-col sm:flex-row items-center gap-5 sm:gap-6">
           {/* shrink-0: the hint text beside it is long, and a shrinkable wrapper
               gets squeezed narrower than the photo - the photo then overflows the
@@ -313,28 +320,17 @@ export default function Profile() {
           </div>
         </div>
       </Card>
+      </div>
 
-      {avatarOpen && (
-        <AvatarBuilder
-          config={user.avatar_config}
-          onSave={(config) => saveAvatar(config)}
-          onClose={() => setAvatarOpen(false)}
-        />
-      )}
+      <aside className="profile-cards-side">
+        <QrCard user={user} onUserUpdate={publishProfile} />
+      </aside>
 
-      <ProfilePhotoCropper
-        open={!!cropSrc}
-        src={cropSrc}
-        saving={uploading}
-        onCancel={closeCropper}
-        onSave={uploadCroppedPhoto}
-      />
-
+      <div className="profile-cards-rest">
       {/* ── Basic + personal details ── */}
       <Card
         title="Basic details"
         piece="♛"
-        className="mb-6"
         actions={(
           <Button variant="secondary" size="sm" className="!px-3 !py-1.5 !text-xs" onClick={() => setEditing((v) => !v)}>
             {editing ? 'Cancel' : '✎ Edit details'}
@@ -436,6 +432,24 @@ export default function Profile() {
           ⇥ Logout
         </Button>
       </Card>
+      </div>
+      </div>
+
+      {avatarOpen && (
+        <AvatarBuilder
+          config={user.avatar_config}
+          onSave={(config) => saveAvatar(config)}
+          onClose={() => setAvatarOpen(false)}
+        />
+      )}
+
+      <ProfilePhotoCropper
+        open={!!cropSrc}
+        src={cropSrc}
+        saving={uploading}
+        onCancel={closeCropper}
+        onSave={uploadCroppedPhoto}
+      />
     </Page>
   );
 }

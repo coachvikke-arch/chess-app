@@ -11,7 +11,6 @@ import { useProfileChanged } from '../hooks/useProfileChanged';
 import { useAuth } from '../context/AuthContext';
 import { WHITE } from 'chess.js';
 import Button from '../components/Button';
-import { useBot } from '../../matezone-bot/bot/BotContext.jsx';
 
 /** Which endpoint ranks the players for this viewer.
  *
@@ -95,7 +94,6 @@ function changeMark(delta) {
 
 export default function Leaderboard() {
   const { user } = useAuth();
-  const { showBotFrom } = useBot();
   const isCoach = user?.role === 'admin' || user?.role === 'superadmin';
   const [rows, setRows] = useState(null);
   /* A failed request is NOT an empty leaderboard. Collapsing a 403 or a 500 into
@@ -270,26 +268,6 @@ export default function Leaderboard() {
     () => champRows.find((r) => Number(r.user_id) === Number(user?.id)) || null,
     [champRows, user?.id]
   );
-  useEffect(() => {
-    if (user?.role !== 'student' || !champ || champError) return;
-    const rank = Number(myChamp?.rank) || null;
-    const group = rank === 1
-      ? 'leaderboardFirst'
-      : rank && rank <= 5
-        ? 'leaderboardProgress'
-        : rank
-          ? 'leaderboardMotivation'
-          : champRows.length
-            ? 'leaderboardMotivation'
-            : 'leaderboardUnranked';
-    const key = `mz-bot-board-${user.id}-${rank || 'unranked'}`;
-    if (sessionStorage.getItem(key)) return;
-    sessionStorage.setItem(key, '1');
-    showBotFrom(group, rank === 1 ? 'happy' : 'calm', {
-      rank: rank || '',
-      total: champRows.length,
-    });
-  }, [champ, champError, champRows.length, myChamp?.rank, showBotFrom, user?.id, user?.role]);
   const weights = champ?.weights || null;
 
   return (

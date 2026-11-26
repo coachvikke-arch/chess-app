@@ -1,80 +1,21 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { Chess } from 'chess.js';
 import { useLiveClass } from '../../context/LiveClassContext';
-import { on } from '../../services/socket';
-import { copyText } from '../../utils/clipboard';
+import { useClassroomVariations } from '../../context/ClassroomVariationContext';
+import { buildFullPgn, classroomPgnMeta } from '../../utils/gamePgn';
+import useCopyFullPgn from '../../hooks/useCopyPgn';
+import VariationMoveList from '../variation/VariationMoveList';
 
+/* The classroom's Moves tab is the SHARED variation list: the class game's
+ * mainline grid plus every branch the room has tried, nested under the move it
+ * deviated from. Clicking a move is a pointer change, not an edit — the coach's
+ * click moves the room, a student's click is a private look. */
 export default function LiveMoveHistory({ asMobilePanel = false, hideHeader = false }) {
-  const { chessState, viewIndex, setViewIndex, remoteReview, isInstructor } = useLiveClass();
-  const [moves, setMoves] = useState([]);
-  const listRef = useRef(null);
-  /* Follow the latest move only while pinned to the bottom of the list; a
-     manual scroll up is respected and a fresh move will not drag the reader
-     back down until they scroll to the bottom again. */
-  const pinnedRef = useRef(true);
-
-  const fromState = useCallback((state) => {
-    if (!state) return;
-    try {
-      if (state.pgn && String(state.pgn).trim()) {
-        const g = new Chess();
-        g.loadPgn(state.pgn, { strict: false });
-        setMoves(g.history().slice());
-      } else if (state.fen) {
-        setMoves([]);
-      }
-    } catch (_) {}
-  }, []);
-
-  useEffect(() => {
-    fromState(chessState);
-  }, [chessState, fromState]);
-
-  useEffect(() => {
-    const off = on('chess_state_updated', fromState);
-    return () => off();
-  }, [fromState]);
-
-  useEffect(() => {
-    if (pinnedRef.current && listRef.current) {
-      /* Scroll the LIST itself, never the page. scrollIntoView walks every
-         scrollable ancestor — including the document — so opening the Moves
-         tab (or a live move arriving while pinned) could nudge the whole
-         classroom up or down. Setting scrollTop confines the follow to this
-         panel, exactly as the chat feed does. */
-      listRef.current.scrollTop = listRef.current.scrollHeight;
-    }
-  }, [moves.length]);
-
-  const onScroll = (e) => {
-    const el = e.target;
-    pinnedRef.current = el.scrollTop + el.clientHeight >= el.scrollHeight - 24;
-  };
-
-  const scrollChipIntoView = (e) => {
-    try { e.currentTarget.scrollIntoView({ block: 'nearest' }); } catch { /* ignore */ }
-  };
-
-  const lastIdx = moves.length - 1;
-
-  /* Event delegation on the list container rather than an onClick per chip:
-     the list re-renders on every live move, and a handler bound to a chip can be
-     lost with the node it was bound to. The container outlives its children, so
-     a click keeps working after a re-render. Clicking a move asks the board to
-     show the position AFTER it; clicking the latest move means "back to live",
-     which is what `null` encodes.
-
-     Only the INSTRUCTOR scrubs the list. A click here also drives the room —
-     it is broadcast as the reviewed ply — so students and spectators read the
-     moves but must never be able to move the class board. */
-  const onListClick = (e) => {
-    if (!isInstructor) return;
-    const chip = e.target?.closest?.('[data-index]');
-    if (!chip || !listRef.current || !listRef.current.contains(chip)) return;
-    const idx = Number(chip.getAttribute('data-index'));
-    if (!Number.isFinite(idx)) return;
-    setViewIndex(idx >= lastIdx ? null : idx);
-  };
+  const { isInstructor, classMeta } = useLiveClass();
+  const classroom = useClassroomVariations();
+  const moveCount = Math.max(0, classroom.tree.displayIds.length - 1);
+  const copyFullPgn = useCopyFullPgn();
+  /* The stored classroom PGN is the live movetext; the shared builder writes the
+     tag block and closing result token around the very same moves. */
+  const pgn = buildFullPgn({ pgn: classroom.pgn, ...classroomPgnMeta(classMeta) });
 
   return (
     <div className={`live-chat-panel ${asMobilePanel ? 'live-chat-mobile-panel' : ''}`}>
@@ -84,51 +25,45 @@ export default function LiveMoveHistory({ asMobilePanel = false, hideHeader = fa
         </div>
       )}
       <div className="live-move-count">
-        ♘ Moves <span className="live-move-count-num">{moves.length}</span>
+        ♘ Moves <span className="live-move-count-num">{moveCount}</span>
       </div>
-      <div className="live-chat-list live-move-list" ref={listRef} onScroll={onScroll} onClick={onListClick}>
-        {moves.length === 0 && <p className="live-chat-empty">No moves yet - Moves played on the board appear here.</p>}
-        {moves.length > 0 && (
-          <div className="live-move-rows">
-            {Array.from({ length: Math.ceil(moves.length / 2) }).map((_, i) => {
-              const rowHasCurrent = i * 2 === lastIdx || i * 2 + 1 === lastIdx;
-              return (
-                <div key={i} className={`live-move-row${rowHasCurrent ? ' live-move-row-current' : ''}`}>
-                  <span className="live-move-num">{i + 1}.</span>
-                  {[0, 1].map((offset) => {
-                    const idx = i * 2 + offset;
-                    if (idx >= moves.length) return <span key={offset} className="live-move-empty" />;
-                    const isCurrent = idx === lastIdx;
-                    /* This viewer's own click wins; otherwise the ply the
-                       instructor is leading the room through is marked. */
-                    const isViewed = viewIndex === idx
-                      || (viewIndex == null && remoteReview != null && remoteReview.to === idx);
-                    const scrub = isInstructor;
-                    return (
-                      <span
-                        key={offset}
-                        data-index={idx}
-                        className={`live-move-chip${isCurrent ? ' live-move-chip-current' : ''}${isViewed ? ' live-move-chip-view' : ''}${scrub ? '' : ' live-move-chip-readonly'}`}
-                        onClick={scrub ? scrollChipIntoView : undefined}
-                        role={scrub ? 'button' : undefined}
-                        aria-current={isViewed ? 'true' : undefined}
-                        title={scrub ? `Show position after ${moves[idx]}` : moves[idx]}
-                      >
-                        {moves[idx]}
-                      </span>
-                    );
-                  })}
-                </div>
-              );
-            })}
-          </div>
-        )}
+      <div className="live-chat-list live-move-list">
+        <VariationMoveList
+          tree={classroom.tree}
+          title="Moves"
+          readOnly={!isInstructor}
+          canReset={isInstructor}
+          onReset={classroom.resetVariations}
+          branchActions={false}
+          headless
+          emptyText="No moves yet - moves played on the board appear here."
+        />
       </div>
-      {isInstructor && <div className="live-v2-move-actions"><button type="button" onClick={() => copyText(chessState?.pgn || '')}>Copy</button><button type="button" onClick={() => {
-        const blob = new Blob([chessState?.pgn || ''], { type: 'application/x-chess-pgn' });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a'); link.href = url; link.download = 'classroom-game.pgn'; link.click(); URL.revokeObjectURL(url);
-      }}>PGN</button></div>}
+      {isInstructor && (
+        <div className="live-v2-move-actions">
+          {/* The room-wide way back: one confirm in the provider removes every
+              branch for everyone (the list's own header is hidden here). */}
+          {classroom.hasVariations && (
+            <button type="button" className="live-chip" onClick={classroom.resetVariations} title="Remove every variation and return the room to the original line">
+              ↩ Reset line
+            </button>
+          )}
+          <button type="button" className="live-chip" onClick={() => copyFullPgn(pgn)}>Copy</button>
+          <button
+            type="button"
+            className="live-chip"
+            onClick={() => {
+              const blob = new Blob([pgn], { type: 'application/x-chess-pgn' });
+              const url = URL.createObjectURL(blob);
+              const link = document.createElement('a');
+              link.href = url;
+              link.download = 'classroom-game.pgn';
+              link.click();
+              URL.revokeObjectURL(url);
+            }}
+          >PGN</button>
+        </div>
+      )}
     </div>
   );
 }

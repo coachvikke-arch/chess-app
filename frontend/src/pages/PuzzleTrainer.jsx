@@ -12,6 +12,7 @@ import { useMediaQuery } from '../hooks/useMediaQuery';
 import { useProfileChanged } from '../hooks/useProfileChanged';
 import { NEXT_DELAY_MS, solveMessage } from '../lib/puzzleScore';
 import { isAdminRole } from '../utils/roles';
+import { BOT } from '../components/bot/botTriggers';
 import {
   TRAINER_LEVELS,
   readLevel, writeLevel,
@@ -239,6 +240,7 @@ export default function PuzzleTrainer() {
   }, [level, loadPuzzle]);
 
   const handleSolved = useCallback((moves, meta = {}) => {
+    BOT.puzzleSolved();
     const lv = levelRef.current;
     const messy = mistakeRef.current;
     const seq = solveSeqRef.current;
@@ -324,6 +326,7 @@ export default function PuzzleTrainer() {
     /* The board undoes the try itself and stays on the same position, so the only
        thing the page owns here is the wording and the streak. A wrong move scores
        nothing, and the solve that follows it is worth 5 instead of 10. */
+    BOT.puzzleWrong();
     mistakeRef.current = true;
     attemptsRef.current += 1;
     setStreakRun(0);

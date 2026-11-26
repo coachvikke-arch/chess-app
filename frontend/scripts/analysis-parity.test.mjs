@@ -89,6 +89,16 @@ const GAMES = [
     sans: ['e4', 'e5', 'Nf3', 'Nc6', 'Bc4', 'Bc5', 'd3', 'd6', 'O-O', 'Bg4', 'h3', 'Bxf3', 'Qxf3'],
     sigma: 'none',
   },
+  {
+    /* The supplied game (Nagavel_Krishnamoorthi vs Prmdgtm), tail from the
+       position before 26.Qxd8. The queen captures the rook that was attacking
+       it and stays on offer to the other rook — Sigma on every surface. */
+    name: 'supplied game: 26.Qxd8 queen offer',
+    initFen: '3r1rk1/p1p2ppp/1q6/8/2p5/2P1RPP1/PP1Q3P/4RK2 w - - 5 26',
+    sans: ['Qxd8', 'Qxe3', 'Qxf8+'],
+    sigma: 'any',
+    expectSigma: ['Qxd8'],
+  },
 ];
 
 let engine;
@@ -130,6 +140,11 @@ for (const game of GAMES) {
       // Gambit/custom positions may genuinely contain a sacrifice — whatever
       // the canonical pipeline finds must simply be the same everywhere.
       assert.deepEqual(sigmaSans(rowsC), sigmaSans(resA.moves), `${game.name}: sigma set`);
+    }
+    for (const san of game.expectSigma || []) {
+      assert.ok(sigmaSans(resA.moves).includes(san), `${game.name}: review must mark ${san} Sigma`);
+      assert.ok(sigmaSans(resB.moves).includes(san), `${game.name}: profile must mark ${san} Sigma`);
+      assert.ok(sigmaSans(rowsC).includes(san), `${game.name}: GM must mark ${san} Sigma`);
     }
   });
 }

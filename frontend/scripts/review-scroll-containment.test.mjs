@@ -25,6 +25,7 @@ const read = (p) => readFileSync(new URL(`../${p}`, import.meta.url), 'utf8');
 
 const HELPER = read('src/utils/scrollActiveMove.js');
 const REVIEW = read('src/pages/GameReview.jsx');
+const SHARED = read('src/components/variation/VariationMoveList.jsx');
 const CARD = read('src/components/GameViewerCard.jsx');
 const REPLAY = read('src/components/GameReplay.tsx');
 const KEYS = read('src/hooks/useReviewKeys.js');
@@ -77,16 +78,22 @@ test('the helper is exported for every surface to share', () => {
 /* ── every surface uses it ───────────────────────────────────────────────── */
 
 test('the review page follows the active move inside its move list', () => {
-  assert.match(REVIEW, /import \{ followActiveMove \} from '\.\.\/utils\/scrollActiveMove'/);
-  assert.match(REVIEW, /followActiveMove\(movelistRef\.current, '\.gr-mv\.active'\)/);
-  /* The list must be re-followed when the analysis lands, not only when the
-     index changes: the rows are rendered from the verdicts. */
-  assert.match(REVIEW, /\}, \[activeIdx, mode, verdicts\]\)/);
+  /* The score sheet is the shared VariationMoveList; it re-follows the active
+     row inside the panel that actually scrolls (`scrollHost`), never the page. */
+  assert.match(REVIEW, /<VariationMoveList/);
+  assert.match(REVIEW, /scrollHost="\.gr-movelist--var"/);
+  assert.match(SHARED, /scrollHost \? list\.closest\(scrollHost\) : list/);
+  assert.match(SHARED, /\[data-var-active="true"\]/);
+  assert.match(code(SHARED), /host\.scrollTop\s*[-+]=/,
+    'the panel scrollTop is the only thing the follow may change');
+  assert.doesNotMatch(code(SHARED), /scrollIntoView/);
 });
 
 test('the game-viewer card follows the active move inside its score sheet', () => {
-  assert.match(CARD, /import \{ followActiveMove \} from '\.\.\/utils\/scrollActiveMove'/);
-  assert.match(CARD, /followActiveMove\(scoreRef\.current, '\.cp-score-cell\.is-active'\)/);
+  /* The card's sheet is the shared VariationMoveList too: it re-follows the
+     active row inside `.cp-score`, the panel that actually scrolls. */
+  assert.match(CARD, /<VariationMoveList/);
+  assert.match(CARD, /scrollHost="\.cp-score"/);
 });
 
 test('the GM replay (auto-play) uses the same helper', () => {

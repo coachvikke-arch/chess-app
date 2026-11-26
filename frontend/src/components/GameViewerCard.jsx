@@ -1,21 +1,22 @@
-import { useEffect, useMemo, useRef, useState, useId, useCallback, memo } from 'react';
+import { useEffect, useMemo, useRef, useState, useId, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { Chess } from 'chess.js';
 import EvalBar from './EvalBar';
-import ResponsiveBoard from './ResponsiveBoard';
-import { useToast } from './Toast';
+import VariationBoard from './variation/VariationBoard';
+import VariationMoveList from './variation/VariationMoveList';
 import { useOverlayHistory } from '../hooks/useOverlayHistory';
 import useMediaQuery from '../hooks/useMediaQuery';
 import { formatEvalScore } from '../lib/evalDisplay';
 import { parsePgn, formatDate } from '../utils/pgnTools';
 import { describeGameEnd } from '../lib/chessReplay';
 import { reviewMetaFor } from '../utils/gameReview';
-import { getDisplayVerdict } from '../utils/sigmaType';
-import { analyzeCanonical, CANONICAL_ANALYSIS_VERSION, getCanonicalAnalysis } from '../utils/canonicalAnalysis';
+import { CANONICAL_ANALYSIS_VERSION, getCanonicalAnalysis } from '../utils/canonicalAnalysis';
 import { persistSigmaMoves, canPersist } from '../utils/sigmaPersist';
 import { stopEngineSearch, searchTopMoves, warmEngine as warmReviewEngine } from '../utils/nnueEngine';
-import { copyText } from '../utils/clipboard';
-import { followActiveMove } from '../utils/scrollActiveMove';
+import useCopyFullPgn from '../hooks/useCopyPgn';
+import useVariationTree, { VARIATION_STORAGE_PREFIX } from '../hooks/useVariationTree';
+import useVariationLiveEval from '../hooks/useVariationLiveEval';
+import { classifySideMove, projectVariationRow } from '../utils/reviewSideLine';
 import useVisibleEffectHost from '../hooks/useVisibleEffectHost';
 import { buildGamePgn } from '../utils/gamePgn';
 import { useReviewKeys } from '../hooks/useReviewKeys';
@@ -46,8 +47,11 @@ import Button from './Button';
 function useCopyPgn(game, moves, initialFen) {
   const [state, setState] = useState('idle');
   const timer = useRef(0);
+  /* The shared copy path adds the app-wide "Copied!" toast; the button keeps
+     its own brief label change on top of it. */
+  const copyFullPgn = useCopyFullPgn();
   const copy = async () => {
-    const ok = await copyText(buildGamePgn({ game, moves, initialFen }));
+    const ok = await copyFullPgn(buildGamePgn({ game, moves, initialFen }));
     setState(ok ? 'done' : 'failed');
     window.clearTimeout(timer.current);
     timer.current = window.setTimeout(() => setState('idle'), 2000);
@@ -107,48 +111,6 @@ function projectReview(res) {
 }
 
 /**
- * One row of the score sheet.
- *
- * Memoised because a 150-ply game is 75 of these, and every navigation used to
- * rebuild all of them — each with its own class string, title and a fresh
- * onClick — on top of the board work. The row's CONTENT (SAN, glyph, grade)
- * only ever changes with the analysis, while the highlight changes on every
- * step, so the highlight is passed as two booleans and only the rows whose
- * active cell actually moved re-render. Markup and class names are the same as
- * before: this is a render-cost change, not a design change.
- */
-const ScoreRow = memo(function ScoreRow({ num, cells, activeWhite, activeBlack, onCell }) {
-  return (
-    <div className="cp-score-row" role="row">
-      <span className="cp-score-num" role="rowheader">{num}.</span>
-      {cells.map((v, off) => {
-        /* A real empty cell, not a missing one: the columns must
-           stay aligned when a game ends after White's move. */
-        if (!v) return <span className="cp-score-cell is-empty" role="gridcell" key={off} />;
-        const meta = v.verdict ? reviewMetaFor(v.verdict) : null;
-        /* The cell colour is a CSS hook keyed by the legacy tier
-           name, so it has to be the DISPLAY key. */
-        const grade = v.verdict ? ` is-${getDisplayVerdict(v.verdict).toLowerCase()}` : '';
-        const active = off === 0 ? activeWhite : activeBlack;
-        return (
-          <button
-            key={off}
-            type="button"
-            role="gridcell"
-            title={meta ? `${getDisplayVerdict(v.verdict)}` : undefined}
-            className={`cp-score-cell${active ? ' is-active' : ''}${grade}`}
-            onClick={() => onCell(v.ply)}
-          >
-            {meta && <span className="cp-score-badge-glyph">{meta.glyph}</span>}
-            {v.san}
-          </button>
-        );
-      })}
-    </div>
-  );
-});
-
-/**
  * @param {object} props
  * @param {object} props.game  { pgn, white_name, black_name, platform, time_class,
  *   time_control, game_date, opening, game_url } — any source, normalised to the
@@ -176,7 +138,6 @@ const ScoreRow = memo(function ScoreRow({ num, cells, activeWhite, activeBlack, 
  */
 export default function GameViewerCard({ game = null,   gameRef = null,   resolveGame = null,   onClose,   initialMoveIndex = null,   gameId = null,   loadAnalysis = null,   saveAnalysis = null,   gameSource = 'chess_profile',   manageHistory = true,   onReviewComplete = null, }) {
   useOverlayHistory('GameViewerCard', manageHistory, onClose);
-  const { showToast } = useToast();
 
   /* ── the game may not be loaded yet ──────────────────────────────────────
      Opened from a Brilliant Move, the card is handed a game REFERENCE (the
@@ -249,54 +210,23 @@ export default function GameViewerCard({ game = null,   gameRef = null,   resolv
      looking at, so it owns the effect target. The previous owner is restored
      when the card closes. */
   useVisibleEffectHost(effectHostId);
-  /* ONE position per ply, built once when the game loads.
-     The board used to be rebuilt from the PGN on every navigation: a fresh Chess
-     plus one `move()` per ply up to the target, and every one of those generates
-     the full legal move list. On a 156-ply game that measured 27-59 ms of
-     main-thread work per press and it grows with the game, which is what froze
-     the page when Prev/Next were pressed quickly or held. Navigation is now a
-     read of `positions[ply]`, and the ply index below is the only state.
-     Each entry also carries the verbose move, so the move effect and the
-     last-move marker are read from the table instead of re-walking the history
-     on every step. */
-  const positions = useMemo(() => {
-    let g;
-    try {
-      g = new Chess(parsed.initFen === 'start' ? undefined : parsed.initFen);
-    } catch {
-      /* A PGN whose [FEN] tag the engine cannot load still has to open. */
-      g = new Chess();
-    }
-    const out = [{ fen: g.fen(), lastMove: null, move: null }];
-    for (let i = 0; i < parsed.moves.length; i += 1) {
-      let move = null;
-      try { move = g.move(parsed.moves[i]); } catch { break; }
-      out.push({ fen: g.fen(), lastMove: { from: move.from, to: move.to }, move });
-    }
-    return out;
-  }, [parsed.initFen, parsed.moves]);
-  /* The plies the board can actually show. A move the replay could not apply
-     stops the table, so this — not the raw PGN count — is what everything clamps
-     to; a stale request can never point past a position that exists. */
-  const plies = positions.length - 1;
-  /* Start position: the requested move (the selected Brilliant move already
-     played), else the end of the game. Clamped to the real move list, so a stale
-     request can never point past the last move. This is the ONLY place the ply
-     becomes a board position. */
-  const startIndex = useMemo(() => {
-    if (initialMoveIndex == null) return plies;
+  /* ── the move tree ────────────────────────────────────────────────────────
+     The game's own moves are the immutable mainline; anything the user tries
+     becomes a branch beside them (see utils/variationTree.js). Navigation is a
+     pointer read, so stepping through a 156-ply game costs an object lookup
+     instead of the old replay-per-press. The mainline can never be edited,
+     truncated or re-parented from here — variation actions only ever add,
+     delete their own branch, or move the pointer. */
+  const startPly = useMemo(() => {
+    const total = parsed.moves.length;
+    if (initialMoveIndex == null) return total;
     const i = Math.floor(Number(initialMoveIndex));
-    if (!Number.isFinite(i)) return plies;
-    return Math.max(0, Math.min(plies, i));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [plies, initialMoveIndex]);
-  const [moveIndex, setMoveIndex] = useState(startIndex);
-  /* One Chess instance for the life of the card. The board reads its position
-     from this object, so a navigation changes what it holds instead of swapping
-     the instance the board is mounted on. */
-  const boardRef = useRef(null);
-  if (!boardRef.current) boardRef.current = new Chess();
+    if (!Number.isFinite(i)) return total;
+    return Math.max(0, Math.min(total, i));
+  }, [parsed.moves.length, initialMoveIndex]);
   const [orientation, setOrientation] = useState('white');
+  const orientationRef = useRef(orientation);
+  orientationRef.current = orientation;
   const [review, setReview] = useState(null);
   const [revState, setRevState] = useState('loaded'); // loaded | running | done | error
   const [progress, setProgress] = useState(0);
@@ -307,6 +237,85 @@ export default function GameViewerCard({ game = null,   gameRef = null,   resolv
      unmount cleanup below has to read it as of its last render. */
   const runningRef = useRef(false);
   runningRef.current = revState === 'running';
+
+  /* This user's own branches for this game. localStorage is the fallback the
+     brief allows: the imported game row is NEVER written to. */
+  const variationKey = useMemo(() => {
+    if (gameId == null) return null;
+    let uid = 'anon';
+    try {
+      const u = JSON.parse(localStorage.getItem('user') || 'null');
+      if (u && u.id != null) uid = String(u.id);
+    } catch { /* anonymous viewer */ }
+    return `${VARIATION_STORAGE_PREFIX}:card:${uid}:${gameSource}:${gameId}`;
+  }, [gameId, gameSource]);
+
+  const reviewRef = useRef(null);
+  reviewRef.current = review;
+  const treeApiRef = useRef(null);
+  const gradingRef = useRef(new Set());
+  const gradeRef = useRef(null);
+
+  /* Every pointer move that lands on a real move plays that move's effect on
+     THIS board. A branch played on the board already played its own (ChessBoard
+     fires it for a user move), so it is skipped here. */
+  const onTreeChange = useCallback((next, meta) => {
+    if (!meta) return;
+    if (meta.type === 'game-loaded') { clearMoveEffects('viewer-nav'); return; }
+    if (meta.type !== 'navigate' && meta.type !== 'branch') return;
+    const node = meta.node;
+    const boardPlayed = meta.type === 'branch' && meta.source === 'variation-board';
+    if (node && node.ply > 0 && !boardPlayed) {
+      const row = node.row || (node.isMainline ? reviewRef.current?.verdicts?.[node.ply - 1] : null);
+      try {
+        playEffectForMove(node.ply, meta.source || 'viewer-nav', {
+          game: new Chess(node.fen),
+          move: node,
+          verdict: row ? row.verdict : null,
+          sacrifice: Boolean(row && row.sacrifice),
+          orientation: orientationRef.current,
+          boardId: effectHostId,
+        });
+      } catch { /* an effect must never block navigation */ }
+    }
+    if (meta.type === 'branch') gradeRef.current?.(meta);
+  }, [effectHostId]);
+
+  const tree = useVariationTree(parsed.moves, {
+    initialFen: parsed.initFen,
+    initialPly: startPly,
+    storageKey: variationKey,
+    /* A card opened ON a specific move (a Brilliant) starts there even when a
+       saved exploration exists; otherwise reopening resumes that exploration. */
+    restorePointer: initialMoveIndex == null,
+    onLocalChange: onTreeChange,
+  });
+  treeApiRef.current = tree;
+
+  /* Grade a NEW variation move with the same canonical one-move pipeline Game
+     Review uses, so its badge matches what the mainline would get. Only when a
+     review already exists — without one the mainline carries no badges either. */
+  gradeRef.current = (meta) => {
+    if (!reviewRef.current) return;
+    const { node, parent } = meta;
+    if (!node || !parent || gradingRef.current.has(node.id)) return;
+    gradingRef.current.add(node.id);
+    classifySideMove(parent.fen, { san: node.san, ply: node.ply })
+      .then((row) => { if (row) treeApiRef.current?.setNodeGrade(node.id, projectVariationRow(row)); })
+      .catch(() => { /* no verdict is a valid outcome */ })
+      .finally(() => { gradingRef.current.delete(node.id); });
+  };
+
+  /* Landing on a saved branch that was never graded: classify it on arrival —
+     one move at a time — instead of burning the engine on every saved branch
+     the moment the card opens. */
+  useEffect(() => {
+    const node = tree.current;
+    if (!review || !node || node.isMainline || node.row) return;
+    const parent = tree.nodes[node.parentId];
+    if (parent) gradeRef.current?.({ node, parent });
+  }, [tree.currentId, tree.nodes, review]);
+
   const isMobileBoard = useMediaQuery('(max-width: 900px)');
   const { state: pgnCopied, copy: copyPgn } = useCopyPgn(gameData, parsed.moves, parsed.initFen);
   /* The score sheet can be folded away on a phone so the board alone owns the
@@ -334,95 +343,9 @@ export default function GameViewerCard({ game = null,   gameRef = null,   resolv
      locally" click doesn't stall on the engine download/compile. */
   useEffect(() => { try { warmReviewEngine(); } catch { /* best effort */ } }, []);
 
-  /* The one place a ply becomes a position: load the table entry, tell React
-     which ply is showing, and let the stored MOVE DATA start the effect.
-     Nothing here is async and nothing here touches the engine, so navigation can
-     never leave the board waiting on a promise that failed or hung. */
-  function applyNav(target, animate, source) {
-    const ply = Math.max(0, Math.min(plies, target));
-    const pos = positions[ply];
-    if (!pos) return;
-    const g = boardRef.current;
-    try { g.load(pos.fen); } catch { /* the table only holds legal positions */ }
-    /* The ply the board is on NOW, as of this call — not as of the last render.
-       A step queued in the same frame as a flush must count from here, or the
-       press that arrives before React commits lands on the position it just
-       left and is silently dropped. */
-    appliedPlyRef.current = ply;
-    setMoveIndex(ply);
-    /* Loading a game/position is not a move: any effect from the previous
-       position is over before the board shows it. */
-    if (!animate) { clearMoveEffects(source); return; }
-    const row = review?.verdicts?.[ply - 1] || null;
-    /* The event is read from the MOVE DATA, not from a badge: a promotion from
-       the verbose move (handed over straight from the table, so no history is
-       re-walked), a mate from the position the move produced, and a brilliant
-       from the engine's own classification once the analysis has landed.
-       `boardId` makes sure the effect is played on THIS board. */
-    playEffectForMove(ply, source, {
-      game: g,
-      move: pos.move,
-      verdict: row?.verdict || null,
-      sacrifice: Boolean(row?.sacrifice),
-      orientation,
-      boardId: effectHostId,
-    });
-  }
-
-  /* Rapid Prev/Next — a held arrow key, an eager thumb — used to mean one full
-     rebuild per press. Animated navigation is now queued into the frame that will
-     paint it: a step accumulates (five quick presses still move five plies and the
-     counter follows), an absolute jump takes the newest target, and the board
-     changes at most once per frame. A non-animated load is a new position, not a
-     navigation, so it applies immediately and never waits for a frame. */
-  const navRef = useRef({ raf: 0, target: 0, animate: true, source: 'viewer-nav' });
-  /* The ply the board actually shows, kept as of the last navigation rather than
-     as of the last render. -1 until the first position is loaded. */
-  const appliedPlyRef = useRef(-1);
-  const navFlushRef = useRef(() => {});
-  navFlushRef.current = () => {
-    const nav = navRef.current;
-    nav.raf = 0;
-    applyNav(nav.target, nav.animate, nav.source);
-  };
-
-  /* `target` is a delta for a step and an absolute ply for a jump. While a frame
-     is already waiting, steps add up and the newest jump wins; a step that opens
-     a new queue counts from the ply the board is on. */
-  function queueNav(target, source, isStep) {
-    const nav = navRef.current;
-    const pending = Boolean(nav.raf);
-    const base = appliedPlyRef.current < 0 ? moveIndex : appliedPlyRef.current;
-    nav.target = isStep ? (pending ? nav.target + target : base + target) : target;
-    nav.animate = true;
-    nav.source = source;
-    if (!pending) nav.raf = requestAnimationFrame(() => navFlushRef.current());
-  }
-
-  function go(idx, animate = true, source = 'viewer-nav', isStep = false) {
-    if (!animate || typeof requestAnimationFrame !== 'function') {
-      if (navRef.current.raf) { cancelAnimationFrame(navRef.current.raf); navRef.current.raf = 0; }
-      applyNav(idx, false, source);
-      return;
-    }
-    queueNav(idx, source, isStep);
-  }
-  /* Steps are deltas so a held key accumulates correctly inside one frame; jumps
-     are absolute plies and the newest one wins. */
-  const stepNav = (delta, source) => go(delta, true, source, true);
-  const jumpNav = (ply, source = 'viewer-nav') => go(ply, true, source);
-
-  useEffect(() => () => {
-    if (navRef.current.raf) cancelAnimationFrame(navRef.current.raf);
-  }, []);
-
-  /* Re-establish the board whenever the game (or the requested move) changes —
-     including the first load, so opening a Brilliant move lands on its position
-     rather than on the start of the game. */
-  useEffect(() => {
-    go(startIndex, false);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [parsed.initFen, startIndex, loadState]);
+  /* Navigation needs no effect: the tree already rebuilt and re-pointed when
+     the game (or the requested move) changed, and hydration loaded the saved
+     branches in the same commit. */
 
   /* Restore a stored analysis, but ONLY through the canonical layer: it validates
      the version, the schema, the game identity and the game's own content, and
@@ -446,24 +369,19 @@ export default function GameViewerCard({ game = null,   gameRef = null,   resolv
     return () => { alive = false; };
   }, [gameId, gameSource, loadAnalysis, onReviewComplete, parsed.initFen, loaded?.pgn]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  /* Keyboard: ←/→ prev/next, ↑/Home first, ↓/End last, F flip. One listener,
-     always active while the card is mounted (no need to click the board).
-     The steps are deltas, so a held key accumulates inside the frame it paints
-     in rather than queueing one rebuild per keypress. */
+  /* Keyboard: ←/→ walk the CURRENT line, ↑/↓ switch between the moves played
+     from the same position (the two sides of a branch), Home/End the ends, F
+     flips. The tree commits synchronously, so a held key accumulates instead of
+     queueing one rebuild per press. */
   useReviewKeys({
-    prev: () => stepNav(-1, 'keyboard'),
-    next: () => stepNav(1, 'keyboard'),
-    first: () => jumpNav(0, 'keyboard'),
-    last: () => jumpNav(plies, 'keyboard'),
+    prev: () => tree.goBack('keyboard'),
+    next: () => tree.goForward('keyboard'),
+    siblingPrev: () => tree.goSibling(-1, 'keyboard'),
+    siblingNext: () => tree.goSibling(1, 'keyboard'),
+    first: () => tree.goToStart('keyboard'),
+    last: () => tree.goToEnd('keyboard'),
     flip: () => setOrientation((o) => (o === 'white' ? 'black' : 'white')),
   });
-
-  /* Keep the active move visible INSIDE the score sheet. scrollIntoView() would
-     scroll the document as well, which moved the page on every step. */
-  const scoreRef = useRef(null);
-  useEffect(() => {
-    followActiveMove(scoreRef.current, '.cp-score-cell.is-active');
-  }, [moveIndex]);
 
   function cancelAnalysis() {
     revToken.current++;
@@ -578,26 +496,43 @@ export default function GameViewerCard({ game = null,   gameRef = null,   resolv
   }
 
   const verdicts = review?.verdicts || null;
-  /* The last-move highlight is part of the position table, so the board marker
-     cannot drift from the ply showing: both come from `positions[moveIndex]`.
-     Ply 0 has no move, and the table's entries are the only source — no state
-     that has to be set in step with navigation. */
-  const lastMove = positions[moveIndex]?.lastMove || null;
+  const plies = Math.max(0, tree.mainlineIds.length - 1);
+  const moveIndex = tree.currentPly;
+  /* The last-move marker and the position both come from the node the pointer
+     is on, so they cannot drift. */
+  const lastMove = tree.currentLastMove;
   const myColor = gameData.my_color || 'white';
-  /* Canonical accuracy only: it always ships with the review. */
+  /* Canonical accuracy only: it always ships with the review and always
+     describes the ORIGINAL game, never a variation. */
   const accuracyForSide = (side) => review?.accuracy?.[side] ?? null;
   const mineAccuracy = accuracyForSide(myColor);
   const oppAccuracy = accuracyForSide(myColor === 'white' ? 'black' : 'white');
-  const curVerdict = verdicts && moveIndex > 0 ? verdicts[moveIndex - 1]?.verdict || null : null;
-  /* Evaluation of the position on screen: the row of the move that produced it.
-     No verdict yet (start of the game, or a move the engine could not score)
-     reads as a neutral 0.0 / level bar instead of a missing bar or a stale one. */
-  const evalRow = verdicts && moveIndex > 0 ? verdicts[moveIndex - 1] : null;
-  const evalCp = evalRow?.evalAfter ?? 0;
-  const evalMate = evalRow?.mateAfter ?? null;
+
+  /* A mainline node's verdict is the stored row for that ply; a variation node
+     carries its own one-move row once it has been graded. */
+  const rowOf = useCallback((n) => {
+    if (!n || !n.isMainline) return null;
+    return verdicts?.[n.ply - 1] || null;
+  }, [verdicts]);
+  const currentRow = useMemo(() => {
+    const n = tree.current;
+    if (!n || n.ply === 0) return null;
+    return n.row || rowOf(n);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tree.currentId, tree.nodes, rowOf]);
+  const curVerdict = currentRow?.verdict || null;
+
+  /* Off the original line the stored review says nothing about this position,
+     so the bar and the arrow come from a live search of the node on screen.
+     They are never mixed into accuracy or the score sheet. */
+  const liveEval = useVariationLiveEval(tree.currentFen, {
+    enabled: !tree.isOnMainline && revState !== 'running',
+  });
+  const evalCp = tree.isOnMainline ? (currentRow?.evalAfter ?? 0) : (liveEval?.score ?? 0);
+  const evalMate = tree.isOnMainline ? (currentRow?.mateAfter ?? null) : (liveEval?.mate ?? null);
 
   const moveBadge = useMemo(() => {
-    const v = verdicts && moveIndex > 0 ? verdicts[moveIndex - 1] : null;
+    const v = currentRow;
     if (!v || !v.uci || v.uci.length < 4) return null;
     const to = v.uci.slice(2, 4);
     return {
@@ -607,60 +542,40 @@ export default function GameViewerCard({ game = null,   gameRef = null,   resolv
       file: to.charCodeAt(0) - 97,   // 0-7
       rank: Number(to[1]) - 1,       // 0-7
     };
-  }, [verdicts, moveIndex]);
+  }, [currentRow]);
 
   /* ── board overlay: the engine's BEST move, one arrow ──
-     Row `moveIndex` is the move that comes NEXT from the position on screen, so
-     its suggestion is about the board being looked at. Only the best move is
-     drawn: the 2nd and 3rd engine preferences are not alternatives a student
-     should read as "also fine".
-     Recomputed from `moveIndex` alone, so an arrow can never outlive the
-     position that produced it — and it is empty at the last ply, where there is
-     no next move to point at. */
+     On the original line, row `moveIndex` is the move that comes NEXT from the
+     position on screen. In a variation, the live search answers for the node
+     itself. Only the best move is drawn: the 2nd and 3rd engine preferences are
+     not alternatives a student should read as "also fine". */
   const TOP_LINE_COLOR = 'rgba(0, 128, 0, 1)';
   const lineArrows = useMemo(() => {
-    const row = verdicts && moveIndex < verdicts.length ? verdicts[moveIndex] : null;
-    if (!row) return [];
-    /* A ply whose search failed still records the best UCI the engine did see,
-       so the arrow comes from that instead of disappearing from a position that
-       has an answer. */
-    const best = Array.isArray(row.lines) && row.lines[0] ? row.lines[0] : null;
-    const uci = (best && best.uci) || row.bestUci || null;
-    const from = (best && best.from) || (uci ? uci.slice(0, 2) : null);
-    const to = (best && best.to) || (uci ? uci.slice(2, 4) : null);
+    let uci = null;
+    let from = null;
+    let to = null;
+    if (tree.isOnMainline) {
+      const row = verdicts && moveIndex < verdicts.length ? verdicts[moveIndex] : null;
+      if (!row) return [];
+      /* A ply whose search failed still records the best UCI the engine did see,
+         so the arrow comes from that instead of disappearing. */
+      const best = Array.isArray(row.lines) && row.lines[0] ? row.lines[0] : null;
+      uci = (best && best.uci) || row.bestUci || null;
+      from = (best && best.from) || (uci ? uci.slice(0, 2) : null);
+      to = (best && best.to) || (uci ? uci.slice(2, 4) : null);
+    } else if (liveEval?.bestUci) {
+      uci = liveEval.bestUci;
+      from = uci.slice(0, 2);
+      to = uci.slice(2, 4);
+    }
     if (!from || !to || from === to) return [];
     return [{ from, to, color: TOP_LINE_COLOR }];
-  }, [verdicts, moveIndex]);
+  }, [verdicts, moveIndex, tree.isOnMainline, liveEval]);
 
-  /* The score sheet's content, built once per game + analysis. Each row's cells
-     keep a stable identity so `ScoreRow`'s memo can hold: navigation changes only
-     which cell is active, never what any cell says. The row renders its own
-     glyph and grade class from the verdict, exactly as the inline version did —
-     what the memo buys is that this data (and the SAN strings) are not rebuilt
-     for all 75 rows on every step. */
-  const sheetRows = useMemo(() => {
-    const pairs = Math.ceil(parsed.moves.length / 2);
-    const out = new Array(pairs);
-    for (let i = 0; i < pairs; i += 1) {
-      const cells = [0, 1].map((off) => {
-        const idx = i * 2 + off;
-        if (idx >= parsed.moves.length) return null;
-        const v = verdicts ? verdicts[idx] : null;
-        return { ply: idx + 1, san: parsed.moves[idx], verdict: v ? v.verdict : null };
-      });
-      out[i] = { num: i + 1, cells };
-    }
-    return out;
-  }, [parsed.moves, verdicts]);
-
-  /* The row's tap handler must not change identity on every render, or the memo
-     above is pointless. The ref keeps the closure pointing at the CURRENT
-     orientation/review without making `onCell` itself unstable. */
-  const jumpRef = useRef(null);
-  jumpRef.current = (ply) => jumpNav(ply, 'score-sheet');
-  const onCell = useCallback((ply) => jumpRef.current(ply), []);
-
-  void showToast;
+  const resetVariations = () => {
+    if (!window.confirm('Reset to the original game line? This removes every variation and any promoted view.')) return;
+    tree.resetVariations();
+  };
 
   /* Loading / failure states live INSIDE the card, so a click always produces
      a visible response. The card mounts the moment it is asked for and only then
@@ -768,13 +683,16 @@ export default function GameViewerCard({ game = null,   gameRef = null,   resolv
                   width={isMobileBoard ? 10 : undefined}
                   showLabel={!isMobileBoard}
                 />
-                <ResponsiveBoard
+                {/* The board is INTERACTIVE: dragging or clicking a legal move
+                    either steps to that move when it already exists on this
+                    line, or branches beside it. The original game is never
+                    overwritten, so there is nothing destructive to guard. */}
+                <VariationBoard
                   className="cp-board-responsive"
                   maxWidth={560}
-                  game={boardRef.current}
+                  tree={tree}
                   mode="analysis"
                   orientation={orientation}
-                  interactive={false}
                   customArrows={lineArrows}
                   /* Stepping through a game is reading, not watching: the glide
                      is capped at 160 ms so the board is already on the next move
@@ -788,7 +706,6 @@ export default function GameViewerCard({ game = null,   gameRef = null,   resolv
                      could only ever read "1". */
                   lineBadges={null}
                   moveBadge={moveBadge}
-                  lastMove={lastMove}
                   /* Canonical verdict colour for the selected move's destination
                      square — the same mapping the review board uses. */
                   reviewVerdictColor={reviewMetaFor(curVerdict)?.color || null}
@@ -798,11 +715,20 @@ export default function GameViewerCard({ game = null,   gameRef = null,   resolv
             {renderSeat(bottomSide, 'bottom')}
 
             <div className="cp-nav">
-              <button className="cp-nav-btn" disabled={moveIndex === 0} onClick={() => jumpNav(0)} title="Start">⏮</button>
-              <button className="cp-nav-btn" disabled={moveIndex === 0} onClick={() => stepNav(-1)} title="Previous">◀</button>
+              <button className="cp-nav-btn" disabled={tree.isAtStart} onClick={() => tree.goToStart('viewer-nav')} title="Start">⏮</button>
+              <button className="cp-nav-btn" disabled={tree.isAtStart} onClick={() => tree.goBack('viewer-nav')} title="Previous">◀</button>
               <span className="cp-nav-count">{moveIndex} / {plies}</span>
-              <button className="cp-nav-btn" disabled={moveIndex >= plies} onClick={() => stepNav(1)} title="Next">▶</button>
-              <button className="cp-nav-btn" disabled={moveIndex >= plies} onClick={() => jumpNav(plies)} title="End">⏭</button>
+              <button className="cp-nav-btn" disabled={!tree.hasForward} onClick={() => tree.goForward('viewer-nav')} title="Next">▶</button>
+              <button className="cp-nav-btn" disabled={!tree.hasForward} onClick={() => tree.goToEnd('viewer-nav')} title="End">⏭</button>
+              {/* The way out of a variation, always reachable from the board —
+                  even when the score sheet is folded away on a phone. */}
+              {!tree.isOnMainline && (
+                <button
+                  className="cp-nav-btn cp-nav-orig"
+                  onClick={() => tree.returnToMainline('viewer-nav')}
+                  title="Leave this variation and return to the original game line"
+                >← Original</button>
+              )}
               <button className="cp-nav-btn" onClick={() => setOrientation((o) => (o === 'white' ? 'black' : 'white'))} title="Flip board">⇄</button>
             </div>
           </div>
@@ -828,6 +754,14 @@ export default function GameViewerCard({ game = null,   gameRef = null,   resolv
                 <span className="cp-score-badge">
                   {moveCount} {moveCount === 1 ? 'move' : 'moves'}
                 </span>
+                {tree.hasVariations && (
+                  <button
+                    className="cp-nav-btn"
+                    onClick={resetVariations}
+                    title="Remove every variation and restore the original game"
+                    aria-label="Reset to the original game line"
+                  >↺</button>
+                )}
                 <button
                   className="cp-nav-btn cp-sheet-toggle"
                   aria-expanded={sheetOpen}
@@ -889,29 +823,20 @@ export default function GameViewerCard({ game = null,   gameRef = null,   resolv
                 <span className="text-black/55">accuracy</span>
               </div>
             )}
-            <div className="cp-score" id="cp-score-body" role="list" aria-label="Game moves" ref={scoreRef}>
-              {parsed.moves.length === 0 ? (
-                <p className="cp-mv-empty">No moves recorded for this game.</p>
-              ) : (
-                <>
-                  {/* Sticky column head, as in the GM score sheet. */}
-                  <div className="cp-score-row cp-score-row--head" role="row">
-                    <span role="columnheader">#</span>
-                    <span role="columnheader" className="is-white">{whiteLabel}</span>
-                    <span role="columnheader" className="is-black">{blackLabel}</span>
-                  </div>
-                  {sheetRows.map(({ num, cells }, i) => (
-                    <ScoreRow
-                      key={i}
-                      num={num}
-                      cells={cells}
-                      onCell={onCell}
-                      activeWhite={cells[0]?.ply === moveIndex}
-                      activeBlack={cells[1]?.ply === moveIndex}
-                    />
-                  ))}
-                </>
-              )}
+            <div className="cp-score" id="cp-score-body" aria-label="Game moves">
+              {/* The SHARED list: the original game in the ordinary grid, and
+                  every try beside it as a collapsible, coloured block. The game
+                  line cannot be lost because nothing here replaces it. */}
+              <VariationMoveList
+                tree={tree}
+                headless
+                title="Moves"
+                whiteName={whiteLabel}
+                blackName={blackLabel}
+                rowOf={rowOf}
+                scrollHost=".cp-score"
+                emptyText="No moves recorded for this game."
+              />
             </div>
               </>
             )}

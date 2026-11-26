@@ -222,18 +222,25 @@ exports.register = [
        the admin can hand it to the member; it is never retrievable afterwards. */
     const recoveryCode = generateRecoveryCode();
 
+    /* Every account gets its QR player card at creation: the token is the QR's
+       only payload, and it must never be the sequential user id. */
+    const publicToken = crypto.randomBytes(16).toString('hex');
+
     const userResult = await db.query(
       `INSERT INTO users (name, email, password, username, phone, role, board_theme, piece_set,
-                          recovery_code_hash, recovery_code_created_at, must_change_password, country_code)
-       VALUES ($1, $2, $3, $4, $5, $6, 'classic-green', 'cburnett', $7, NOW(), $8, $9)
-       RETURNING id, name, email, username, phone, country_code, role, board_theme, piece_set, board_frame, created_at`,
+                          recovery_code_hash, recovery_code_created_at, must_change_password, country_code,
+                          public_token)
+       VALUES ($1, $2, $3, $4, $5, $6, 'classic-green', 'cburnett', $7, NOW(), $8, $9, $10)
+       RETURNING id, name, email, username, phone, country_code, role, board_theme, piece_set, board_frame,
+                 public_token, card_public, created_at`,
       [name, email, hashed, username, savedPhone.phone || null, finalRole, hashRecoveryCode(recoveryCode),
        /* A student starts on the password the ACADEMY issued, so the account is
           flagged: the app sends them to a change-password screen at their
           first sign-in and clears the flag when they do. A coach account is
           signed in by the academy itself, so it is not flagged. */
        finalRole === 'student',
-       savedPhone.countryCode || null]
+       savedPhone.countryCode || null,
+       publicToken]
     );
     const user = userResult.rows[0];
 

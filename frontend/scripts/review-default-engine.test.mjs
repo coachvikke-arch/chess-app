@@ -95,6 +95,9 @@ function loadReview() {
   tempRoots.push(base);
   const root = join(base, 'utils');
   cpSync(UTILS, root, { recursive: true });
+  /* openings.js imports ../config/brand.js, so the sibling config dir has to
+     exist in the copy too or the whole module graph fails to load. */
+  cpSync(join(dirname(UTILS), 'config', 'brand.js'), join(base, 'config', 'brand.js'));
   writeFileSync(join(root, 'nnueEngine.js'), engineModule());
   return import(pathToFileURL(join(root, 'gameReview.js')).href);
 }

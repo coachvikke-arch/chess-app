@@ -12,9 +12,8 @@
  *  2. PERFECT REVISION COMPATIBILITY. Any previous level stays reachable at any
  *     time. `isUnlocked` only gates forward progress, never access.
  *
- *  3. PER-COACH SCOPE. Storage is keyed by coach id, mirroring the scoped
- *     pattern already used by BotProgressService, so two coaches on one machine
- *     do not share progress.
+ *  3. PER-COACH SCOPE. Storage is keyed by coach id, so two coaches on one
+ *     machine do not share progress.
  *
  *  4. STORAGE FAILURE IS NOT FATAL. Every read is defensive and every write is
  *     best-effort. Private-browsing quota errors degrade to in-memory state for

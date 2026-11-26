@@ -18,6 +18,7 @@ import { FeatureRoute } from './components/FeatureGate';
 import GameAnalysis from './pages/GameAnalysis';
 import BackButton from './components/BackButton';
 import About from './pages/About';
+import PublicCard from './pages/PublicCard';
 import ChatReactionListener from './components/ChatReactionListener.jsx';
 import Courses from './pages/Courses';
 import CourseDetails from './pages/CourseDetails';
@@ -62,9 +63,6 @@ import Ratings from './pages/Ratings';
 import TakeQuiz from './pages/TakeQuiz';
 import MoveEffectDebug from './pages/MoveEffectDebug';
 
-/* Developer-only animation harness. The route and the chunk exist in dev
-   builds only, so production never ships the panel. */
-const BotTest = import.meta.env.DEV ? lazy(() => import('./pages/BotTest')) : null;
 import Announcements from './pages/Announcements';
 import Attendance from './pages/Attendance';
 import Settings from './pages/Settings';
@@ -213,6 +211,8 @@ export default function App() {
   const isStudentQuiz = pathname.startsWith('/quizzes/');
   const isLiveClass = pathname.startsWith('/live-class');
   const isOpeningsModule = pathname === '/openings' || pathname.startsWith('/openings/');
+  /* QR player card — a public, full-screen page with its own dark stage. */
+  const isPublicCard = pathname.startsWith('/card/');
   const hideStandaloneNavbar = isAdmin || isStudent || isOpeningsModule || isLiveClass;
   /* Portal shells provide their own navigation row. Public Openings pages
      keep the standalone navigation. */
@@ -249,12 +249,12 @@ export default function App() {
         <MeetingReviewPopup />
         {location.pathname === '/' ? (
           <LandingHeader />
-        ) : AUTH_ONLY_PAGES.has(location.pathname) ? null : (
+        ) : AUTH_ONLY_PAGES.has(location.pathname) || isPublicCard ? null : (
           hideStandaloneNavbar ? null : (
             <Navbar />
           )
         )}
-        {!usesShell && (
+        {!usesShell && !isPublicCard && (
           <BackButton className="max-w-[90rem] mx-auto px-3 sm:px-4" />
         )}
         <div className="flex-1">
@@ -272,6 +272,8 @@ export default function App() {
             <Route path="/register" element={<Navigate to="/login" replace />} />
             <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/about" element={<About />} />
+            {/* Public gold player card — opened by a QR scan, no login */}
+            <Route path="/card/:token" element={<PublicCard />} />
             {/* The /contact page is removed; the form is the `#contact` section
                 on the landing page. Old links and bookmarks still land home. */}
             <Route path="/contact" element={<Navigate to="/#contact" replace />} />
@@ -283,7 +285,6 @@ export default function App() {
             <Route path="/players" element={<GmPlayers />} />
             <Route path="/players/:id" element={<GmPlayerProfile />} />
             <Route path="/dev/move-effect" element={<MoveEffectDebug />} />
-            {import.meta.env.DEV && <Route path="/bot-test" element={<BotTest />} />}
             <Route path="/openings" element={<OpeningsLayout><OpeningsLibrary /></OpeningsLayout>} />
             <Route path="/openings/:slug/practice" element={<OpeningsLayout><OpeningPractice /></OpeningsLayout>} />
             <Route path="/openings/:slug" element={<OpeningsLayout><OpeningDetail /></OpeningsLayout>} />

@@ -62,7 +62,7 @@ import { Chess } from 'chess.js';
 import { searchTopMoves as realSearchTopMoves, evaluateGame as realEvaluateGame } from './nnueEngine.js';
 import { REVIEW_DISPATCH_WIDTH } from './engineConfig.js';
 import { resolveBookMove, openingTag } from './openings.js';
-import { classifyMove, moveMetrics, sacrificeCandidate, protectedSacrificeGeometry, protectedSacrificeValidated, acceptCaptureUcis, settledNetSacrifice, isQuietPosition, moveAccuracy, winPercentDrop, withTrustFloor, sacrificeAttribution, betterNonSacrificialLine, attackingSacrifice, sumMaterialFor } from './reviewClassify.js';
+import { classifyMove, moveMetrics, sacrificeCandidate, protectedSacrificeGeometry, protectedSacrificeValidated, strategicSacrificeGeometry, strategicSacrificeValidated, acceptCaptureUcis, settledNetSacrifice, isQuietPosition, moveAccuracy, winPercentDrop, withTrustFloor, sacrificeAttribution, betterNonSacrificialLine, attackingSacrifice, sumMaterialFor } from './reviewClassify.js';
 import { classifySigmaFromPly, SIGMA_TYPE_META, SIGMA_TYPES_IN_PRIORITY_ORDER, SIGMA_VERDICT, isSigmaVerdict } from './sigmaType.js';
 import { aggregateSide } from './reviewAccuracy.js';
 import {
@@ -604,10 +604,30 @@ const PIECE_VAL = { p: 100, n: 320, b: 330, r: 500, q: 900, k: 0 };
        (connected / mate / material) promotes the offer to a genuine
        sacrifice; a defended piece taken quietly dies here. */
     let protectedShape = false;
+    /* Path E (strategic) extends the same idea to captures of a SMALLER piece
+       whose concession is not visible on the landing square: geometry only
+       opens the door, the engine continuation + strategicSacrificeValidated
+       must show the piece actually won with compensation behind it. */
     if (!sacrifice && nearBest && pl.legalCount > 1 && pl.mv) {
       try { protectedShape = protectedSacrificeGeometry(pl.fenBefore, pl.mv, pl.prev); } catch { protectedShape = false; }
     }
-    if ((sacrifice || protectedShape) && nearBest && pl.legalCount > 1) {
+    /* Strategic shape (path E): the capturing piece takes something cheaper and
+       is deliberately left exposed — but neither classical geometry fires (the
+       piece is defended, or nothing attacks it YET because the trap comes
+       later). Eligibility only; the engine line below decides. The gate E
+       window is checked first so no extra search runs for moves that could
+       never pass it (normal ±window, or a major-piece sac with a runner-up
+       margin inside the same window). */
+    const strategicMovedVal = pl.mv ? (PIECE_VAL[pl.mv.promotion ?? pl.mv.piece] || 0) : 0;
+    const strategicWindowOk = inBrilliantWindow
+      || (strategicMovedVal >= PIECE_VAL.r && bestM != null && secondM != null
+        && bestM - secondM <= BRILLIANT_EVAL_MAX);
+    let strategicShape = false;
+    if (!sacrifice && !protectedShape && nearBest && pl.legalCount > 1 && pl.mv
+      && notDeadLost && strategicWindowOk) {
+      try { strategicShape = strategicSacrificeGeometry(pl.fenBefore, pl.mv, pl.prev); } catch { strategicShape = false; }
+    }
+    if ((sacrifice || protectedShape || strategicShape) && nearBest && pl.legalCount > 1) {
       if (protectedShape) {
         try {
           const accepts = acceptCaptureUcis(pl.fenAfter, pl.mv.to, pl.player);
@@ -645,8 +665,16 @@ const PIECE_VAL = { p: 100, n: 320, b: 330, r: 500, q: 900, k: 0 };
       try {
         const line = await searchTopMoves(pl.fenAfter, { maxDepth: REVIEW_DEPTH, multiPv: 1 });
         const pv = line && line[0] && Array.isArray(line[0].pv) && line[0].pv.length ? line[0].pv : null;
-        settled = settledNetSacrifice(pl.fenBefore, pl.player, pl.uci, pv, BRILLIANT_SETTLED_MAX_PLIES, line[0]);
+        settled = settledNetSacrifice(
+          pl.fenBefore, pl.player, pl.uci, pv, BRILLIANT_SETTLED_MAX_PLIES, line[0],
+          /* The strategic walk follows quiet moves too: a piece won by a trap
+             (Rc8, Nb6, …) falls after plies the forcing-only walk would stop at. */
+          { followQuietUntilTaken: strategicShape },
+        );
         hasNetSacrifice = hasSettledSacrifice(settled);
+        /* Strategic path (E) is not blessed by geometry — the engine line must
+           prove the exposed piece was actually won AND compensation followed. */
+        if (strategicShape) sacrifice = strategicSacrificeValidated(settled);
       } catch { hasNetSacrifice = true; }
       }
 

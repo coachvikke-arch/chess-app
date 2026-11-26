@@ -59,17 +59,32 @@ export function profileGameRow(result) {
 /** A history row → the field shape the game card reads. */
 export function toCardGame(row) {
   if (!row || !row.pgn) return null;
+  const url = row.url ?? row.game_url ?? '';
   return {
     id: row.id,
     pgn: row.pgn,
     white_name: row.whiteName ?? row.white_name ?? '',
     black_name: row.blackName ?? row.black_name ?? '',
-    platform: row.platform ?? 'chess.com',
+    /* An app game has neither a platform nor a URL. Defaulting it to chess.com
+       made the card (and the PGN it copies) claim a site that never hosted it. */
+    platform: row.platform ?? (url ? 'chess.com' : ''),
+    type: row.type ?? '',
     time_class: row.timeClass ?? row.time_class ?? '',
     time_control: row.timeControl ?? row.time_control ?? '',
     game_date: row.date ?? row.game_date ?? null,
     opening: row.opening ?? '',
-    game_url: row.url ?? row.game_url ?? '',
+    eco: row.eco ?? '',
+    game_url: url,
+    /* Carried so the copied PGN states the result and how the game ended
+       instead of arriving as "unfinished". */
+    result: row.result ?? null,
+    termination: row.resultReason ?? row.termination ?? '',
+    whiteElo: row.whiteElo ?? row.white_rating ?? '',
+    blackElo: row.blackElo ?? row.black_rating ?? '',
+    event: row.tournamentName
+      ?? (row.type === 'computer' ? 'Vs Computer'
+        : row.type === 'online' ? 'Online Game'
+          : row.type === 'tournament' ? 'Tournament' : ''),
   };
 }
 

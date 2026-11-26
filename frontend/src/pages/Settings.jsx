@@ -23,7 +23,9 @@ import { FacedPiece } from '../components/FacedPiece';
 import { RoyalPiece } from '../components/RoyalPieces';
 import Button from '../components/Button';
 import { useToast } from '../components/Toast';
-import { useBot } from '../../matezone-bot/bot/BotContext.jsx';
+import { useBot as useClockBot } from '../components/bot/BotProvider';
+import { BOT } from '../components/bot/botTriggers';
+import { BOT_LANGS } from '../components/bot/botI18n';
 
 /* Settings is one flat white/blue list: nothing heavy is painted on the page.
    Every row opens ONE card that contains a real, playable board plus the
@@ -131,7 +133,7 @@ export default function Settings() {
      adjustable from the page a user actually goes to for preferences. */
   const { soundOn, setSoundOn, volume, setVolume, playSound, unlockAudio } = useSound();
   const { showToast } = useToast();
-  const { enabled: botEnabled, setEnabled: setBotEnabled } = useBot();
+  const clockBot = useClockBot();
 
   /* Which card is open. Every detail screen is a centred card, so the page
      behind never changes and the list stays exactly where it was. */
@@ -169,6 +171,7 @@ export default function Settings() {
     setSavedMsg('');
     try {
       const u = await updatePrefs({ boardTheme: id });
+      BOT.saved();
       setSavedMsg(`Board theme updated to ${getBoardTheme(u.board_theme).name}.`);
     } catch {
       setSavedMsg('Failed to save board theme.');
@@ -182,6 +185,7 @@ export default function Settings() {
     setSavedMsg('');
     try {
       const u = await updatePrefs({ pieceSet: id });
+      BOT.saved();
       setSavedMsg(`Piece set updated to ${getPieceTheme(u.piece_set).name}.`);
     } catch {
       setSavedMsg('Failed to save piece set.');
@@ -199,6 +203,7 @@ export default function Settings() {
     setSavedMsg('');
     try {
       const u = await updatePrefs({ boardFrame: next });
+      BOT.saved();
       setSavedMsg(`Board frame turned ${u.board_frame === false ? 'off' : 'on'}.`);
     } catch {
       setSavedMsg('Failed to save the frame setting.');
@@ -451,15 +456,44 @@ export default function Settings() {
         sub="Personalise your chessboard — the look applies everywhere you play."
         className="settings-page"
       >
-        {user?.role === 'student' && <Group cap="Helper bot">
-          <label className="flex items-center justify-between gap-4 px-4 py-3 cursor-pointer">
-            <span>
-              <span className="block font-medium">Show helper bot</span>
-              <span className="block text-sm opacity-70">Show your animated Mate Zone companion.</span>
-            </span>
-            <input type="checkbox" checked={botEnabled} onChange={(event) => setBotEnabled(event.target.checked)} aria-label="Show helper bot" />
-          </label>
-        </Group>}
+        {/* The bot only exists in the student portal, so its settings do not
+            belong on the admin/coach or super-admin Settings page. */}
+        {user?.role === 'student' && (
+          <Group cap={clockBot.t('section')}>
+            <label className="set-bot-row">
+              <span>
+                <span className="block font-medium">{clockBot.t('showBot')}</span>
+                <span className="block text-sm opacity-70">{clockBot.t('showBotHint')}</span>
+              </span>
+              <input
+                type="checkbox"
+                className="set-box-switch"
+                checked={clockBot.visible}
+                onChange={(e) => (e.target.checked ? clockBot.show() : clockBot.hide())}
+                aria-label={clockBot.t('showBot')}
+              />
+            </label>
+            <div className="set-bot-row">
+              <span>
+                <span className="block font-medium">{clockBot.t('language')}</span>
+                <span className="block text-sm opacity-70">{clockBot.t('languageHint')}</span>
+              </span>
+              <span className="set-lang-options" role="group" aria-label={clockBot.t('language')}>
+                {BOT_LANGS.map((l) => (
+                  <button
+                    key={l.id}
+                    type="button"
+                    className={`set-lang-btn ${clockBot.lang === l.id ? 'on' : ''}`}
+                    aria-pressed={clockBot.lang === l.id}
+                    onClick={() => { clockBot.setLang(l.id); BOT.saved(); }}
+                  >
+                    {l.label}
+                  </button>
+                ))}
+              </span>
+            </div>
+          </Group>
+        )}
         {/* The list-level rows have no card open, so this is where a save from
             the frame toggle gets reported. */}
         {!popup && status}

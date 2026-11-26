@@ -12,8 +12,7 @@ import Button from '../components/Button';
 import ContactForm from '../components/ContactForm';
 import usePageTitle from '../hooks/usePageTitle';
 import { APP_NAME } from '../config/brand';
-import { useBot } from '../../matezone-bot/bot/BotContext.jsx';
-import { showLoginBot } from '../../matezone-bot/bot/botTriggers.js';
+import { BOT } from '../components/bot/botTriggers';
 
 /* The pages a signed-in session has no business being sent back to. */
 const SIGN_IN_PAGES = new Set(['/login', '/register', '/reset-password', '/']);
@@ -44,7 +43,6 @@ export default function Login() {
   const navigate = useNavigate();
   const location = useLocation();
   const { showToast } = useToast();
-  const bot = useBot();
   const [form, setForm] = useState({ identifier: '', password: '' });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -85,13 +83,7 @@ export default function Login() {
     setLoading(true);
     try {
       const user = await login(form.identifier, form.password);
-      showLoginBot(bot, {
-        role: user.role,
-        userId: user.id,
-        name: String(user.name || '').trim().split(/\s+/)[0] || '',
-        streak: user.loginStreak ?? user.login_streak ?? 1,
-        missedDays: user.missedDays ?? 0,
-      });
+      BOT.loginSuccess(user.name);
       showToast(
         (user.role === 'superadmin' ? 'Welcome back, academy owner — your board is ready.'
           : user.role === 'admin' ? 'Welcome back, coach — your board is ready.'
@@ -107,6 +99,7 @@ export default function Login() {
          page's own redirect would immediately bounce it again. */
       navigate(destinationFrom(location.state) || homeForRole(user.role), { replace: true });
     } catch (err) {
+      BOT.loginFail();
       const msg = err.response?.data?.message || 'Login failed';
       setError(msg);
       showToast('Please check your username and password and try again.', {

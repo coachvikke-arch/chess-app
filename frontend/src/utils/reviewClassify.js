@@ -99,6 +99,11 @@ export function moveMetrics(bestM, playedM) {
  * worth taking, or completely untouched, returns true and the verdict is decided
  * by the remaining gates.
  *
+ * One carve-out: when every profitable pre-move attacker is the piece this move
+ * captures, the attack was ANSWERED by the move, so the offer it ends up in is
+ * its own. 26.Qxd8 captures the rook that attacked the queen and only then
+ * stands under the other rook's fire — see the body.
+ *
  * A pawn-level offer returns true: pawn giveaways are never Brilliant anyway
  * (the sacrifice detectors require a minor piece or better), so there is nothing
  * for this gate to protect, and refusing to judge keeps it out of the pawn path.
@@ -131,8 +136,24 @@ export function sacrificeAttribution(fenBefore, mv) {
 
   /* Attacked, uncovered and undefended. If the cheapest piece able to take it is
      worth MORE than the piece, taking is a bad trade for the enemy and the piece
-     was not really loose — so it was merely contested, not already hanging. */
-  const cheapest = attackValueBy(g, mv.from, enemy, null, 'min');
+     was not really loose — so it was merely contested, not already hanging.
+
+     EXCEPTION — the attack was answered by the move itself. When EVERY
+     profitable pre-move attacker (cheaper than the piece) is the exact piece
+     this move captures, the capture removed the last real threat: the piece was
+     not doomed, it was under fire and knocked out the attacker. Whatever fire it
+     stands in AFTER the move is therefore fire the move walked into, not
+     inherited loose material. 26.Qxd8: the queen on d2 is attacked by the d8
+     rook, captures that rook, and only then sits under the f8 rook's attack
+     (which Rxd8/unpin lines make unusable) — the concession is this move's. */
+  const profitable = attackersOf(g, mv.from, enemy).filter((a) => moved > a.value);
+  if (profitable.length === 0) return true;
+  const capturedSquare = mv.captured ? mv.to : null;
+  const remaining = capturedSquare
+    ? profitable.filter((a) => a.square !== capturedSquare)
+    : profitable;
+  if (remaining.length === 0) return true;
+  const cheapest = remaining.reduce((m, a) => Math.min(m, a.value), Infinity);
   return !(moved > cheapest);
 }
 
@@ -702,15 +723,12 @@ function kingAdjacent(g, sq, color) {
   return false;
 }
 
-/* does the `color` camp (geometrically) attack square `sq`? returns the value
-   of its most valuable attacking piece (kings excluded), 0 = unattacked; pass
-   mode='min' to get the CHEAPEST attacker instead (what the enemy would really
-   risk to take an offered piece). `skipSquare` (optional) is excluded from the
+/* every `color` piece (kings excluded) that geometrically attacks `sq`, with
+   its square, type and value. `skipSquare` (optional) is excluded from the
    scan — used to measure how strongly a square is defended AFTER a piece leaves
    it, so a mover's own pre-move attack on its destination isn't counted as a
-   defender. Pure geometry + blockers: turn / legality are irrelevant for this
-   scan. */
-export function attackValueBy(g, sq, color, skipSquare = null, mode = 'max') {
+   defender. Pure geometry + blockers: turn / legality are irrelevant. */
+export function attackersOf(g, sq, color, skipSquare = null) {
   const board = g.board(); // board()[0] is RANK 8, board()[7] is RANK 1
   const rowOf = (s) => 8 - Number(s[1]);
   const [tf, tr] = [sq.charCodeAt(0) - 97, rowOf(sq)];
@@ -723,7 +741,7 @@ export function attackValueBy(g, sq, color, skipSquare = null, mode = 'max') {
     }
     return true;
   };
-  let best = 0;
+  const out = [];
   for (const row of board) {
     for (const p of row) {
       if (!p || p.color !== color || p.type === 'k') continue;
@@ -737,12 +755,22 @@ export function attackValueBy(g, sq, color, skipSquare = null, mode = 'max') {
       else if (p.type === 'b') hit = dx === dy && clearRay(ff, r0, tf, tr);
       else if (p.type === 'r') hit = (dx === 0 || dy === 0) && clearRay(ff, r0, tf, tr);
       else if (p.type === 'q') hit = (dx === dy || dx === 0 || dy === 0) && clearRay(ff, r0, tf, tr);
-      if (hit) {
-        best = mode === 'min'
-          ? (best === 0 ? VAL[p.type] : Math.min(best, VAL[p.type]))
-          : Math.max(best, VAL[p.type]);
-      }
+      if (hit) out.push({ square: p.square, type: p.type, value: VAL[p.type] || 0 });
     }
+  }
+  return out;
+}
+
+/* does the `color` camp attack square `sq`? returns the value of its most
+   valuable attacking piece, 0 = unattacked; pass mode='min' for the CHEAPEST
+   attacker instead (what the enemy would really risk to take an offered
+   piece). */
+export function attackValueBy(g, sq, color, skipSquare = null, mode = 'max') {
+  let best = 0;
+  for (const a of attackersOf(g, sq, color, skipSquare)) {
+    best = mode === 'min'
+      ? (best === 0 ? a.value : Math.min(best, a.value))
+      : Math.max(best, a.value);
   }
   return best;
 }
@@ -1034,6 +1062,78 @@ export function protectedSacrificeValidated(settled) {
 }
 
 /* ---------------------------------------------------------------
+ * STRATEGIC SACRIFICE (path E) — a capture of a SMALLER piece that is
+ * deliberately exposed to a tactical reply.
+ *
+ * The classical detectors above compare the moved piece with what it took:
+ * a loose offer (ourDef < moved) or a defended offer with a winning accept
+ * line. Both miss the shape the user described: the capturing piece takes
+ * something cheaper and the concession is not visible on the landing square
+ * at all — the queen that can be trapped two moves later, the rook whose
+ * loss pays for a fork, the bishop that pays for a mating attack, the knight
+ * whose disappearance opens a file. On the board those are simply "the
+ * piece is defended" or "nothing attacks it yet", so geometry alone can
+ * never bless them.
+ *
+ * Geometry (this function) only decides ELIGIBILITY — it is deliberately
+ * permissive and can never award a verdict by itself:
+ *   - not a recapture (a retake restores material; it is not an offer);
+ *   - the move CAPTURES something cheaper than the moved piece (dealt > 0);
+ *     a free capture of an equal-or-bigger piece is a win, not a sacrifice;
+ *   - minor piece or greater (Brilliant's own floor — pawn offers never
+ *     qualify);
+ *   - our king does not cover the landing square (a king defender means the
+ *     enemy cannot collect without walking into check).
+ * Every shape the classical paths already accept stays with them; this runs
+ * only when both of those said no.
+ *
+ * What turns eligibility into a sacrifice is the ENGINE CONTINUATION
+ * (strategicSacrificeValidated): the opponent must actually win the piece
+ * inside the forced line, and the mover must keep real compensation.
+ * --------------------------------------------------------------- */
+export function strategicSacrificeGeometry(fen, mv, prevMv) {
+  const c = sacrificeCore(fen, mv, prevMv);
+  if (!c || c.recapture) return false;
+  if (c.moved < VAL.n) return false;
+  if (!(c.gained > 0)) return false;
+  if (!(c.moved > c.gained)) return false;
+  if (c.ourKingDef) return false;
+  return true;
+}
+
+/* ---------------------------------------------------------------
+ * Strategic-sacrifice validation against the settled engine line.
+ *
+ * Demand evidence that this really was an offer, not an ordinary capture:
+ *
+ *   offeredTaken    the opponent DID win the exposed piece inside the line.
+ *                   A piece nobody can exploit (safe capture) fails here.
+ *   netDown > 0     after the connected forced sequence the mover is genuinely
+ *                   down material — a trade that recovers everything is not a
+ *                   sacrifice and dies here.
+ *   pressed/mate    the mover kept hitting back (capture or check in the line)
+ *                   or the line ends in mate. A hung piece that is simply
+ *                   collected and then abandoned stays a blunder.
+ *
+ * Two escape hatches keep genuine combinations alive without opening the door
+ * to ordinary trades:
+ *   - forcedMate: a mate proven inside the offer's own line is the strongest
+ *     possible compensation, whatever the material ledger says;
+ *   - attackingRecoup: the mover recovers MORE than was given, but only while
+ *     the recovery rides a forcing attack (at least one mover check). A quiet
+ *     recapture with interest is still just an exchange.
+ * --------------------------------------------------------------- */
+export function strategicSacrificeValidated(settled) {
+  if (!settled) return false;
+  if (settled.forcedMate === true) return true;
+  if (settled.offeredTaken !== true) return false;
+  if (settled.pressed !== true) return false;
+  const attackingRecoup = settled.materialWinning === true
+    && settled.checksInContinuation >= 1;
+  return settled.netDown > 0 || attackingRecoup;
+}
+
+/* ---------------------------------------------------------------
  * Legal captures of the square `mv` just landed on, cheapest attacker first.
  *
  * The accept line is what tests a defended offer: the opponent collects with
@@ -1184,8 +1284,15 @@ export function hasSettledSacrifice(settled) {
     || settled.materialWinning || settled.forcedMate;
 }
 
-export function settledNetSacrifice(fenBefore, mover, playedUci, continuation, maxPlies, engineEvaluation = null) {
+export function settledNetSacrifice(fenBefore, mover, playedUci, continuation, maxPlies, engineEvaluation = null, options = {}) {
   if (!fenBefore || !playedUci) return null;
+  /* Strategic walk (path E): keep following the engine PV through QUIET moves
+     until the offered piece is won or the mover saves it. A trap — the queen
+     that walks into Rc8/Nb6 — is executed exactly by quiet moves, so the
+     connected-only walk would stop at the first of them and never see the
+     piece fall. Off by default: the classical Brilliant paths keep their
+     forcing-only walk unchanged. */
+  const followQuietUntilTaken = options?.followQuietUntilTaken === true;
   let g = null;
   try {
     g = new Chess(fenBefore);
@@ -1223,6 +1330,7 @@ let netDown = 0;
   const offeredTo = playedUci.slice(2, 4);
   const offeredType = played.piece;
   let offeredTaken = false;
+  let offeredEscaped = false; // the mover saved the offered piece before it was won
   let ourTurn = false; // after the played move it is the opponent's turn
   let moverPressPlies = 0; // accepted walk plies played by the mover (captures/checks/forced only)
   let plies = 0;
@@ -1244,10 +1352,21 @@ let netDown = 0;
       /* After the move: did it give check? `g.inCheck()` asks about the side now to
          move, i.e. the opponent — true exactly when this move checks. */
       const givesCheck = g.isCheck();
+      /* Trap walk: while the offered piece still stands on its square, follow the
+         PV through quiet moves until the opponent wins it. If the MOVER moves
+         that piece away first, the invite was declined and the piece saved — it
+         was never collected, so the walk ends here and the offer fails. */
+      const trapWalk = followQuietUntilTaken && !offeredTaken && !offeredEscaped;
+      if (trapWalk && ourTurn && mv.from === offeredTo) {
+        offeredEscaped = true;
+        g.undo();
+        break;
+      }
       /* Walk on for a capture, for a check, or for a reply we had no choice about.
          Anything else is a quiet move the sequence has no reason to follow, so stop
-         rather than counting unrelated pawn grabs as compensation. */
-      if (!isCapture && !givesCheck && !replyIsForced) {
+         rather than counting unrelated pawn grabs as compensation. The strategic
+         walk deliberately keeps going through such moves while the trap is live. */
+      if (!isCapture && !givesCheck && !replyIsForced && !trapWalk) {
         // At most two quiet PV threat/defence plies may bridge an active king
         // attack. Demand a capture/check in the next two plies, not later mate.
         let connectedThreat = false;
@@ -1282,7 +1401,12 @@ let netDown = 0;
           if (mv.to === offeredTo && mv.captured === offeredType) offeredTaken = true;
         }
       }
-      if (ourTurn) moverPressPlies++;                       // mover follow-up (capture/check/forced)
+      if (ourTurn) {
+        /* A quiet trap move is neither pressure nor compensation; only real
+           captures/checks inside a forced line count as pressing. */
+        const quietTrapPly = trapWalk && !isCapture && !givesCheck && !replyIsForced;
+        if (!quietTrapPly) moverPressPlies++;
+      }
       plies++;
       ourTurn = !ourTurn;
     }
@@ -1303,7 +1427,7 @@ let netDown = 0;
   const diagnostics = {
     given, recovered, sequence, forcing, checksInContinuation, forcingMoves,
     materialWinning: offeredTaken && recovered > given,
-    matingContinuation, forcedMate,
+    matingContinuation, forcedMate, offeredEscaped,
     mateDistance: forcedMate ? Math.abs(evaluation.value) : null,
   };
   for (const [key, value] of Object.entries(diagnostics)) {

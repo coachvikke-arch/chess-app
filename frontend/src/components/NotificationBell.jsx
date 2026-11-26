@@ -5,6 +5,7 @@ import { useToast } from './Toast';
 import { matchRequestKey } from '../utils/toastDedupe';
 import { notificationTarget } from '../utils/notificationRoutes';
 import api from '../services/api';
+import { BOT } from './bot/botTriggers';
 import { onNotification, on } from '../services/socket';
 import StudentAvatar from './StudentAvatar';
 import Button from './Button';
@@ -260,6 +261,7 @@ export default function NotificationBell() {
     // While the bell is open, the feed itself is the notification surface.
     // Claim these IDs so a later poll cannot replay them as toasts.
     if (openRef.current || notificationsPageRef.current) return;
+    BOT.newNotification();
 
     if (fresh.length > 5) {
       // Too many at once — collapse into one summary instead of a wall of popups.

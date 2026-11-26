@@ -63,24 +63,35 @@ function LabeledField({ label, children, hint }) {
  */
 const SectionSwitcher = memo(function SectionSwitcher({ sections, active, onSelect, listRef }) {
   return (
-    <div
-      ref={listRef}
-      role="tablist"
-      aria-label="Console sections"
-      className="flex flex-wrap gap-2 mb-4 md:sticky md:top-4 md:z-10 md:bg-ink-950/80 md:backdrop-blur md:pt-2 md:pb-2"
-    >
-      {sections.map((s) => (
-        <button
-          key={s.key}
-          type="button"
-          role="tab"
-          aria-selected={active === s.key}
-          onClick={() => onSelect(s.key)}
-          className={`perm-tab ${active === s.key ? 'perm-tab--on' : ''}`}
-        >
-          {s.label}
-        </button>
-      ))}
+    <div className="sa-topbar">
+      <div className="sa-brand">
+        <span className="sa-brand-icon" aria-hidden="true">♚</span>
+        <div className="min-w-0">
+          <div className="sa-brand-title">Super Admin</div>
+          <div className="sa-brand-sub">
+            Register students and coaches, and control which sections each role can use.
+          </div>
+        </div>
+      </div>
+      <div
+        ref={listRef}
+        role="tablist"
+        aria-label="Console sections"
+        className="sa-tabs"
+      >
+        {sections.map((s) => (
+          <button
+            key={s.key}
+            type="button"
+            role="tab"
+            aria-selected={active === s.key}
+            onClick={() => onSelect(s.key)}
+            className={`perm-tab ${active === s.key ? 'perm-tab--on' : ''}`}
+          >
+            {s.label}
+          </button>
+        ))}
+      </div>
     </div>
   );
 });
@@ -249,6 +260,7 @@ export default function SuperAdmin() {
   const accountLabel = isStudent ? 'Student' : 'Coach (Admin)';
 
   return (
+    <div className="sa-theme">
     <PageHeader title="Super Admin" icon="♛" subtitle="Register students and coaches, and control which sections each role can use.">
       <SectionSwitcher
         sections={SECTIONS}
@@ -275,208 +287,185 @@ export default function SuperAdmin() {
             ) : key === 'passwords' ? (
               <SuperAdminPasswords />
             ) : (
-            <div className="grid gap-4 lg:grid-cols-3">
+            <div className="space-y-4">
         {/* ── Registration form ── */}
-        <div className="lg:col-span-2">
-          <form onSubmit={handleSubmit} className="chess-card space-y-4">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <h2 className="chess-card-title mb-0">
-                <span className="chess-card-piece">♔</span>
-                <span className="flex-1">Register account</span>
-              </h2>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setForm((f) => ({ ...f, role: 'student' }))}
-                  className={`perm-tab ${isStudent ? 'perm-tab--on' : ''}`}
-                >
-                  ♙ Student
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setForm((f) => ({ ...f, role: 'admin' }))}
-                  className={`perm-tab ${!isStudent ? 'perm-tab--on' : ''}`}
-                >
-                  ♖ Coach / Admin
-                </button>
-              </div>
-            </div>
-
-            {error && <div className="chess-error">{error}</div>}
-
-            {/* Login credentials — same for students and coaches */}
-            <div className="grid gap-3 sm:grid-cols-2">
-              <LabeledField label={`${accountLabel} full name *`}>
-                <input required className="chess-input" placeholder="e.g. Aarav Sharma" value={form.name} onChange={set('name')} />
-              </LabeledField>
-              <LabeledField label="Username *" hint="3–20 chars (letters, numbers, _) — the sign-in name">
-                <input required className="chess-input" placeholder="e.g. aarav_sharma" value={form.username} onChange={set('username')} autoComplete="off" />
-              </LabeledField>
-              <LabeledField label="Email *">
-                <input required type="email" className="chess-input" placeholder="they@example.com" value={form.email} onChange={set('email')} />
-              </LabeledField>
-              <PhoneInput
-                label="Phone"
-                countryCode={form.countryCode}
-                phoneNumber={form.phoneNumber}
-                onChange={({ countryCode, phoneNumber }) => setForm({ ...form, countryCode, phoneNumber })}
-                autoComplete="tel"
-              />
-              <LabeledField label="Password *" hint="At least 8 characters">
-                <PasswordInput required autoComplete="new-password" className="chess-input" value={form.password} onChange={set('password')} />
-              </LabeledField>
-              <LabeledField label="Confirm password *">
-                <PasswordInput required autoComplete="new-password" className="chess-input" value={form.confirmPassword} onChange={set('confirmPassword')} />
-              </LabeledField>
-            </div>
-
-            {isStudent && (
-              <>
-                <div className="flex items-center gap-3 pt-1">
-                  <span className="text-[0.65rem] uppercase tracking-[0.18em] text-gold-400 font-extrabold">
-                    Student details
-                  </span>
-                  <span className="h-px flex-1 bg-ivory-700/40" />
-                </div>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <LabeledField label="First name / nickname">
-                    <input className="chess-input" placeholder="What they like to be called" value={form.nickname} onChange={set('nickname')} />
-                  </LabeledField>
-                  <LabeledField label="Date of birth">
-                    <input type="date" className="chess-input" value={form.birthdate} onChange={set('birthdate')} />
-                  </LabeledField>
-                  <LabeledField label="Parent / guardian">
-                    <input className="chess-input" placeholder="Guardian name (optional)" value={form.parentName} onChange={set('parentName')} />
-                  </LabeledField>
-                  <LabeledField label="Gender">
-                    <select className="chess-input" value={form.gender} onChange={set('gender')}>
-                      <option value="">Prefer not to say</option>
-                      {GENDERS.map((g) => <option key={g} value={g}>{g}</option>)}
-                    </select>
-                  </LabeledField>
-                  <LabeledField label="Preferred language">
-                    <select className="chess-input" value={form.preferredLanguage} onChange={set('preferredLanguage')}>
-                      <option value="">None set</option>
-                      {LANGUAGES.map((l) => <option key={l} value={l}>{l}</option>)}
-                    </select>
-                  </LabeledField>
-                </div>
-              </>
-            )}
-
-            <div className="flex justify-end gap-2 pt-1">
-              <Button
+        <form onSubmit={handleSubmit} className="chess-card space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h2 className="chess-card-title mb-0">
+              <span className="chess-card-piece">♔</span>
+              <span className="flex-1">Register account</span>
+            </h2>
+            <div className="sa-seg-group" role="group" aria-label="Account type">
+              <button
                 type="button"
-                onClick={() => { setForm(EMPTY_FORM); setError(''); }}
-                variant="secondary" size="md" className="!py-2 !px-4 text-sm"
+                onClick={() => setForm((f) => ({ ...f, role: 'student' }))}
+                className={`perm-tab ${isStudent ? 'perm-tab--on' : ''}`}
               >
-                Clear
-              </Button>
-              <Button disabled={creating} variant="primary" size="md" className="!py-2 !px-5 text-sm">
-                {creating ? 'Registering…' : `Register ${accountLabel}`}
-              </Button>
+                ♙ Student
+              </button>
+              <button
+                type="button"
+                onClick={() => setForm((f) => ({ ...f, role: 'admin' }))}
+                className={`perm-tab ${!isStudent ? 'perm-tab--on' : ''}`}
+              >
+                ♖ Coach / Admin
+              </button>
             </div>
-          </form>
-        </div>
+          </div>
 
-        {/* ── Side notes ── */}
-        <div className="space-y-4">
-          {lastCreated && (
-            <div className="chess-card">
-              <h2 className="chess-card-title">
-                <span className="chess-card-piece">♜</span>
-                <span className="flex-1">Just registered</span>
-              </h2>
-              <div className="flex items-center justify-between gap-2">
-                <div className="min-w-0">
-                  <p className="font-semibold text-ivory-100 truncate">{lastCreated.name}</p>
-                  <p className="text-xs text-ivory-500 truncate">@{lastCreated.username || '—'}</p>
-                  <p className="text-xs text-ivory-500 truncate">{lastCreated.email}</p>
-                </div>
-                <Chip tone={lastCreated.role === 'admin' ? 'green' : ''}>
-                  {lastCreated.role === 'admin' ? 'Coach' : 'Student'}
-                </Chip>
+          {error && <div className="chess-error">{error}</div>}
+
+          {/* Login credentials — same for students and coaches */}
+          <div className="sa-section-label">Login credentials</div>
+          <div className="sa-form-grid">
+            <LabeledField label={`${accountLabel} full name *`}>
+              <input required className="chess-input" placeholder="e.g. Aarav Sharma" value={form.name} onChange={set('name')} />
+            </LabeledField>
+            <LabeledField label="Username *" hint="3–20 chars (letters, numbers, _) — the sign-in name">
+              <input required className="chess-input" placeholder="e.g. aarav_sharma" value={form.username} onChange={set('username')} autoComplete="off" />
+            </LabeledField>
+            <LabeledField label="Email *">
+              <input required type="email" className="chess-input" placeholder="they@example.com" value={form.email} onChange={set('email')} />
+            </LabeledField>
+            <PhoneInput
+              label="Phone"
+              countryCode={form.countryCode}
+              phoneNumber={form.phoneNumber}
+              onChange={({ countryCode, phoneNumber }) => setForm({ ...form, countryCode, phoneNumber })}
+              autoComplete="tel"
+            />
+            <LabeledField label="Password *" hint="At least 8 characters">
+              <PasswordInput required autoComplete="new-password" className="chess-input" value={form.password} onChange={set('password')} />
+            </LabeledField>
+            <LabeledField label="Confirm password *">
+              <PasswordInput required autoComplete="new-password" className="chess-input" value={form.confirmPassword} onChange={set('confirmPassword')} />
+            </LabeledField>
+          </div>
+
+          {isStudent && (
+            <>
+              <div className="sa-section-label">Student details</div>
+              <div className="sa-form-grid">
+                <LabeledField label="First name / nickname">
+                  <input className="chess-input" placeholder="What they like to be called" value={form.nickname} onChange={set('nickname')} />
+                </LabeledField>
+                <LabeledField label="Date of birth">
+                  <input type="date" className="chess-input" value={form.birthdate} onChange={set('birthdate')} />
+                </LabeledField>
+                <LabeledField label="Parent / guardian">
+                  <input className="chess-input" placeholder="Guardian name (optional)" value={form.parentName} onChange={set('parentName')} />
+                </LabeledField>
+                <LabeledField label="Gender">
+                  <select className="chess-input" value={form.gender} onChange={set('gender')}>
+                    <option value="">Prefer not to say</option>
+                    {GENDERS.map((g) => <option key={g} value={g}>{g}</option>)}
+                  </select>
+                </LabeledField>
+                <LabeledField label="Preferred language">
+                  <select className="chess-input" value={form.preferredLanguage} onChange={set('preferredLanguage')}>
+                    <option value="">None set</option>
+                    {LANGUAGES.map((l) => <option key={l} value={l}>{l}</option>)}
+                  </select>
+                </LabeledField>
               </div>
-
-              {/* The one-time password-recovery code. Self-registration is closed,
-                  so the admin is now the only person who can ever see this — pass
-                  it to the member, otherwise a forgotten password can only be
-                  fixed by an admin. The server stores just a hash, so it cannot
-                  be shown again for this account. */}
-              {lastCreated.recoveryCode && (
-                <div className="mt-3 pt-3 border-t border-ivory-700/40">
-                  <p className="text-[11px] uppercase tracking-wider text-ivory-500 font-semibold">
-                    Password recovery code
-                  </p>
-                  <div
-                    className="mt-1 px-3 py-2 rounded-lg border border-amber-400/40 bg-amber-400/10 font-mono text-lg tracking-[0.3em] text-amber-300 select-all cursor-pointer"
-                    onClick={() => {
-                      try {
-                        navigator.clipboard.writeText(lastCreated.recoveryCode);
-                        showToast('Recovery code copied.', { tone: 'success', title: 'Copied' });
-                      } catch { /* clipboard unavailable */ }
-                    }}
-                    title="Click to copy"
-                  >
-                    {lastCreated.recoveryCode}
-                  </div>
-                  <p className="text-[11px] text-ivory-500 mt-1 leading-snug">
-                    Shown once. Give it to {lastCreated.name.split(' ')[0]} — it is the only
-                    way to reset their password without an admin.
-                  </p>
-                </div>
-              )}
-
-              {/* The temporary password, when the SERVER generated one (the
-                  password boxes were left empty). It was mailed to the student
-                  as well; this copy is the fallback for the case where the mail
-                  did not arrive. Shown once, like the recovery code. */}
-              {lastCreated.temporaryPassword && (
-                <div className="mt-3 pt-3 border-t border-ivory-700/40">
-                  <p className="text-[11px] uppercase tracking-wider text-ivory-500 font-semibold">
-                    Temporary password
-                  </p>
-                  <div
-                    className="mt-1 px-3 py-2 rounded-lg border border-amber-400/40 bg-amber-400/10 font-mono text-lg tracking-[0.3em] text-amber-300 select-all cursor-pointer"
-                    onClick={() => {
-                      try {
-                        navigator.clipboard.writeText(lastCreated.temporaryPassword);
-                        showToast('Temporary password copied.', { tone: 'success', title: 'Copied' });
-                      } catch { /* clipboard unavailable */ }
-                    }}
-                    title="Click to copy"
-                  >
-                    {lastCreated.temporaryPassword}
-                  </div>
-                  <p className="text-[11px] text-ivory-500 mt-1 leading-snug">
-                    Shown once. It was emailed to {lastCreated.email} too — the student
-                    is asked to change it at their first sign-in.
-                  </p>
-                </div>
-              )}
-            </div>
+            </>
           )}
 
+          <div className="flex justify-end gap-2 pt-1">
+            <Button
+              type="button"
+              onClick={() => { setForm(EMPTY_FORM); setError(''); }}
+              variant="secondary" size="md"
+            >
+              Clear
+            </Button>
+            <Button disabled={creating} variant="primary" size="md">
+              {creating ? 'Registering…' : `Register ${accountLabel}`}
+            </Button>
+          </div>
+        </form>
+
+        {lastCreated && (
           <div className="chess-card">
             <h2 className="chess-card-title">
-              <span className="chess-card-piece">♘</span>
-              <span className="flex-1">How it works</span>
+              <span className="chess-card-piece">♜</span>
+              <span className="flex-1">Just registered</span>
             </h2>
-            <ul className="text-sm text-ivory-400 space-y-2 leading-relaxed">
-              <li>• Accounts are created here — self-registration is closed, so nobody can sign themselves up.</li>
-              <li>• The new user signs in with the username and password you create here.</li>
-              <li>• A one-time recovery code is generated for you to pass on — it is the only way they can reset a forgotten password.</li>
-              <li>• A student row is created automatically for student accounts.</li>
-              <li>• Duplicate emails and usernames are rejected by the server.</li>
-              <li>• Profile photos are uploaded by the user later from their Profile page.</li>
-            </ul>
+            <div className="flex items-center justify-between gap-2">
+              <div className="min-w-0">
+                <p className="font-semibold text-ivory-100 truncate">{lastCreated.name}</p>
+                <p className="text-xs text-ivory-500 truncate">@{lastCreated.username || '—'}</p>
+                <p className="text-xs text-ivory-500 truncate">{lastCreated.email}</p>
+              </div>
+              <Chip tone={lastCreated.role === 'admin' ? 'green' : ''}>
+                {lastCreated.role === 'admin' ? 'Coach' : 'Student'}
+              </Chip>
+            </div>
+
+            {/* The one-time password-recovery code. Self-registration is closed,
+                so the admin is now the only person who can ever see this — pass
+                it to the member, otherwise a forgotten password can only be
+                fixed by an admin. The server stores just a hash, so it cannot
+                be shown again for this account. */}
+            {lastCreated.recoveryCode && (
+              <div className="mt-3 pt-3 border-t border-ivory-700/40">
+                <p className="text-[11px] uppercase tracking-wider text-ivory-500 font-semibold">
+                  Password recovery code
+                </p>
+                <div
+                  className="sa-code mt-1"
+                  onClick={() => {
+                    try {
+                      navigator.clipboard.writeText(lastCreated.recoveryCode);
+                      showToast('Recovery code copied.', { tone: 'success', title: 'Copied' });
+                    } catch { /* clipboard unavailable */ }
+                  }}
+                  title="Click to copy"
+                >
+                  {lastCreated.recoveryCode}
+                </div>
+                <p className="text-[11px] text-ivory-500 mt-1 leading-snug">
+                  Shown once. Give it to {lastCreated.name.split(' ')[0]} — it is the only
+                  way to reset their password without an admin.
+                </p>
+              </div>
+            )}
+
+            {/* The temporary password, when the SERVER generated one (the
+                password boxes were left empty). It was mailed to the student
+                as well; this copy is the fallback for the case where the mail
+                did not arrive. Shown once, like the recovery code. */}
+            {lastCreated.temporaryPassword && (
+              <div className="mt-3 pt-3 border-t border-ivory-700/40">
+                <p className="text-[11px] uppercase tracking-wider text-ivory-500 font-semibold">
+                  Temporary password
+                </p>
+                <div
+                  className="sa-code mt-1"
+                  onClick={() => {
+                    try {
+                      navigator.clipboard.writeText(lastCreated.temporaryPassword);
+                      showToast('Temporary password copied.', { tone: 'success', title: 'Copied' });
+                    } catch { /* clipboard unavailable */ }
+                  }}
+                  title="Click to copy"
+                >
+                  {lastCreated.temporaryPassword}
+                </div>
+                <p className="text-[11px] text-ivory-500 mt-1 leading-snug">
+                  Shown once. It was emailed to {lastCreated.email} too — the student
+                  is asked to change it at their first sign-in.
+                </p>
+              </div>
+            )}
           </div>
-        </div>
+        )}
             </div>
             )}
           </div>
         ))}
       </div>
     </PageHeader>
+    </div>
   );
 }

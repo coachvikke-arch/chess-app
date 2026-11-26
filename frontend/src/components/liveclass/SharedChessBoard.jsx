@@ -6,12 +6,15 @@ import { Chess } from 'chess.js';
 import ChessBoard from '../ChessBoard';
 import CustomizePositionModal from '../CustomizePositionModal';
 import { useLiveClass } from '../../context/LiveClassContext';
+import { useClassroomVariations } from '../../context/ClassroomVariationContext';
 import { useAuth } from '../../context/AuthContext';
 import { emit, on } from '../../services/socket';
 import api from '../../services/api';
 import { searchBest } from '../../utils/engine';
 import { BOT_LEVELS, botLevelConfig } from '../../utils/botLevels';
 import { copyText } from '../../utils/clipboard';
+import useCopyFullPgn from '../../hooks/useCopyPgn';
+import { buildFullPgn, classroomPgnMeta } from '../../utils/gamePgn';
 import { detectNotation, pgnGameLabel, splitPgnGames, tryLoadFen, tryLoadPgn } from '../../utils/pgnTools';
 import { createClassroomBotGames } from '../../utils/online';
 import { createSolver, fenAtPly, MOVE_ANIM_SECONDS, MOVE_ANIM_MS } from '../../utils/puzzleSolve';
@@ -93,6 +96,7 @@ export default function SharedChessBoard({ drill = null, drillStatus = null, onD
      bound the auto-fit uses instead of a fixed constant. */
   const maxFitRef = useRef(MAX_BOARD);
   const flashTimerRef = useRef(null);
+  const copyFullPgn = useCopyFullPgn();
   /* The drill info card, and how much width it is taking. Both declared up
      here, ABOVE the fit effect that spends them: a hook's dependency array is
      read while the component renders, so a value bound further down is still in
@@ -204,6 +208,9 @@ export default function SharedChessBoard({ drill = null, drillStatus = null, onD
   }, []);
 
   const { classMeta, isInstructor, permissions, chessState, participants, patchPermissions, setClassMeta, viewIndex, setViewIndex, remoteReview, setRemoteReview } = useLiveClass();
+  /* The room's shared variation tree: the pointer is where the class is
+     LOOKING (coach-led), the branches are what everyone has tried. */
+  const classVars = useClassroomVariations();
   const navigate = useNavigate();
   const [playOffer, setPlayOffer] = useState(false);
   const [fen, setFen] = useState(chessState?.fen || START_FEN);
@@ -827,15 +834,26 @@ export default function SharedChessBoard({ drill = null, drillStatus = null, onD
     return { fen: remoteReview.fen, lastMove: remoteReview.lastMove || null, to: remoteReview.to };
   }, [drillActive, remoteReview]);
 
+  /* The room's shared variation view. While the pointer sits on the live end
+     there is nothing to show — the live board IS that position. A branch, or an
+     earlier ply the coach stepped back to, takes priority over the old per-ply
+     review so the room has ONE source of truth. */
+  const variationView = useMemo(() => {
+    if (drillActive || classVars.isLive || !classVars.viewFen) return null;
+    return { fen: classVars.viewFen, lastMove: classVars.viewLastMove };
+  }, [drillActive, classVars.isLive, classVars.viewFen, classVars.viewLastMove]);
+
   /* The still position the board shows while reviewing ANY history — a drill
-     ply, the instructor's own step-back, or the room-wide ply they lead. Kept as
-     one value so a SINGLE <ChessBoard> instance can render both the live game
-     and a review, and is never remounted on navigation. Remounting it (the old
+     ply, the shared variation pointer, or a legacy per-ply review. Kept as one
+     value so a SINGLE <ChessBoard> instance can render both the live game and a
+     review, and is never remounted on navigation. Remounting it (the old
      per-fen `key`) is what made the whole board blink on every click. */
   const reviewFen = drillReviewFen
+    || (variationView ? variationView.fen : null)
     || (classReview ? classReview.fen : null)
     || (remoteReviewBoard ? remoteReviewBoard.fen : null);
-  const reviewLastMove = (classReview && classReview.lastMove)
+  const reviewLastMove = (variationView && variationView.lastMove)
+    || (classReview && classReview.lastMove)
     || (remoteReviewBoard && remoteReviewBoard.lastMove)
     || null;
   const reviewing = Boolean(reviewFen);
@@ -847,6 +865,28 @@ export default function SharedChessBoard({ drill = null, drillStatus = null, onD
     if (!reviewFen) return null;
     try { return new Chess(reviewFen); } catch { return new Chess(); }
   }, [reviewFen]);
+
+  /* Branching from a still position. The coach may branch from any node; a
+     student only while the coach has free analysis on and the class is live.
+     The anchor is the node being looked at, so the new branch attaches there —
+     for the legacy per-ply review that node is the mainline move shown. */
+  const canBranchHere = Boolean(variationView || classReview) && !drillActive && classVars.canBranch;
+  /* A free-analysis student with no class-move right also branches from the
+     LIVE position: their move becomes a variation off the live end, never a
+     class move. A student who CAN move the class board keeps that right. */
+  const liveBranchHere = !drillActive && !isInstructor && classVars.isLive
+    && classVars.canBranch && !canInteract;
+  const branching = canBranchHere || liveBranchHere;
+  const branchAnchorId = useMemo(() => {
+    if (!classVars.isLive) return classVars.viewId || undefined;
+    if (viewIndex == null) return undefined;
+    return viewIndex < 0 ? 'root' : `m${viewIndex + 1}`;
+  }, [classVars.isLive, classVars.viewId, viewIndex]);
+
+  const handleVariationBoardMove = useCallback((move) => {
+    if (!branching) return;
+    classVars.playMove(move, branchAnchorId);
+  }, [branching, classVars, branchAnchorId]);
 
   /* Stepping to another ply shows a different position, so an engine suggestion
      that belonged to the previous one must not linger on the new board. */
@@ -928,35 +968,25 @@ export default function SharedChessBoard({ drill = null, drillStatus = null, onD
     });
   }, [sendControl, redoCount]);
 
-  /* ◀ Prev / ▶ Next step the REVIEW back and forward through the same history
-     the move list shows — a local rewind, never a broadcast. ▶ landing on the
-     last move (or from live, where there is nowhere forward to go) returns to
-     the live position, which is what `null` encodes. ◀ walks all the way down
-     to `-1`, the position BEFORE the first move (the starting position) — the
-     old floor of 0 stranded the start, so a one-move game could not step back
-     at all. */
+  /* ◀ Prev / ▶ Next walk the SHARED tree along the line being shown — the same
+     history the move list draws, branches included. The coach's step is
+     room-wide (the provider broadcasts the pointer); a student has no arrow
+     buttons, so their look never moves the class. */
   const viewPrev = useCallback(() => {
-    if (drillActive || moves.length === 0) return;
-    setViewIndex((cur) => {
-      const base = cur == null ? moves.length - 1 : cur;
-      return Math.max(-1, base - 1);
-    });
-  }, [drillActive, moves.length, setViewIndex]);
+    if (drillActive) return;
+    classVars.step(-1);
+  }, [drillActive, classVars]);
 
   const viewNext = useCallback(() => {
-    if (drillActive || moves.length === 0) return;
-    setViewIndex((cur) => {
-      if (cur == null) return null;                       // already live
-      const next = cur + 1;
-      return next >= moves.length - 1 ? null : next;      // the last move is live
-    });
-  }, [drillActive, moves.length, setViewIndex]);
+    if (drillActive) return;
+    classVars.step(1);
+  }, [drillActive, classVars]);
 
-  /* The board is off the live position: either the instructor's own step-back,
-     or the room-wide review they are leading. */
-  const viewingPast = classReview != null || remoteReviewBoard != null;
-  const canViewPrev = !drillActive && moves.length > 0 && viewIndex !== -1;
-  const canViewNext = !drillActive && moves.length > 0 && viewIndex != null;
+  /* The board is off the live position: a shared variation/earlier ply, a
+     legacy per-ply review, or the student's own drill step-back. */
+  const viewingPast = variationView != null || classReview != null || remoteReviewBoard != null;
+  const canViewPrev = !drillActive && classVars.canPrev;
+  const canViewNext = !drillActive && classVars.canNext;
 
   /* ── keyboard shortcuts ──
      ←/→ step the REVIEW through the move history, resuming from whatever move
@@ -976,11 +1006,22 @@ export default function SharedChessBoard({ drill = null, drillStatus = null, onD
         (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable);
       if (leaking) return;
       const mod = e.ctrlKey || e.metaKey;
-      if (!mod && !e.altKey && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
+      /* ←/→ along the line shown, ↑/↓ between the two sides of a branch point,
+         Home/End to the start / the live end — the same review keys the other
+         analysis surfaces bind. The coach's step drives the room; students
+         read the list and are deliberately not bound here. */
+      const navKey = e.key === 'ArrowLeft' || e.key === 'ArrowRight'
+        || e.key === 'ArrowUp' || e.key === 'ArrowDown'
+        || e.key === 'Home' || e.key === 'End';
+      if (!mod && !e.altKey && navKey) {
         if (!isInstructor) return;
         e.preventDefault();
         if (e.key === 'ArrowLeft') viewPrev();
-        else viewNext();
+        else if (e.key === 'ArrowRight') viewNext();
+        else if (e.key === 'ArrowUp') classVars.sibling(-1);
+        else if (e.key === 'ArrowDown') classVars.sibling(1);
+        else if (e.key === 'Home') classVars.goStart();
+        else classVars.goEnd();
         return;
       }
       if (!mod || e.altKey) return;
@@ -1000,7 +1041,7 @@ export default function SharedChessBoard({ drill = null, drillStatus = null, onD
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [permissions.canControlBoard, handleUndo, handleRedo, drillActive, isInstructor, viewPrev, viewNext]);
+  }, [permissions.canControlBoard, handleUndo, handleRedo, drillActive, isInstructor, classVars, viewPrev, viewNext]);
 
   /* ── engine-assisted best move ── */
   /* The exact position the board is DISPLAYING: the live game, or the ply being
@@ -1323,9 +1364,16 @@ const DRAWN_ARROW_COLOR = 'rgba(0, 255, 0, 0.7)';
   }, [flash]);
 
   const copyCurrentPgn = useCallback(async () => {
-    const ok = await copyText(gameRef.current?.pgn() || '');
+    const game = gameRef.current;
+    const initialFen = game?.header?.()?.FEN || 'start';
+    const ok = await copyFullPgn(buildFullPgn({
+      pgn: game?.pgn() || '',
+      moves: (game?.history?.() || []).map((m) => m.san || m),
+      initialFen,
+      ...classroomPgnMeta(classMeta),
+    }));
     flash(ok ? 'Current PGN copied' : 'Could not copy PGN');
-  }, [flash]);
+  }, [flash, copyFullPgn, classMeta]);
 
   /* highlight square styles from annotations — a full-square, edge-to-edge
      semi-transparent fill (no circle, no ring); the piece on top stays visible
@@ -1347,7 +1395,40 @@ const DRAWN_ARROW_COLOR = 'rgba(0, 255, 0, 0.7)';
           <div className="live-board-title">
             <span className="live-board-header-label">Shared Board</span>
             <span className="live-board-turn">{turnLabel}</span>
-            {remoteReviewBoard && classReview == null && !isInstructor && (
+            {classVars.isVariation && (
+              <span
+                className="live-chip live-board-reviewing"
+                title="A variation of the class game — the original line is still saved in the move list"
+              >
+                ⑂ Analysing a variation
+              </span>
+            )}
+            {!classVars.isLive && (
+              <button
+                type="button"
+                className="live-chip"
+                onClick={classVars.goLive}
+                title={isInstructor
+                  ? 'Bring the whole room back to the live position'
+                  : 'Back to the live position'}
+              >
+                {isInstructor ? '↩ Room to live' : '↩ Back to original line'}
+              </button>
+            )}
+            {isInstructor && (
+              <button
+                type="button"
+                className={`live-chip ${classVars.mode === 'free' ? 'live-chip-on' : ''}`}
+                onClick={classVars.toggleMode}
+                aria-pressed={classVars.mode === 'free'}
+                title={classVars.mode === 'free'
+                  ? 'Students may try moves in variations — the class game is untouched'
+                  : 'Only the coach steers the line; students follow'}
+              >
+                🧪 Free analysis
+              </button>
+            )}
+            {remoteReviewBoard && classReview == null && !variationView && !isInstructor && (
               <span
                 className="live-chip live-board-reviewing"
                 title="The instructor is reviewing an earlier move — your board follows"
@@ -1370,23 +1451,30 @@ const DRAWN_ARROW_COLOR = 'rgba(0, 255, 0, 0.7)';
               <>
                 {drillActive
                   ? (drillReady ? 'Solve the coach’s puzzle — find the right moves' : 'Drill finished — no more moves')
-                  : canInteract
-                    ? isInstructor
-                      ? classMeta?.studentInteractionEnabled
-                        ? `You move · students move ${studentMoveSide === 'both' ? 'either side' : studentMoveSide}`
-                        : 'You can move the pieces'
-                      : myMoveSide === 'both'
-                        ? 'You can move the pieces'
-                        : myMoveSide
-                          ? `You can move ${myMoveSide} pieces`
+                  : liveBranchHere
+                    ? 'Free analysis — your moves become variations; the class game is untouched'
+                    : canInteract
+                      ? isInstructor
+                        ? classMeta?.studentInteractionEnabled
+                          ? `You move · students move ${studentMoveSide === 'both' ? 'either side' : studentMoveSide}`
                           : 'You can move the pieces'
-                    : classMeta?.studentInteractionEnabled === false
-                      ? 'Student moves are off — the coach has the board'
-                      : 'Viewing instructor demo'}
+                        : myMoveSide === 'both'
+                          ? 'You can move the pieces'
+                          : myMoveSide
+                            ? `You can move ${myMoveSide} pieces`
+                            : 'You can move the pieces'
+                      : classMeta?.studentInteractionEnabled === false
+                        ? 'Student moves are off — the coach has the board'
+                        : 'Viewing instructor demo'}
                 {drillActive
                   ? ' · your own attempts — the class board is untouched'
                   : !permissions.canDrawAnnotations && ' · annotations view-only'}
               </>
+            )}
+            {viewingPast && !drillActive && (
+              classVars.isVariation
+                ? 'Variation — the original game line is still saved'
+                : 'Reviewing an earlier position — the live game is still running'
             )}
           </div>
         </div>
@@ -1413,20 +1501,25 @@ const DRAWN_ARROW_COLOR = 'rgba(0, 255, 0, 0.7)';
                     game={reviewing ? reviewGame : gameRef.current}
                     fen={reviewing ? reviewFen : fen}
                     interactive={reviewing
-                      ? false
+                      ? canBranchHere
                       : drillActive
                         ? (drillReady && !drillReplying && !drillFinishing)
                         : canInteract
-                          && (isInstructor || myMoveSide === 'both'
-                            || (gameRef.current?.turn() === 'w' ? 'white' : 'black') === myMoveSide)}
-                    onMove={reviewing ? undefined : handleBoardMove}
+                          ? (isInstructor || myMoveSide === 'both'
+                            || (gameRef.current?.turn() === 'w' ? 'white' : 'black') === myMoveSide)
+                          : liveBranchHere}
+                    onMove={reviewing
+                      ? (canBranchHere ? handleVariationBoardMove : undefined)
+                      : (liveBranchHere ? handleVariationBoardMove : handleBoardMove)}
                     onIllegalMove={illegalMovesOn ? () => flash('Illegal move') : undefined}
                     orientation={orientation}
                     outerWidth={boardSize}
                     animationDuration={MOVE_ANIM_SECONDS}
                     soundOn={reviewing ? false : classroomSound}
                     showNotation={showCoordinates}
-                    showLegalMoves={reviewing ? false : (drillActive ? (drillReady && !drillReplying && !drillFinishing) : canInteract)}
+                    showLegalMoves={reviewing
+                      ? canBranchHere
+                      : (drillActive ? (drillReady && !drillReplying && !drillFinishing) : (canInteract || liveBranchHere))}
                     customArrows={reviewing
                       ? (bestArrow ? [bestArrow] : [])
                       : (bestArrow ? [...(annotations?.arrows || []), bestArrow] : annotations?.arrows || [])}

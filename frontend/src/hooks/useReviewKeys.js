@@ -2,9 +2,14 @@
  *
  * ONE window-level listener for the review surfaces:
  *
- *   ArrowLeft  previous ply        ArrowUp / Home   first ply
- *   ArrowRight next ply            ArrowDown / End  last ply
- *   F          flip board
+ *   ArrowLeft  previous ply        Home             first ply
+ *   ArrowRight next ply            End              last ply
+ *   ArrowUp    previous sibling    F                flip board
+ *   ArrowDown  next sibling
+ *
+ * A surface that has a move tree supplies `siblingPrev`/`siblingNext` for the
+ * vertical arrows (both sides of a branch). A flat surface leaves them out and
+ * Up/Down keep their older first/last meaning.
  *
  * The handler ignores typing targets and modifier chords, and calls
  * preventDefault() only for keys it actually handled (so arrow keys never
@@ -42,8 +47,10 @@ export function handleReviewKey(e, handlers = {}) {
   let fn = null;
   if (key === 'ArrowLeft') fn = handlers.prev;
   else if (key === 'ArrowRight') fn = handlers.next;
-  else if (key === 'ArrowUp' || key === 'Home') fn = handlers.first;
-  else if (key === 'ArrowDown' || key === 'End') fn = handlers.last;
+  else if (key === 'ArrowUp') fn = handlers.siblingPrev || handlers.first;
+  else if (key === 'ArrowDown') fn = handlers.siblingNext || handlers.last;
+  else if (key === 'Home') fn = handlers.first;
+  else if (key === 'End') fn = handlers.last;
   else if (key === 'f' || key === 'F') fn = handlers.flip;
 
   if (typeof fn !== 'function') return false;

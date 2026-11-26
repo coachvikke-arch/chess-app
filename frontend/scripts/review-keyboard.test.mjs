@@ -65,6 +65,24 @@ test('arrow and jump keys map to navigation', () => {
   }
 });
 
+test('a move tree turns the vertical arrows into sibling switching', () => {
+  /* Both sides of a branch are the moves played from the same position. A
+     surface with a tree supplies these; a flat surface keeps Up/Down as
+     first/last (the test above). */
+  const calls = [];
+  const h = {
+    prev: () => calls.push('prev'),
+    next: () => calls.push('next'),
+    siblingPrev: () => calls.push('siblingPrev'),
+    siblingNext: () => calls.push('siblingNext'),
+    first: () => calls.push('first'),
+    last: () => calls.push('last'),
+  };
+  assert.equal(handleReviewKey(keyEvent('ArrowUp'), h), true);
+  assert.equal(handleReviewKey(keyEvent('ArrowDown'), h), true);
+  assert.deepEqual(calls, ['siblingPrev', 'siblingNext']);
+});
+
 test('auto-repeat keeps stepping smoothly', () => {
   const { calls, handlers: h } = handlers();
   const e = keyEvent('ArrowRight', { repeat: true });
@@ -99,28 +117,44 @@ test('unrelated keys and already-handled events are left alone', () => {
   assert.deepEqual(calls, []);
 });
 
-test('GameViewerCard uses the full key set and tags keyboard effects', () => {
+test('GameViewerCard drives the tree and tags keyboard effects', () => {
   const viewer = src('components/GameViewerCard.jsx');
   assert.match(viewer, /useReviewKeys\(\{/);
-  /* Prev/Next are DELTAS, first/last are absolute plies. The card used to write
-     `go(moveIndex - 1, …)`, which read React state that has not updated yet
-     inside a frame — five held presses collapsed into one ply. A delta lets the
-     rAF queue accumulate them; see viewer-navigation.test.mjs. */
-  assert.match(viewer, /prev: \(\) => stepNav\(-1, 'keyboard'\)/);
-  assert.match(viewer, /next: \(\) => stepNav\(1, 'keyboard'\)/);
-  assert.match(viewer, /first: \(\) => jumpNav\(0, 'keyboard'\)/);
-  assert.match(viewer, /last: \(\) => jumpNav\(plies, 'keyboard'\)/);
+  /* Left/Right walk the CURRENT line, Up/Down switch between the moves played
+     from the same position. The tree commits synchronously, so a held key
+     accumulates instead of queueing one replay per press. */
+  assert.match(viewer, /prev: \(\) => tree\.goBack\('keyboard'\)/);
+  assert.match(viewer, /next: \(\) => tree\.goForward\('keyboard'\)/);
+  assert.match(viewer, /siblingPrev: \(\) => tree\.goSibling\(-1, 'keyboard'\)/);
+  assert.match(viewer, /siblingNext: \(\) => tree\.goSibling\(1, 'keyboard'\)/);
+  assert.match(viewer, /first: \(\) => tree\.goToStart\('keyboard'\)/);
+  assert.match(viewer, /last: \(\) => tree\.goToEnd\('keyboard'\)/);
   assert.match(viewer, /flip: \(\) => setOrientation/);
-  assert.match(viewer, /playEffectForMove\(ply, source,/,
-    'the effect is tagged with the keyboard source');
+  assert.match(viewer, /playEffectForMove\(node\.ply, meta\.source/,
+    'the effect is tagged with the navigation source');
 });
 
-test('GameReview disables its page listener while the viewer card is open', () => {
+test('GameReview drives the shared tree and tags keyboard effects', () => {
   const review = src('pages/GameReview.jsx');
   assert.match(review, /useReviewKeys\(\{/);
-  assert.match(review, /go\(activeIdx - 1, 'keyboard'\)/);
-  assert.match(review, /go\(activeIdx \+ 1, 'keyboard'\)/);
+  /* Left/Right walk the CURRENT line, Up/Down switch between the moves played
+     from the same position — the same wiring the shared card uses. */
+  assert.match(review, /prev: \(\) => tree\.goBack\('keyboard'\)/);
+  assert.match(review, /next: \(\) => tree\.goForward\('keyboard'\)/);
+  assert.match(review, /siblingPrev: \(\) => tree\.goSibling\(-1, 'keyboard'\)/);
+  assert.match(review, /siblingNext: \(\) => tree\.goSibling\(1, 'keyboard'\)/);
+  assert.match(review, /first: \(\) => tree\.goToStart\('keyboard'\)/);
+  assert.match(review, /last: \(\) => tree\.goToEnd\('keyboard'\)/);
+  assert.match(review, /flip: \(\) => setOrientation/);
   assert.match(review, /\}, \{ enabled: !sigmaGame \}\);/);
-  assert.match(review, /playEffectForMove\(target, source,/);
-  assert.match(review, /data-gr-ply=\{cell\.ply \+ 1\}/);
+  /* The effect is played for the node the tree landed on, tagged with the
+     source that navigated (keyboard, score sheet, board, nav button). */
+  assert.match(review, /playEffectForMove\(node\.ply, meta\.source/);
+  /* One cursor for the whole page: the pointer is the ply on screen. */
+  assert.match(review, /const activeIdx = tree\.currentPly;/);
+  assert.match(review, /const activeLen = tree\.lineEndPly;/);
+  /* And the shared list, not a second private grid. */
+  assert.match(review, /<VariationMoveList[\s\S]{0,200}headless/);
+  assert.doesNotMatch(review, /scoreRows/);
+  assert.doesNotMatch(review, /data-gr-ply=/);
 });

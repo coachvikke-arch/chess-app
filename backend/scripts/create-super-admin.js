@@ -7,6 +7,7 @@
 //
 // Uses the existing users table + bcrypt — no new auth system.
 require('dotenv').config();
+const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
 const db = require('../src/config/database');
 
@@ -39,10 +40,10 @@ async function main() {
 
   const hashed = await bcrypt.hash(password, 10);
   const created = await db.pool.query(
-    `INSERT INTO users (name, email, password, role, board_theme, piece_set)
-     VALUES ($1, $2, $3, 'superadmin', 'classic-green', 'cburnett')
+    `INSERT INTO users (name, email, password, role, board_theme, piece_set, public_token)
+     VALUES ($1, $2, $3, 'superadmin', 'classic-green', 'cburnett', $4)
      RETURNING id, name, email, role`,
-    [name, email, hashed]
+    [name, email, hashed, crypto.randomBytes(16).toString('hex')]
   );
   console.log('Super admin created:', created.rows[0]);
   console.log('Sign in at /login and you will land on /super where you can register students and admins.');

@@ -7,6 +7,7 @@ import { useAuth } from '../context/AuthContext';
 import StudentAvatar from '../components/StudentAvatar';
 import AvatarBuilder from '../components/AvatarBuilder';
 import ProfilePhotoCropper from '../components/ProfilePhotoCropper';
+import QrCard from '../components/QrCard';
 import Button from '../components/Button';
 import PhoneInput from '../components/PhoneInput';
 import { formatPhoneDisplay, splitPhone, toE164 } from '../utils/phone';
@@ -212,8 +213,12 @@ export default function AdminProfile() {
 
   return (
     <Page title="My Profile" piece="♙" sub="Your coach account — keep your info up to date.">
+      {/* Same two-column shape as the student profile: photo + details left,
+          QR card sticky right, QR card follows the photo on phones. */}
+      <div className="profile-cards-grid">
+      <div className="profile-cards-main">
       {/* ── Photo card ── */}
-      <Card title="Profile photo" piece="♟" className="mb-6">
+      <Card title="Profile photo" piece="♟">
         <div className="flex flex-col sm:flex-row items-center gap-5 sm:gap-6">
           {/* shrink-0: the hint text beside it is long, and a shrinkable wrapper
               gets squeezed narrower than the photo - the photo then overflows the
@@ -271,28 +276,17 @@ export default function AdminProfile() {
           </div>
         </div>
       </Card>
+      </div>
 
-      {avatarOpen && (
-        <AvatarBuilder
-          config={user.avatar_config}
-          onSave={(config) => saveAvatar(config)}
-          onClose={() => setAvatarOpen(false)}
-        />
-      )}
+      <aside className="profile-cards-side">
+        <QrCard user={user} onUserUpdate={publishProfile} />
+      </aside>
 
-      <ProfilePhotoCropper
-        open={!!cropSrc}
-        src={cropSrc}
-        saving={uploading}
-        onCancel={closeCropper}
-        onSave={uploadCroppedPhoto}
-      />
-
+      <div className="profile-cards-rest">
       {/* ── Basic details ── */}
       <Card
         title="Basic details"
         piece="♛"
-        className="mb-6"
         actions={(
           <Button variant="secondary" size="sm" className="!px-3 !py-1.5 !text-xs" onClick={() => setEditing((v) => !v)}>
             {editing ? 'Cancel' : '✎ Edit details'}
@@ -359,6 +353,24 @@ export default function AdminProfile() {
           ⇥ Logout
         </Button>
       </Card>
+      </div>
+      </div>
+
+      {avatarOpen && (
+        <AvatarBuilder
+          config={user.avatar_config}
+          onSave={(config) => saveAvatar(config)}
+          onClose={() => setAvatarOpen(false)}
+        />
+      )}
+
+      <ProfilePhotoCropper
+        open={!!cropSrc}
+        src={cropSrc}
+        saving={uploading}
+        onCancel={closeCropper}
+        onSave={uploadCroppedPhoto}
+      />
     </Page>
   );
 }

@@ -1326,6 +1326,168 @@ tbody tr:hover {
   }
 }
 
+/* ── champion tilt (leaderboard podium) ───────────────────────────────────
+   Rank 1 keeps the stock reward card; it only gains a pointer tilt. item →
+   hit (perspective + pointer target) → tl (the only tilting layer) → the
+   original .lb-pcard. The glare and sweep are the card's last children, so
+   its rounded corners clip them. hooks/useTilt.js writes --rx/--ry/--mx/--my
+   on [data-tilt-root] and toggles `.hov`; no pointer state lives in React.
+   Only transform and opacity animate, and at idle the card is the standard
+   rank-1 card with nothing extra visible. */
+.lb-podium--reward .champ-item {
+  position: relative;
+  z-index: 2;               /* scale(1.04) must paint over the neighbours */
+  display: flex;
+  flex: 1.4 1 0;
+  /* The card's own border+padding (50px at desktop) used to feed its flex
+     base size; the wrapper has none, so restore it or the champion would
+     lose ~29px to its neighbours. */
+  flex-basis: 50px;
+  min-width: 0;
+  max-width: 480px;
+  min-height: 240px;
+}
+.champ-hit,
+.champ-tl {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+}
+.champ-hit {
+  perspective: 900px;
+  cursor: pointer;
+}
+.champ-hit:focus-visible {
+  outline: 2px solid rgba(180, 83, 9, 0.7);
+  outline-offset: 4px;
+  border-radius: 32px;
+}
+.champ-tl {
+  position: relative;
+  transform: rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg)) scale(1);
+  transform-style: preserve-3d;
+  transition: transform 0.6s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.champ-item.hov .champ-tl {
+  transform: rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg)) scale(1.04);
+  transition: transform 0.12s ease-out;
+}
+/* The wrapper is the flex child now; the card just fills it. */
+.champ-tl > .lb-pcard {
+  position: relative;
+  z-index: 1;
+  flex: 1 1 auto;
+  width: 100%;
+  min-width: 0;
+  max-width: none;
+}
+/* The champion's own hover lift and shadow stay frozen at their idle values,
+   so the tilt is the only hover motion. The extra halo below supplies the
+   stronger glow without animating box-shadow. */
+.champ-item .lb-pcard.lb-gold:hover,
+.champ-item .lb-pcard.lb-gold:focus-within {
+  transform: none;
+  box-shadow:
+    inset 0 0 0 1.5px rgba(255, 255, 255, 0.7),
+    0 0 34px rgba(243, 210, 122, 0.62),
+    0 0 74px rgba(243, 210, 122, 0.24),
+    0 18px 38px rgba(120, 84, 10, 0.14);
+}
+
+/* Extra hover halo behind the card — opacity only. */
+.champ-tl::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  border-radius: 30px;
+  box-shadow: 0 0 38px rgba(255, 190, 60, 0.45);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.45s ease;
+}
+/* The thin gold border brightens with a second ring instead of changing the
+   border itself. */
+.champ-tl::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  border-radius: 30px;
+  border: 1.5px solid rgba(255, 236, 170, 0.95);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.45s ease;
+}
+.champ-item.hov .champ-tl::after,
+.champ-hit:focus-within .champ-tl::after { opacity: 1; }
+.champ-item.hov .champ-tl::before,
+.champ-hit:focus-within .champ-tl::before { opacity: 1; }
+
+/* Pointer glare: soft white light at --mx/--my, clipped by the card. */
+.champ-glare {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  border-radius: inherit;
+  opacity: 0;
+  pointer-events: none;
+  background: radial-gradient(circle at var(--mx, 50%) var(--my, 50%), rgba(255, 255, 255, 0.75), rgba(255, 255, 255, 0) 58%);
+  transition: opacity 0.35s ease;
+}
+.champ-item.hov .champ-glare,
+.champ-hit:focus-within .champ-glare { opacity: 1; }
+
+/* One shine sweep, retriggered whenever `.hov` is re-added. */
+.champ-sweep {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 40%;
+  z-index: 5;
+  pointer-events: none;
+  background: linear-gradient(100deg, transparent, rgba(255, 255, 255, 0.65), transparent);
+  transform: translateX(-260%) skewX(-20deg);
+}
+.champ-item.hov .champ-sweep { animation: champ-sweep 0.9s ease-out; }
+@keyframes champ-sweep {
+  from { transform: translateX(-260%) skewX(-20deg); }
+  to { transform: translateX(420%) skewX(-20deg); }
+}
+
+/* The overlays never cover the Compare action. */
+.champ-tl .lb-pcard-compare {
+  position: relative;
+  z-index: 6;
+}
+
+/* Below 1200px the podium stacks champion-first; the wrapper takes the slot
+   the card itself used to fill. */
+@media (max-width: 1200px) {
+  .lb-podium--reward .champ-item {
+    flex: 0 0 auto;
+    width: 100%;
+    max-width: none;
+    min-height: 0;
+    order: -1;
+  }
+}
+@media (max-width: 640px) {
+  .champ-tl::before,
+  .champ-tl::after { border-radius: 26px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .champ-tl,
+  .champ-item.hov .champ-tl { transition: none; }
+  .champ-item.hov .champ-tl {
+    transform: rotateX(0deg) rotateY(0deg) scale(1);
+  }
+  .champ-item.hov .champ-sweep { animation: none; }
+}
+
 
 /* Inline player-name accents hard-coded to #60a5fa (2.5:1 on white). */
 .lb-uname,

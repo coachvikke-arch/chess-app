@@ -10,6 +10,8 @@ import Sidebar from './Sidebar';
 import BackButton from './BackButton';
 import { RouteFallback } from './ui';
 import useNavHeight from '../hooks/useNavHeight';
+import useMediaQuery from '../hooks/useMediaQuery';
+import BotOverlay from './bot/BotOverlay';
 import { useFullHeight } from '../context/FullHeightContext';
 import { HeaderProvider } from '../context/HeaderContext';
 import { getPortalConfig } from '../config/sidebarConfigs';
@@ -53,6 +55,12 @@ export default function AppShell({ portal = 'admin', children }) {
      of the layout for this route only. The class is inert below 901px, where
      the sidebar is an off-canvas drawer that already takes no width. */
   const isPlayArena = portal === 'student' && location.pathname === '/student/analysis';
+
+  /* Clock Bot: student portal only — the admin/coach and super-admin portals
+     share this shell, so the mount is gated on the portal. On a phone it sits
+     above the bottom navigation; its corner never auto-hides. */
+  const isMobile = useMediaQuery('(max-width: 820px)');
+  const botBottom = isMobile ? 76 : 16;
 
   const { orderFor } = useSidebarOrder();
 
@@ -164,6 +172,9 @@ export default function AppShell({ portal = 'admin', children }) {
             </div>
           </main>
         </div>
+        {portal === 'student' && (
+          <BotOverlay size={isMobile ? 84 : 120} right={16} bottom={botBottom} />
+        )}
       </div>
     </HeaderProvider>
   );

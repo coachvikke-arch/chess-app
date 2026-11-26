@@ -8,6 +8,7 @@ const db = require('../config/database');
    signed-in user the moment one of them is used. */
 const PROFILE_SQL = `SELECT u.id, u.name, u.email, u.username, u.phone, u.country_code, u.role, u.profile_image, u.avatar_config, u.board_theme, u.board_light_color, u.board_dark_color, u.piece_set, u.board_frame, u.created_at, u.updated_at,
                u.must_change_password,
+               u.public_token, u.card_public,
                s.default_board_theme AS recommended_board_theme,
                s.id AS student_id, s.group_id, s.active, s.nickname, s.birthdate, s.parent_name,
                s.gender, s.preferred_language, g.name AS group_name,

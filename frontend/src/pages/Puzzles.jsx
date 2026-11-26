@@ -17,6 +17,7 @@ import {
   assignmentSolvedCount,
 } from '../lib/assignmentFlow';
 import Button from '../components/Button';
+import { BOT } from '../components/bot/botTriggers';
 
 /* A stable empty line. Building `current.solution || []` inline made a fresh
    array on every render, and the solver resets whenever the `solution` prop
@@ -463,6 +464,7 @@ export default function Puzzles() {
   }
 
   async function handleSolved(moves, meta = {}) {
+    BOT.puzzleSolved();
     const isMate = !!meta.checkmate;
     const fxPayload = {
       kind: isMate ? 'checkmate' : 'solved',
@@ -530,6 +532,7 @@ export default function Puzzles() {
 
   /* Wrong moves consume an admin-set try; when tries run out the puzzle locks */
   async function handleFailed(moves, wrongSan) {
+    BOT.puzzleWrong();
     if (wrongSan) setMoveLog((prev) => [...prev, { san: wrongSan, color: 'red' }]);
     const newCount = wrongCount + 1;
     setWrongCount(newCount);

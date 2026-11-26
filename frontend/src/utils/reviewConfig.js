@@ -321,7 +321,7 @@ export const REVIEW_ENGINE_VERSION = 'nnue-18-1';
    a logic change invalidates every stored analysis exactly as an engine or
    depth change does. Without it, new classification logic would keep serving
    results produced by the old logic and nobody would notice for months. */
-export const REVIEW_LOGIC_VERSION = 1;
+export const REVIEW_LOGIC_VERSION = 3;
 
 /* ---------- analysis board ("Maximum Time 5 sec · 3 lines") ---------- */
 export const ANALYSIS_DEPTH = 22;

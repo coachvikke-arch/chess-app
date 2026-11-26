@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import Portal from './Portal';
 import api from '../services/api';
+import { BOT } from './bot/botTriggers';
 import { useAuth } from '../context/AuthContext';
 import Button from './Button';
 
@@ -28,6 +29,7 @@ export default function LevelUpCelebration() {
     const show = (info) => {
       if (info && !fired.current.has(info.level)) {
         fired.current.add(info.level);
+        BOT.levelUp();
         setCelebrate(info);
         const t = setTimeout(() => setCelebrate(null), 5200);
         return () => clearTimeout(t);

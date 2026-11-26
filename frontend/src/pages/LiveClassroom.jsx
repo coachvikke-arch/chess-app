@@ -6,6 +6,7 @@ import { useToast } from '../components/Toast';
 import { isAdminRole, homeForRole } from '../utils/roles';
 import { leaveActiveGames } from '../utils/online';
 import { LiveClassProvider, useLiveClass } from '../context/LiveClassContext';
+import { ClassroomVariationProvider } from '../context/ClassroomVariationContext';
 import { getJoinToken, endClass, normalizeMeetingUrl, setClassSpectateEnabled } from '../services/liveClassApi';
 import { leaveLiveClass, on } from '../services/socket';
 import PuzzleDrillArea from '../components/liveclass/PuzzleDrill';
@@ -609,8 +610,10 @@ export default function LiveClassroom() {
   return (
     <div className="cp-ink-all">
       <LiveClassProvider boot={boot}>
-        <LiveClassSocketBridge classId={id} onSocketError={setSocketError} />
-        <ClassroomInner socketError={socketError} />
+        <ClassroomVariationProvider>
+          <LiveClassSocketBridge classId={id} onSocketError={setSocketError} />
+          <ClassroomInner socketError={socketError} />
+        </ClassroomVariationProvider>
       </LiveClassProvider>
     </div>
   );

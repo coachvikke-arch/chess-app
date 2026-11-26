@@ -4,12 +4,10 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { Chess } from 'chess.js';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../components/Toast';
-import ResponsiveBoard from '../components/ResponsiveBoard';
-import useMediaQuery from '../hooks/useMediaQuery';
 import { formatEvalScore } from '../lib/evalDisplay';
 import useVisibleEffectHost from '../hooks/useVisibleEffectHost';
 import SetupBoardButton from '../components/SetupBoardButton';
-import { Page, Card } from '../components/ui';
+import { Page } from '../components/ui';
 import { isAdminRole } from '../utils/roles';
 import { playSound } from '../utils/sound';
 import { stopEngineSearch, warmEngine as warmReviewEngine, resetReviewEngine, reviewEngineStatus } from '../utils/nnueEngine';
@@ -18,11 +16,15 @@ import { classifySideMove } from '../utils/reviewSideLine';
 import { extractPgnFen } from '../utils/canonicalAnalysis';
 import { sanitizeFen } from '../utils/fen';
 import { copyText } from '../utils/clipboard';
-import { followActiveMove } from '../utils/scrollActiveMove';
+import { buildFullPgn, buildRowPgn } from '../utils/gamePgn';
 import GameViewerCard from '../components/GameViewerCard';
+import VariationBoard from '../components/variation/VariationBoard';
+import VariationMoveList from '../components/variation/VariationMoveList';
+import useVariationTree from '../hooks/useVariationTree';
+import { clearMoveEffects } from '../effects/moveEffect';
 import { fetchGame, fetchAnalysis, saveAnalysis } from '../services/chessProfiles';
 import { resolveSigmaGame as resolveSigmaGameRow, sigmaGameRef } from '../utils/gameIdentity';
-import { buildScoreRows, fenStartsBlack, pgnPlayerName } from '../lib/scoreSheet';
+import { pgnPlayerName } from '../lib/scoreSheet';
 import { LIVE_ANALYSIS_DEPTH, LIVE_ANALYSIS_MULTIPV } from '../utils/reviewConfig';
 import EvalBar from '../components/EvalBar';
 import { REVIEW_META, REVIEW_ORDER, reviewMetaFor, reviewCounts, SIGMA_TYPES_IN_PRIORITY_ORDER } from '../utils/gameReview';
@@ -47,6 +49,7 @@ import { useReviewKeys } from '../hooks/useReviewKeys';
 import { playEffectForMove } from '../effects/moveEffect/playForMove';
 import { useFullHeight } from '../context/FullHeightContext';
 import Button from '../components/Button';
+import { BOT } from '../components/bot/botTriggers';
 
 /* ------------------------------- helpers ---------------------------------- */
 
@@ -132,7 +135,14 @@ const storageKeyFor = (user) => {
 /* ================================ component ================================ */
 
 export default function GameReview() {
-  // GameReview needs scrolling (move list, analysis), so do NOT request full height
+  /* The page is fitted to the viewport: only the side panel and the board's
+     inner lists scroll. Registering with the shell gives the route the whole
+     content area (no shell padding, no page scrollbar). */
+  const { requestFullHeight } = useFullHeight();
+  useEffect(() => {
+    requestFullHeight(true);
+    return () => requestFullHeight(false);
+  }, [requestFullHeight]);
 
   const location = useLocation();
   const navigate = useNavigate();
@@ -141,7 +151,6 @@ export default function GameReview() {
     if (window.history.length > 1) navigate(-1);
     else navigate(`${isAdmin ? '/admin' : '/student'}/dashboard`);
   };
-  const gameRef = useRef(new Chess());
   /* persistence: a restored review is marked so its auto-review is skipped */
   const restoredFromStorage = useRef(false);
   /* which background session (reviewRunner) this component is attached to */
@@ -152,18 +161,24 @@ export default function GameReview() {
 
   const [initialFen, setInitialFen] = useState('start');
   const [moves, setMoves] = useState([]);
-  const [moveIndex, setMoveIndex] = useState(0);
-  const [fen, setFen] = useState(gameRef.current.fen());
-  const [lastMove, setLastMove] = useState(null);
+  /* A v2 session stored only a mainline ply; a restored numeric cursor is
+     handed to the tree as its starting pointer. v3 sessions carry the tree
+     itself, so this is cleared. */
+  const [restorePly, setRestorePly] = useState(null);
   const [orientation, setOrientation] = useState('white');
-  const isMobileBoard = useMediaQuery('(max-width: 900px)');
   const [movesOpen, setMovesOpen] = useState(true);
+  /* which panel is showing beside the board: Moves | Load a game | Review */
+  const [sideTab, setSideTab] = useState('moves');
 
   const [state, setState] = useState(STATE.empty);
   const [progress, setProgress] = useState(0);
   const [review, setReview] = useState(null);
   const [error, setError] = useState('');
   const [pgnText, setPgnText] = useState('');
+  /* The PGN the board was loaded FROM, headers included. The export rebuilds the
+     move text from the board but takes Event/Site/Date/players/result/Source
+     from here, so a copied or shared game keeps its identity. */
+  const [sourcePgn, setSourcePgn] = useState('');
   const [loadOpen, setLoadOpen] = useState(true);
   const [toast, setToast] = useState('');   // brief "Copied!" confirmation
   const [gameId, setGameId] = useState(null); // optional online game session id (?id=)
@@ -181,21 +196,6 @@ export default function GameReview() {
      stay in the review panel only. */
   const [gameOrigin, setGameOrigin] = useState({ gameSource: null, gameRefId: null, playedAt: null });
 
-  /* ── side line / variation ──
-     When the player deviates from the actual game moves, the original review
-     (moves + badges + accuracy) is NEVER touched — we branch into a variation
-     that carries the main-line prefix and its verdict rows, then grades new
-     moves live (see utils/reviewSideLine.js). */
-  const [mode, setMode] = useState('review');          // 'review' | 'sideline'
-  /* The review board's effect host id. Named, so every effect this page
-     triggers (a step, a move-list click, a variation move) lands on the board
-     the user is looking at. */
-  const reviewBoardHostId = useId();
-  useVisibleEffectHost(reviewBoardHostId);
-  const [sideLine, setSideLine] = useState(null);      // { base, mainCursor, moves, moveIndex, rows }
-  const sideLineRef = useRef(null);
-  useEffect(() => { sideLineRef.current = sideLine; }, [sideLine]);
-
   /* ── advanced engine (live analysis) ──
      Toggled from the board toolbar (icon next to Flip). Runs a fixed-depth
      Stockfish search on the current position (eval bar + best-move hint) and
@@ -208,6 +208,105 @@ export default function GameReview() {
   const [engineBusy, setEngineBusy] = useState(false);
   const [engineDiag, setEngineDiag] = useState('');      // last engine health note (boot failure, blocked worker)
   const engineToken = useRef(0);
+
+  /* ── the move tree ──
+     ONE model for the whole page (utils/variationTree): the game's own moves
+     are the immutable mainline, every try becomes a branch beside them, and the
+     cursor is a pointer. The review's verdict rows stay keyed to MAINLINE
+     plies, so accuracy, the summary and the score sheet can never be affected
+     by a variation — a variation node carries its own one-move row instead. */
+  const [savedVariation, setSavedVariation] = useState(null);
+  /* The review board's effect host id. Named, so every effect this page
+     triggers (a step, a move-list click, a variation move) lands on the board
+     the user is looking at. */
+  const reviewBoardHostId = useId();
+  useVisibleEffectHost(reviewBoardHostId);
+  const orientationRef = useRef(orientation);
+  orientationRef.current = orientation;
+  const reviewRef = useRef(review);
+  reviewRef.current = review;
+  const movesRef = useRef(moves);
+  movesRef.current = moves;
+  const engineOnRef = useRef(engineOn);
+  engineOnRef.current = engineOn;
+  const treeApiRef = useRef(null);
+  const treeRef = useRef(null);
+  const gradingRef = useRef(new Set());
+  const gradeRef = useRef(null);
+
+  /* Every pointer move that lands on a real move plays that move's effect on
+     THIS board. A move played on the board already fired its own effect, so it
+     is skipped here. */
+  const onTreeChange = useCallback((next, meta) => {
+    if (!meta) return;
+    if (meta.type === 'game-loaded') { clearMoveEffects('review-nav'); return; }
+    if (meta.type !== 'navigate' && meta.type !== 'branch') return;
+    /* The first move on an empty board becomes the game line (see `onTreeMove`),
+       so there is nothing to grade or flag as a variation. */
+    if (movesRef.current.length === 0) return;
+    const node = meta.node;
+    const boardPlayed = meta.type === 'branch' && meta.source === 'variation-board';
+    if (node && node.ply > 0 && !boardPlayed) {
+      const row = node.row || (node.isMainline ? reviewRef.current?.moves?.[node.ply - 1] : null);
+      try {
+        playEffectForMove(node.ply, meta.source || 'review-nav', {
+          game: new Chess(node.fen),
+          move: node,
+          verdict: row ? row.verdict : null,
+          sacrifice: Boolean(row && row.sacrifice),
+          orientation: orientationRef.current,
+          boardId: reviewBoardHostId,
+        });
+      } catch { /* an effect must never block navigation */ }
+    }
+    if (meta.type === 'branch') gradeRef.current?.(meta);
+  }, [reviewBoardHostId]);
+
+  const tree = useVariationTree(moves, {
+    initialFen,
+    initialPly: restorePly == null ? 'end' : restorePly,
+    loadSaved: savedVariation,
+    onLocalChange: onTreeChange,
+  });
+  treeApiRef.current = tree;
+  treeRef.current = tree;
+
+  /* Grade a NEW variation move with the same canonical one-move pipeline the
+     review uses, so its badge matches the mainline's. The RAW row is stored
+     (mover's point of view) — this page's eval bar signs it back itself. */
+  gradeRef.current = (meta) => {
+    if (!engineOnRef.current) return;
+    const { node, parent } = meta || {};
+    if (!node || !parent || node.isMainline || gradingRef.current.has(node.id)) return;
+    gradingRef.current.add(node.id);
+    classifySideMove(parent.fen, { san: node.san, ply: node.ply })
+      .then((row) => { if (row) treeApiRef.current?.setNodeGrade(node.id, row); })
+      .catch(() => { /* no verdict is a valid outcome */ })
+      .finally(() => { gradingRef.current.delete(node.id); });
+  };
+
+  /* A move played on an EMPTY board IS the game line (free play / setup
+     position), so it is appended to the mainline instead of branching off
+     nothing. The hook rebuilds its mainline from `moves`, which drops the
+     provisional branch and leaves the cursor at the end. */
+  const onTreeMove = useCallback((result) => {
+    if (!result || result.illegal || !result.created) return;
+    if (movesRef.current.length > 0) return;
+    boardFlowed.current = true;
+    setMoves([result.node.san]);
+    if (reviewRef.current) { setReview(null); setState(STATE.loaded); }
+  }, []);
+
+  /* Landing on a saved branch that was never graded: classify it on arrival —
+     one move at a time — instead of burning the engine on every saved branch
+     the moment the page opens. */
+  useEffect(() => {
+    if (!engineOn) return;
+    const node = tree.current;
+    if (!node || node.isMainline || node.row) return;
+    const parent = tree.nodes[node.parentId];
+    if (parent) gradeRef.current?.({ node, parent });
+  }, [tree.currentId, tree.nodes, engineOn]);
 
   /* session-persistence throttling (see the persist effect below): the last
      written significant payload, and the last progress milestone written. */
@@ -347,7 +446,7 @@ export default function GameReview() {
 
   /* ─── pre-boot BOTH engine pools in the background.
          LITE (~7 MB, loads in a blink) backs the "Advanced Engine" bar.
-         FULL NNUE (~113 MB per worker) backs game review, and it is the pool
+         FULL NNUE (~99 MB per worker) backs game review, and it is the pool
          that actually gates a review: the pipeline's first search awaits every
          slot reaching `readyok`, so leaving this to the Analyze click put the
          whole download + wasm compile inside the user's wait (on a cold cache
@@ -374,24 +473,16 @@ export default function GameReview() {
       const raw = localStorage.getItem(storageKey);
       if (!raw) return;
       const s = JSON.parse(raw);
-      if (!s || s.version !== SESSION_VERSION || !Array.isArray(s.moves) || !s.initialFen) return;
+      /* v3 carries the move tree; a v2 session (saved before variations moved
+         into the tree) is still restored — its game, review and mainline ply. */
+      if (!s || (s.version !== SESSION_VERSION && s.version !== 2)
+        || !Array.isArray(s.moves) || !s.initialFen) return;
       sessionUserRef.current = storageKey;
       restoredFromStorage.current = true;
-      const idx = s.moveIndex ?? s.moves.length;
-      /* a saved session may have been sitting inside a variation — restore it
-         wherever the user left off (board rebuilt from the active line). */
-      if (s.mode === 'sideline' && s.sideLine && Array.isArray(s.sideLine.moves)) {
-        gameRef.current = rebuild(s.initialFen, s.sideLine.moves.slice(0, s.sideLine.moveIndex ?? s.sideLine.moves.length));
-        setSideLine(s.sideLine);
-        setMode('sideline');
-      } else {
-        gameRef.current = rebuild(s.initialFen, s.moves.slice(0, idx));
-        setSideLine(null);
-        setMode('review');
-      }
+      setSavedVariation(s.variation || null);
+      setRestorePly(s.variation ? null : (Number.isInteger(s.moveIndex) ? s.moveIndex : null));
       setInitialFen(s.initialFen);
       setMoves(s.moves);
-      setMoveIndex(idx);
       setReview(s.review || null);
       /* a saved session may have been left mid-analysis — analysis is MANUAL
          now: the engine only starts on an explicit "Analyze" click. A review
@@ -400,6 +491,7 @@ export default function GameReview() {
       setState(s.review ? STATE.done : STATE.loaded);
       setProgress(s.review ? 100 : 0);
       setPgnText(s.pgnText || '');
+      setSourcePgn(s.sourcePgn || '');
       setGameId(s.gameId || null);
       /* Restored so a session resumed from localStorage still knows which game
          its Sigmas belong to — otherwise the restored review could never be
@@ -407,9 +499,6 @@ export default function GameReview() {
       setGameOrigin(s.gameOrigin || { gameSource: null, gameRefId: null, playedAt: null });
       setPlayers(s.players || { white: '', black: '' });
       setOrientation(s.orientation || 'white');
-      setFen(gameRef.current.fen());
-      const hist = gameRef.current.history({ verbose: true });
-      setLastMove(hist.length ? { from: hist[hist.length - 1].from, to: hist[hist.length - 1].to } : null);
     } catch {
       /* corrupt storage — start fresh */
     }
@@ -425,11 +514,16 @@ export default function GameReview() {
          growing object on the main thread, right when the engine is saturating
          every core. Throttle progress-only updates so a run persists its
          starting point, a few milestones, and its end state instead; any other
-         field changing (a move played, a review finished, mode/side-line
-         edits) still writes immediately, since those are user-visible and
-         must never be lost. Refresh-during-analysis therefore resumes from the
-         last milestone rather than the exact ply — the in-flight rows are
-         re-derived by the engine on resume either way. ── */
+         field changing (a move played, a review finished, a branch edited)
+         still writes immediately, since those are user-visible and must never
+         be lost. Refresh-during-analysis therefore resumes from the last
+         milestone rather than the exact ply — the in-flight rows are re-derived
+         by the engine on resume either way.
+
+         The move tree rides along (`variation`), so a refresh keeps every
+         branch, its grade and the cursor — even when the cursor is deep inside
+         a variation. `tree.revision` is the commit counter: grades and branch
+         edits change no other state. ── */
   useEffect(() => {
     if (moves.length === 0 && !review) return;
     /* Never write the on-screen session into a DIFFERENT user's slot. On a
@@ -437,7 +531,10 @@ export default function GameReview() {
        still mounted for one render; without this the first effect run after the
        switch would copy their game + verdicts into the new account's session. */
     if (sessionUserRef.current !== storageKey) return;
-    const significant = { initialFen, moves, moveIndex, review, pgnText, gameId, players, orientation, mode, sideLine, state, gameOrigin };
+    const significant = {
+      initialFen, moves, review, pgnText, sourcePgn, gameId, players, orientation, state, gameOrigin,
+      variation: tree.serialize(),
+    };
     const sig = JSON.stringify(significant);
     const prevSig = lastPersistedSig.current;
     lastPersistedSig.current = sig;
@@ -459,20 +556,15 @@ export default function GameReview() {
     } catch {
       /* storage unavailable — persistence is best-effort */
     }
-  }, [initialFen, moves, moveIndex, review, pgnText, gameId, players, orientation, mode, sideLine, state, progress, gameOrigin, storageKey]);
+  }, [initialFen, moves, tree.revision, review, pgnText, sourcePgn, gameId, players, orientation, state, progress, gameOrigin, storageKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function applyLoaded(fenInit, sanList) {
-    gameRef.current = rebuild(fenInit, sanList);
-    setMode('review');
-    setSideLine(null);
+    setSavedVariation(null);
+    setRestorePly(null);
     setInitialFen(fenInit);
     setMoves(sanList);
-    setMoveIndex(sanList.length);
     setReview(null);
     setError('');
-    setFen(gameRef.current.fen());
-    const hist = gameRef.current.history({ verbose: true });
-    setLastMove(hist.length ? { from: hist[hist.length - 1].from, to: hist[hist.length - 1].to } : null);
     setState(sanList.length ? STATE.loaded : STATE.empty);
   }
 
@@ -520,6 +612,7 @@ export default function GameReview() {
       playedAt: origin?.playedAt ?? (tagDate ? normalisePgnDate(tagDate) : null),
     };
     setGameOrigin(resolvedOrigin);
+    setSourcePgn(raw);
     applyLoaded(init, san);
     return { init, san, origin: resolvedOrigin };
   }
@@ -548,6 +641,7 @@ export default function GameReview() {
          caller opened it from a history row and knows who played. */
       setPlayers(names ? { white: names.white || '', black: names.black || '' } : { white: '', black: '' });
       setGameOrigin({ gameSource: null, gameRefId: null, playedAt: null });
+      setSourcePgn('');
       applyLoaded(f === 'start' ? 'start' : f, san);
     } catch {
       setError('Invalid FEN — please check the position string.');
@@ -716,15 +810,9 @@ export default function GameReview() {
         },
       });
     }
-    /* a variation opened while the MAIN review was still running inherited
-       no prefix rows; now that it's done, backfill the main-line verdicts
-       it branches from (live tail rows are preserved). */
-    setSideLine((prev) => {
-      if (!prev) return prev;
-      const prefix = res.moves.slice(0, prev.base);
-      const liveTail = prev.rows.slice(prev.base);
-      return { ...prev, rows: prefix.concat(liveTail) };
-    });
+    /* Variations keep their own one-move rows, and the review's verdicts are
+       keyed to MAINLINE plies — a variation that was open while the review ran
+       simply starts reading the mainline rows now that they exist. */
     playSound('good');
   }
 
@@ -734,8 +822,8 @@ export default function GameReview() {
      an un-loaded board. Filing Sigmas from that snapshot made `canPersist`
      always false, so the POST never went out and every game the player
      reviewed was missing from the Sigma tab. The listener therefore calls the
-     CURRENT copy through this ref, the same way `sideLineRef` keeps the side
-     line reader fresh. */
+     CURRENT copy through this ref, the same way `treeRef` keeps the tree
+     reader fresh. */
   const applyReviewRef = useRef(applyReviewResult);
   useEffect(() => { applyReviewRef.current = applyReviewResult; });
 
@@ -862,193 +950,19 @@ export default function GameReview() {
   }, [initialFen, moves]);
 
   /* ─── navigation ──
-     `go` walks the ACTIVE line: the side line while in a variation, the main
-     line otherwise. The board is always rebuilt from scratch so a stale
-     gameRef can never leak between lines. */
-  function go(idx, source = 'review-nav') {
-    const inVar = mode === 'sideline' && sideLineRef.current;
-    let target;
-    let row;
-    if (inVar) {
-      const s = sideLineRef.current;
-      target = Math.max(0, Math.min(s.moves.length, idx));
-      gameRef.current = rebuild(initialFen, s.moves.slice(0, target));
-      setSideLine({ ...s, moveIndex: target });
-      row = s.rows?.[target - 1] || null;
-    } else {
-      target = Math.max(0, Math.min(moves.length, idx));
-      gameRef.current = rebuild(initialFen, moves.slice(0, target));
-      setMoveIndex(target);
-      row = verdicts?.[target - 1] || null;
-    }
-    setFen(gameRef.current.fen());
-    const hist = gameRef.current.history({ verbose: true });
-    setLastMove(hist.length ? { from: hist[hist.length - 1].from, to: hist[hist.length - 1].to } : null);
-    playEffectForMove(target, source, {
-      game: gameRef.current,
-      verdict: row?.verdict || null,
-      sacrifice: Boolean(row?.sacrifice),
-      orientation,
-    });
-  }
+     The tree pointer IS the cursor: a step, a move-list click, a keyboard press
+     and a move played on the board all land on a node, and the board reads that
+     node's FEN. Nothing is replayed and there are no two copies to keep in
+     sync. `tree.goBack`/`goForward` walk the CURRENT line (a variation when the
+     pointer is inside one); Home/End and Up/Down are wired below. */
 
-  /* navigate the MAIN line from a move-list click even while a variation is up —
-     re-entering the original review at `idx` plies (the variation stays stored). */
-  function goMain(idx) {
-    const target = Math.max(0, Math.min(moves.length, idx));
-    gameRef.current = rebuild(initialFen, moves.slice(0, target));
-    setMoveIndex(target);
-    setMode('review');
-    setFen(gameRef.current.fen());
-    const hist = gameRef.current.history({ verbose: true });
-    setLastMove(hist.length ? { from: hist[hist.length - 1].from, to: hist[hist.length - 1].to } : null);
-    const row = verdicts?.[target - 1] || null;
-    playEffectForMove(target, 'review-main', {
-      game: gameRef.current,
-      verdict: row?.verdict || null,
-      sacrifice: Boolean(row?.sacrifice),
-      orientation,
-    });
-  }
-
-  /* ─── interactive play on the board ──
-     ChessBoard applies the move directly to the shared gameRef.current (it's the
-     controlled game), then calls back here. Key rule: a move that DIFFERS from
-     the actual game notation at the current move number must NOT destroy the
-     original review — it opens a variation branch (side line) that inherits the
-     main-line prefix + its verdict rows and gets graded live. The main review
-     (moves, badges, accuracy) stays intact for "Back to Game Review". */
-  function onBoardMove() {
-    const g = gameRef.current;
-    const hist = g.history({ verbose: true });
-    const san = hist.map((m) => m.san);
-
-    /* inside a variation: the new move extends (or replaces the tail of) the
-       active side line — never the main line. */
-    if (mode === 'sideline' && sideLineRef.current && moves.length > 0) {
-      extendSideLine(san);
-      return;
-    }
-
-    /* no game line to preserve — the played moves ARE the main line (old flow) */
-    if (moves.length === 0) {
-      boardFlowed.current = true;
-      setMoves(san);
-      setMoveIndex(san.length);
-      setFen(g.fen());
-      setLastMove(hist.length ? { from: hist[hist.length - 1].from, to: hist[hist.length - 1].to } : null);
-      if (review) { setReview(null); setState(STATE.loaded); }
-      return;
-    }
-
-    /* deviation check: the board was at `moveIndex` of the actual game; the new
-       ply (at index `moveIndex`) either matches the game's next move (normal
-       forward step) or departs from it (open a variation). */
-    const sameAsGame = moveIndex < moves.length && san[moveIndex] === moves[moveIndex];
-    if (sameAsGame) {
-      setMoveIndex(moveIndex + 1);
-      setFen(g.fen());
-      setLastMove(hist.length ? { from: hist[hist.length - 1].from, to: hist[hist.length - 1].to } : null);
-    } else {
-      enterSideLine(moveIndex, san);
-    }
-  }
-
-  /* ── open a variation from the main line ──
-     `base` = number of MAIN plies before the branch; `san` = the full played
-     line (main prefix + new move(s)). Rows start as a copy of the main review's
-     verdict rows for the prefix, then live rows are appended per move. */
-  function enterSideLine(base, san) {
-    setMode('sideline');
-    setSideLine({
-      base,
-      mainCursor: moveIndex,
-      moves: san,
-      moveIndex: san.length,
-      rows: (review?.moves || []).slice(0, base),
-    });
-    const g = gameRef.current;
-    const hist = g.history({ verbose: true });
-    setFen(g.fen());
-    setLastMove(hist.length ? { from: hist[hist.length - 1].from, to: hist[hist.length - 1].to } : null);
-    if (engineOn) classifyNewSideMove(0);
-  }
-
-  /* extend the active variation with a newly played move / replace its tail */
-  function extendSideLine(san) {
-    const s = sideLineRef.current;
-    if (!s) return;
-    setSideLine({ ...s, moves: san, moveIndex: san.length });
-    const g = gameRef.current;
-    const hist = g.history({ verbose: true });
-    setFen(g.fen());
-    setLastMove(hist.length ? { from: hist[hist.length - 1].from, to: hist[hist.length - 1].to } : null);
-    if (engineOn) {
-      const k = san.length - 1 - s.base;   // 0-based index of the new move INSIDE the variant
-      if (k >= 0) classifyNewSideMove(k);
-    }
-  }
-
-  /* grade variant move `k` (0-based within the variant) live with the engine */
-  async function classifyNewSideMove(k) {
-    const s = sideLineRef.current;
-    if (!s) return;
-    const rowIndex = s.base + k;            // absolute ply index in the full line
-    const before = rebuild(initialFen, s.moves.slice(0, rowIndex));
-    /* Canonical pipeline (classifySideMove is a one-move reviewGame with the
-       canonical engine config) — no local depth overrides. */
-    const row = await classifySideMove(before.fen(), {
-      san: s.moves[rowIndex],
-      ply: rowIndex,
-    });
-    if (!row) return;
-    setSideLine((prev) => {
-      if (!prev) return prev;
-      const rows = prev.rows.slice(0, rowIndex);
-      /* pad ungraded slots so rows[base + k] always maps to variant move k */
-      while (rows.length < rowIndex) rows.push(null);
-      rows.push(row);
-      return { ...prev, rows };
-    });
-  }
-
-  /* ── back to the main review ──
-     Restores the ORIGINAL line exactly (moves, badges, accuracy, cursor). The
-     variation is kept stored, so clicking a variant move re-enters it. */
-  function restoreMainLine() {
-    const s = sideLineRef.current;
-    const target = s && s.mainCursor != null ? s.mainCursor : moveIndex;
-    goMain(target);
-  }
-
-  /* enter/continue the variation at `ply` (absolute full-line ply index) —
-      also used to RE-ENTER a collapsed variation from a variant-move click. */
-  function goVariant(ply) {
-    const s = sideLineRef.current;
-    if (!s) return;
-    setMode('sideline');
-    const target = Math.max(0, Math.min(s.moves.length, ply));
-    gameRef.current = rebuild(initialFen, s.moves.slice(0, target));
-    setSideLine({ ...s, moveIndex: target });
-    setFen(gameRef.current.fen());
-    const hist = gameRef.current.history({ verbose: true });
-    setLastMove(hist.length ? { from: hist[hist.length - 1].from, to: hist[hist.length - 1].to } : null);
-    const row = s.rows?.[target - 1] || null;
-    playEffectForMove(target, 'review-variation', {
-      game: gameRef.current,
-      verdict: row?.verdict || null,
-      sacrifice: Boolean(row?.sacrifice),
-      orientation,
-    });
-  }
-
-  /* ── advanced engine (live analysis) ── */
+  /* ─── advanced engine (live analysis) ── */
   async function runLiveEval() {
-    if (!engineOn) return;
+    if (!engineOnRef.current) return;
     const token = ++engineToken.current;
     setEngineBusy(true);
     try {
-      const top = await searchTopMovesLite(gameRef.current.fen(), {
+      const top = await searchTopMovesLite(treeRef.current.currentFen, {
         maxDepth: LIVE_ANALYSIS_DEPTH,
         multiPv: LIVE_ANALYSIS_MULTIPV,
       });
@@ -1060,7 +974,7 @@ export default function GameReview() {
         mate: res.mate ?? null,
         depth: res.depth ?? 0,
         bestUci: res.uci ?? null,
-        fen: gameRef.current.fen(),
+        fen: treeRef.current.currentFen,
         /* every candidate line from the multiPV search — used for the
            best/great/good arrow set over the board */
         lines: (Array.isArray(top) ? top : [])
@@ -1083,17 +997,17 @@ export default function GameReview() {
   function toggleEngine() {
     const next = !engineOn;
     setEngineOn(next);
+    engineOnRef.current = next;
     try { localStorage.setItem('gr-engine-pref', next ? '1' : '0'); } catch { /* best-effort */ }
     if (next) {
       runLiveEval();
       /* grade any variation moves played while the engine was off */
-      if (mode === 'sideline' && sideLineRef.current) {
-        const s = sideLineRef.current;
-        const graded = s.rows.length - s.base;
-        for (let k = Math.max(0, graded); k < s.moves.length - s.base; k++) {
-          classifyNewSideMove(k);
+      const line = treeRef.current.currentLine;
+      line.forEach((n) => {
+        if (!n.isMainline && !n.row) {
+          gradeRef.current?.({ node: n, parent: treeRef.current.nodes[n.parentId] });
         }
-      }
+      });
     } else {
       engineToken.current++;
       stopEngineSearch();
@@ -1109,7 +1023,15 @@ export default function GameReview() {
     const t = setTimeout(() => runLiveEval(), 40);
     return () => { clearTimeout(t); engineToken.current++; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fen, engineOn]);
+  }, [tree.currentFen, engineOn]);
+
+  /* ─── remove every variation ──
+     Confirmed, and safe by construction: the original game line is the
+     immutable mainline, so this can only delete branches the user played. */
+  function resetVariations() {
+    if (!window.confirm('Reset to the original game line? This removes every variation and any promoted view.')) return;
+    treeRef.current.resetVariations();
+  }
 
   /* ─── vanish the review ──
      Manual "clear" button in the Review card header. Removes the saved
@@ -1124,19 +1046,16 @@ export default function GameReview() {
     setEngineBusy(false);
     try { localStorage.removeItem(storageKey); } catch { /* noop */ }
     restoredFromStorage.current = false;
-    gameRef.current = new Chess();
-    setMode('review');
-    setSideLine(null);
+    setSavedVariation(null);
+    setRestorePly(null);
     setInitialFen('start');
     setMoves([]);
-    setMoveIndex(0);
-    setFen(gameRef.current.fen());
-    setLastMove(null);
     setReview(null);
     setState(STATE.empty);
     setProgress(0);
     setError('');
     setPgnText('');
+    setSourcePgn('');
     setGameId(null);
     setPlayers({ white: '', black: '' });
     /* Detach from any source game — a cleared board belongs to no row, and
@@ -1148,20 +1067,15 @@ export default function GameReview() {
   const verdicts = review?.moves ?? null;
 
   /* ── the score sheet ──
-     The gm games replay sheet, ported: one row per move pair on a fixed
-     `# | White | Black` grid, with the players' names as a sticky column header
-     inside the scroll container.
+     One row per move pair on a fixed `# | White | Black` grid, with the
+     players' names as a sticky column header inside the scroll container — the
+     SHARED VariationMoveList draws it (see components/variation), so Game
+     Review, the game viewer card and the classroom cannot drift apart.
 
-     The list used to TILE pairs across an `auto-fill` grid. Denser, but it
-     cannot carry a header — a `grid-column: 1 / -1` head put "White" over the
-     left half of the panel and "Black" over the right half, true of the first
-     pair only and wrong for every pair after it. Hence the single column: it is
-     what makes a real header possible.
-
-     `verdicts[idx]` is keyed by PLY, and so is the click target (`go(idx+1)`).
-     The rows carry their ply from buildScoreRows rather than the render
-     recomputing `rowIndex * 2 + column` - that expression is what silently
-     shifts every verdict by one cell on a black-opening game.
+     A mainline node takes the review's row for its ply; a variation node
+     carries its own one-move row. `verdicts` stays keyed by PLY, so the
+     original review's badges, accuracy and summary are the only things any
+     mainline cell can ever read.
 
      Names come from `players`, falling back to the PGN tags still held in
      `pgnText`. That second source matters: a session restored from localStorage
@@ -1176,43 +1090,52 @@ export default function GameReview() {
   const bottomSide = orientation === 'white' ? 'white' : 'black';
   const seatName = (side) => (side === 'white' ? whiteName : blackName);
   const seatAcc = (side) => review?.[side]?.accuracy ?? null;
-  const scoreRows = useMemo(
-    () => buildScoreRows(moves, fenStartsBlack(initialFen)),
-    [moves, initialFen],
-  );
+
+  const rowFor = useCallback((n) => {
+    if (!n || n.ply === 0) return null;
+    if (!n.isMainline) return n.row || null;
+    return verdicts?.[n.ply - 1] || null;
+  }, [verdicts]);
 
   /* ── the ACTIVE line ──
      Everything below (nav cursor, move badges, coach, arrows) reads from the
-     line currently on the board: the variation while in sideline mode, the main
-     review otherwise. Variation rows = inherited main-line prefix + live rows. */
-  const inVariation = mode === 'sideline' && sideLine;
-  const activeMoves = inVariation ? sideLine.moves : moves;
-  const activeRows  = inVariation ? sideLine.rows : verdicts;
-  const activeIdx   = inVariation ? sideLine.moveIndex : moveIndex;
-  const activeLen   = activeMoves.length;
-  const pendingVar  = inVariation ? Math.max(0, sideLine.moves.length - sideLine.rows.length) : 0;
+     node the pointer is on. `activeIdx` counts plies from the tree root, which
+     is also the move count of the line, so the nav read-out is unchanged. */
+  const inVariation = !tree.isOnMainline;
+  const activeIdx = tree.currentPly;
+  const activeLen = tree.lineEndPly;
+  const currentRow = rowFor(tree.current);
+  /* The row of the move that comes NEXT from the position on screen: its
+     `bestUci`/`lines` are the engine's answer for exactly this board. */
+  const nextRow = rowFor(tree.current.children.length ? tree.nodes[tree.current.children[0]] : null);
+  const pendingVar = engineOn ? tree.currentLine.filter((n) => !n.isMainline && !n.row).length : 0;
 
-  /* Keyboard: ←/→ prev/next, ↑/Home first, ↓/End last, F flip. Disabled while
-     the full game-viewer card is open, so its listener is the only one active. */
+  /* Keyboard: ←/→ walk the current line, ↑/↓ switch between the moves played
+     from the same position (the two sides of a branch), Home/End the ends, F
+     flips. Disabled while the full game-viewer card is open, so its listener is
+     the only one active. */
   useReviewKeys({
-    prev: () => go(activeIdx - 1, 'keyboard'),
-    next: () => go(activeIdx + 1, 'keyboard'),
-    first: () => go(0, 'keyboard'),
-    last: () => go(activeLen, 'keyboard'),
+    prev: () => tree.goBack('keyboard'),
+    next: () => tree.goForward('keyboard'),
+    siblingPrev: () => tree.goSibling(-1, 'keyboard'),
+    siblingNext: () => tree.goSibling(1, 'keyboard'),
+    first: () => tree.goToStart('keyboard'),
+    last: () => tree.goToEnd('keyboard'),
     flip: () => setOrientation((o) => (o === 'white' ? 'black' : 'white')),
   }, { enabled: !sigmaGame });
 
-  /* Keep the highlighted notation move visible as the user steps/plays.
-     INSIDE the list only: scrollIntoView() walks up the ancestor chain and
-     scrolls the document too, which dragged the whole page every time the
-     active move changed. The list is the only thing allowed to move, and only
-     when the active move is outside it. */
-  const movelistRef = useRef(null);
-  useEffect(() => {
-    followActiveMove(movelistRef.current, '.gr-mv.active');
-  }, [activeIdx, mode, verdicts]);
+  const curVerdict = currentRow?.verdict ?? null;
 
-  const curVerdict = activeRows && activeIdx > 0 ? activeRows[activeIdx - 1]?.verdict ?? null : null;
+  /* Clock Bot winces when playback lands on a blunder or a mistake. Keyed by
+     ply so re-renders of the same move do not re-fire it. */
+  const botVerdictKey = useRef(null);
+  useEffect(() => {
+    if (!curVerdict) return;
+    const key = `${tree.current?.ply ?? ''}:${curVerdict}`;
+    if (botVerdictKey.current === key) return;
+    botVerdictKey.current = key;
+    if (curVerdict === 'blunder' || curVerdict === 'mistake') BOT.blunder();
+  }, [curVerdict, currentRow?.ply]);
   const endGame = useMemo(() => rebuild(initialFen, moves), [initialFen, moves]);
   const result = resultText(endGame);
 
@@ -1235,8 +1158,7 @@ export default function GameReview() {
      the live engine's best move is used as a fallback / primary hint. */
   const bestArrow = useMemo(() => {
     let uci = null;
-    const row = activeRows && activeIdx < activeRows.length ? activeRows[activeIdx] : null;
-    if (row && row.bestUci) uci = row.bestUci;
+    if (nextRow && nextRow.bestUci) uci = nextRow.bestUci;
     if (!uci && engineOn && liveEval) uci = liveEval.bestUci;
     if (!uci || uci.length < 4) return null;
     return {
@@ -1244,7 +1166,7 @@ export default function GameReview() {
       to: uci.slice(2, 4),
       uci,
     };
-  }, [activeRows, activeIdx, engineOn, liveEval]);
+  }, [nextRow, engineOn, liveEval]);
 
   /* ── ONE arrow: the engine's best move ──
      The board used to draw the top THREE multiPV candidates as graded-opacit
@@ -1277,15 +1199,14 @@ export default function GameReview() {
     return [{ from: l.from, to: l.to, color: TOP_LINE_COLOR }];
   }, [engineOn, liveEval]);
   const reviewLineArrows = useMemo(() => {
-    const row = activeRows && activeIdx < activeRows.length ? activeRows[activeIdx] : null;
-    const ls = row && Array.isArray(row.lines) ? row.lines : [];
+    const ls = nextRow && Array.isArray(nextRow.lines) ? nextRow.lines : [];
     if (!ls.length) return null;
     return ls.slice(0, 1).map((l) => ({
       from: l.from || (l.uci ? l.uci.slice(0, 2) : null),
       to: l.to || (l.uci ? l.uci.slice(2, 4) : null),
       color: TOP_LINE_COLOR,
     })).filter((a) => a.from && a.to);
-  }, [activeRows, activeIdx]);
+  }, [nextRow]);
   const topLineArrows = liveLineArrows || reviewLineArrows;
 
   const sigmaMoves = useMemo(() => {
@@ -1294,7 +1215,9 @@ export default function GameReview() {
   }, [verdicts]);
 
   const sigmaArrows = useMemo(() => {
-    if (!sigmaMoves) return [];
+    /* A Sigma belongs to the ORIGINAL game, so its marker never follows the
+       cursor into a variation. */
+    if (!sigmaMoves || !tree.isOnMainline) return [];
     const cur = sigmaMoves.find((m) => m.ply + 1 === activeIdx);
     if (!cur || !cur.fromSquare || !cur.toSquare) return [];
     return [{
@@ -1302,7 +1225,7 @@ export default function GameReview() {
       to: cur.toSquare,
       color: '#f59e0b',
     }];
-  }, [sigmaMoves, activeIdx]);
+  }, [sigmaMoves, activeIdx, tree.isOnMainline]);
 
   const arrows = sigmaArrows.length > 0 ? sigmaArrows : (topLineArrows || (bestArrow ? [{ from: bestArrow.from, to: bestArrow.to, color: '#008000' }] : []));
   /* No rank chips. They numbered the top THREE candidates (1 / 2 / 3) to match
@@ -1320,7 +1243,7 @@ export default function GameReview() {
      (the move just played, i.e. index activeIdx-1). Convert algebraic square
      to { file, rank } 0-indexed so ChessBoard can position the overlay. */
   const moveBadge = useMemo(() => {
-    const v = activeRows && activeIdx > 0 ? activeRows[activeIdx - 1] : null;
+    const v = currentRow;
     if (!v || !v.uci || v.uci.length < 4) return null;
     const to = v.uci.slice(2, 4);
     return {
@@ -1330,7 +1253,7 @@ export default function GameReview() {
       file: to.charCodeAt(0) - 97,       // 0-7
       rank: Number(to[1]) - 1,           // 0-7
     };
-  }, [activeRows, activeIdx]);
+  }, [currentRow]);
 
   /* ── eval bar — ALWAYS visible ──
      With the Advanced Engine ON it shows the live Stockfish eval of the current
@@ -1340,7 +1263,7 @@ export default function GameReview() {
      stores mover-perspective `played`/`playedMate`, signed back to White here)
      and both are turned into pawn units exactly once, by the display helper —
      the stored values themselves are never rewritten. */
-  const staticRow = activeRows && activeIdx > 0 ? activeRows[activeIdx - 1] : null;
+  const staticRow = currentRow;
   const toWhite = (v) => (v == null || !staticRow ? null : staticRow.player === 'w' ? v : -v);
   const live = engineOn && liveEval != null;
   const evalCp = live ? liveEval.score : toWhite(staticRow?.played);
@@ -1350,13 +1273,20 @@ export default function GameReview() {
      Reconstructed from initialFen + SAN moves whenever either changes, so the
      export buttons always send the exact game on screen (not a stale one). */
   const exportPgn = useMemo(() => {
-    try {
-      const g = rebuild(initialFen, moves);
-      return moves.length ? g.pgn() : '';
-    } catch {
-      return '';
-    }
-  }, [initialFen, moves]);
+    if (!moves.length) return '';
+    /* Move text is rebuilt from the board (so variations the user stepped back
+       through never leak in); every header comes from the PGN the game was
+       loaded from, with the seat names and played-at date filled in when the
+       source carried none. */
+    return buildFullPgn({
+      pgn: sourcePgn,
+      moves,
+      initialFen,
+      white: players.white || pgnPlayerName(sourcePgn, 'White'),
+      black: players.black || pgnPlayerName(sourcePgn, 'Black'),
+      date: gameOrigin.playedAt,
+    });
+  }, [initialFen, moves, sourcePgn, players, gameOrigin.playedAt]);
 
   /* brief inline confirmation under the share row */
   function showToast(msg) {
@@ -1419,7 +1349,7 @@ export default function GameReview() {
         <span className="gr-seat-dot" aria-hidden="true">{side === 'white' ? '⚪' : '⚫'}</span>
         <span className="gr-seat-name" title={name}>{name}</span>
         {accValue != null && <span className="gr-seat-acc">{accValue}%</span>}
-        {pos === 'top' && isMobileBoard && (
+        {pos === 'top' && (
           <span className="gr-seat-eval" title="Evaluation">{formatEvalScore(evalCp, evalMate)}</span>
         )}
       </div>
@@ -1427,7 +1357,10 @@ export default function GameReview() {
   };
 
   return (
-    <Page title="Game Review" piece="♚" sub="Post-game analysis — every move classified by Stockfish." wide className="gr-page">
+    <Page title="Game Review" piece="♚" wide className="gr-page gr-screen">
+      {tab === 'review' && (
+        <button onClick={goBack} className="gr-nav-btn gr-screen-back" title="Go back">← Back</button>
+      )}
       <div className="gr-tabs" role="tablist">
         <button
           type="button"
@@ -1464,6 +1397,7 @@ export default function GameReview() {
           analysis board underneath the Sigma screen. Any tab that is not
           'history' must land here, so the boards and the two screens stay
           mutually exclusive. */}
+      <div className={`gr-view${tab === 'review' ? ' gr-view--board' : ' gr-view--scroll'}`}>
       {tab === 'sigma' ? (
         <SigmaMoves
           user={authUser}
@@ -1500,7 +1434,7 @@ export default function GameReview() {
               const source = type === 'computer' ? 'computer'
                 : type === 'online' ? 'online'
                   : null;
-              loadPgnText(g.pgn, { white: g.whiteName, black: g.blackName }, {
+              loadPgnText(buildRowPgn(g, authUser?.name), { white: g.whiteName, black: g.blackName }, {
                 gameSource: source,
                 gameRefId: source && Number.isInteger(num) ? num : null,
                 playedAt: g.date || null,
@@ -1515,7 +1449,6 @@ export default function GameReview() {
         />
       ) : (
       <>
-      <Button onClick={goBack} variant="secondary" size="sm" className="!px-3 !py-1.5 text-xs mb-3">← Back</Button>
       <div className="gr-layout">
         {/* ═════════════ BOARD ═════════════ */}
         <div className="gr-board-col">
@@ -1524,31 +1457,30 @@ export default function GameReview() {
           <div className="gr-board-glow">
             <div className="gr-board-row">
               <div className="gr-board-fit">
-                {/* The bar and its label share one box: the bar clips its fills
-                    to the rounded ends, the label sits beside it and may
-                    overhang — a boxed value is wider than the track. On a phone
-                    it becomes a thin 10px strip and the score moves to the chip
-                    in the top seat row, so the board keeps the full width. */}
+                {/* A slim 16px track, exactly as tall as the board. The numeric
+                    score lives in the top seat row, so the label would only
+                    overhang this narrow bar and sit on the board. */}
                 <EvalBar
                   evaluation={evalCp}
                   mate={evalMate}
                   orientation={orientation}
                   height="auto"
-                  width={isMobileBoard ? 10 : undefined}
-                  showLabel={!isMobileBoard}
+                  width={16}
+                  showLabel={false}
                 />
-                <ResponsiveBoard
+                <VariationBoard
                   className="gr-board-responsive"
-                  maxWidth={400}
-                  game={gameRef.current}
+                  /* The layout decides the size (--s); the sizer must not cap it
+                     at the old 400px default. */
+                  maxWidth={2000}
+                  tree={tree}
+                  onTreeMove={onTreeMove}
                   mode="analysis"
                   orientation={orientation}
                   interactive
                   showLegalMoves
-                  onMove={onBoardMove}
                   engineOn={engineOn}
                   customArrows={arrows}
-                  lastMove={lastMove}
                   reviewVerdictColor={reviewMetaFor(curVerdict)?.color || null}
                   moveBadge={moveBadge}
                   /* Named, so a step (keyboard, move-list click, jump) plays its
@@ -1579,17 +1511,26 @@ export default function GameReview() {
 
           {/* nav */}
           <div className="gr-nav">
-            <button onClick={() => go(0)} disabled={activeIdx === 0} className="gr-nav-btn" title="Start">⏮</button>
-            <button onClick={() => go(activeIdx - 1)} disabled={activeIdx === 0} className="gr-nav-btn" title="Previous">◀</button>
+            <button onClick={() => tree.goToStart('nav')} disabled={activeIdx === 0} className="gr-nav-btn" title="Start">⏮</button>
+            <button onClick={() => tree.goBack('nav')} disabled={activeIdx === 0} className="gr-nav-btn" title="Previous">◀</button>
             <span className="gr-nav-count">{activeIdx} / {activeLen}</span>
-            <button onClick={() => go(activeIdx + 1)} disabled={activeIdx >= activeLen} className="gr-nav-btn" title="Next">▶</button>
-            <button onClick={() => go(activeLen)} disabled={activeIdx >= activeLen} className="gr-nav-btn" title="End">⏭</button>
+            <button onClick={() => tree.goForward('nav')} disabled={activeIdx >= activeLen} className="gr-nav-btn" title="Next">▶</button>
+            <button onClick={() => tree.goToEnd('nav')} disabled={activeIdx >= activeLen} className="gr-nav-btn" title="End">⏭</button>
             <button
-              onClick={() => goMain(0)}
-              disabled={mode !== 'sideline' && activeIdx === 0}
+              onClick={() => tree.goToStart('nav')}
+              disabled={activeIdx === 0}
               className="gr-nav-btn"
               title="Reset board to the start of the game"
             >↺ Reset</button>
+            {/* Visible only inside a variation: jumps to the game move this
+                branch was played from — the branch itself is kept. */}
+            {inVariation && (
+              <button
+                onClick={() => tree.returnToMainline('nav')}
+                className="gr-nav-btn gr-nav-btn--on"
+                title="Back to the original line — this variation is kept"
+              >← Original</button>
+            )}
             <button onClick={() => setOrientation((o) => (o === 'white' ? 'black' : 'white'))} className="gr-nav-btn" title="Flip board">⇄</button>
             {/* advanced engine toggle — live Stockfish eval + variation grading */}
             <button
@@ -1602,7 +1543,7 @@ export default function GameReview() {
             {/* Setup Board — shared component, same button + modal on the admin
                 and student shells, inline in the nav row under the board */}
             <SetupBoardButton
-              getInitialFen={() => gameRef.current.fen()}
+              getInitialFen={() => treeRef.current.currentFen}
               onApply={handleSetupApply}
             />
 
@@ -1617,145 +1558,100 @@ export default function GameReview() {
               </Button>
             )}
           </div>
-
-          {/* move list */}
-          <div className="gr-moves-card">
-            <div className="gr-moves-head">
-              <span className="gr-moves-title">
-                ♘ Moves
-                {mode === 'sideline' && sideLine && (
-                  <span className="gr-moves-title-var"> + variation</span>
-                )}
-              </span>
-              <span className="gr-moves-head-right">
-                {result && <span className="gr-score-result">{result}</span>}
-                <span className="gr-moves-count">{activeLen}</span>
-                {moves.length > 0 && (
-                  <button
-                    type="button"
-                    className="gr-moves-toggle"
-                    aria-expanded={movesOpen}
-                    aria-controls="gr-moves-list"
-                    onClick={() => setMovesOpen((v) => !v)}
-                    title={movesOpen ? 'Hide the moves panel' : 'Show the moves panel'}
-                  >
-                    {movesOpen ? '▾' : '▸'}
-                  </button>
-                )}
-              </span>
-            </div>
-            {movesOpen && (moves.length === 0 ? (
-              <p className="gr-moves-empty">No moves — paste a PGN on the right, or open a review link.</p>
-            ) : (
-              <>
-                <div className="gr-movelist" id="gr-moves-list" role="list" aria-label="Game moves" ref={movelistRef}>
-                  {/* the replay sheet's header: number | White | Black, on the
-                      same grid as the rows below it. */}
-                  <div className="gr-mvhead" role="row">
-                    <span role="columnheader">#</span>
-                    <span role="columnheader" className="is-white" title={`White — ${whiteName}`}>
-                      {whiteName}
-                    </span>
-                    <span role="columnheader" className="is-black" title={`Black — ${blackName}`}>
-                      {blackName}
-                    </span>
-                  </div>
-                  {scoreRows.map((row) => (
-                    <div key={row.label} className="gr-mvpair" role="row">
-                      <span className="gr-mvnum" role="rowheader">{row.label}</span>
-                      {[
-                        { san: row.white, ply: row.whitePly },
-                        { san: row.black, ply: row.blackPly },
-                      ].map((cell, off) => {
-                        if (cell.ply === null) return <span key={off} className="gr-mv-slot" role="gridcell" />;
-                        const v = verdicts ? verdicts[cell.ply] : null;
-                        const meta = v ? reviewMetaFor(v.verdict) : null;
-                        /* A Sigma that also names its type (Queen Sacrifice, …). */
-                        const sigma = v && v.sigma ? v.sigma : null;
-                        const active = mode !== 'sideline' && cell.ply + 1 === activeIdx;
-                        return (
-                          <button
-                            key={off}
-                            role="gridcell"
-                            data-gr-ply={cell.ply + 1}
-                            onClick={() => (mode === 'sideline' ? goMain(cell.ply + 1) : go(cell.ply + 1))}
-                            className={`gr-mv${active ? ' active' : ''}`}
-                            aria-current={active ? 'true' : undefined}
-                            title={meta
-                              ? `${sigma ? sigma.label : meta.label}${v.loss > 0 ? ` · lost ${(v.loss / 100).toFixed(2)} pawns` : ''}`
-                              : ''}
-                          >
-                            {meta && (
-                              <RankBadge verdict={v.verdict} size={17} showLabel={false} className="gr-mv-badge" />
-                            )}
-                            {cell.san}
-                            {sigma && (
-                              <span className="gr-mv-sigma" aria-label={sigma.label}>σ</span>
-                            )}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  ))}
-                </div>
-
-                {/* ── variation (side line): indented, graded live.
-                     Stays visible even back in the main review — clicking a
-                     variant move re-enters it (goVariant flips to sideline). ── */}
-                {sideLine && (
-                  <div className="gr-variant">
-                    <div className="gr-variant-head">
-                      <span className={`gr-variant-title${pendingVar > 0 ? ' gr-variant-busy' : ''}`}>
-                        ⟳ Variation{pendingVar > 0 ? ' — grading…' : ''}
-                      </span>
-                      {mode === 'sideline' && (
-                        <Button
-                          onClick={restoreMainLine}
-                          variant="secondary" size="sm" className="!h-6 !px-2.5 !text-[0.65rem]"
-                          title="Return to the actual game — the original review is untouched"
-                        >
-                          ← Back to Game Review
-                        </Button>
-                      )}
-                    </div>
-                    <p className="gr-variant-sub">
-                      Branched after {sideLine.base} {sideLine.base === 1 ? 'move' : 'moves'} · your line is analyzed
-                      {engineOn ? ' live by Stockfish' : ''} · the main-line badges &amp; accuracy are untouched.
-                    </p>
-                    <div className="gr-variant-moves">
-                      {sideLine.moves.slice(sideLine.base).map((sanM, k) => {
-                        const row = sideLine.rows[sideLine.base + k];
-                        const meta = row ? reviewMetaFor(row.verdict) : null;
-                        const ply = sideLine.base + k + 1;
-                        const active = sideLine.moveIndex === ply;
-                        return (
-                          <button
-                            key={k}
-                            onClick={() => goVariant(ply)}
-                            className={`gr-mv gr-variant-mv${active ? ' active' : ''}`}
-                            title={meta
-                              ? `${meta.label}${row.loss > 0 ? ` · lost ${(row.loss / 100).toFixed(2)} pawns` : ''}`
-                              : (engineOn ? 'Grading this move…' : '')}
-                          >
-                            {row
-                              ? <RankBadge verdict={row.verdict} size={17} showLabel={false} className="gr-mv-badge" />
-                              : (engineOn ? <span className="gr-variant-pending" /> : null)}
-                            {sanM}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-              </>
-            ))}
-          </div>
         </div>
 
         {/* ═════════════ SIDE ═════════════ */}
         <div className="gr-side">
-          {/* load row — thin horizontal line; click toggles the paste area */}
-          <div className="gr-load">
+          <div className="gr-side-tabs" role="tablist">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={sideTab === 'moves'}
+              onClick={() => setSideTab('moves')}
+              className={`gr-tab${sideTab === 'moves' ? ' gr-tab-active' : ''}`}
+            >
+              ♘ Moves
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={sideTab === 'load'}
+              onClick={() => setSideTab('load')}
+              className={`gr-tab${sideTab === 'load' ? ' gr-tab-active' : ''}`}
+            >
+              ⚡ Load a game
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={sideTab === 'review'}
+              onClick={() => setSideTab('review')}
+              className={`gr-tab${sideTab === 'review' ? ' gr-tab-active' : ''}`}
+            >
+              📊 Review
+            </button>
+          </div>
+
+          <div className="gr-panel">
+            {sideTab === 'moves' && (
+              <div className="gr-moves-card">
+                <div className="gr-moves-head">
+                  <span className="gr-moves-title">
+                    ♘ Moves
+                    {tree.hasVariations && (
+                      <span className="gr-moves-title-var">
+                        {' '}+ {tree.variationCount} variation{tree.variationCount === 1 ? '' : 's'}
+                        {pendingVar > 0 ? ' · grading…' : ''}
+                      </span>
+                    )}
+                  </span>
+                  <span className="gr-moves-head-right">
+                    {result && <span className="gr-score-result">{result}</span>}
+                    <span className="gr-moves-count">{activeLen}</span>
+                    {tree.hasVariations && (
+                      <button
+                        type="button"
+                        className="var-moves-reset"
+                        onClick={resetVariations}
+                        title="Remove every variation and restore the original game"
+                      >Reset to original</button>
+                    )}
+                    {moves.length > 0 && (
+                      <button
+                        type="button"
+                        className="gr-moves-toggle"
+                        aria-expanded={movesOpen}
+                        aria-controls="gr-moves-list"
+                        onClick={() => setMovesOpen((v) => !v)}
+                        title={movesOpen ? 'Hide the moves panel' : 'Show the moves panel'}
+                      >
+                        {movesOpen ? '▾' : '▸'}
+                      </button>
+                    )}
+                  </span>
+                </div>
+                {movesOpen && (moves.length === 0 ? (
+                  <p className="gr-moves-empty">No moves — paste a PGN in “⚡ Load a game”, or open a review link.</p>
+                ) : (
+                  <div className="gr-movelist gr-movelist--var" id="gr-moves-list">
+                    <VariationMoveList
+                      tree={tree}
+                      headless
+                      whiteName={whiteName}
+                      blackName={blackName}
+                      rowOf={rowFor}
+                      showSigma
+                      scrollHost=".gr-movelist--var"
+                      emptyText="No moves — paste a PGN in “⚡ Load a game”, or open a review link."
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {sideTab === 'load' && (
+              <div className="gr-panel-scroll">
+                <div className="gr-load">
             <button
               type="button"
               className="gr-load-toggle"
@@ -1786,22 +1682,23 @@ export default function GameReview() {
                 </Button>
               </div>
             )}
-          </div>
+                </div>
+              </div>
+            )}
 
-          {/* summary card */}
-          <Card
-            title="Review"
-            piece="📊"
-            actions={(moves.length > 0 || review) ? (
-              <Button
-                onClick={vanishReview}
-                variant="secondary" size="sm" className="!h-7 !px-2.5 !text-[0.68rem]"
-                title="Delete this review and start a fresh game"
-              >
-                ✕ Vanish
-              </Button>
-            ) : undefined}
-          >
+            {sideTab === 'review' && (
+              <div className="gr-panel-scroll">
+                {(moves.length > 0 || review) && (
+                  <div className="gr-review-head">
+                    <Button
+                      onClick={vanishReview}
+                      variant="secondary" size="sm" className="!h-7 !px-2.5 !text-[0.68rem]"
+                      title="Delete this review and start a fresh game"
+                    >
+                      ✕ Vanish
+                    </Button>
+                  </div>
+                )}
             {moves.length === 0 ? (
               <p className="gr-hint">Nothing to review yet — paste a PGN in “⚡ Load a game”; it starts analysing on its own.</p>
             ) : state === STATE.analyzing ? (
@@ -1815,13 +1712,13 @@ export default function GameReview() {
               analyzeStatus
             ) : review ? (
               <div className="space-y-3">
-                {mode === 'sideline' && (
+                {inVariation && (
                   <Button
-                    onClick={restoreMainLine}
+                    onClick={() => tree.returnToMainline('nav')}
                     variant="secondary" size="sm" fullWidth className="!w-full !py-2 text-xs"
-                    title="Return to the actual game — the original review is untouched"
+                    title="Return to the original line — this variation is kept"
                   >
-                    ← Back to Game Review
+                    ← Back to Original Line
                   </Button>
                 )}
                 <div className="gr-result">
@@ -1911,13 +1808,13 @@ export default function GameReview() {
             ) : (
               analyzeStatus
             )}
-          </Card>
-
-          {/* legend */}
-          <div className="gr-legend">
-            {REVIEW_ORDER.map((key) => (
-              <RankBadge key={key} verdict={key} size={19} className="gr-legend-item" />
-            ))}
+                <div className="gr-legend">
+                  {REVIEW_ORDER.map((key) => (
+                    <RankBadge key={key} verdict={key} size={19} className="gr-legend-item" />
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -2039,6 +1936,7 @@ export default function GameReview() {
       )}
       </>
 )}
+      </div>
 
       {/* A Brilliant move opened from the list: the shared full-game analysis
           card (the same one Chess Profile uses), sitting on top of this review.

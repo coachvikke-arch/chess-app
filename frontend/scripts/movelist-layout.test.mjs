@@ -111,25 +111,26 @@ test('the head and the rows share ONE column definition', () => {
 });
 
 test('the markup still emits number + white + black as siblings in one pair', () => {
-  /* Guards the CSS against a future JSX change: the three children must live
-     inside the same .gr-mvpair element. */
-  const start = page.indexOf('className="gr-mvpair"');
-  assert.notEqual(start, -1, '.gr-mvpair must exist in GameReview.jsx');
-  const block = page.slice(start, start + 1400);
-  for (const cls of ['gr-mvnum', 'gr-mv-slot', 'gr-mv']) {
+  /* Game Review's sheet is the shared VariationMoveList; the three children
+     must live inside the same .var-mvpair element. */
+  const start = page.indexOf('<VariationMoveList');
+  assert.notEqual(start, -1, 'Game Review must render the shared move list');
+  const shared = readFileSync(join(ROOT, 'src', 'components', 'variation', 'VariationMoveList.jsx'), 'utf8');
+  const pair = shared.indexOf('className="var-mvpair"');
+  assert.notEqual(pair, -1, '.var-mvpair must exist in the shared move list');
+  const block = shared.slice(pair, pair + 900);
+  for (const cls of ['var-mvnum', 'renderCell(row.white)', 'renderCell(row.black)']) {
     assert.ok(block.includes(cls), `${cls} must be rendered inside the move pair`);
   }
-  /* Pairs must still group the white and black ply of ONE move number.
-     This used to be asserted as the literal expression `idx = i * 2 + off`,
-     but that expression is only correct when White opens the game: on a
-     black-opening game it put the black move in the White column and shifted
-     every later ply - and with it the engine verdict keyed by ply index. The
-     pairing now comes from the shared, tested buildScoreRows, which carries the
-     real ply per cell. */
-  assert.match(page, /buildScoreRows\(moves, fenStartsBlack\(initialFen\)\)/,
-    'rows must come from the shared score-sheet pairing');
-  assert.ok(!/idx\s*=\s*i\s*\*\s*2\s*\+\s*off/.test(page),
+  assert.ok(shared.includes('className="var-mvslot"'),
+    'an empty ply must still render its own slot');
+  /* Pairs must still group the white and black ply of ONE move number. This
+     used to be asserted as the literal expression `idx = i * 2 + off`, which
+     is only correct when White opens the game. The shared list derives the
+     side from the ABSOLUTE ply (startPly + node ply), so a black-opening or
+     set-up FEN still fills the right column and the verdict keys line up. */
+  assert.match(shared, /const side = abs % 2 === 1 \? 'white' : 'black'/,
+    'cells must take their side from the absolute ply, not the index parity');
+  assert.ok(!/idx\s*=\s*i\s*\*\s*2\s*\+\s*off/.test(shared),
     'the row*2+column indexing must not come back: it mis-numbers a black-opening game');
-  assert.match(page, /verdicts\[cell\.ply\]/,
-    'each verdict must follow its own ply');
 });

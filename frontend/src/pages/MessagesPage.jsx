@@ -25,8 +25,6 @@ import Button from '../components/Button';
 import { useToast } from '../components/Toast';
 import { ConfirmDialog } from '../components/ui';
 import { formatTime12 } from '../utils/time';
-import { useBot } from '../../matezone-bot/bot/BotContext.jsx';
-import { showChatBot } from '../../matezone-bot/bot/botTriggers.js';
 
 function fmtTime(iso) {
   try { return formatTime12(new Date(iso)); } catch { return ''; }
@@ -349,7 +347,6 @@ function MessageOptionsButton({ onOpen, label = 'Message options' }) {
 export default function MessagesPage() {
   usePageTitle('Messages');
   const { user } = useAuth();
-  const bot = useBot();
   const meId = Number(user?.id ?? 0);
   const isAdmin = user?.role === 'admin' || user?.role === 'superadmin';
   const chat = useChat();
@@ -747,9 +744,9 @@ export default function MessagesPage() {
   const doSendDm = useCallback(async () => {
     const text = String(input || '').trim();
     if ((!text && !attach) || !threadFor) return;
-    try { await send(threadFor, text, attach); showChatBot(bot); setInput(''); setAttach(null); setEmojiOpen(false); }
+    try { await send(threadFor, text, attach); setInput(''); setAttach(null); setEmojiOpen(false); }
     catch (e) { console.warn('[chat:send]', e.message); }
-  }, [input, attach, threadFor, send, bot]);
+  }, [input, attach, threadFor, send]);
 
   /* ── Group thread ── */
   const doSendGroup = useCallback(async () => {
@@ -757,10 +754,9 @@ export default function MessagesPage() {
     if ((!text && !attach) || !activeGroupId) return;
     try {
       await sendToGroup(activeGroupId, { text, file: attach || undefined });
-      showChatBot(bot);
       setInput(''); setAttach(null); setEmojiOpen(false);
     } catch (e) { console.warn('[chat:group send]', e.message); }
-  }, [input, attach, activeGroupId, sendToGroup, bot]);
+  }, [input, attach, activeGroupId, sendToGroup]);
 
   const pickFile = (e) => {
     const f = e.target.files?.[0] || null;

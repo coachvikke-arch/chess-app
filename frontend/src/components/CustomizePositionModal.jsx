@@ -441,6 +441,71 @@ export default function CustomizePositionModal({ initialFen, onApply, onClose })
     </div>
   );
 
+  /* Measured box + transparent pointer grid over the board. The Chessboard
+     below is a pure renderer (its own clicks and native DnD are off); every
+     press lands on the overlay, so taps and drags behave identically on mouse
+     and touch. The same box is used with the frame on or off — only the chrome
+     around it changes, exactly like ChessBoard and StaticBoard. */
+  const editorBoard = (
+    <div ref={boardBoxRef} style={{ position: 'relative', width, height: width, touchAction: 'none' }}>
+      <AnimatedBoard
+        position={position}
+        arePiecesDraggable={false}
+        customPieces={buildCustomPieces(getPieceTheme(pieceSetId))}
+        arePiecesAnimated
+        boardWidth={width}
+        boardOrientation="white"
+        showBoardNotation={false}
+        customDarkSquareStyle={themeStyles.darkSquareStyle || { backgroundColor: boardTheme.darkSq }}
+        customLightSquareStyle={themeStyles.lightSquareStyle || { backgroundColor: boardTheme.lightSq }}
+        customSquareStyles={{
+          ...(ornateSquareStyles(boardTheme) || {}),
+          ...(dropTarget ? { [dropTarget]: { backgroundColor: 'rgba(59, 130, 246, 0.45)' } } : {}),
+        }}
+        customBoardStyle={themeStyles.boardStyle || {
+          borderRadius: 10,
+          overflow: 'hidden',
+        }}
+      />
+      <div
+        aria-hidden
+        onContextMenu={(e) => e.preventDefault()}
+        style={{
+          position: 'absolute', inset: 0,
+          display: 'grid',
+          gridTemplateColumns: 'repeat(8, 1fr)',
+          gridTemplateRows: 'repeat(8, 1fr)',
+          touchAction: 'none',
+        }}
+      >
+        {Array.from({ length: 64 }, (_, i) => {
+          const file = String.fromCharCode(97 + (i % 8));
+          const sq = `${file}${8 - Math.floor(i / 8)}`;
+          return (
+            <div
+              key={sq}
+              onPointerDown={(e) => {
+                /* Occupied squares can start a drag; empty squares
+                   are tap-only and fall through to click-to-place. */
+                const r = 8 - Number(sq[1]);
+                const c = sq.charCodeAt(0) - 97;
+                const piece = grid[r]?.[c];
+                if (piece) beginPotentialDrag(e, 'board', { letter: piece, from: sq });
+                else beginPotentialDrag(e, 'tap', { from: sq });
+              }}
+              style={{
+                touchAction: 'none',
+                boxShadow: dropTarget === sq
+                  ? 'inset 0 0 0 3px rgba(59, 130, 246, 0.9)'
+                  : 'none',
+              }}
+            />
+          );
+        })}
+      </div>
+    </div>
+  );
+
   return (
     <Portal><div
       className="fixed inset-0 z-[var(--z-modal-backdrop)] grid place-items-center p-3 sm:p-6"
@@ -453,7 +518,11 @@ export default function CustomizePositionModal({ initialFen, onApply, onClose })
       <div
         className="w-full overflow-x-hidden"
         style={{
-          maxWidth: 920,
+          /* 960, not 920: on desktop the row is board (400 outer) + two 44px
+             palette pills + gaps + a 300px controls column, which needs more
+             than 920 once the frame is on — at 920 the white palette ended up
+             2px off the board's right edge. */
+          maxWidth: 960,
           maxHeight: '92vh',
           overflowY: 'auto',
           borderRadius: '1.25rem',               /* same as .chess-card */
@@ -519,9 +588,16 @@ export default function CustomizePositionModal({ initialFen, onApply, onClose })
                 {trashBtn('black')}
               </div>
 
-              <div className="order-2 lg:order-none">
-                <div className="flex gap-2 items-start">
-                  <div className="flex flex-col items-center justify-center gap-1 py-1" style={{ width: 16, paddingRight: 2, marginTop: gutter }}>
+              {/* min-w-0 lets this column shrink to the card at phone widths —
+                  without it the nowrap FEN readout below sets a min-content
+                  width wider than the card, and the board (with its rank
+                  gutter) is pushed off the left edge. */}
+              <div className="order-2 lg:order-none min-w-0 max-w-full">
+                <div className="flex gap-2 items-start justify-center">
+                  {/* Ranks are one square tall each, with no gap or padding:
+                      any extra space between them accumulates and drags the
+                      lower ranks off their rows. */}
+                  <div className="flex flex-col items-center" style={{ width: 16, paddingRight: 2, marginTop: gutter }}>
                     {['8', '7', '6', '5', '4', '3', '2', '1'].map((n) => (
                       <span key={n} className="text-xs font-semibold" style={{ color: 'var(--ivory-500)', height: width / 8, display: 'grid', placeItems: 'center' }}>
                         {n}
@@ -529,75 +605,17 @@ export default function CustomizePositionModal({ initialFen, onApply, onClose })
                     ))}
                   </div>
                   <div>
-                    {/* Measured box + transparent pointer grid over the board. The
-                        Chessboard below is a pure renderer (its own clicks and
-                        native DnD are off); every press lands on the overlay, so
-                        taps and drags behave identically on mouse and touch. */}
-                    <BoardFrame
-                      outerWidth={outer}
-                      squares={width}
-                      boardTheme={boardTheme}
-                      showLabels={false}
-                      royalOrnate={isRoyalFrame(boardTheme)}
-                    >
-                      <div ref={boardBoxRef} style={{ position: 'relative', width, height: width, touchAction: 'none' }}>
-                      <AnimatedBoard
-                        position={position}
-                        arePiecesDraggable={false}
-                        customPieces={buildCustomPieces(getPieceTheme(pieceSetId))}
-                        arePiecesAnimated
-                        boardWidth={width}
-                        boardOrientation="white"
-                        showBoardNotation={false}
-                        customDarkSquareStyle={themeStyles.darkSquareStyle || { backgroundColor: boardTheme.darkSq }}
-                        customLightSquareStyle={themeStyles.lightSquareStyle || { backgroundColor: boardTheme.lightSq }}
-                        customSquareStyles={{
-                          ...(ornateSquareStyles(boardTheme) || {}),
-                          ...(dropTarget ? { [dropTarget]: { backgroundColor: 'rgba(59, 130, 246, 0.45)' } } : {}),
-                        }}
-                        customBoardStyle={themeStyles.boardStyle || {
-                          borderRadius: 10,
-                          overflow: 'hidden',
-                        }}
-                      />
-                      <div
-                        aria-hidden
-                        onContextMenu={(e) => e.preventDefault()}
-                        style={{
-                          position: 'absolute', inset: 0,
-                          display: 'grid',
-                          gridTemplateColumns: 'repeat(8, 1fr)',
-                          gridTemplateRows: 'repeat(8, 1fr)',
-                          touchAction: 'none',
-                        }}
+                    {framed ? (
+                      <BoardFrame
+                        outerWidth={outer}
+                        squares={width}
+                        boardTheme={boardTheme}
+                        showLabels={false}
+                        royalOrnate={isRoyalFrame(boardTheme)}
                       >
-                        {Array.from({ length: 64 }, (_, i) => {
-                          const file = String.fromCharCode(97 + (i % 8));
-                          const sq = `${file}${8 - Math.floor(i / 8)}`;
-                          return (
-                            <div
-                              key={sq}
-                              onPointerDown={(e) => {
-                                /* Occupied squares can start a drag; empty squares
-                                   are tap-only and fall through to click-to-place. */
-                                const r = 8 - Number(sq[1]);
-                                const c = sq.charCodeAt(0) - 97;
-                                const piece = grid[r]?.[c];
-                                if (piece) beginPotentialDrag(e, 'board', { letter: piece, from: sq });
-                                else beginPotentialDrag(e, 'tap', { from: sq });
-                              }}
-                              style={{
-                                touchAction: 'none',
-                                boxShadow: dropTarget === sq
-                                  ? 'inset 0 0 0 3px rgba(59, 130, 246, 0.9)'
-                                  : 'none',
-                              }}
-                            />
-                          );
-                        })}
-                      </div>
-                    </div>
-                    </BoardFrame>
+                        {editorBoard}
+                      </BoardFrame>
+                    ) : editorBoard}
                     {/* file letters a-h along the bottom, lined up with the squares
                         the frame sits around */}
                     <div className="flex" style={{ width, marginLeft: gutter, paddingTop: 2 }}>

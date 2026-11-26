@@ -221,6 +221,41 @@
   cursor: not-allowed;
 }
 
+/* Each status button carries its own colour, tinted while idle and solid once
+   picked, so the row reads at a glance: green Present, red Absent, yellow Late. */
+.oa-status--present {
+  border-color: #bbf7d0;
+  background: #f0fdf4;
+  color: #15803d;
+}
+.oa-status--absent {
+  border-color: #fecaca;
+  background: #fef2f2;
+  color: #b91c1c;
+}
+.oa-status--late {
+  border-color: #fde68a;
+  background: #fffbeb;
+  color: #b45309;
+}
+
+.oa-status--present:not(.is-active):not(:disabled):hover {
+  border-color: #16a34a;
+  background: #dcfce7;
+}
+.oa-status--absent:not(.is-active):not(:disabled):hover {
+  border-color: #dc2626;
+  background: #fee2e2;
+}
+.oa-status--late:not(.is-active):not(:disabled):hover {
+  border-color: #d97706;
+  background: #fef3c7;
+}
+
+.oa-status--present:focus-visible { outline-color: #16a34a; }
+.oa-status--absent:focus-visible { outline-color: #dc2626; }
+.oa-status--late:focus-visible { outline-color: #d97706; }
+
 .oa-status--present.is-active {
   border-color: #16a34a;
   background: #16a34a;

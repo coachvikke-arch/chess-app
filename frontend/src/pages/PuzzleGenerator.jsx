@@ -3,6 +3,8 @@ import { Chess } from 'chess.js';
 import { Page, Chip, Spinner } from '../components/ui';
 import Button from '../components/Button';
 import ChessBoard from '../components/ChessBoard';
+import useCopyFullPgn from '../hooks/useCopyPgn';
+import { buildFullPgn } from '../utils/gamePgn';
 import {
   fetchTopics,
   startGeneration,
@@ -167,6 +169,7 @@ export default function PuzzleGenerator() {
   const [previewPly, setPreviewPly] = useState(0);
   const [showPgn, setShowPgn] = useState(false);
   const [copied, setCopied] = useState('');
+  const copyFullPgn = useCopyFullPgn();
 
   const [saveOpen, setSaveOpen] = useState(false);
   const [folders, setFolders] = useState([]);
@@ -371,13 +374,12 @@ export default function PuzzleGenerator() {
 
   const handleCopy = async () => {
     if (!current) return;
-    const text = current.pgn || '';
-    try {
-      await navigator.clipboard.writeText(text);
-      setCopied('Copied');
-    } catch {
-      setCopied('Copy failed — select the PGN and copy manually');
-    }
+    /* Re-emit the puzzle's PGN through the shared builder so it closes with the
+       result token and skips placeholder tags; its own headers (Theme,
+       Difficulty, SetUp/FEN, Solution) are preserved. */
+    const pgn = buildFullPgn({ pgn: current.pgn, initialFen: current.fen });
+    const ok = await copyFullPgn(pgn);
+    setCopied(ok ? 'Copied' : 'Copy failed — select the PGN and copy manually');
     setTimeout(() => setCopied(''), 2200);
   };
 

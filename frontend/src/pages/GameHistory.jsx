@@ -8,7 +8,7 @@ import { usePagination } from '../hooks/usePagination';
 import { isAdminRole } from '../utils/roles';
 import { onGameUpdate, onLiveGamesChanged } from '../services/socket';
 import { formatDateTime12 } from '../utils/time';
-import { copyText } from '../utils/clipboard';
+import useCopyFullPgn from '../hooks/useCopyPgn';
 import { buildRowPgn, pgnFilename, hasPgnMoves, pgnHasMoves } from '../utils/gamePgn';
 import ReportDateFilter from '../components/reports/ReportDateFilter';
 
@@ -118,6 +118,7 @@ function StudentView({ embedded = false, onOpenGame }) {
   const [copiedId, setCopiedId] = useState(null);
   const [downloadedId, setDownloadedId] = useState(null);
   const listTopRef = useRef(null);
+  const copyFullPgn = useCopyFullPgn();
 
   /* The history has to agree with the board the moment a match ends — after a
      resignation, an abort on leave, or an abandoned tab settling on the server.
@@ -221,14 +222,15 @@ function StudentView({ embedded = false, onOpenGame }) {
     const params = new URLSearchParams();
     /* Only hand over a PGN that actually contains moves; a headers-only one
        would make the review page reject the game. The FEN is the useful
-       fallback for those rows. */
-    if (pgnHasMoves(g)) params.set('pgn', g.pgn);
+       fallback for those rows. The full PGN (headers + moves) is handed over so
+       the review page can show the players, event and result from the tags. */
+    if (pgnHasMoves(g)) params.set('pgn', buildRowPgn(g, user?.name));
     else if (g.fen) params.set('fen', g.fen);
     navigate(`${prefix}/review?${params.toString()}`);
   };
 
   const copyPgn = async (g) => {
-    const ok = await copyText(buildRowPgn(g, user?.name));
+    const ok = await copyFullPgn(buildRowPgn(g, user?.name));
     if (!ok) return;
     setCopiedId(g.id);
     window.setTimeout(() => setCopiedId((id) => (id === g.id ? null : id)), 1500);

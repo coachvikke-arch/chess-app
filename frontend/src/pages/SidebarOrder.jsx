@@ -202,7 +202,7 @@ export default function SidebarOrder() {
           <div className="flex flex-wrap gap-2">
             <Button
               type="button"
-              variant="secondary" size="md" className="!px-4 !py-2 text-sm"
+              variant="secondary" size="md"
               onClick={reset}
               disabled={saving || !isCustomised}
               title={isCustomised ? 'Go back to the order built into the app' : 'This menu is already on the default order'}
@@ -211,7 +211,7 @@ export default function SidebarOrder() {
             </Button>
             <Button
               type="button"
-              variant="primary" size="md" className="!px-4 !py-2 text-sm"
+              variant="primary" size="md"
               onClick={save}
               disabled={saving || !dirty}
             >
@@ -227,7 +227,7 @@ export default function SidebarOrder() {
           minute, or as soon as they switch back to this tab.
         </p>
 
-        <div className="flex flex-wrap gap-2">
+        <div className="sa-seg-group">
           {MENUS.map((m) => (
             <button
               key={m.key}

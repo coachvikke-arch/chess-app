@@ -1,28 +1,19 @@
 /* ──────────────────────────────────────────────────────────────────────────
- * Stepping through the game-viewer card must cost a ply index, not a replay.
+ * Stepping through the game-viewer card must cost a pointer read, not a replay.
  *
- * The regression the user reported: after Stockfish finished a game, pressing
- * Prev/Next (or tapping a move) froze the whole app — the board stopped
+ * The regression the user first reported: after Stockfish finished a game,
+ * pressing Prev/Next (or tapping a move) froze the whole app — the board stopped
  * following the move number and, once a promise was left hanging, the board
- * stopped answering at all.
+ * stopped answering at all. The fix was a precomputed position per ply; the card
+ * has since moved to the shared variation tree, where every ply (mainline AND
+ * branch) is one node and navigation is a `pointer` assignment.
  *
- * What profiling showed, per press:
- *   - `go()` rebuilt the game: a fresh Chess plus one `move()` per ply up to the
- *     target, each of which regenerates the legal move list (27-59 ms on a
- *     156-ply game, and it grows with the game);
- *   - three independent "which move happened here?" sweeps ran over the same
- *     step — the piece layer probed forward AND backward, the board probed again
- *     for the sound, and each had its own private copy of that scan;
- *   - once an analysis existed, two more full `history({ verbose: true })` walks
- *     joined in (the effect's move lookup and the board's last-move marker).
- *   50 rapid Prev presses measured 2168 ms of blocked main thread before React
- *   did any work at all. The same 50 steps through a position table measured
- *   0.08 ms.
- *
- * So this file holds the SHAPE that made the number small: one precomputed
- * position per ply, one Chess instance, one state value, coalesced navigation,
- * memoised rows, one shared probe, and no engine call — and no unbounded one —
- * anywhere on the path.
+ * What must stay true, whichever model holds the positions:
+ *   - one node per ply, built once per game — no `new Chess()` replay on a step;
+ *   - the board and the last-move marker read the SAME node, so they cannot
+ *     drift (the old `fen`/`lastMove` state pair could);
+ *   - a held arrow key accumulates instead of collapsing into one ply;
+ *   - no engine call on the navigation path.
  *
  * Run: node --test scripts/viewer-navigation.test.mjs
  */
@@ -30,8 +21,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
 import { Chess } from 'chess.js';
+
+import { buildMainline, initialState, lineOf } from '../src/utils/variationTree.js';
 
 const read = (p) => readFileSync(new URL(`../${p}`, import.meta.url), 'utf8');
 
@@ -55,38 +47,36 @@ function body(source, declaration) {
   return out.join('\n');
 }
 
-/* ── one source of truth: a position per ply, built once ─────────────────── */
+/* ── one source of truth: a tree node per ply, built once ────────────────── */
 
-test('the card precomputes one position per ply when the game loads', () => {
-  assert.match(CARD, /const positions = useMemo\(/,
-    'the FEN table has to exist');
-  assert.match(CARD, /\}, \[parsed\.initFen, parsed\.moves\]\);/,
-    'the table is built once per game, not per navigation');
-  assert.match(CARD, /const plies = positions\.length - 1;/,
-    'the ply count the whole card clamps to comes from the table');
+test('the card navigates the shared tree, not its own position table', () => {
+  assert.match(CARD, /const tree = useVariationTree\(parsed\.moves, \{/,
+    'the card is wired to the shared hook');
+  assert.match(CARD, /initialFen: parsed\.initFen,/,
+    'a game with a custom start is replayed from its real origin');
+  assert.match(CARD, /storageKey: variationKey,/,
+    'this user’s branches for this game are restored on open');
+  assert.doesNotMatch(CARD, /const positions = useMemo\(/,
+    'the private FEN table is gone — the tree owns every ply');
+  assert.doesNotMatch(CARD, /function applyNav\(/,
+    'there is no second navigation path beside the tree');
 });
 
-test('navigation reads the table; it never replays the game', () => {
-  const apply = body(CARD, 'function applyNav(');
-  assert.match(apply, /const pos = positions\[ply\];/);
-  assert.match(apply, /g\.load\(pos\.fen\)/,
-    'the board is loaded from the table entry');
-  assert.doesNotMatch(apply, /new Chess\(/,
-    'no Chess instance is built during navigation');
-  assert.doesNotMatch(apply, /for \(let i = 0; i < target; i\+\+\)/,
-    'no replay up to the target ply');
-  assert.doesNotMatch(apply, /history\(/,
-    'the move comes out of the table, not out of a history walk');
+test('navigation reads the pointer; it never replays the game', () => {
+  assert.match(CARD, /const moveIndex = tree\.currentPly;/,
+    'the ply on screen is the tree pointer');
+  assert.match(CARD, /const lastMove = tree\.currentLastMove;/,
+    'the highlight comes from the same node as the position');
   assert.doesNotMatch(CARD, /\[fen, setFen\]|setLastMove\(/,
     'the board position and the last-move marker are not separate state');
-  assert.match(CARD, /const lastMove = positions\[moveIndex\]\?\.lastMove \|\| null;/,
-    'the highlight is read from the same entry as the position, so they cannot drift');
+  const navigate = body(CARD, 'useReviewKeys({');
+  assert.doesNotMatch(navigate, /new Chess\(|history\(|searchTopMoves/,
+    'a step costs a pointer read, not a replay or a search');
 });
 
-test('the table is the position the naive replay would have produced', () => {
-  /* The model, replayed the old way and the new way over the same 150 plies:
-     they must agree square for square, including the last move that produced
-     each position. */
+test('the tree model still produces the position a naive replay would', () => {
+  /* The tree’s mainline, replayed the old way over the same 150 plies: they
+     must agree square for square, including the move that produced each node. */
   const sans = [];
   const gen = new Chess();
   while (sans.length < 150) {
@@ -99,61 +89,49 @@ test('the table is the position the naive replay would have produced', () => {
   }
   assert.ok(sans.length > 100, 'fixture game is too short');
 
-  /* new way: one pass, one FEN per ply */
-  const table = [{ fen: new Chess().fen(), from: null, to: null }];
-  const walk = new Chess();
-  for (let i = 0; i < sans.length; i += 1) {
-    const m = walk.move(sans[i]);
-    table.push({ fen: walk.fen(), from: m.from, to: m.to });
-  }
-  /* old way: rebuild from scratch for every single ply */
-  for (let ply = 0; ply < table.length; ply += 1) {
+  const base = buildMainline(new Chess().fen(), sans);
+  const state = initialState(base, base.ids[base.ids.length - 1]);
+  const line = lineOf(state);
+  assert.equal(line.length, sans.length + 1, 'root + one node per ply');
+
+  for (let ply = 0; ply <= sans.length; ply += 1) {
+    const node = state.nodes[state.ids[ply]];
     const g = new Chess();
     for (let i = 0; i < ply; i += 1) g.move(sans[i]);
-    assert.equal(g.fen(), table[ply].fen, `ply ${ply} disagrees`);
+    assert.equal(node.fen, g.fen(), `ply ${ply} disagrees`);
     if (ply > 0) {
       const last = g.history({ verbose: true }).at(-1);
-      assert.equal(last.from, table[ply].from);
-      assert.equal(last.to, table[ply].to);
+      assert.equal(node.uci, `${last.from}${last.to}${last.promotion || ''}`);
     }
   }
 });
 
-/* ── rapid presses: one navigation per frame ─────────────────────────────── */
+/* ── held keys: every press is one node ──────────────────────────────────── */
 
-test('quick presses are coalesced into one frame, and the frame is cancelled', () => {
-  const queue = body(CARD, 'function queueNav(');
-  assert.match(queue, /nav\.raf = requestAnimationFrame/,
-    'animated navigation is queued, not applied per press');
-  assert.match(queue, /nav\.target \+ target/,
-    'a held step accumulates inside the frame: five presses still move five plies');
-  assert.match(queue, /base \+ target/,
-    'a step that opens a new queue counts from the ply the board is on');
-  assert.match(CARD, /appliedPlyRef\.current = ply;/,
-    'the applied ply is tracked as of the navigation, not as of the last render');
-  assert.match(queue, /isStep \? \(pending \? nav\.target \+ target : base \+ target\) : target;/,
-    'a step accumulates, an absolute jump takes the newest target');
-  const unmount = body(CARD, 'useEffect(() => () => {\n    if (navRef.current.raf)');
-  assert.match(unmount, /cancelAnimationFrame\(navRef\.current\.raf\)/,
-    'a frame that never painted is dropped on unmount');
-});
-
-test('the score sheet re-renders the rows that actually moved', () => {
-  assert.match(CARD, /const ScoreRow = memo\(/, 'rows are memoised');
-  assert.match(CARD, /const sheetRows = useMemo\(/, 'row content is memoised');
-  assert.match(CARD, /\}, \[parsed\.moves, verdicts\]\);/,
-    'row content only changes with the game or the analysis');
-  assert.match(CARD, /const onCell = useCallback\(\(ply\) => jumpRef\.current\(ply\), \[\]\);/,
-    'the tap handler keeps one identity, or every memo above is useless');
-  assert.match(CARD, /activeWhite=\{cells\[0\]\?\.ply === moveIndex\}/,
-    'the highlight is the only prop that moves per ply');
+test('a held arrow key accumulates: each press moves exactly one node', () => {
+  const sans = ['e4', 'e5', 'Nf3', 'Nc6', 'Bb5'];
+  const base = buildMainline(new Chess().fen(), sans);
+  let state = initialState(base, base.ids[0]);
+  for (let i = 0; i < sans.length; i += 1) {
+    const at = state.ids.indexOf(state.pointer);
+    state = { ...state, pointer: state.ids[at + 1] };
+    assert.equal(state.nodes[state.pointer].ply, i + 1,
+      `press ${i + 1} lands on ply ${i + 1}`);
+  }
+  /* No rAF queue: five synchronous presses are five pointers, so a fast
+     key-repeat can never collapse into one step. */
+  assert.doesNotMatch(CARD, /requestAnimationFrame/,
+    'the old frame coalescer is gone; synchronous commits accumulate');
 });
 
 /* ── no engine work, and nothing unbounded, on the navigation path ───────── */
 
 test('navigation never touches the engine', () => {
-  assert.doesNotMatch(body(CARD, 'function applyNav('), /searchTopMoves|evaluate|analyzeCanonical/,
+  assert.doesNotMatch(body(CARD, 'useReviewKeys({'), /searchTopMoves|evaluate|analyzeCanonical/,
     'undo/redo must not ask the engine anything');
+  /* The live eval runs only OFF the original line, and never while a full
+     review is running — it can never fight the review for the engine pool. */
+  assert.match(CARD, /enabled: !tree\.isOnMainline && revState !== 'running',/);
 });
 
 test('the analysis pre-flight cannot hang the card forever', () => {
@@ -170,14 +148,55 @@ test('the analysis pre-flight cannot hang the card forever', () => {
     'closing the card stops the search it started');
 });
 
+/* ── the board + list are the shared ones ───────────────────────────────── */
+
+test('the card renders the shared board and the shared move list', () => {
+  assert.match(CARD, /<VariationBoard[\s\S]{0,400}tree=\{tree\}/,
+    'the board is the shared variation wrapper');
+  assert.match(CARD, /<VariationMoveList[\s\S]{0,400}headless/,
+    'the score sheet is the shared list, not a private copy');
+  assert.match(CARD, /id="cp-score-body"[\s\S]{0,700}<VariationMoveList/,
+    'the list renders inside the scrolling score sheet so it can scroll itself');
+});
+
+test('the score-sheet grid puts White on odd plies', () => {
+  const list = read('src/components/variation/VariationMoveList.jsx');
+  assert.match(list, /const side = abs % 2 === 1 \? 'white' : 'black';/,
+    'ply 1 is White’s first move, so the column parity must start odd');
+  assert.match(list, /const num = Math\.ceil\(abs \/ 2\);/,
+    'the move number of ply 1 is 1, not 2');
+  assert.match(list, /\{abs % 2 === 1 && <span className="var-mv-num">\{Math\.ceil\(abs \/ 2\)\}\./,
+    'a variation’s inline move number must follow the same parity');
+});
+
+test('a variation line renders each move once, not once per block', () => {
+  const list = read('src/components/variation/VariationMoveList.jsx');
+  /* The first child of a chain node is the line's own continuation, already a
+     button in the same row. Rendering it again as a nested block duplicated
+     every later move of a multi-move variation (v3 appeared inside both v2 and
+     v1), so only the side children may become nested blocks. */
+  assert.match(list, /\.filter\(\(c\) => c && !c\.isMainline && c\.id !== n\.children\[0\]\)/,
+    'nested blocks must skip the chain continuation');
+});
+
+test('a deviation from the start position still gets a block', () => {
+  const list = read('src/components/variation/VariationMoveList.jsx');
+  assert.match(list, /const rootBranches = useMemo\(/,
+    'branches of the root have no row to sit under');
+  assert.match(list, /\{rootBranches\.length > 0 && [\s\S]{0,600}rootBranches\.map/,
+    'they are rendered at the top of the list');
+  assert.match(list, /tree\.promoteVariation\(tree\.promotedId\)/,
+    'a promoted view can be undone without deleting the variation');
+});
+
 /* ── the best-move arrow ─────────────────────────────────────────────────── */
 
-test('the arrow is the engine best move for the position showing', () => {
+test('the arrow is the best move for the position showing', () => {
   const arrows = body(CARD, 'const lineArrows = useMemo(');
   assert.match(arrows, /verdicts\[moveIndex\]/,
-    'the row read is the move that comes NEXT from the position on screen');
-  assert.match(arrows, /moveIndex < verdicts\.length/,
-    'the last position has no next move, so no arrow');
+    'on the original line, the row read is the move that comes NEXT');
+  assert.match(arrows, /liveEval\?\.bestUci/,
+    'off the line, the live search answers for the node itself');
   assert.match(arrows, /row\.bestUci/,
     'a ply with no lines still has the best move the engine saw');
   assert.match(arrows, /from === to\) return \[\];/,

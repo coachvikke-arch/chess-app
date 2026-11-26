@@ -54,3 +54,19 @@ export async function classifySideMove(fenBefore, { san, ply = 0, isCancelled, e
      variant move k; everything else is the canonical row untouched. */
   return { ...row, ply };
 }
+
+/**
+ * A variation row as the shared move list and eval bar read it: `played` and
+ * `playedMate` signed back to White's point of view. The canonical row keeps
+ * them from the MOVER's side (exactly like GM replay) — projecting here means
+ * the stored verdict, CPL and accuracy are never rewritten.
+ */
+export function projectVariationRow(row) {
+  if (!row) return row;
+  const sign = row.player === 'black' ? -1 : 1;
+  return {
+    ...row,
+    played: row.played == null ? row.played : sign * row.played,
+    playedMate: row.playedMate == null ? row.playedMate : sign * row.playedMate,
+  };
+}

@@ -1,4 +1,5 @@
 import StudentAvatar from './StudentAvatar';
+import useTilt from '../hooks/useTilt';
 
 export const RANK_META = {
   1: { cls: 'lb-gold', eyebrow: 'Champion', pill: '1st Place' },
@@ -29,6 +30,77 @@ export function RankIcon({ rank }) {
       <path d="M8 2h8l-2.1 5.2h-3.8L8 2Z" fill="currentColor" stroke="none" />
       <circle cx="12" cy="14.6" r="5.4" />
     </svg>
+  );
+}
+
+/* Rank 1 is the same reward card the podium always shows, wrapped so the
+   pointer can tilt it: item → hit (perspective + pointer target) → tl (the
+   only tilting layer) → the original card. The glare and sweep are the card's
+   last children, so its rounded corners clip them. hooks/useTilt.js writes the
+   CSS variables and the `hov` class; React keeps no pointer state. */
+function ChampionCard({ player: p, meta, description, mini, showBadges, onCompare, compareMeId }) {
+  const { hitRef, tiltRef } = useTilt({ max: 10 });
+  return (
+    <div className="champ-item" data-tilt-root>
+      <div
+        className="champ-hit"
+        ref={hitRef}
+        tabIndex={0}
+        role="group"
+        aria-label={`${meta.eyebrow} · ${p.name}`}
+      >
+        <div className="champ-tl" ref={tiltRef}>
+          <div
+            className={`lb-pcard ${meta.cls} lb-pcard--rank-1`}
+            style={{ animation: 'fade-up .5s 0s both' }}
+          >
+            <div className="lb-pcard-icon">
+              <span className="lb-pcard-media">
+                {p.profile_image ? (
+                  <img src={p.profile_image} alt="" loading="lazy" />
+                ) : (
+                  <StudentAvatar
+                    config={p.avatar_config}
+                    seed={`student_${p.student_id || ''}`}
+                    size={80}
+                    rounded={false}
+                  />
+                )}
+              </span>
+              <span className="lb-pcard-rankbadge"><RankIcon rank={1} /></span>
+            </div>
+            <div className="lb-pcard-copy">
+              <div className="lb-pcard-top">
+                <p className="lb-pcard-eyebrow">{meta.eyebrow}</p>
+                <span className="lb-pcard-pill">{meta.pill}</span>
+              </div>
+              <h3 className="lb-pcard-title">
+                <span className="lb-pcard-name" title={p.name}>{p.name}</span>
+                {showBadges && <PlayerBadges row={p} />}
+              </h3>
+              <p className="lb-pcard-desc">{description}</p>
+              <div className="lb-pcard-stats">
+                {mini.map((s, i) => (
+                  <span key={i}><b>{s.value}</b>{s.label}</span>
+                ))}
+              </div>
+              {onCompare && Number(p.user_id) !== Number(compareMeId) && (
+                <button
+                  type="button"
+                  className="lb-pcard-compare"
+                  onClick={() => onCompare(p)}
+                  aria-label={`Compare with ${p.name}`}
+                >
+                  ⚔ Compare
+                </button>
+              )}
+            </div>
+            <div className="champ-glare" aria-hidden="true" />
+            <div className="champ-sweep" aria-hidden="true" />
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -112,6 +184,20 @@ export default function ChampionsPodium({
         // the player (like `elo`); a plain array applies to all three.
         const supplied = typeof stats === 'function' ? stats(p) : stats;
         const mini = Array.isArray(supplied) && supplied.length > 0 ? supplied : fallback;
+        if (rank === 1) {
+          return (
+            <ChampionCard
+              key={p.student_id ?? p.user_id ?? `${p.name}-${rank}`}
+              player={p}
+              meta={meta}
+              description={description}
+              mini={mini}
+              showBadges={showBadges}
+              onCompare={onCompare}
+              compareMeId={compareMeId}
+            />
+          );
+        }
         return (
           <div
             key={p.student_id ?? p.user_id ?? `${p.name}-${rank}`}

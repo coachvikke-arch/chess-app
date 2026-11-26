@@ -3,6 +3,7 @@ const { Chess } = require('chess.js');
 const { userIsMemberOfClass } = require('../services/liveClassAccess');
 const { notifyStudentUserIds, notifyMeeting } = require('./classController');
 const { normalizeMeetingUrl } = require('../utils/meetingUrl');
+const variations = require('../services/liveVariationService');
 
 const START_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
 
@@ -237,6 +238,27 @@ exports.getClassJoinToken = async (req, res) => {
 
     const moves = chess.history({ verbose: false });
 
+    /* The position the class game was loaded from. Mainline ids (`m1…mN`) are
+       replayed from here, so a set-up FEN or a PGN with a FEN header hydrates
+       into the same tree the socket holds. */
+    let baseFen = START_FEN;
+    try {
+      if (chessStateRow.pgn && chessStateRow.pgn.trim().length > 0) {
+        const headers = chess.getHeaders ? chess.getHeaders() : {};
+        baseFen = headers && headers.FEN ? headers.FEN : START_FEN;
+      } else if (chessStateRow.fen) {
+        baseFen = chessStateRow.fen;
+      }
+    } catch (e) {
+      baseFen = START_FEN;
+    }
+    const variationTree = variations.normalizeVariation(chessStateRow.variation_tree);
+    const variationSnapshot = variations.toClientState(
+      variations.withPointer(variationTree, chessStateRow.variation_pointer || variationTree.pointer),
+      0,
+      chessStateRow.analysis_mode
+    );
+
     const chatMessagesRes = await db.query(
       `SELECT cm.id, cm.user_id, u.name AS user_name, u.role AS user_role, cm.message, cm.created_at
        FROM chat_messages cm JOIN users u ON u.id = cm.user_id
@@ -389,6 +411,8 @@ exports.getClassJoinToken = async (req, res) => {
         annotations: chessStateRow.annotations || { arrows: [], highlights: [] },
         moves,
       },
+      variation: variationSnapshot,
+      baseFen,
       participants: participantsRes.map((p) => ({
         userId: p.user_id,
         name: p.name,

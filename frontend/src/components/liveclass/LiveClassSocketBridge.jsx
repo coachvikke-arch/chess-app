@@ -24,7 +24,7 @@ import { useAuth } from '../../context/AuthContext';
  * Renders nothing.
  */
 export default function LiveClassSocketBridge({ classId, onSocketError }) {
-  const { replaceParticipants, setConnection, setRemoteReview, setViewIndex, isInstructor, setSpectateEnabled, setSelfGameStatus, setChessState, setClassMeta, patchPermissions } = useLiveClass();
+  const { replaceParticipants, setConnection, setRemoteReview, setViewIndex, isInstructor, setSpectateEnabled, setSelfGameStatus, setChessState, setClassMeta, patchPermissions, setVariation, setBaseFen } = useLiveClass();
   const { user } = useAuth();
 
   useEffect(() => {
@@ -46,6 +46,10 @@ export default function LiveClassSocketBridge({ classId, onSocketError }) {
       if (payload?.moveGrants || payload?.studentInteractionEnabled !== undefined) {
         setClassMeta((prev) => prev ? ({ ...prev, moveGrants: payload.moveGrants ?? prev.moveGrants, studentInteractionEnabled: payload.studentInteractionEnabled ?? prev.studentInteractionEnabled, studentMoveSide: payload.studentMoveSide ?? prev.studentMoveSide }) : prev);
       }
+      /* The shared variation tree travels with the same snapshot, so a refresh
+         (or a late join) opens with the coach's branches already drawn. */
+      if (payload?.variation) setVariation(payload.variation);
+      if (payload?.baseFen) setBaseFen(payload.baseFen);
       /* Rejoining mid-review: put the room-wide review (and, for the instructor
          who leads it, their own step-back) back on screen. */
       const review = payload?.review && payload.review.fen && payload.review.to != null
@@ -90,7 +94,22 @@ export default function LiveClassSocketBridge({ classId, onSocketError }) {
     };
     /* onSocketError is a state setter from the parent and stable in practice;
        classId/replaceParticipants/setConnection are stable from context. */
-  }, [classId, replaceParticipants, setConnection, setRemoteReview, setViewIndex, isInstructor, onSocketError, setChessState, setClassMeta]);
+  }, [classId, replaceParticipants, setConnection, setRemoteReview, setViewIndex, isInstructor, onSocketError, setChessState, setClassMeta, setVariation, setBaseFen]);
+
+  /* The authoritative variation tree. Every branch, pointer move, reset and
+     mode change arrives as one full snapshot, so a client that missed an event
+     still converges. The tree replaces the old per-ply review broadcasts: an
+     update means the room is now looking somewhere else. */
+  useEffect(() => {
+    if (!classId) return undefined;
+    const off = on('variation_updated', (payload) => {
+      if (payload?.classId != null && Number(payload.classId) !== Number(classId)) return;
+      if (payload?.variation) setVariation(payload.variation);
+      setRemoteReview(null);
+      setViewIndex(null);
+    });
+    return off;
+  }, [classId, setVariation, setRemoteReview, setViewIndex]);
 
   useEffect(() => {
     if (!classId) return undefined;

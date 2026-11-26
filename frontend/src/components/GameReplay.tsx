@@ -11,6 +11,8 @@ import { EVAL_BAR_SCALE_CP } from '../lib/evalDisplay';
 import { gmGames } from '../lib/dailyGames';
 import { getGmGame } from '../services/gmGamesApi';
 import useArrowKeys from '../hooks/useArrowKeys';
+import useCopyFullPgn from '../hooks/useCopyPgn';
+import { sourceSiteLabel } from '../utils/gamePgn';
 import { keepActiveMoveVisible } from '../utils/scrollActiveMove';
 
 const AUTO_PLAY_MS = 1400;
@@ -123,6 +125,7 @@ export default function GameReplay({ gameId, onGameLoad, compact = false }: { ga
   const [cramped, setCramped] = useState(false);
 
   /* "Copied" confirmation for the PGN button, cleared on its own timer. */
+  const copyFullPgn = useCopyFullPgn();
   const [pgnCopied, setPgnCopied] = useState<'idle' | 'done' | 'failed'>('idle');
   const pgnCopyTimer = useRef<number | undefined>(undefined);
   useEffect(() => () => window.clearTimeout(pgnCopyTimer.current), []);
@@ -566,35 +569,29 @@ export default function GameReplay({ gameId, onGameLoad, compact = false }: { ga
   if (!game) return <div className="gm-glass-card"><p className="gm-error">This featured game could not be found.</p></div>;
   if (!moves.length) return <Spinner text="Preparing the historical position…" />;
 
-  /* Put the raw PGN on the clipboard, so the game can be loaded into Lichess,
-     ChessBase or any editor without hunting for the source page. The Clipboard
-     API needs a secure context, so a hidden textarea + execCommand covers
-     plain http and file://, matching the copy helper in GameReview. */
+  /* Full PGN via the shared builder: the GM row stores movetext only, so the
+     player, event, year and result headers are written here and the copied game
+     keeps its identity in Lichess / ChessBase. The row's `source` is where the
+     PGN came from (a pgnmentor pack URL), so Site/Source name that site instead
+     of claiming the game belongs to this app. The shared copy hook also raises
+     the app-wide "Copied!" toast. */
   async function copyPgn() {
     if (!game?.pgn) return;
-    let ok = false;
-    try {
-      if (navigator.clipboard && window.isSecureContext) {
-        await navigator.clipboard.writeText(game.pgn);
-        ok = true;
-      } else {
-        const ta = document.createElement('textarea');
-        try {
-          ta.value = game.pgn;
-          ta.style.position = 'fixed';
-          ta.style.opacity = '0';
-          document.body.appendChild(ta);
-          ta.select();
-          ok = document.execCommand('copy');
-        } finally {
-          /* Also on a throw — an orphaned textarea would sit invisible over the
-             page and swallow clicks. */
-          ta.remove();
-        }
-      }
-    } catch {
-      ok = false;
-    }
+    const link = /^https?:\/\//i.test(game.source || '') ? game.source : '';
+    /* GM rows come from pgnmentor packs, so PGNMentor.com is the truthful site
+       when a row kept no original [Site] value. */
+    const site = sourceSiteLabel(game.source) || 'PGNMentor.com';
+    const ok = await copyFullPgn({
+      pgn: game.pgn,
+      white: game.white,
+      black: game.black,
+      event: game.event,
+      date: game.year ? String(game.year) : '',
+      result: game.result,
+      site,
+      source: site,
+      link,
+    });
     setPgnCopied(ok ? 'done' : 'failed');
     window.clearTimeout(pgnCopyTimer.current);
     pgnCopyTimer.current = window.setTimeout(() => setPgnCopied('idle'), 2000);

@@ -1,0 +1,172 @@
+/* MateZone clock bot — reactions: neutral, happy, sad, angry, scared, surprised, disgusted */
+.cb{overflow:visible;--f:1;display:block}
+.cb-sh{fill:#1c63b8;opacity:.22}
+.cb-leg{fill:none;stroke:#12327a;stroke-width:11;stroke-linecap:round}
+.cb-shoe ellipse{fill:#bfeaff;stroke:#1c63b8;stroke-width:3}.cb-shoe path{fill:none;stroke:#fff;stroke-width:3;stroke-linecap:round}
+.cb-face{fill:url(#cbFace);stroke:#1c4fb0;stroke-width:4;filter:url(#cbGlow)}
+/* poked: the face burns red while the bot scolds the player */
+.cb.poked .cb-face{fill:url(#cbFaceRed);stroke:#a8231b;filter:url(#cbGlowRed)}
+.cb.poked .cb-tick{stroke:#a8231b}
+.cb.poked .sc{stroke:#a8231b}
+.cb.poked .fx-angry polygon{fill:#ff6a5a;stroke:#a8231b}
+.cb-tick{fill:none;stroke:#1c4fb0;stroke-width:3.5;stroke-linecap:round}
+.sc{fill:#fff;stroke:#1c4fb0;stroke-width:3}.lash{fill:none;stroke:#0b2a66;stroke-width:2.5;stroke-linecap:round}
+.brow{fill:none;stroke:#0b2a66;stroke-width:4;stroke-linecap:round;transform-box:view-box;transform-origin:0 0;transform:translateY(var(--y,0)) rotate(var(--r,0deg));transition:transform .35s}
+.eyeS,.eye,.pupil,.arm,.pump,.fx path,.fx rect,.fx polygon{transform-box:view-box;transform-origin:0 0}
+.eyeS{transform:scale(var(--ex,1),var(--ey,1));transition:transform .3s,opacity .2s}
+.eye{animation:cbBlink 5s infinite}
+.pupil{transform:translate(calc((var(--px,0)*var(--f,1) + var(--mx,0))*1px),calc((var(--py,0)*var(--f,1) + var(--my,0))*1px)) scale(var(--ps,1));transition:transform .3s}
+.sq{opacity:0;fill:none;stroke:#0b2a66;stroke-width:4.5;stroke-linecap:round;stroke-linejoin:round;transition:opacity .2s}
+.m{opacity:0;transition:opacity .2s}.ln{fill:none;stroke:#0b2a66;stroke-width:4;stroke-linecap:round}
+.dk{fill:#0b2a66;stroke:#12327a;stroke-width:3;stroke-linejoin:round}.tg{fill:#59c4ff;stroke:#12327a;stroke-width:2.5}
+.armp{fill:none;stroke:#12327a;stroke-width:9;stroke-linecap:round}
+.glove circle,.glove ellipse{fill:#fff;stroke:#1c63b8;stroke-width:3}.fin{opacity:0;transition:opacity .25s}
+.arm{transform:rotate(var(--a,8deg));transition:transform .55s cubic-bezier(.3,1.5,.5,1)}.al{--a:8deg}.ar{--a:-8deg}
+.fx{opacity:0;transition:opacity .25s}
+.fx-rad rect{fill:#1f9cf5}.fx-angry polygon{fill:#1b86e8;stroke:#1c4fb0;stroke-width:2;stroke-linejoin:round}
+.fx-scared path{fill:none;stroke:#0b2a66;stroke-width:3;stroke-linecap:round}
+.fx-steam path{fill:none;stroke:#35b6ff;stroke-width:4;stroke-linecap:round;animation:cbRise 1.8s ease-in-out infinite}.fx-steam .s2{animation-delay:.5s}.fx-steam .s3{animation-delay:1s}
+.tear{fill:#8fe0ff;stroke:#1c63b8;stroke-width:2;animation:cbFall 1.6s ease-in infinite}.tear.t2{animation-delay:.6s}
+.cb-body{transform-box:view-box;transform-origin:100px 250px}
+.cb[data-mood=neutral] .cb-body{animation:cbFloat 3.2s ease-in-out infinite}.cb[data-mood=neutral] .m-neutral{opacity:1}
+.cb[data-mood=happy]{--f:.4;--mx:2;--my:-4}.cb[data-mood=happy] .m-happy,.cb[data-mood=happy] .fx-rad{opacity:1}
+.cb[data-mood=happy] .cb-body{animation:cbHop .62s ease-in-out infinite}
+.cb[data-mood=happy] .al{--a:150deg}.cb[data-mood=happy] .ar{--a:-150deg}
+.cb[data-mood=happy] .brow{--y:-5px}
+.cb[data-mood=happy] .al .pump{animation:cbPump .5s ease-in-out infinite alternate}.cb[data-mood=happy] .ar .pump{animation:cbPumpR .5s ease-in-out .25s infinite alternate}
+.cb[data-mood=sad]{--f:0;--my:-3;--ps:1.12}.cb[data-mood=sad] .m-sad,.cb[data-mood=sad] .fx-sad{opacity:1}
+.cb[data-mood=sad] .cb-body{animation:cbSink 2.6s ease-in-out infinite alternate}
+.cb[data-mood=sad] .al{--a:5deg}.cb[data-mood=sad] .ar{--a:-5deg}
+.cb[data-mood=sad] .bl{--r:-16deg;--y:-1px}.cb[data-mood=sad] .br{--r:16deg;--y:-1px}
+.cb[data-mood=angry]{--f:0;--ey:.72;--ps:.85}.cb[data-mood=angry] .m-angry,.cb[data-mood=angry] .fx-angry{opacity:1}
+.cb[data-mood=angry] .cb-body{animation:cbShake .14s linear infinite}
+.cb[data-mood=angry] .fx-angry{animation:cbFlick .3s infinite}
+.cb[data-mood=angry] .al{--a:26deg}.cb[data-mood=angry] .ar{--a:-26deg}
+.cb[data-mood=angry] .bl{--r:20deg;--y:7px}.cb[data-mood=angry] .br{--r:-20deg;--y:7px}
+.cb[data-mood=scared]{--f:0;--ex:1.08;--ey:1.08;--ps:.7}.cb[data-mood=scared] .m-scared,.cb[data-mood=scared] .fx-scared{opacity:1}
+.cb[data-mood=scared] .cb-body{animation:cbTremble .1s linear infinite}
+.cb[data-mood=scared] .al{--a:-58deg}.cb[data-mood=scared] .ar{--a:58deg}
+.cb[data-mood=scared] .bl{--r:-10deg;--y:-6px}.cb[data-mood=scared] .br{--r:10deg;--y:-6px}
+.cb[data-mood=surprised]{--f:0;--ex:1.12;--ey:1.12;--ps:.65}.cb[data-mood=surprised] .m-surprised,.cb[data-mood=surprised] .fx-rad{opacity:1}
+.cb[data-mood=surprised] .cb-body{animation:cbPop .55s cubic-bezier(.2,1.6,.4,1) both}
+.cb[data-mood=surprised] .al{--a:104deg}.cb[data-mood=surprised] .ar{--a:-104deg}
+.cb[data-mood=surprised] .fin{opacity:1}.cb[data-mood=surprised] .brow{--y:-9px}
+.cb[data-mood=disgusted]{--f:0}.cb[data-mood=disgusted] .m-disgusted,.cb[data-mood=disgusted] .fx-steam,.cb[data-mood=disgusted] .sq{opacity:1}
+.cb[data-mood=disgusted] .eyeS{opacity:0}.cb[data-mood=disgusted] .cb-body{animation:cbLean 1s ease-in-out infinite alternate}
+.cb[data-mood=disgusted] .al{--a:128deg}.cb[data-mood=disgusted] .ar{--a:-22deg}.cb[data-mood=disgusted] .al .fin{opacity:1}
+.cb[data-mood=disgusted] .bl{--r:16deg;--y:10px}.cb[data-mood=disgusted] .br{--r:-16deg;--y:10px}
+
+/* ── extended reactions ───────────────────────────────────────────── */
+.cb[data-mood=celebrating]{--f:.3}.cb[data-mood=celebrating] .m-happy,.cb[data-mood=celebrating] .fx-rad{opacity:1}
+.cb[data-mood=celebrating] .cb-body{animation:cbCelebrate 1s ease-in-out infinite}
+.cb[data-mood=celebrating] .al{--a:168deg}.cb[data-mood=celebrating] .ar{--a:-168deg}
+.cb[data-mood=celebrating] .fin{opacity:1}
+.cb[data-mood=celebrating] .al .pump{animation:cbPump .45s ease-in-out infinite alternate}
+.cb[data-mood=celebrating] .ar .pump{animation:cbPumpR .45s ease-in-out .2s infinite alternate}
+.cb[data-mood=celebrating] .brow{--y:-6px}
+.cb[data-mood=laughing]{--f:.2;--ey:.65;--mx:2;--my:-3}.cb[data-mood=laughing] .m-happy{opacity:1}
+.cb[data-mood=laughing] .cb-body{animation:cbLaugh .3s ease-in-out infinite}
+.cb[data-mood=laughing] .al{--a:120deg}.cb[data-mood=laughing] .ar{--a:-120deg}
+.cb[data-mood=laughing] .al .pump{animation:cbPump .2s ease-in-out infinite alternate}
+.cb[data-mood=laughing] .ar .pump{animation:cbPumpR .2s ease-in-out infinite alternate}
+.cb[data-mood=laughing] .brow{--y:-5px}
+.cb[data-mood=thinking]{--f:0;--mx:3;--my:-7;--ps:.78}.cb[data-mood=thinking] .m-think,.cb[data-mood=thinking] .fx-think{opacity:1}
+.cb[data-mood=thinking] .cb-body{animation:cbThink 2.6s ease-in-out infinite}
+.cb[data-mood=thinking] .ar{--a:-128deg}.cb[data-mood=thinking] .ar .fin{opacity:1}
+.cb[data-mood=thinking] .bl{--r:10deg;--y:-4px}.cb[data-mood=thinking] .br{--r:-24deg;--y:-8px}
+.fx-think circle{fill:#1f9cf5;animation:cbDots 1.6s ease-in-out infinite}
+.fx-think circle:nth-child(2){animation-delay:.25s}.fx-think circle:nth-child(3){animation-delay:.5s}
+.cb[data-mood=sleeping]{--f:0;--ex:1;--ey:.09;--ps:0}.cb[data-mood=sleeping] .m-sleep,.cb[data-mood=sleeping] .fx-sleep{opacity:1}
+.cb[data-mood=sleeping] .cb-body{animation:cbBreathe 4s ease-in-out infinite}
+.cb[data-mood=sleeping] .al{--a:2deg}.cb[data-mood=sleeping] .ar{--a:-2deg}
+.cb[data-mood=sleeping] .eye{animation:none}
+.fx-sleep path{fill:none;stroke:#1f9cf5;stroke-width:3;stroke-linecap:round;stroke-linejoin:round;animation:cbZ 2.4s ease-in-out infinite}
+.fx-sleep path:nth-child(2){animation-delay:.4s}.fx-sleep path:nth-child(3){animation-delay:.8s}
+.cb[data-mood=waving]{--f:.3;--mx:2}.cb[data-mood=waving] .m-happy,.cb[data-mood=waving] .fx-rad{opacity:1}
+.cb[data-mood=waving] .cb-body{animation:cbFloat 2.4s ease-in-out infinite}
+.cb[data-mood=waving] .al{--a:30deg}
+.cb[data-mood=waving] .ar{--a:-150deg}.cb[data-mood=waving] .ar .fin{opacity:1}
+.cb[data-mood=waving] .ar .pump{animation:cbWave .5s ease-in-out infinite}
+.cb[data-mood=dancing]{--f:.2}.cb[data-mood=dancing] .m-happy,.cb[data-mood=dancing] .fx-notes{opacity:1}
+.cb[data-mood=dancing] .cb-body{animation:cbSway 1.1s ease-in-out infinite}
+.cb[data-mood=dancing] .al{--a:135deg}.cb[data-mood=dancing] .ar{--a:-135deg}
+.cb[data-mood=dancing] .al .pump{animation:cbPump .55s ease-in-out infinite alternate}
+.cb[data-mood=dancing] .ar .pump{animation:cbPumpR .55s ease-in-out infinite alternate}
+.fx-notes .note rect,.fx-notes .note circle{fill:#1f9cf5}
+.fx-notes .note{transform-box:view-box;transform-origin:0 0;animation:cbNote 1.6s ease-in-out infinite}
+.fx-notes .n2{animation-delay:.5s}
+.cb[data-mood=crying]{--f:0;--my:-3;--ps:1.15}.cb[data-mood=crying] .m-sad,.cb[data-mood=crying] .fx-sad{opacity:1}
+.cb[data-mood=crying] .cb-body{animation:cbSob .55s ease-in-out infinite}
+.cb[data-mood=crying] .al{--a:112deg}.cb[data-mood=crying] .ar{--a:-112deg}
+.cb[data-mood=crying] .bl{--r:-20deg;--y:-2px}.cb[data-mood=crying] .br{--r:20deg;--y:-2px}
+.cb[data-mood=crying] .tear{animation-duration:.9s}
+.cb[data-mood=excited]{--f:.3;--mx:3;--my:-5}.cb[data-mood=excited] .m-happy,.cb[data-mood=excited] .fx-rad{opacity:1}
+.cb[data-mood=excited] .cb-body{animation:cbBounce .3s ease-in-out infinite}
+.cb[data-mood=excited] .al{--a:158deg}.cb[data-mood=excited] .ar{--a:-158deg}
+.cb[data-mood=excited] .al .pump{animation:cbPump .22s ease-in-out infinite alternate}
+.cb[data-mood=excited] .ar .pump{animation:cbPumpR .22s ease-in-out infinite alternate}
+.cb[data-mood=excited] .brow{--y:-6px}
+
+@keyframes cbFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-5px)}}
+@keyframes cbHop{0%,100%{transform:translateY(0) scale(1.03,.97)}50%{transform:translateY(-16px) scale(.98,1.03)}}
+@keyframes cbSink{from{transform:translateY(4px) rotate(-1.5deg) scaleY(.97)}to{transform:translateY(6px) rotate(1.5deg) scaleY(.96)}}
+@keyframes cbShake{0%,100%{transform:translateX(-2px)}50%{transform:translateX(2px)}}
+@keyframes cbTremble{0%{transform:translate(-1.5px,.8px)}25%{transform:translate(1.5px,-.8px)}50%{transform:translate(-1px,-1px)}75%{transform:translate(1px,1px)}100%{transform:translate(-1.5px,.8px)}}
+@keyframes cbPop{0%{transform:translateY(0) scale(1)}45%{transform:translateY(-22px) scale(.97,1.05)}100%{transform:translateY(0) scale(1.03)}}
+@keyframes cbLean{from{transform:rotate(-3deg) translateX(2px)}to{transform:rotate(-8deg) translateX(8px)}}
+@keyframes cbBlink{0%,92%,100%{transform:scaleY(1)}96%{transform:scaleY(.08)}}
+@keyframes cbPump{to{transform:rotate(-14deg)}}@keyframes cbPumpR{to{transform:rotate(14deg)}}
+@keyframes cbFall{0%{transform:translateY(0);opacity:0}15%{opacity:1}100%{transform:translateY(22px);opacity:0}}
+@keyframes cbFlick{0%,100%{opacity:1}50%{opacity:.35}}
+@keyframes cbRise{0%{transform:translateY(8px);opacity:0}50%{opacity:1}100%{transform:translateY(-10px);opacity:0}}
+@keyframes cbCelebrate{0%,100%{transform:translateY(0) rotate(0) scale(1)}25%{transform:translateY(-20px) rotate(-6deg) scale(.98,1.04)}50%{transform:translateY(-6px) rotate(6deg)}75%{transform:translateY(-24px) rotate(4deg) scale(.98,1.04)}}
+@keyframes cbLaugh{0%,100%{transform:translate(0,0) rotate(0)}25%{transform:translate(-2px,-2px) rotate(-2deg)}50%{transform:translate(2px,-1px) rotate(2deg)}75%{transform:translate(-1px,1px) rotate(-1deg)}}
+@keyframes cbThink{0%,100%{transform:translateY(0) rotate(0)}50%{transform:translateY(-3px) rotate(2deg)}}
+@keyframes cbBreathe{0%,100%{transform:translateY(0) scale(1,.98)}50%{transform:translateY(2px) scale(1.02,1.02)}}
+@keyframes cbWave{0%,100%{transform:rotate(-18deg)}50%{transform:rotate(16deg)}}
+@keyframes cbSway{0%,100%{transform:rotate(-5deg) translateX(-2px)}50%{transform:rotate(5deg) translateX(2px)}}
+@keyframes cbSob{0%,100%{transform:translateY(2px) scaleY(.98)}50%{transform:translateY(5px) scaleY(.94) translateX(1px)}}
+@keyframes cbBounce{0%,100%{transform:translateY(0) scale(1.02,.97)}50%{transform:translateY(-12px) scale(.98,1.03)}}
+@keyframes cbDots{0%,100%{opacity:.25}50%{opacity:1}}
+@keyframes cbZ{0%{opacity:0;transform:translateY(6px)}30%{opacity:1}100%{opacity:0;transform:translateY(-6px)}}
+@keyframes cbNote{0%,100%{transform:translateY(0) rotate(0);opacity:.4}50%{transform:translateY(-6px) rotate(6deg);opacity:1}}
+@keyframes cbIn{from{opacity:0;transform:translateY(30px) scale(.6)}to{opacity:1;transform:none}}
+
+/* ── drag: circle-only ──────────────────────────────────────────────
+   While the bot is dragged it is just its clock face: the ground shadow,
+   legs, shoes, arms and mood effects disappear instantly and every body
+   animation stops. Releasing fades the full mascot back in, in place. */
+.cb .cb-sh,.cb-leg,.cb-shoe{transition:opacity .2s ease}
+.cb .arm{transition:transform .55s cubic-bezier(.3,1.5,.5,1),opacity .2s ease}
+.cb[data-act=drag] .cb-sh,
+.cb[data-act=drag] .cb-leg,
+.cb[data-act=drag] .cb-shoe,
+.cb[data-act=drag] .arm,
+.cb[data-act=drag] .fx{opacity:0;transition:none}
+.cb[data-act=drag],.cb[data-act=drag] *{animation:none!important}
+.dz{opacity:0;pointer-events:none}
+.dz path{fill:none;stroke:#0b2a66;stroke-width:2.2;stroke-linecap:round;transform-box:fill-box;transform-origin:center}
+.fx-dizzy{transform-box:view-box;transform-origin:100px 88px}
+.fx-dizzy .star{fill:#ffd23f;stroke:#b98600;stroke-width:1.4;stroke-linejoin:round}
+@media (prefers-reduced-motion:reduce){.cb,.cb *{animation:none!important;transition:none!important}}
+
+/* overlay — on its own layer above ordinary floating UI (popups 9200, toasts
+   9500, notification cards 9600, tooltips 9700) and above every modal backdrop,
+   so a backdrop-filter can never blur it; match alerts (9999) stay on top.
+   The dock is exactly the bot's box; the bubble floats on top of it, so a
+   message never shifts the bot and a dragged position stays put. */
+.cb-dock{position:fixed;z-index:var(--z-bot,9800);pointer-events:none;transition:left .25s ease,bottom .25s ease}
+.cb-dock.dragging{transition:none}
+/* Stays grabbable above every dialog layer too, so it can be moved off a
+   dialog's controls instead of parking over them. */
+.cb-hit{pointer-events:auto;display:block;background:none;border:0;padding:0;cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none;animation:cbIn .7s cubic-bezier(.2,1.5,.4,1) both}
+.cb-hit.dragging{cursor:grabbing}
+.cb-bubble{position:absolute;pointer-events:none;right:20px;bottom:100%;margin-bottom:8px;max-width:220px;background:#fff;color:#0e2338;border:2px solid #1c4fb0;border-radius:10px;padding:8px 12px;font:600 13px/1.35 system-ui,sans-serif;box-shadow:0 6px 20px rgba(28,79,176,.25);animation:cbIn .35s both}
+.cb-bubble::after{content:"";position:absolute;right:26px;bottom:-9px;width:14px;height:14px;background:#fff;border-right:2px solid #1c4fb0;border-bottom:2px solid #1c4fb0;transform:rotate(45deg)}
+.cb-bubble-left{right:auto;left:10px}
+.cb-bubble-left::after{right:auto;left:26px}
+.cb-dock.below .cb-bubble{top:100%;bottom:auto;margin-top:8px;margin-bottom:0}
+.cb-dock.below .cb-bubble::after{top:-9px;bottom:auto;border-right:0;border-bottom:0;border-left:2px solid #1c4fb0;border-top:2px solid #1c4fb0}
+.cb-bubble-hot{border-color:#b3261e;color:#7a1712;box-shadow:0 6px 20px rgba(179,38,30,.3)}
+.cb-bubble-hot::after{border-color:#b3261e}
+@media print{.cb-dock{display:none!important}}

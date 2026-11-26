@@ -56,6 +56,19 @@ const analysisRequestLimiter = rateLimit({
   handler: jsonHandler('Too many analysis requests. Please wait a minute and try again.'),
 });
 
+/* Public player card lookups (`/api/public/card/:token`). Unknown tokens are
+   cheap 404s, but the endpoint is unauthenticated, so it still gets its own
+   ceiling — enough for a classroom scanning one card at once, not enough to
+   brute-force 122-bit tokens or scrape the roster. */
+const publicCardLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: Number(process.env.PUBLIC_CARD_RATE_LIMIT || 30),
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => `public-card:${req.ip}`,
+  handler: jsonHandler('Too many card requests. Please wait a minute and try again.'),
+});
+
 module.exports = {
-  loginLimiter, signupLimiter, resetLimiter, analysisRequestLimiter,
+  loginLimiter, signupLimiter, resetLimiter, analysisRequestLimiter, publicCardLimiter,
 };

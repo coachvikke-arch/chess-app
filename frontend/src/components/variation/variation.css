@@ -1,0 +1,371 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   Shared variation move list + board wrapper.
+
+   One palette, one layout, every analysis surface (game viewer card, Game
+   Review, live classroom, Chess Profile). The game line is the plain grid; a
+   branch is a coloured, collapsible block underneath the move it came from.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+.var-moves-card {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  overflow: hidden;
+}
+
+/* Inside a host card that already has its own head (the game viewer's score
+   sheet, Game Review's move panel): the host owns the chrome, so the list
+   contributes only the notices and the scrolling body. */
+.var-moves-card.is-headless {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+.var-moves-card.is-headless .var-moves-scroll {
+  max-height: none;
+  padding: 0;
+  overflow-y: visible;
+}
+
+.var-board {
+  min-width: 0;
+}
+
+/* ── header ─────────────────────────────────────────────────────────────── */
+
+.var-moves-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.55rem 0.75rem;
+  border-bottom: 1px solid #eef2f7;
+}
+
+.var-moves-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.82rem;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.var-moves-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.25rem;
+  height: 1.2rem;
+  padding: 0 0.3rem;
+  border-radius: 999px;
+  background: #eef4ff;
+  color: #1d4ed8;
+  font-size: 0.66rem;
+  font-weight: 800;
+}
+
+.var-moves-actions {
+  display: inline-flex;
+  gap: 0.35rem;
+}
+
+.var-moves-reset {
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #0f172a;
+  border-radius: 8px;
+  padding: 0.22rem 0.5rem;
+  font-family: inherit;
+  font-size: 0.68rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.var-moves-reset:hover { border-color: #93c5fd; color: #1d4ed8; background: #f8fafc; }
+
+/* ── variation notice / back button ─────────────────────────────────────── */
+
+.var-notice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  padding: 0.4rem 0.75rem;
+  background: #eef4ff;
+  border-bottom: 1px solid #dbe7ff;
+}
+
+.var-notice--promoted {
+  background: #f5f3ff;
+  border-bottom-color: #e4defc;
+}
+
+.var-notice-actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.var-notice-text {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #1d4ed8;
+}
+.var-notice--promoted .var-notice-text { color: #6d28d9; }
+
+.var-notice-dot {
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 999px;
+  background: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+}
+
+.var-back-btn {
+  border: 1px solid #2563eb;
+  background: #2563eb;
+  color: #ffffff;
+  border-radius: 8px;
+  padding: 0.24rem 0.55rem;
+  font-family: inherit;
+  font-size: 0.68rem;
+  font-weight: 800;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.var-back-btn:hover { background: #1d4ed8; border-color: #1d4ed8; }
+.var-notice--promoted .var-back-btn {
+  background: #7c3aed;
+  border-color: #7c3aed;
+}
+.var-notice--promoted .var-back-btn:hover { background: #6d28d9; border-color: #6d28d9; }
+
+/* ── the scrolling list itself ───────────────────────────────────────────
+   It scrolls INSIDE the card so a long variation can never push the board
+   off a phone screen. ──────────────────────────────────────────────────── */
+
+.var-moves-scroll {
+  max-height: clamp(200px, 34vh, 440px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 0.35rem 0.5rem 0.55rem;
+}
+
+.var-moves-empty {
+  margin: 0.75rem 0.25rem;
+  font-size: 0.75rem;
+  color: #64748b;
+}
+
+.var-mvhead,
+.var-mvpair {
+  display: grid;
+  grid-template-columns: 2.1rem minmax(0, 1fr) minmax(0, 1fr);
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.var-mvhead {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: #ffffff;
+  padding: 0.2rem 0 0.3rem;
+  font-size: 0.64rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  color: #64748b;
+  text-transform: uppercase;
+}
+.var-mvhead .is-white,
+.var-mvhead .is-black {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.var-mvnum {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: #94a3b8;
+  text-align: right;
+  padding-right: 0.15rem;
+}
+
+/* ── move chips ─────────────────────────────────────────────────────────── */
+
+.var-mv {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  min-width: 0;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  color: #0f172a;
+  border-radius: 8px;
+  padding: 0.18rem 0.4rem;
+  font-family: inherit;
+  font-size: 0.76rem;
+  font-weight: 700;
+  line-height: 1.35;
+  cursor: pointer;
+  text-align: left;
+}
+.var-mv:hover { background: #eef4ff; border-color: #bfdbfe; color: #1d4ed8; }
+.var-mv.is-active {
+  background: #2563eb;
+  border-color: #2563eb;
+  color: #ffffff;
+}
+.var-mv.is-active .var-mv-num { color: rgba(255, 255, 255, 0.85); }
+.var-mv.is-promoted-move { border-style: dashed; }
+
+.var-mvslot {
+  min-width: 0;
+}
+
+.var-mv-num {
+  font-size: 0.64rem;
+  font-weight: 700;
+  color: #94a3b8;
+}
+
+.var-mv-badge { flex: none; }
+
+/* A Sigma that also names its type (Queen Sacrifice, …) — Game Review only. */
+.var-mv-sigma {
+  font-size: 0.62rem;
+  font-weight: 800;
+  line-height: 1;
+  color: #b45309;
+}
+.var-mv.is-active .var-mv-sigma { color: #fde68a; }
+
+/* ── variation blocks ────────────────────────────────────────────────────
+   Each block owns one colour by depth and one indent step. Nested blocks are
+   rendered INSIDE their parent line, so the brackets read as ( d4 d5 ( c4 ) ).
+   ───────────────────────────────────────────────────────────────────── */
+
+.var-branches {
+  padding: 0.15rem 0 0.35rem 2.35rem;
+}
+
+.var-block {
+  margin: 0.25rem 0 0.35rem calc(min(var(--var-depth, 1), 5) * 5px);
+  border: 1px solid #e2e8f0;
+  border-left: 3px solid var(--var-accent, #2563eb);
+  border-radius: 10px;
+  background: #ffffff;
+  flex-basis: 100%;
+  min-width: 0;
+}
+
+.var-block.is-promoted {
+  border-color: var(--var-accent, #2563eb);
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.08);
+}
+
+.var-block-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.18rem 0.3rem 0.18rem 0.15rem;
+  background: #f8fafc;
+  background: color-mix(in srgb, var(--var-accent, #2563eb) 7%, #ffffff);
+  border-radius: 7px 7px 0 0;
+}
+
+.var-block-toggle {
+  width: 1.25rem;
+  height: 1.25rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--var-accent, #2563eb);
+  font-size: 0.7rem;
+  cursor: pointer;
+}
+.var-block-toggle:hover { background: rgba(15, 23, 42, 0.06); }
+
+.var-block-label {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.64rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--var-accent, #2563eb);
+}
+
+.var-block-actions {
+  display: inline-flex;
+  gap: 0.25rem;
+  flex: none;
+}
+
+.var-block-act {
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #0f172a;
+  border-radius: 6px;
+  padding: 0.1rem 0.35rem;
+  font-family: inherit;
+  font-size: 0.62rem;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.var-block-act:hover { border-color: var(--var-accent, #2563eb); color: var(--var-accent, #2563eb); }
+
+.var-block-del { color: #b91c1c; }
+.var-block-del:hover { border-color: #ef4444; color: #b91c1c; background: #fef2f2; }
+
+.var-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.2rem 0.25rem;
+  padding: 0.3rem 0.45rem 0.4rem;
+  font-size: 0.76rem;
+}
+.var-line::before,
+.var-line::after {
+  color: var(--var-accent, #2563eb);
+  font-weight: 700;
+  opacity: 0.55;
+}
+.var-line::before { content: '('; }
+.var-line::after { content: ')'; }
+
+.var-line .var-mv {
+  background: #ffffff;
+  border-color: #dbe4f0;
+  border-color: color-mix(in srgb, var(--var-accent, #2563eb) 28%, #e2e8f0);
+}
+
+/* ── phones ─────────────────────────────────────────────────────────────── */
+
+@media (max-width: 640px) {
+  .var-moves-scroll { max-height: clamp(180px, 30vh, 320px); padding: 0.3rem 0.35rem 0.5rem; }
+  .var-mvhead,
+  .var-mvpair { grid-template-columns: 1.7rem minmax(0, 1fr) minmax(0, 1fr); }
+  .var-branches { padding-left: 1rem; }
+  .var-mv { font-size: 0.72rem; padding: 0.16rem 0.32rem; }
+  .var-block-act { font-size: 0.58rem; padding: 0.08rem 0.28rem; }
+  .var-notice { padding: 0.35rem 0.5rem; }
+  .var-notice-text { font-size: 0.68rem; }
+  .var-back-btn { font-size: 0.64rem; padding: 0.22rem 0.45rem; }
+}

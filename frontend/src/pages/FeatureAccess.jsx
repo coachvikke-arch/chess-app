@@ -187,11 +187,7 @@ function OverridesTab() {
                 <button
                   type="button"
                   onClick={() => open(u)}
-                  className={`w-full text-left px-3 py-2 rounded-lg text-sm transition flex items-center justify-between gap-2 ${
-                    selected?.id === u.id
-                      ? 'bg-gold-500/15 text-gold-400'
-                      : 'text-ivory-300 hover:bg-white/5'
-                  }`}
+                  className={`sa-user-row ${selected?.id === u.id ? 'is-on' : ''}`}
                 >
                   <span className="truncate">
                     {u.name}
@@ -424,7 +420,7 @@ const res = await api.get('/permissions/features', { cache: false });
   return (
     <>
       {/* ── tabs ── */}
-      <div className="flex flex-wrap gap-2 mb-4">
+      <div className="sa-seg-group mb-4">
         {TABS.map((t) => (
           <button
             key={t.key}
@@ -460,7 +456,7 @@ const res = await api.get('/permissions/features', { cache: false });
                 </span>
               </span>
             </span>
-            <span className="chess-chip shrink-0">Pick a member →</span>
+            <span className="btn btn-primary shrink-0">Pick a member →</span>
           </button>
 
           {/* ── which role is being edited ──

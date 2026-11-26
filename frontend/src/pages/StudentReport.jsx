@@ -20,6 +20,7 @@ import TournamentReportSection from '../features/tournaments/TournamentReportSec
 import usePageTitle from '../hooks/usePageTitle';
 import { APP_NAME } from '../config/brand';
 import ReportDateFilter from '../components/reports/ReportDateFilter';
+import PerformanceReport from '../components/reports/PerformanceReport';
 import Pagination from '../components/Pagination';
 
 /* Admin "Student report" — opened from the roster in a new tab at
@@ -48,6 +49,7 @@ export const SECTIONS = [
   ['classrooms', 'Classrooms', '♝'],
   ['assignments', 'Assignments', '♙'],
   ['homework', 'Homework assignments', '♟'],
+  ['performance', 'Performance Report', '📈'],
 ];
 
 /**
@@ -1438,6 +1440,8 @@ export default function StudentReport({ studentId: propId, studentMode = false }
    subtree that would be destroyed and rebuilt on every switch. */
   function renderSectionBody(key) {
     switch (key) {
+      case 'performance':
+        return <PerformanceReport studentId={studentId} studentMode={studentMode} />;
       case 'user':
         return renderUserInfo();
       case 'classes':
@@ -1480,16 +1484,21 @@ export default function StudentReport({ studentId: propId, studentMode = false }
             <Link to="/admin/students" className="text-sm text-ivory-500 hover:text-gold-400 transition-colors">← Back to Students</Link>
           )}
         </div>
-        <Button onClick={downloadPdf} disabled={busyPdf} variant="primary" size="md">
-          {busyPdf ? 'Rendering PDF…' : '⬇ Download as PDF'}
-        </Button>
+        {section !== 'performance' && (
+          <Button onClick={downloadPdf} disabled={busyPdf} variant="primary" size="md">
+            {busyPdf ? 'Rendering PDF…' : '⬇ Download as PDF'}
+          </Button>
+        )}
       </div>
 
       <div>
-        {renderHeader()}
-        <ReportDateFilter value={dateRange} onChange={setDateRange} />
+        {/* The Performance Report owns its own header, filter and export menu.
+            Keeping the generic identity card here would put a second heading
+            above the requested "Performance Report" layout. */}
+        {section !== 'performance' && renderHeader()}
+        {section !== 'performance' && <ReportDateFilter value={dateRange} onChange={setDateRange} />}
 
-        {isEmptyReport && (
+        {section !== 'performance' && isEmptyReport && (
           <div className="chess-card !p-5 mb-6 text-center">
             <p className="text-3xl mb-2">🌱</p>
             <p className="font-semibold text-ivory-100">Your report is just getting started</p>

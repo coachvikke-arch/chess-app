@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { BOT } from '../components/bot/botTriggers';
 
 /*
  * Slim GET cache + in-flight deduplication for the public `api` instance.
@@ -191,6 +192,9 @@ api.interceptors.response.use(
     return res;
   },
   (err) => {
+    /* Clock Bot: server faults and dead connections only. A 400/401/403/404 is
+       a real answer (wrong password, no access), not the app breaking. */
+    if (!axios.isCancel(err) && (!err.response || err.response.status >= 500)) BOT.apiError();
     const c = err.config || {};
     if (c.__cacheKey) {
       inflight.delete(c.__cacheKey);

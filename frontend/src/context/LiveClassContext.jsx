@@ -53,6 +53,16 @@ export function LiveClassProvider({ children, boot }) {
      it is cleared by the next live move. `null` = no room-wide review. */
   const [remoteReview, setRemoteReview] = useState(boot?.review ?? null);
 
+  /* The shared variation tree: `{ v, seq, pointer, mode, nodes, rev }`, seeded
+     by the HTTP join token and then kept current by `class:init` and the
+     `variation_updated` broadcast. The provider turns it into the same tree the
+     rest of the app uses (see ClassroomVariationContext). */
+  const [variation, setVariation] = useState(boot?.variation ?? null);
+  /* The position the class line was replayed from (PGN [FEN] header or the
+     board's own FEN), so the client numbers and validates the same mainline the
+     server does. */
+  const [baseFen, setBaseFen] = useState(boot?.baseFen ?? null);
+
   const openQuizAsk = useCallback((puzzle) => setQuizAsk(puzzle), []);
   const closeQuizAsk = useCallback(() => setQuizAsk(null), []);
   const patchPermissions = useCallback((next) => {
@@ -151,6 +161,8 @@ export function LiveClassProvider({ children, boot }) {
       closeQuizAsk,
       viewIndex,
       remoteReview,
+      variation,
+      baseFen,
       setClassMeta,
       setIsInstructor,
       patchPermissions,
@@ -160,6 +172,8 @@ export function LiveClassProvider({ children, boot }) {
       setPrivateChat,
       setViewIndex,
       setRemoteReview,
+      setVariation,
+      setBaseFen,
       upsertParticipant,
       removeParticipant,
       replaceParticipants,
@@ -176,7 +190,7 @@ export function LiveClassProvider({ children, boot }) {
       setSelfGameStatus,
     }),
     [classMeta, isInstructor, permissions, chessState, participants, chat, privateChat, connection,
-     quizAsk, openQuizAsk, closeQuizAsk, viewIndex, remoteReview,
+     quizAsk, openQuizAsk, closeQuizAsk, viewIndex, remoteReview, variation, baseFen,
      patchPermissions, upsertParticipant, removeParticipant, replaceParticipants, appendChat, appendPrivateChat,
      activityByStudent, bulkSetActivity, spectateEnabled, selfGameStatus]
   );

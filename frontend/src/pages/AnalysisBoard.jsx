@@ -20,6 +20,7 @@ import { analyzeGame, accuracyFor, VERDICT_META } from '../utils/gameAnalysis';
 import { clearMoveEffects, revealAfterCheckmate } from '../effects/moveEffect';
 import { playEffectForMove } from '../effects/moveEffect/playForMove';
 import { ANALYSIS_DEPTH, ANALYSIS_TIME_MS, ANALYSIS_MULTIPV } from '../utils/reviewConfig';
+import { BOT } from '../components/bot/botTriggers';
 import PostGameResultPopup from '../components/PostGameResultPopup';
 import PlayerAvatar from '../components/PlayerAvatar';
 import api from '../services/api';
@@ -27,8 +28,6 @@ import { useAuth } from '../context/AuthContext';
 import { useToast } from '../components/Toast';
 import { matchRequestKey } from '../utils/toastDedupe';
 import { useFullHeight } from '../context/FullHeightContext';
-import { useBot } from '../../matezone-bot/bot/BotContext.jsx';
-import { useGameResultBot } from '../../matezone-bot/bot/botTriggers.js';
 import {
   listUsers,
   listGames,
@@ -71,6 +70,8 @@ import SpectatorBoard from '../components/SpectatorBoard';
 import Modal from '../components/Modal';
 import TimeControlPicker from '../components/TimeControlPicker';
 import { isTimeControlValid, timeControlFamily } from '../utils/timeControl';
+import { buildFullPgn } from '../utils/gamePgn';
+import useCopyFullPgn from '../hooks/useCopyPgn';
 import { RATING_CLASS_BY_FAMILY, filterOnlinePlayers, ratingForPlayer, ratingPoolLabel } from '../utils/onlinePlayers';
 import useArrowKeys from '../hooks/useArrowKeys';
 import Button from '../components/Button';
@@ -439,7 +440,7 @@ const PLAY_ARENA_UI_CSS = `
    so a mistap while reaching for the board cannot end a game. The menu is
    right-aligned to the button and grows leftwards, so it can never run off the
    right edge of a phone. Its z-index is the app's dropdown layer: above the
-   board, clocks and move list, below modals and the helper bot. */
+   board, clocks and move list, below modals. */
 .ab-menu-anchor{position:relative;display:inline-flex;flex:0 0 auto}
 .ab-menu-btn{
   width:38px;height:38px;min-width:38px;min-height:38px;padding:0 !important;
@@ -871,8 +872,6 @@ function useStableCallback(fn) {
 }
 
 export default function AnalysisBoard() {
-  const { setSuppressed } = useBot();
-  const notifyGameResult = useGameResultBot();
   usePageTitle('Analysis Board');
   const { requestFullHeight } = useFullHeight();
   /* Reset on unmount: the shell is now persistent across routes, so the
@@ -890,7 +889,12 @@ export default function AnalysisBoard() {
      the fit below needs no frame arithmetic and the board is the same size with
      the frame on as off. */
   const { showToast, claimToast } = useToast();
+  const copyFullPgn   = useCopyFullPgn();
   const gameRef       = useRef(new Chess());
+  /* The PGN this board was loaded from (Game History / Game Review hand-off,
+     saved analysis), kept verbatim so the copy keeps its tag block. Empty for
+     games played here — those build their headers from the session. */
+  const sourcePgnRef  = useRef('');
   const liveReviewGameRef = useRef(null);
   const engineToken   = useRef(0);
   const computerToken = useRef(0);
@@ -1545,6 +1549,7 @@ export default function AnalysisBoard() {
       clearMoveEffects('load-fen');
       const hist = getHistory(g);
       gameRef.current = g;
+      sourcePgnRef.current = '';
       setInitialFen(f);
       setMoves(hist.san);
       setMoveIndex(hist.san.length);
@@ -1570,6 +1575,7 @@ export default function AnalysisBoard() {
       const hist = getHistory(g);
       liveReviewGameRef.current = null;
       gameRef.current = g;
+      sourcePgnRef.current = String(pgn || '');
       setMoves(hist.san);
       setMoveIndex(hist.san.length);
       setFen(g.fen());
@@ -1610,6 +1616,7 @@ export default function AnalysisBoard() {
     clearOnline(true);
     const g = new Chess();
     gameRef.current = g;
+    sourcePgnRef.current = '';
     setInitialFen('start'); setMoves([]); setMoveIndex(0); setFen(g.fen());
     setLastMove(null); setStatus(getStatus(g)); setClockOver(null); setReviewMode(false);
   }
@@ -1934,6 +1941,7 @@ export default function AnalysisBoard() {
 
     const fresh = new Chess();
     gameRef.current = fresh;
+    sourcePgnRef.current = '';
     setInitialFen('start'); setMoves([]); setMoveIndex(0); setFen(fresh.fen());
     setLastMove(null); setStatus(getStatus(fresh)); setBoardResetKey((key) => key + 1);
     setOrientation('white');
@@ -2024,8 +2032,8 @@ export default function AnalysisBoard() {
      accuracy + per-move classification (Brilliant/Best/Blunder…) with badges. */
   function goToGameReview() {
     const prefix = location.pathname.startsWith('/admin') ? 'admin' : 'student';
-    const pgn = gameRef.current.pgn();
-    let query = (pgn && moves.length > 0)
+    const pgn = moves.length ? arenaPgn() : '';
+    let query = pgn
       ? `?pgn=${encodeURIComponent(pgn)}`
       : `?fen=${encodeURIComponent(gameRef.current.fen())}`;
     // also pass the exact online-game session id when it exists, so the review
@@ -2104,6 +2112,7 @@ export default function AnalysisBoard() {
       clearMoveEffects('load-saved-analysis');
       const hist = getHistory(g);
       gameRef.current = g;
+      sourcePgnRef.current = item.pgn || '';
       setInitialFen(item.initialFen || item.fen || 'start');
       setMoves(hist.san); setMoveIndex(hist.san.length); setFen(g.fen());
       setLastMove(hist.last ? { from: hist.last.from, to: hist.last.to } : null);
@@ -2120,8 +2129,68 @@ export default function AnalysisBoard() {
     }
   }
 
+  /* Full PGN for the game on this board. A game loaded from a PGN keeps its own
+     tag block (players, event, date, result…); a game played here builds those
+     from the live session, so a shared or downloaded copy keeps the same
+     identity a stored Game History row would have. */
+  function arenaPgn() {
+    const imported = !onlineGame && !computerOn ? sourcePgnRef.current : '';
+    if (imported) {
+      return buildFullPgn({
+        pgn: imported,
+        moves,
+        initialFen,
+        /* Only a finished board overrides the original Result tag. */
+        result: status.over ? (status.winner ? (status.winner === 'White' ? '1-0' : '0-1') : '1/2-1/2') : '',
+      });
+    }
+
+    const names = onlineGame
+      ? (onlineMyColor === 'black'
+        ? { white: onlineGame.opponentName || 'Opponent', black: onlineGame.myName || user?.name || 'You' }
+        : { white: onlineGame.myName || user?.name || 'You', black: onlineGame.opponentName || 'Opponent' })
+      : computerOn
+        ? (computerColor === 'black'
+          ? { white: 'Computer', black: user?.name || 'You' }
+          : { white: user?.name || 'You', black: 'Computer' })
+        : { white: '', black: '' };
+
+    let result = '*';
+    if (status.over) result = status.winner ? (status.winner === 'White' ? '1-0' : '0-1') : '1/2-1/2';
+    else if (onlineGame && onlineGame.status !== 'active' && onlineGame.result) {
+      const r = onlineGame.result;
+      if (r === 'white') result = '1-0';
+      else if (r === 'black') result = '0-1';
+      else if (r === 'draw') result = '1/2-1/2';
+    }
+
+    let termination = '';
+    if (status.over) termination = status.winner ? 'Checkmate' : 'Draw';
+    if (!termination) termination = onlineReasonLabel(onlineGame?.resultReason) || '';
+
+    let timeControl = '';
+    if (onlineGame?.clock) {
+      timeControl = `${Math.round((Number(onlineGame.clock.baseMinutes) || 0))}+${Math.round(Number(onlineGame.clock.incrementSeconds) || 0)}`;
+    } else if (computerOn || clock) {
+      timeControl = `${timeSel.hours * 60 + timeSel.base}+${timeSel.inc}`;
+    }
+
+    return buildFullPgn({
+      pgn: gameRef.current.pgn(),
+      moves,
+      initialFen,
+      ...names,
+      event: 'Play Arena',
+      date: onlineGame?.updatedAt || new Date(),
+      result,
+      timeControl,
+      termination,
+      source: 'Mate Zone',
+    });
+  }
+
   async function share() {
-    const pgn = gameRef.current.pgn();
+    const pgn = moves.length ? arenaPgn() : '';
     const payload = pgn ? `pgn=${encodeURIComponent(pgn)}` : `fen=${encodeURIComponent(fen)}`;
     const url = `${window.location.origin}${window.location.pathname}?${payload}`;
     try {
@@ -2133,13 +2202,12 @@ export default function AnalysisBoard() {
     setTimeout(() => setShareMsg(''), 3500);
   }
 
-  function copyText(text, what) {
-    navigator.clipboard?.writeText(text).then(() => setShareMsg(`${what} copied!`)).catch(() => {});
-    setTimeout(() => setShareMsg(''), 2500);
+  async function copyPgn() {
+    await copyFullPgn(moves.length ? arenaPgn() : '');
   }
 
   function downloadPgn() {
-    const blob = new Blob([gameRef.current.pgn() || 'No moves yet'], { type: 'application/x-chess-pgn' });
+    const blob = new Blob([moves.length ? arenaPgn() : 'No moves yet'], { type: 'application/x-chess-pgn' });
     const url  = URL.createObjectURL(blob);
     const a    = document.createElement('a');
     a.href = url; a.download = 'analysis.pgn'; a.click();
@@ -2476,6 +2544,7 @@ export default function AnalysisBoard() {
     setPendingConfirm(null);
     const g = rebuildGame('start', []);
     gameRef.current = g;
+    sourcePgnRef.current = '';
     setInitialFen('start');
     setMoves([]); setMoveIndex(0);
     setFen(g.fen()); setLastMove(null);
@@ -2581,6 +2650,7 @@ export default function AnalysisBoard() {
   function applyOnline(row) {
     if (!row) return;
     if (ignoredGameIdsRef.current.has(String(row.id))) return;
+    sourcePgnRef.current = '';
     const g = new Chess();
     try { g.loadPgn(row.pgn || '', { strict: false }); } catch { /* start pos */ }
     const { san, last } = getHistory(g);
@@ -3905,10 +3975,6 @@ export default function AnalysisBoard() {
      legal move still has replies in it, so the board stayed draggable underneath
      a finished game. */
   const gameOver = onlineFinished || Boolean(clockOver) || (status.over && moves.length > 0);
-  useEffect(() => {
-    setSuppressed(Boolean(inOnline || (computerOn && !gameOver)));
-  }, [inOnline, computerOn, gameOver, setSuppressed]);
-  useEffect(() => () => setSuppressed(false), [setSuppressed]);
   const boardInteractive = reviewMode || liveReviewing ? false  // review: navigate only, no new moves
     : gameOver ? false
     : inOnline
@@ -4090,7 +4156,8 @@ export default function AnalysisBoard() {
     if (resultSeenRef.current === key) return;
     resultSeenRef.current = key;
     if (moves.length > 0 && ['win', 'loss', 'draw'].includes(finalResult.tone)) {
-      notifyGameResult(finalResult.tone, { gameId: onlineGame?.id });
+      if (finalResult.tone === 'win') BOT.gameWin();
+      else if (finalResult.tone === 'loss') BOT.gameLoss();
     }
     setResultPopup(finalResult);
     setResultDismiss(false);
@@ -4108,11 +4175,6 @@ export default function AnalysisBoard() {
           /* Ignore a response for a game we have already navigated away from. */
           if (activeGameIdRef.current !== gameId) return;
           setRatingResult((prev) => (prev && prev.gameId !== gameId ? prev : { ...r, gameId }));
-          /* A heavy rating drop is its own kind of loss; the bot reacts to it
-             once the number lands, after the first sad beat. */
-          if (finalResult.tone === 'loss' && Number(r?.ratingChange) <= -15) {
-            notifyGameResult('cry', { ratingChange: r.ratingChange, gameId });
-          }
         })
         .catch(() => setRatingResult(null));
     } else if (!onlineFinished) {
@@ -4193,7 +4255,7 @@ export default function AnalysisBoard() {
       runGameAnalysis(true);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [finalResult, gameAnalysis, analyzing, onlineFinished, onlineGame?.id, user?.id, notifyGameResult]);
+  }, [finalResult, gameAnalysis, analyzing, onlineFinished, onlineGame?.id, user?.id]);
 
   /* move-quality stats for the student's side + rule-based coach message */
   const resultPopupProps = useMemo(() => {
@@ -4753,6 +4815,10 @@ export default function AnalysisBoard() {
               <span aria-hidden>🔗</span>
               <span>Share</span>
             </button>
+            <button type="button" className="ab-action-btn" onClick={copyPgn} title="Copy PGN">
+              <span aria-hidden>📋</span>
+              <span>Copy PGN</span>
+            </button>
             <button type="button" className="ab-action-btn" onClick={downloadPgn} title="Download PGN">
               <span aria-hidden>⬇</span>
               <span>Download</span>
@@ -5200,6 +5266,18 @@ function GameClock({ clock, running, color, forceFloor }) {
 
   const left = remainingMs(clock, running, color);
   const low = ticking && left > 0 && left < LOW_TIME_MS;
+
+  /* Clock Bot panics once when the side on move drops under 30 s. Re-armed by a
+     fresh clock (a rematch starts well above the warning line). */
+  const botLowFired = useRef(false);
+  useEffect(() => {
+    if (!ticking || left <= 0) return;
+    if (left >= LOW_TIME_MS) { botLowFired.current = false; return; }
+    if (left < 30000 && !botLowFired.current) {
+      botLowFired.current = true;
+      BOT.timeLow();
+    }
+  });
 
   /* The side that ran out KEEPS the red once the game stops. `low` needs a
      ticking clock — a finished game must neither beat nor tick — so without this

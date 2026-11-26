@@ -28,7 +28,7 @@ import {
   BOOK_MIN_MOVE_GAMES,
   BOOK_MIN_MOVE_SHARE,
 } from './reviewConfig.js';
-import { APP_NAME } from '../config/brand';
+import { APP_NAME } from '../config/brand.js';
 
 export const BOOK_MAX_MOVES = 12;
 

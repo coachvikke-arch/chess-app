@@ -2,6 +2,7 @@ const db = require('../config/database');
 const { Chess } = require('chess.js');
 const { userIsMemberOfClass } = require('../services/liveClassAccess');
 const { canSpectateGame } = require('../services/spectateAccess');
+const variations = require('../services/liveVariationService');
 const { notifyStudentUserIds } = require('../controllers/classController');
 const onlineCtrl = require('../controllers/onlineController');
 const notificationService = require('../services/notificationService');
@@ -106,6 +107,13 @@ function getClassCacheEntry(classId) {
          restart cannot make a fresh state look older than the old one. */
       rev: 0,
       epoch: `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+      /* Variations: the position the class game was loaded from (mainline ids
+         `m1…mN` are replayed from here), the shared tree, and its own revision
+         so tree deltas can be ordered independently of board snapshots. */
+      baseFen: variations.START_FEN,
+      variation: variations.emptyVariation(),
+      variationRev: 0,
+      analysisMode: 'follow',
     };
     classCache.set(key, entry);
   }
@@ -139,24 +147,51 @@ async function getOrInitChess(classId) {
   if (!entry.chessInit) {
     entry.chessInit = (async () => {
       const chess = new Chess();
-      const stateRes = await db.query(
-        'SELECT fen, pgn FROM chess_game_states WHERE live_class_id = $1',
-        [classId]
-      );
+      /* The variation columns arrive with their own migration; selecting them
+         in the same query keeps the hot path at one round-trip, and the old
+         two-column query is the fallback for a backend deployed first. */
+      let stateRes;
+      try {
+        stateRes = await db.query(
+          `SELECT fen, pgn, variation_tree, variation_pointer, analysis_mode
+           FROM chess_game_states WHERE live_class_id = $1`,
+          [classId]
+        );
+      } catch (e) {
+        stateRes = await db.query(
+          'SELECT fen, pgn FROM chess_game_states WHERE live_class_id = $1',
+          [classId]
+        );
+      }
 
       if (stateRes.rows.length > 0) {
         const row = stateRes.rows[0];
         try {
           if (row.pgn && row.pgn.trim().length > 0) {
             chess.loadPgn(row.pgn);
+            try {
+              const headers = chess.getHeaders ? chess.getHeaders() : {};
+              entry.baseFen = headers && headers.FEN ? headers.FEN : START_FEN;
+            } catch {
+              entry.baseFen = START_FEN;
+            }
           } else if (row.fen) {
             chess.load(row.fen);
+            entry.baseFen = row.fen;
+          } else {
+            chess.load(START_FEN);
+            entry.baseFen = START_FEN;
           }
         } catch (e) {
           chess.load(START_FEN);
+          entry.baseFen = START_FEN;
         }
+        entry.variation = variations.normalizeVariation(row.variation_tree);
+        if (row.variation_pointer) entry.variation = variations.withPointer(entry.variation, row.variation_pointer);
+        entry.analysisMode = row.analysis_mode === 'free' ? 'free' : 'follow';
       } else {
         chess.load(START_FEN);
+        entry.baseFen = START_FEN;
       }
 
       entry.chess = chess;
@@ -187,6 +222,84 @@ async function persistChessState(classId, chess, lastMove) {
   );
 
   return { fen, pgn, turn, lastMove };
+}
+
+/* ── Shared variation tree ─────────────────────────────────────────────────
+   Variations are persisted beside the class game, never inside it: the PGN in
+   `chess_game_states` stays the original lesson line. The write is additive and
+   tolerates a database where the variation migration has not run yet, so a
+   backend deploy can never break the board itself. */
+const variationQueues = new Map();
+function runVariationMutation(classId, fn) {
+  const key = classCacheKey(classId);
+  const prev = variationQueues.get(key) || Promise.resolve();
+  const run = prev.then(fn, fn);
+  variationQueues.set(key, run.then(() => {}, () => {}));
+  return run;
+}
+
+async function persistVariationState(classId, entry) {
+  if (!entry.chess) return;
+  const tree = {
+    v: 1,
+    seq: Number(entry.variation.seq) || 0,
+    pointer: entry.variation.pointer || null,
+    promotedId: null,
+    nodes: entry.variation.nodes || [],
+  };
+  try {
+    await db.query(
+      `INSERT INTO chess_game_states
+         (live_class_id, fen, pgn, current_turn, variation_tree, variation_pointer, analysis_mode, updated_at)
+       VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7, NOW())
+       ON CONFLICT (live_class_id) DO UPDATE SET
+         variation_tree = EXCLUDED.variation_tree,
+         variation_pointer = EXCLUDED.variation_pointer,
+         analysis_mode = EXCLUDED.analysis_mode,
+         updated_at = NOW()`,
+      [
+        classId,
+        entry.chess.fen(),
+        entry.chess.pgn(),
+        entry.chess.turn() === 'w' ? 'w' : 'b',
+        JSON.stringify(tree),
+        entry.variation.pointer || null,
+        entry.analysisMode,
+      ]
+    );
+  } catch (e) {
+    /* Missing migration, or a transient write error: the room keeps working
+       in memory and the next successful write catches the table up. */
+    console.warn('[live-variations] persist skipped:', e.message);
+  }
+}
+
+function variationPayload(classId, entry, reason, extra) {
+  return {
+    classId,
+    variation: variations.toClientState(entry.variation, entry.variationRev, entry.analysisMode),
+    reason,
+    ...(extra || {}),
+  };
+}
+
+/* A board replacement (undo, reset, a new FEN/PGN, clear, swap) invalidates
+   every positional mainline id, so the tree that hung off them is dropped. */
+async function clearVariationTree(io, classId, entry, reason) {
+  entry.variation = variations.emptyVariation();
+  entry.variationRev = (entry.variationRev || 0) + 1;
+  await persistVariationState(classId, entry);
+  io.to(`live-class:${classId}`).emit(
+    'variation_updated',
+    variationPayload(classId, entry, reason)
+  );
+}
+
+/* The mainline id of the live position: `m<plies>`, or the root of an empty
+   game. Branching from the live board attaches beside the real lesson line. */
+function liveEndId(chess) {
+  const plies = chess.history().length;
+  return plies > 0 ? `m${plies}` : 'root';
 }
 
 async function fetchMemberUserIds(classRow) {
@@ -446,9 +559,15 @@ module.exports = function (io) {
 
         let chessStateSnapshot = null;
         let reviewSnapshot = null;
+        let variationSnapshot = variations.toClientState(variations.emptyVariation(), 0, 'follow');
+        let baseFenSnapshot = START_FEN;
         try {
           const chess = await getOrInitChess(classId);
           const initEntry = getClassCacheEntry(classId);
+          variationSnapshot = variations.toClientState(
+            initEntry.variation, initEntry.variationRev, initEntry.analysisMode
+          );
+          baseFenSnapshot = initEntry.baseFen || START_FEN;
           chessStateSnapshot = buildChessStateBroadcast(chess, null, undefined, initEntry);
           reviewSnapshot = initEntry.reviewTo != null
             ? buildReviewBroadcast(chess, initEntry.reviewTo)
@@ -498,6 +617,8 @@ module.exports = function (io) {
           classId,
           chessState: chessStateSnapshot,
           review: reviewSnapshot,
+          variation: variationSnapshot,
+          baseFen: baseFenSnapshot,
           roster,
           chatMode: classRow.chat_mode,
           studentInteractionEnabled: !!classRow.student_interaction_enabled,
@@ -650,12 +771,265 @@ module.exports = function (io) {
         entry.reviewTo = null;
         await persistChessState(classId, chess, lastMove);
 
+        /* Variations survive a new live move — their ids hang off positions
+           that still exist. A pointer sitting on the old live end follows the
+           game; one that no longer resolves falls back to the live board. */
+        const plies = chess.history().length;
+        const prevEnd = plies > 1 ? `m${plies - 1}` : null;
+        let nextPointer = entry.variation.pointer || null;
+        if (nextPointer && !variations.isPointerValid(entry.variation, chess, entry.baseFen, nextPointer)) {
+          nextPointer = null;
+        }
+        if (prevEnd && nextPointer === prevEnd) nextPointer = `m${plies}`;
+        if ((entry.variation.pointer || null) !== nextPointer) {
+          entry.variation = variations.withPointer(entry.variation, nextPointer);
+          entry.variationRev = (entry.variationRev || 0) + 1;
+          await persistVariationState(classId, entry);
+          io.to(`live-class:${classId}`).emit(
+            'variation_updated',
+            variationPayload(classId, entry, 'move')
+          );
+        }
+
         nextBoardRevision(entry);
         const broadcast = buildChessStateBroadcast(chess, lastMove, undefined, entry);
         io.to(`live-class:${classId}`).emit('chess_state_updated', broadcast);
         if (ack) ack({ ok: true, broadcast });
       } catch (err) {
         console.error('[chess_move] error', err);
+        if (ack) ack({ ok: false, error: err.message });
+      }
+    });
+
+    /* ── Shared variations ────────────────────────────────────────────────
+       Any member may branch while the coach has free analysis on; the tree is
+       room-wide and serialized per class so two moves in the same tick cannot
+       both allocate `v<seq>`. Navigating the ROOM, resetting the tree and
+       changing the mode stay instructor-only — students branch, they do not
+       steer. */
+    socket.on('variation_move', async ({ classId, from, to, promotion, atId }, ack) => {
+      try {
+        if (!classId || !from || !to) {
+          if (ack) ack({ ok: false, error: 'classId, from, to required' });
+          return;
+        }
+
+        const classRow = await getClassRowCached(classId);
+        if (!classRow) {
+          if (ack) ack({ ok: false, error: 'Class not found' });
+          return;
+        }
+
+        const access = await userIsMemberOfClass({ userId, userRole }, classRow);
+        if (!access.authorized) {
+          if (ack) ack({ ok: false, error: 'Not authorized' });
+          return;
+        }
+
+        const chess = await getOrInitChess(classId);
+
+        if (!access.isInstructor && classRow.status !== 'live') {
+          const reason = 'Board is locked';
+          socket.emit('action_rejected', { action: 'variation_move', reason });
+          if (ack) ack({ ok: false, error: reason });
+          return;
+        }
+
+        const result = await runVariationMutation(classId, async () => {
+          const entry = getClassCacheEntry(classId);
+
+          if (!access.isInstructor && entry.analysisMode !== 'free') {
+            return { ok: false, error: 'The coach is leading the line' };
+          }
+
+          /* The coach branches from the room's pointer (live end when unset) —
+             unless they named a valid position, which is how a branch is made
+             from a private per-ply review or from the node they are reading. A
+             student in free analysis names their own position; a stale one is
+             refused rather than silently attached to the live end. */
+          const wantedAt = typeof atId === 'string' && atId ? atId : null;
+          const validAt = wantedAt
+            && variations.isPointerValid(entry.variation, chess, entry.baseFen, wantedAt)
+            ? wantedAt
+            : null;
+          if (!access.isInstructor && wantedAt && !validAt) {
+            return { ok: false, error: 'That position is no longer on the board' };
+          }
+          const anchor = access.isInstructor
+            ? (validAt || entry.variation.pointer || liveEndId(chess))
+            : (validAt || liveEndId(chess));
+
+          const played = variations.playVariationMove(
+            entry.variation,
+            anchor,
+            { from, to, promotion },
+            { chess, baseFen: entry.baseFen }
+          );
+          if (!played.ok) return played;
+
+          if (!played.created) {
+            if (access.isInstructor) {
+              entry.variation = variations.withPointer(entry.variation, played.navigateTo);
+              entry.variationRev = (entry.variationRev || 0) + 1;
+              await persistVariationState(classId, entry);
+              io.to(`live-class:${classId}`).emit(
+                'variation_updated',
+                variationPayload(classId, entry, 'navigate')
+              );
+            }
+            return { ok: true, created: false, navigateTo: played.navigateTo };
+          }
+
+          entry.variation = played.next;
+          if (access.isInstructor) {
+            entry.variation = variations.withPointer(entry.variation, played.node.id);
+          }
+          entry.variationRev = (entry.variationRev || 0) + 1;
+          await persistVariationState(classId, entry);
+          io.to(`live-class:${classId}`).emit(
+            'variation_updated',
+            variationPayload(classId, entry, 'move', { node: played.node })
+          );
+          return {
+            ok: true,
+            created: true,
+            node: played.node,
+            navigateTo: played.node.id,
+            rev: entry.variationRev,
+          };
+        });
+
+        if (ack) ack(result);
+      } catch (err) {
+        console.error('[variation_move] error', err);
+        if (ack) ack({ ok: false, error: err.message });
+      }
+    });
+
+    socket.on('variation_pointer', async ({ classId, pointer }, ack) => {
+      try {
+        if (!classId) {
+          if (ack) ack({ ok: false, error: 'classId required' });
+          return;
+        }
+
+        const classRow = await getClassRowCached(classId);
+        if (!classRow) {
+          if (ack) ack({ ok: false, error: 'Class not found' });
+          return;
+        }
+
+        const access = await userIsMemberOfClass({ userId, userRole }, classRow);
+        if (!access.authorized || !access.isInstructor) {
+          socket.emit('action_rejected', { action: 'variation_pointer', reason: 'Instructor only' });
+          if (ack) ack({ ok: false, error: 'Instructor only' });
+          return;
+        }
+
+        const chess = await getOrInitChess(classId);
+        const wanted = typeof pointer === 'string' && pointer ? pointer : null;
+
+        const result = await runVariationMutation(classId, async () => {
+          const entry = getClassCacheEntry(classId);
+          if (!variations.isPointerValid(entry.variation, chess, entry.baseFen, wanted)) {
+            return { ok: false, error: 'That position is no longer on the board' };
+          }
+          entry.variation = variations.withPointer(entry.variation, wanted);
+          entry.variationRev = (entry.variationRev || 0) + 1;
+          await persistVariationState(classId, entry);
+          io.to(`live-class:${classId}`).emit(
+            'variation_updated',
+            variationPayload(classId, entry, 'pointer')
+          );
+          return { ok: true, pointer: wanted, rev: entry.variationRev };
+        });
+
+        if (ack) ack(result);
+      } catch (err) {
+        console.error('[variation_pointer] error', err);
+        if (ack) ack({ ok: false, error: err.message });
+      }
+    });
+
+    socket.on('variation_reset', async ({ classId }, ack) => {
+      try {
+        if (!classId) {
+          if (ack) ack({ ok: false, error: 'classId required' });
+          return;
+        }
+
+        const classRow = await getClassRowCached(classId);
+        if (!classRow) {
+          if (ack) ack({ ok: false, error: 'Class not found' });
+          return;
+        }
+
+        const access = await userIsMemberOfClass({ userId, userRole }, classRow);
+        if (!access.authorized || !access.isInstructor) {
+          socket.emit('action_rejected', { action: 'variation_reset', reason: 'Instructor only' });
+          if (ack) ack({ ok: false, error: 'Instructor only' });
+          return;
+        }
+
+        await getOrInitChess(classId);
+        const result = await runVariationMutation(classId, async () => {
+          const entry = getClassCacheEntry(classId);
+          entry.variation = variations.emptyVariation();
+          entry.variationRev = (entry.variationRev || 0) + 1;
+          await persistVariationState(classId, entry);
+          io.to(`live-class:${classId}`).emit(
+            'variation_updated',
+            variationPayload(classId, entry, 'cleared')
+          );
+          return { ok: true, rev: entry.variationRev };
+        });
+
+        if (ack) ack(result);
+      } catch (err) {
+        console.error('[variation_reset] error', err);
+        if (ack) ack({ ok: false, error: err.message });
+      }
+    });
+
+    socket.on('variation_mode', async ({ classId, mode }, ack) => {
+      try {
+        if (!classId) {
+          if (ack) ack({ ok: false, error: 'classId required' });
+          return;
+        }
+        if (mode !== 'follow' && mode !== 'free') {
+          if (ack) ack({ ok: false, error: "mode must be 'follow' or 'free'" });
+          return;
+        }
+
+        const classRow = await getClassRowCached(classId);
+        if (!classRow) {
+          if (ack) ack({ ok: false, error: 'Class not found' });
+          return;
+        }
+
+        const access = await userIsMemberOfClass({ userId, userRole }, classRow);
+        if (!access.authorized || !access.isInstructor) {
+          socket.emit('action_rejected', { action: 'variation_mode', reason: 'Instructor only' });
+          if (ack) ack({ ok: false, error: 'Instructor only' });
+          return;
+        }
+
+        await getOrInitChess(classId);
+        const result = await runVariationMutation(classId, async () => {
+          const entry = getClassCacheEntry(classId);
+          entry.analysisMode = mode;
+          await persistVariationState(classId, entry);
+          io.to(`live-class:${classId}`).emit(
+            'variation_updated',
+            variationPayload(classId, entry, 'mode')
+          );
+          return { ok: true, mode };
+        });
+
+        if (ack) ack(result);
+      } catch (err) {
+        console.error('[variation_mode] error', err);
         if (ack) ack({ ok: false, error: err.message });
       }
     });
@@ -698,6 +1072,9 @@ module.exports = function (io) {
             const lastHist = history[history.length - 1];
             const lastMove = lastHist ? { from: lastHist.from, to: lastHist.to, san: lastHist.san } : null;
             await persistChessState(classId, chess, lastMove);
+            /* The undone ply (and everything after it) no longer exists, so
+               branches anchored there cannot be replayed. */
+            await clearVariationTree(io, classId, entry, 'undo');
             nextBoardRevision(entry);
             const broadcast = buildChessStateBroadcast(chess, lastMove, undefined, entry);
             io.to(`live-class:${classId}`).emit('chess_state_updated', broadcast);
@@ -734,7 +1111,9 @@ module.exports = function (io) {
           case 'new_game': {
             entry.redoStack.length = 0;
             chess.reset();
+            entry.baseFen = variations.START_FEN;
             await persistChessState(classId, chess, null);
+            await clearVariationTree(io, classId, entry, 'reset');
             nextBoardRevision(entry);
             const broadcast = buildChessStateBroadcast(chess, null, undefined, entry);
             io.to(`live-class:${classId}`).emit('chess_state_updated', broadcast);
@@ -754,7 +1133,9 @@ module.exports = function (io) {
               return;
             }
             entry.redoStack.length = 0;
+            entry.baseFen = payload.fen;
             await persistChessState(classId, chess, null);
+            await clearVariationTree(io, classId, entry, 'load_fen');
             nextBoardRevision(entry);
             const broadcast = buildChessStateBroadcast(chess, null, undefined, entry);
             io.to(`live-class:${classId}`).emit('chess_state_updated', broadcast);
@@ -775,12 +1156,19 @@ module.exports = function (io) {
               return;
             }
             entry.redoStack.length = 0;
+            try {
+              const headers = chess.getHeaders ? chess.getHeaders() : {};
+              entry.baseFen = headers && headers.FEN ? headers.FEN : variations.START_FEN;
+            } catch {
+              entry.baseFen = variations.START_FEN;
+            }
             const pgnHistory = chess.history({ verbose: true });
             const pgnLast = pgnHistory[pgnHistory.length - 1];
             const pgnLastMove = pgnLast
               ? { from: pgnLast.from, to: pgnLast.to, san: pgnLast.san }
               : null;
             await persistChessState(classId, chess, pgnLastMove);
+            await clearVariationTree(io, classId, entry, 'load_pgn');
             nextBoardRevision(entry);
             const pgnBroadcast = buildChessStateBroadcast(chess, pgnLastMove, undefined, entry);
             io.to(`live-class:${classId}`).emit('chess_state_updated', pgnBroadcast);
@@ -842,7 +1230,9 @@ module.exports = function (io) {
 
           case 'clear_board': {
             chess.clear();
+            entry.baseFen = chess.fen();
             await persistChessState(classId, chess, null);
+            await clearVariationTree(io, classId, entry, 'clear_board');
             nextBoardRevision(entry);
             const broadcast = buildChessStateBroadcast(chess, null, undefined, entry);
             io.to(`live-class:${classId}`).emit('chess_state_updated', broadcast);
@@ -881,7 +1271,9 @@ module.exports = function (io) {
               return;
             }
             entry.redoStack.length = 0;
+            entry.baseFen = swappedFen;
             await persistChessState(classId, chess, null);
+            await clearVariationTree(io, classId, entry, 'swap');
             nextBoardRevision(entry);
             const broadcast = buildChessStateBroadcast(chess, null, undefined, entry);
             io.to(`live-class:${classId}`).emit('chess_state_updated', broadcast);
