@@ -11,7 +11,7 @@ ADD COLUMN target_student_user_id INTEGER REFERENCES users(id) ON DELETE SET NUL
 -- Update the unique index to include target_student_user_id so that:
 -- (student A, admin X) is one request
 -- (student A, admin X, student B) is a different request from (student A, admin X, student C)
-DROP INDEX IF EXISTS uq_chat_admin_requests_one_active ON chat_admin_requests;
+DROP INDEX IF EXISTS uq_chat_admin_requests_one_active;
 CREATE UNIQUE INDEX uq_chat_admin_requests_one_active
     ON chat_admin_requests (student_user_id, admin_user_id, target_student_user_id)
     WHERE status IN ('pending', 'accepted');
