@@ -1,0 +1,36 @@
+name: Create super admin
+
+# Fresh databases have no users. Render's free plan has no shell access, so run
+# the existing bootstrap script from GitHub Actions instead.
+#
+# Copy this file to .github/workflows/create-super-admin.yml in the GitHub web UI
+# (the CLI token used for deployment does not have the `workflow` scope).
+on:
+  workflow_dispatch:
+    inputs:
+      email:
+        description: Super admin email
+        required: true
+      name:
+        description: Display name
+        required: true
+        default: Academy Owner
+
+jobs:
+  create:
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - name: Install backend dependencies
+        working-directory: backend
+        run: npm ci --omit=dev --no-audit --no-fund
+      - name: Create super admin
+        working-directory: backend
+        run: node scripts/create-super-admin.js --email "${{ inputs.email }}" --name "${{ inputs.name }}" --password "${{ secrets.SUPER_ADMIN_PASSWORD }}"

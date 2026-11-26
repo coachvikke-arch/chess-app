@@ -136,7 +136,6 @@ app.use('/api/chat-admin-requests', chatAdminRequestRoutes);
    be captured by the /:id routes. Both sit before the bare `/api` catch-all. */
 app.use('/api/tournaments', tournamentGameRoutes);
 app.use('/api/tournaments', tournamentRoutes);
- app.use('/api/openings', openingRoutes);
 app.use('/api/openings', openingRoutes);
 app.use('/api/academy', academyRoutes);
 app.use('/api/chess-profiles', chessProfileRoutes);

@@ -1,0 +1,48 @@
+name: Analysis worker
+
+# Copy this file to .github/workflows/analysis-worker.yml in the GitHub web UI
+# (the CLI token used for deployment does not have the `workflow` scope).
+#
+# Render's free plan has no background worker, and the worker needs the full
+# repo (it imports the review pipeline from frontend/src). GitHub Actions is
+# free for this public repository, so it runs the existing worker on a schedule
+# against the same Neon database the Render web service uses.
+on:
+  schedule:
+    - cron: '*/30 * * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: analysis-worker
+  cancel-in-progress: false
+
+jobs:
+  analyse:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      NODE_ENV: production
+      ANALYSIS_ENGINE_POOL: 1
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: |
+            backend/package-lock.json
+            frontend/package-lock.json
+
+      - name: Install backend dependencies
+        working-directory: backend
+        run: npm ci --omit=dev --no-audit --no-fund
+
+      - name: Install frontend dependencies (review pipeline + Stockfish bridge)
+        working-directory: frontend
+        run: npm ci --omit=dev --no-audit --no-fund
+
+      - name: Run analysis worker
+        working-directory: backend
+        run: node scripts/analysis_worker.js
