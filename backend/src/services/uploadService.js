@@ -79,10 +79,16 @@ function uploadBuffer(buffer, options = {}) {
   });
 }
 
-async function uploadFile(file, { folder, prefix = 'file', resourceType = null, options = {} }) {
+async function uploadFile(file, { folder, prefix = 'file', resourceType = null, options = {}, buffer = file.buffer } = {}) {
+  /* Multer's memory storage puts the bytes on the `info` object, not on `file`.
+     Callers from makeStorage pass that buffer explicitly; direct callers can
+     still rely on file.buffer. */
+  if (!buffer || !Buffer.isBuffer(buffer) || buffer.length === 0) {
+    throw new Error('No file bytes received for upload');
+  }
   const publicId = publicIdFor(file, folder, prefix);
   const type = resourceType || resourceTypeFor(file.mimetype);
-  const result = await uploadBuffer(file.buffer, {
+  const result = await uploadBuffer(buffer, {
     public_id: publicId,
     resource_type: type,
     overwrite: true,
@@ -93,7 +99,7 @@ async function uploadFile(file, { folder, prefix = 'file', resourceType = null, 
     url: result.secure_url,
     publicId: result.public_id || publicId,
     resourceType: result.resource_type || type,
-    bytes: result.bytes || file.size || 0,
+    bytes: result.bytes || file.size || buffer.length,
   };
 }
 
@@ -172,7 +178,7 @@ function makeStorage({ destination, folder, prefix = 'file', resourceType = null
       memory._handleFile(req, file, async (err, info) => {
         if (err) return cb(err);
         try {
-          const uploaded = await uploadFile(file, { folder, prefix, resourceType, options });
+          const uploaded = await uploadFile(file, { folder, prefix, resourceType, options, buffer: info.buffer });
           cb(null, {
             ...info,
             filename: uploaded.url,
