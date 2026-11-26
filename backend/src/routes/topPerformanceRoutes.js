@@ -1,19 +1,18 @@
 const express = require('express');
 const multer = require('multer');
 const path = require('path');
-const crypto = require('crypto');
+const { makeStorage, folderName } = require('../services/uploadService');
 const ctrl = require('../controllers/topPerformanceController');
 const authMiddleware = require('../middleware/authMiddleware');
 const roleMiddleware = require('../middleware/roleMiddleware');
 
 const router = express.Router();
 
-const storage = multer.diskStorage({
+const storage = makeStorage({
   destination: path.join(__dirname, '..', '..', 'uploads'),
-  filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname) || '.jpg';
-    cb(null, `performance-${Date.now()}-${crypto.randomBytes(6).toString('hex')}${ext}`);
-  },
+  folder: `${folderName()}/performances`,
+  prefix: 'performance',
+  resourceType: 'image',
 });
 
 const upload = multer({

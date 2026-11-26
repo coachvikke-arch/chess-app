@@ -27,6 +27,7 @@ import { ConfirmDialog } from '../components/ui';
 import { formatTime12 } from '../utils/time';
 import { useBot } from '../../matezone-bot/bot/BotContext.jsx';
 import { showChatBot } from '../../matezone-bot/bot/botTriggers.js';
+import resolveUploadUrl from '../utils/uploadUrl.js';
 
 function fmtTime(iso) {
   try { return formatTime12(new Date(iso)); } catch { return ''; }
@@ -53,7 +54,7 @@ function isImageType(t) {
 function PersonAvatar({ u, name, size = 40 }) {
   const initial = String(name || '?')[0]?.toUpperCase() || '?';
   if (u?.avatar_config) return <StudentAvatar config={u.avatar_config} seed={`user_${u.id || ''}`} size={size} />;
-  if (u?.profile_image) return <img src={u.profile_image} alt="" className="rounded-full object-cover object-center" style={{ width: size, height: size }} />;
+  if (u?.profile_image) return <img src={resolveUploadUrl(u.profile_image, 'profile_image')} alt="" className="rounded-full object-cover object-center" style={{ width: size, height: size }} />;
   return (
     <span className="rounded-full bg-gradient-to-br from-gold-500 to-gold-700 grid place-items-center font-bold text-white" style={{ width: size, height: size }}>
       {initial}
@@ -63,7 +64,7 @@ function PersonAvatar({ u, name, size = 40 }) {
 
 const GroupBadge = ({ src, size = 40 }) => (
   src ? (
-    <img src={src} alt="" className={"shrink-0 rounded-full object-cover ring-1 ring-ivory-700/30 bg-ink-900"} style={{ width: size, height: size }} />
+    <img src={resolveUploadUrl(src, 'avatar')} alt="" className={"shrink-0 rounded-full object-cover ring-1 ring-ivory-700/30 bg-ink-900"} style={{ width: size, height: size }} />
   ) : (
     <span className={"shrink-0 rounded-full bg-gradient-to-br from-ink-600 to-ink-800 ring-1 ring-ivory-700/30 grid place-items-center text-lg"} style={{ width: size, height: size }}>
       👥
@@ -126,10 +127,11 @@ function peopleRowChip(u, { isDecision, blocked, asCoachView }) {
    a download card. */
 function AttachmentBubble({ m }) {
   if (!m.attachment) return null;
+  const src = resolveUploadUrl(m.attachment, 'attachment');
   if (isImageType(m.attachment_type)) {
     return (
       <img
-        src={m.attachment}
+        src={src}
         alt={m.attachment_name || 'image'}
         className="mt-1.5 max-h-64 max-w-full rounded-lg border border-ivory-700/30 bg-ink-900"
         loading="lazy"
@@ -138,7 +140,7 @@ function AttachmentBubble({ m }) {
   }
   return (
     <a
-      href={m.attachment}
+      href={src}
       download={m.attachment_name}
       target="_blank"
       rel="noreferrer"

@@ -91,7 +91,7 @@ export default function Students() {
       const res = await api.post(`/students/${d.id}/resend-registration-email`);
       const mode = res.data?.mode;
       if (mode === 'dummy') {
-        showToast('The mail was only printed to the server log (dummy transport) — nothing was sent.', {
+        showToast('The mail was only printed to the server log (dummy mode) — nothing was sent.', {
           tone: 'warning',
           title: 'Email not sent',
         });

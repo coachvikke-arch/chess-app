@@ -1,7 +1,6 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
-const fs = require('fs');
 const path = require('path');
 const db = require('../config/database');
 const roleMiddleware = require('../middleware/roleMiddleware');
@@ -13,6 +12,7 @@ const mailService = require('../services/mailService');
 const { normalisePhone } = require('../utils/phone');
 const { ensureBoardPreferences } = require('../services/boardPreferenceService');
 const { fetchProfile } = require('../services/profileService');
+const uploads = require('../services/uploadService');
 
 const USERNAME_RE = /^[a-zA-Z0-9_]{3,20}$/;
 
@@ -270,19 +270,19 @@ exports.register = [
 
     /* ── the confirmation email ──
        Sent AFTER the record is saved, and NOT awaited: a slow or broken mail
-       server must not hold (or fail) a registration. The promise is detached and
+       provider must not hold (or fail) a registration. The promise is detached and
        every failure is swallowed and logged by the service.
        Only students get it (a coach account is not "registered" with the
        institute in the same sense), and only on CREATION - never on an edit.
 
        The status reported back is the TRUTH: 'queued' only when a real mail
-       server is configured, 'dummy' when the message was merely printed to the
+       Brevo is configured, 'dummy' when the message was merely printed to the
        log, 'skipped' when there is no way to send it. A registration must never
        claim "email sent" when nothing was sent. */
     let emailStatus = 'skipped';
     if (finalRole === 'student') {
       const mode = mailService.mailStatus();
-      const canSend = mode === 'smtp' || mode === 'relay';
+      const canSend = mode === 'brevo';
       emailStatus = canSend ? 'queued' : (mode === 'dummy' ? 'dummy' : 'skipped');
       if (!canSend) {
         console.warn(`[mail] registration email NOT sent (${mode}) for ${user.email}.`);
@@ -683,21 +683,23 @@ exports.updatePreferences = async (req, res) => {
   }
 };
 
-/* Uploaded photos are served straight from disk, so a replaced or cleared file
-   has to be removed here — nothing else ever deletes it. */
+/* A replaced or cleared photo is removed from Cloudinary (or from the local
+   uploads folder in development). Cleanup is best-effort and never blocks the
+   profile update that triggered it. */
 function unlinkUploadedPhoto(profileImage) {
   if (!profileImage) return;
-  const fileName = String(profileImage).split('/').pop();
-  if (!fileName) return;
-  const filePath = path.join(__dirname, '..', '..', 'uploads', fileName);
-  try { if (fs.existsSync(filePath)) fs.unlinkSync(filePath); } catch {}
+  Promise.resolve(uploads.deleteStoredFile(profileImage, {
+    localDir: path.join(__dirname, '..', '..', 'uploads'),
+  })).catch((err) => console.warn('[upload] profile photo cleanup failed:', err && err.message));
 }
 
 exports.uploadPhoto = async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ message: 'No file provided' });
 
-    const publicUrl = `/uploads/${req.file.filename}`;
+    /* req.file.filename is a Cloudinary secure URL in production and a plain
+       filename in local development. Store exactly what the browser can load. */
+    const publicUrl = req.file.filename;
     /* A profile photo and a custom avatar are mutually exclusive: uploading a
        photo replaces whatever the profile was showing, avatar included. */
     const result = await db.query(
@@ -710,7 +712,7 @@ exports.uploadPhoto = async (req, res) => {
       [publicUrl, req.user.id]
     );
     if (result.rows.length === 0) {
-      try { fs.unlinkSync(req.file.path); } catch {}
+      unlinkUploadedPhoto(req.file.filename);
       return res.status(404).json({ message: 'User not found' });
     }
 
@@ -721,7 +723,7 @@ exports.uploadPhoto = async (req, res) => {
        one step — the new photo has to show everywhere without a reload. */
     res.json({ user: await fetchProfile(req.user.id), profile_image: publicUrl });
   } catch (err) {
-    if (req.file) { try { fs.unlinkSync(req.file.path); } catch {} }
+    if (req.file) unlinkUploadedPhoto(req.file.filename);
     console.error(err);
     res.status(500).json({ message: 'Failed to upload photo', error: err.message });
   }

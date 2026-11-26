@@ -1,6 +1,8 @@
 .vercel
 .env*
+!.env.example
 # Generated from node_modules by scripts/copy-stockfish.mjs during npm install.
-# The full net is 113 MB, over GitHub's 100 MB per-file limit.
+# The full net is ~99 MB, over GitHub's 100 MB repository guidance and
+# Cloudflare Pages' 25 MiB per-asset limit.
 public/stockfish.wasm
 public/stockfish-lite.wasm

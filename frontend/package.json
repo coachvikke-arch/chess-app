@@ -4,8 +4,12 @@
   "version": "1.0.0",
   "description": "MATE ZONE CHESS ACADEMY — React/Vite frontend",
   "type": "module",
+  "engines": {
+    "node": ">=20 <23"
+  },
   "scripts": {
     "dev": "vite --host",
+    "prebuild": "node scripts/copy-stockfish.mjs",
     "build": "vite build",
     "preview": "vite preview",
     "postinstall": "node scripts/copy-stockfish.mjs",
@@ -111,7 +115,6 @@
     "lottie-react": "^3.1.2",
     "lottie-web": "^5.13.0",
     "lucide-react": "^1.44.0",
-    "nodemailer": "^10.2.1",
     "pdfjs-dist": "^6.3.289",
     "react": "^18.3.1",
     "react-chessboard": "^4.7.2",

@@ -48,7 +48,7 @@
     "test:analysisstore": "node --test scripts/analysis-store.test.mjs",
     "test:registration-email": "node --test scripts/test-registration-email.js",
     "test:mail": "node scripts/verify_mail.js",
-    "test:smtp": "node scripts/smtp_catch_server.js",
+    "upload:review-wasm": "node scripts/upload-review-wasm.js",
     "test:review-visibility": "node --test scripts/test-review-visibility.mjs",
     "db:analysis": "node run_migration_game_stockfish_analysis.js",
     "worker:analysis": "node scripts/analysis_worker.js",
@@ -82,10 +82,14 @@
     "test:offline-attendance": "node --test scripts/test-offline-attendance-markers.mjs scripts/test-offline-attendance-admin.mjs",
     "test:class-list-exclude-status": "node --test scripts/test-class-list-exclude-status.mjs"
   },
+  "engines": {
+    "node": ">=20 <23"
+  },
   "dependencies": {
     "adm-zip": "^0.6.1",
     "bcryptjs": "^2.4.3",
     "chess.js": "^1.4.0",
+    "cloudinary": "^2.11.0",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
@@ -96,7 +100,6 @@
     "livekit-server-sdk": "^2.0.0",
     "morgan": "^1.10.0",
     "multer": "^2.3.0",
-    "nodemailer": "^10.1.7",
     "pdfkit": "^0.15.2",
     "pg": "^8.12.0",
     "socket.io": "^4.8.3"

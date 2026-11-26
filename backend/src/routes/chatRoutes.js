@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const multer = require('multer');
 const path = require('path');
-const crypto = require('crypto');
+const { makeStorage, folderName } = require('../services/uploadService');
 const ctrl = require('../controllers/chatController');
 const authMiddleware = require('../middleware/authMiddleware');
 const roleMiddleware = require('../middleware/roleMiddleware');
@@ -20,14 +20,12 @@ router.use(requireFeature.requireFeatureByRole({
   coach: 'messaging_students',
 }));
 
-/* Chat group attachments (WhatsApp-style images/files) land under
- * backend/uploads/chat/ and are served from /uploads/chat/... */
-const storage = multer.diskStorage({
+/* Chat attachments go to Cloudinary when configured; otherwise they keep
+ * landing under backend/uploads/chat/ and are served from /uploads/chat/... */
+const storage = makeStorage({
   destination: path.join(__dirname, '..', '..', 'uploads', 'chat'),
-  filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname);
-    cb(null, `${Date.now()}-${crypto.randomBytes(6).toString('hex')}${ext}`);
-  },
+  folder: `${folderName()}/chat`,
+  prefix: 'chat',
 });
 
 const upload = multer({

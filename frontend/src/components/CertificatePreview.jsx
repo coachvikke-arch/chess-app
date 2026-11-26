@@ -183,13 +183,8 @@ export default function CertificatePreview({ layout, content, artwork, className
             if (imgSrc && imgSrc.includes('data:')) {
               setImgSrc('/certificate-template.png');
             } else if (imgSrc && imgSrc.includes('/certificate-template')) {
-              // try api base if available
-              const apiBase = import.meta.env.VITE_API_URL || '';
-              if (apiBase) {
-                setImgSrc(`${apiBase}/certificate-template.png`);
-              } else {
-                setImgError(true);
-              }
+              // The artwork lives in public/ on the frontend, never on the API.
+              setImgError(true);
             } else {
               setImgError(true);
             }

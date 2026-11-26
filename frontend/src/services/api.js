@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { normalizeUploadUrls } from '../utils/uploadUrl.js';
 
 /*
  * Slim GET cache + in-flight deduplication for the public `api` instance.
@@ -135,8 +136,17 @@ function invalidateScope(scope) {
   }
 }
 
+/* Cloudflare Pages and Render are different origins: without a server-side
+   rewrite the browser must call the API host directly. Locally the Vite proxy
+   still handles same-origin /api. */
+function apiBaseUrl(raw) {
+  const base = String(raw || '').trim().replace(/\/+$/, '');
+  if (!base) return '/api';
+  return /\/api$/i.test(base) ? base : `${base}/api`;
+}
+
 const api = axios.create({
-  baseURL: '/api',
+  baseURL: apiBaseUrl(import.meta.env.VITE_API_URL),
 });
 
 api.interceptors.request.use(
@@ -179,6 +189,7 @@ api.interceptors.request.use(
 
 api.interceptors.response.use(
   (res) => {
+    normalizeUploadUrls(res.data);
     const c = res.config || {};
     if (c.__cacheKey) {
       const deferred = c.__deferred;

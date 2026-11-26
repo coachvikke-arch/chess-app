@@ -57,8 +57,12 @@ function makeSlots(n) {
   }));
 }
 
-export function createPool({ poolSize, workerUrl, name = 'stockfish', hashMb = 16, threads = 1 }) {
-  const url = `${BASE_URL}${workerUrl}`;
+export function createPool({ poolSize, workerUrl, name = 'stockfish', hashMb = 16, threads = 1, wasmUrl = null }) {
+  const workerBase = `${BASE_URL}${workerUrl}`;
+  /* The Stockfish worker reads self.location.hash, decodes it and uses it as its
+     WASM URL. That lets a tiny same-origin worker load a 94 MB network from a
+     CORS-enabled host instead of asking Cloudflare Pages to serve it. */
+  const url = wasmUrl ? `${workerBase}#${encodeURIComponent(wasmUrl)}` : workerBase;
   const slots = makeSlots(poolSize);
   let bootPromise = null;
   let bootReject = null;

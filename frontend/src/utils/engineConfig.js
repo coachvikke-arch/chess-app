@@ -1,7 +1,8 @@
 /* Engine selection config — which Stockfish WASM build powers which feature.
 
-   Two DISTINCT physical engines are deployed to public/ (see
-   scripts/copy-stockfish.mjs):
+   Two DISTINCT physical engine wrappers are deployed to public/ (see
+   scripts/copy-stockfish.mjs). Locally both WASM files ship with them; on
+   Cloudflare only the small lite WASM ships — the full network is remote:
 
      REVIEW_ENGINE_URL  → stockfish.js       = FULL NNUE build (large net
                                                nn-1a298aa575a0 + compact net,
@@ -52,6 +53,12 @@ function detectReviewPoolSize() {
 
 export const REVIEW_ENGINE_URL = 'stockfish.js';
 export const ANALYSIS_ENGINE_URL = 'stockfish-lite.js';
+
+/* Cloudflare Pages refuses assets over 25 MiB; the full review network is
+   ~94.6 MB, so production uploads it separately (Cloudinary raw / any CORS
+   host) and points the local worker at it with this build-time URL. The worker
+   script stays local and small; only its WASM is fetched remotely. */
+export const REVIEW_WASM_URL = String(import.meta.env?.VITE_REVIEW_WASM_URL || '').trim();
 
 /* review loves parallelism (57-plies run ~3x faster with 3 workers);
    analysis is a single live search at a time → one worker is plenty.

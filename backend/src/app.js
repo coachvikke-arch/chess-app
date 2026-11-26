@@ -56,7 +56,7 @@ const app = express();
    the API can always open a socket too. */
 const { corsOrigin } = require('./config/cors');
 
-/* Railway/Vercel sit in front of the app, so every request carries
+/* Render sits in front of the app, so every request carries
    X-Forwarded-For. One hop only: trusting it lets express-rate-limit key on the
    real client IP instead of the proxy's, and stops its validation from throwing
    (an unhandled rejection that took the process down on the first API call). */

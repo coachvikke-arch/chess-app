@@ -260,12 +260,17 @@ server.listen(PORT, '0.0.0.0', () => {
     require('./src/controllers/onlineController').startOnlineClockWorker(io);
   } catch (e) { console.warn('online clock worker failed to start:', e.message); }
   /* The mail setup is checked ONCE, at start-up, where the warning is actually
-     seen: a missing SMTP block, the dummy transport (which prints instead of
-     sending) and a From address the provider will refuse are all worth saying
+     seen: a missing Brevo key, dummy mode (which prints instead of sending)
+     and a From address Brevo will refuse are all worth saying
      out loud before somebody wonders why a student got no mail. */
   try {
     require('./src/services/mailService').checkMailSetup();
   } catch { /* the mail service must never stop the server from starting */ }
+  /* Same idea for uploads: say out loud whether files land in Cloudinary or in
+     Render's temporary disk, before somebody loses an upload. */
+  try {
+    require('./src/services/uploadService').checkUploadSetup();
+  } catch { /* the upload service must never stop the server from starting */ }
   /* The trainer's puzzle pool is built here instead of on a child's first
      request, so the deploy says out loud whether the academy has puzzles to
      serve — and one slow install never lands on a student's screen. */

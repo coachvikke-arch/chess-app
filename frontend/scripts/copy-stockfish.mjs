@@ -16,8 +16,12 @@
    every pool pins one distinct .wasm file.
 
    ONE PATCH IS APPLIED ON THE WAY IN (see fixAbortRecursion below): the
-   published wrapper turns an aborted .wasm download into an infinite recursion. */
-import { copyFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+   published wrapper turns an aborted .wasm download into an infinite recursion.
+
+   SKIP_FULL_WASM=1 leaves the 94 MB full network OUT of public/ so a Cloudflare
+   Pages build fits under its 25 MiB per-asset limit. Set VITE_REVIEW_WASM_URL
+   to a CORS-enabled URL for that file in the same build. */
+import { copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -61,10 +65,23 @@ const pkg = JSON.parse(readFileSync(join(root, 'node_modules', 'stockfish', 'pac
 if (pkg.buildVersion !== '19') {
   throw new Error(`copy-stockfish expects the Stockfish 19 package, found ${pkg.version}`);
 }
+const skipFullWasm = String(process.env.SKIP_FULL_WASM || '').trim() === '1';
+
 copyFileSync(join(srcDir, 'stockfish-19-single.js'), full);
-copyFileSync(join(srcDir, 'stockfish-19-single.wasm'), join(dstDir, 'stockfish.wasm'));
 copyFileSync(join(srcDir, 'stockfish-19-lite-single.js'), lite);
 copyFileSync(join(srcDir, 'stockfish-19-lite-single.wasm'), join(dstDir, 'stockfish-lite.wasm'));
+
+if (skipFullWasm) {
+  const stale = join(dstDir, 'stockfish.wasm');
+  if (existsSync(stale)) rmSync(stale);
+  console.log('SKIP_FULL_WASM=1: full network not copied. Set VITE_REVIEW_WASM_URL to its remote URL.');
+  if (!String(process.env.VITE_REVIEW_WASM_URL || '').trim()) {
+    console.warn('WARNING: Game Review will look for /stockfish.wasm, which is not in this build.');
+  }
+} else {
+  copyFileSync(join(srcDir, 'stockfish-19-single.wasm'), join(dstDir, 'stockfish.wasm'));
+}
+
 console.log(fixAbortRecursion(full));
 console.log(fixAbortRecursion(lite));
-console.log('Stockfish 19 full NNUE (review) + lite (analysis) engines copied to public/');
+console.log('Stockfish 19 workers + lite engine copied to public/');

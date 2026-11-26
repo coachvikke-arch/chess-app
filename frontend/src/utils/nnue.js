@@ -8,7 +8,7 @@
 */
 
 import { createPool } from './stockfish.js';
-import { REVIEW_ENGINE_POOL, REVIEW_ENGINE_HASH_MB, REVIEW_ENGINE_THREADS, REVIEW_ENGINE_URL } from './engineConfig.js';
+import { REVIEW_ENGINE_POOL, REVIEW_ENGINE_HASH_MB, REVIEW_ENGINE_THREADS, REVIEW_ENGINE_URL, REVIEW_WASM_URL } from './engineConfig.js';
 
 const reviewPool = createPool({
   poolSize: REVIEW_ENGINE_POOL,
@@ -16,6 +16,7 @@ const reviewPool = createPool({
   name: 'review-nnue',
   hashMb: REVIEW_ENGINE_HASH_MB,
   threads: REVIEW_ENGINE_THREADS,
+  wasmUrl: REVIEW_WASM_URL || null,
 });
 
 export const search = (fen, opts) => reviewPool.search(fen, opts);

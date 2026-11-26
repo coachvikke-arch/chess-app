@@ -8,6 +8,7 @@ const {
 } = require('../config/certificateAssets');
 const { isCertificateNo } = require('./certificateNumber');
 const { APP_NAME } = require('../config/brand');
+const uploads = require('./uploadService');
 
 /**
  * Certificate PDF renderer.
@@ -260,17 +261,17 @@ function drawRichLine(doc, field, segments, x, y, width, size, fonts, unicodeFon
  * cannot embed SVG, and silently skipping an unsupported logo is correct: the
  * certificate must still print without one.
  */
-function readLogo(logoUrl) {
-  if (!logoUrl) return null;
+function readLogo(logoUrl, preloadedBuffer = null) {
+  if (!logoUrl && !preloadedBuffer) return null;
 
-  let buffer = null;
-  const value = String(logoUrl);
+  let buffer = preloadedBuffer;
+  const value = String(logoUrl || '');
 
-  if (value.startsWith('data:image/')) {
+  if (!buffer && value.startsWith('data:image/')) {
     const base64 = value.split(',')[1];
     if (!base64) return null;
     buffer = Buffer.from(base64, 'base64');
-  } else {
+  } else if (!buffer) {
     const uploadsRoot = path.resolve(__dirname, '..', '..', 'uploads');
     const cleanPath = value.split('?')[0].split('#')[0];
     const candidate = cleanPath.startsWith('/uploads/')
@@ -293,9 +294,20 @@ function readLogo(logoUrl) {
   return isPng || isJpeg ? buffer : null;
 }
 
+/** A logo can be a Cloudinary URL; fetch it once before rendering the PDF. */
+async function readRemoteLogo(logoUrl) {
+  if (!/^https?:\/\//i.test(String(logoUrl || ''))) return null;
+  try {
+    return await uploads.fetchImageBuffer(logoUrl);
+  } catch (err) {
+    console.warn('[certificates] remote logo could not be fetched:', err && err.message);
+    return null;
+  }
+}
+
 /** Draw the institute logo, preserving aspect ratio inside its box. */
-function drawLogoField(doc, field, logoUrl) {
-  const buffer = readLogo(logoUrl);
+function drawLogoField(doc, field, logoUrl, logoBuffer = null) {
+  const buffer = readLogo(logoUrl, logoBuffer);
   if (!buffer) return;
   try {
     doc.image(buffer, field.x * SCALE, field.y * SCALE, {
@@ -311,7 +323,7 @@ function drawLogoField(doc, field, logoUrl) {
  * Render through the ReportLab recreation of the artwork.
  *
  * It needs python + reportlab + the subset fonts under `assets/`, which a
- * Node-only host (Railway) does not provide. Any failure returns null so the
+ * Node-only host (Render) does not provide. Any failure returns null so the
  * caller can fall back to the pdfkit artwork renderer instead of failing the
  * request.
  *
@@ -357,7 +369,9 @@ function renderReportLabPdf({ content }) {
  * @param {object} args.content  output of buildCertificateContent()
  * @returns {Promise<Buffer>}
  */
-function renderCertificatePdf({ content }) {
+async function renderCertificatePdf({ content }) {
+  const remoteLogo = await readRemoteLogo(content && content.logo);
+
   return new Promise((resolve, reject) => {
     try {
       const tpl = templatePath();
@@ -403,7 +417,7 @@ function renderCertificatePdf({ content }) {
         /* 2. the variable data, in the measured blank zones */
         for (const field of layout.fields) {
           if (field.role === 'image') {
-            drawLogoField(doc, field, content.logo);
+            drawLogoField(doc, field, content.logo, remoteLogo);
             continue;
           }
           /* A rich field carries its weighted runs alongside its plain text, under
@@ -426,10 +440,10 @@ function renderCertificatePdf({ content }) {
 /**
  * Render a certificate and write it under uploads/certificates.
  *
- * Returns the path RELATIVE to the statically served uploads root
- * ("/uploads/certificates/CERT-2026-0001.pdf") rather than an absolute URL: it
- * survives a change of domain or port, and the controller turns it into an
- * absolute link per request — which is what the WhatsApp message needs.
+ * Returns a Cloudinary secure URL when configured, otherwise a path RELATIVE
+ * to the statically served uploads root ("/uploads/certificates/CERT-2026-0001.pdf").
+ * The controller already passes absolute URLs through unchanged, so the WhatsApp
+ * message always gets a link a phone can open.
  *
  * The name is deterministic, so REGENERATING replaces the file in place and any
  * link already sent to a parent keeps working and shows the corrected version.
@@ -451,6 +465,17 @@ async function saveCertificatePdf(cert, { content }) {
   }
   const file = `${cert.certificate_no}.pdf`;
 
+  if (uploads.isCloudinaryConfigured()) {
+    const result = await uploads.uploadBuffer(buf, {
+      public_id: `${uploads.folderName()}/certificates/${cert.certificate_no}`,
+      resource_type: 'raw',
+      overwrite: true,
+      invalidate: true,
+    });
+    return result.secure_url;
+  }
+
+  await fs.promises.mkdir(dir, { recursive: true });
   await fs.promises.writeFile(path.join(dir, file), buf);
   return `/uploads/certificates/${file}`;
 }

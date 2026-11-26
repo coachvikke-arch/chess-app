@@ -24,7 +24,9 @@ import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
 const root = path.resolve(process.cwd());
-const read = (p) => fs.readFileSync(path.join(root, p), 'utf8');
+/* Normalise line endings: the assertions below are about code, not about the
+   checkout's CRLF/LF setting. */
+const read = (p) => fs.readFileSync(path.join(root, p), 'utf8').replace(/\r\n/g, '\n');
 
 const cors = read('../backend/src/config/cors.js');
 const app = read('../backend/src/app.js');
@@ -42,16 +44,26 @@ const online = read('src/utils/online.js');
 
 const { isAllowed, configuredOrigins } = require('../../backend/src/config/cors.js');
 
-test('the live deployment and its previews are allowed, by rule not by memory', () => {
-  assert.equal(isAllowed('https://mate-zone-chess-academy-chess-app4.vercel.app'), true);
-  assert.equal(isAllowed('https://mate-zone-chess-academy-9fp3k2-chess-app4.vercel.app'), true,
-    'every Vercel preview gets its own host; a popup that only works on prod is a popup nobody tests');
-  assert.equal(isAllowed('http://localhost:5173'), true);
-  assert.equal(isAllowed('http://127.0.0.1:5173'), true);
+test('the configured production and preview origins are allowed, by rule not by memory', () => {
+  /* Cloudflare gives every deployment its own origin. The exact hosts belong in
+     Render's CLIENT_URL, not in source code — otherwise the next rename blocks
+     the API and the socket again. */
+  const previous = process.env.CLIENT_URL;
+  process.env.CLIENT_URL = 'https://mate-zone.pages.dev, https://preview-abc.mate-zone.pages.dev';
+  try {
+    assert.equal(isAllowed('https://mate-zone.pages.dev'), true);
+    assert.equal(isAllowed('https://preview-abc.mate-zone.pages.dev'), true,
+      'a preview URL must be allowed too; a popup that only works on prod is a popup nobody tests');
+    assert.equal(isAllowed('http://localhost:5173'), true);
+    assert.equal(isAllowed('http://127.0.0.1:5173'), true);
+  } finally {
+    if (previous === undefined) delete process.env.CLIENT_URL;
+    else process.env.CLIENT_URL = previous;
+  }
 });
 
 test('a request with no Origin header is not refused', () => {
-  /* curl, the Railway healthcheck and same-origin server-to-server calls send
+  /* curl, the Render healthcheck and same-origin server-to-server calls send
      none. Refusing them would take the API down for everything but a browser. */
   assert.equal(isAllowed(undefined), true);
   assert.equal(isAllowed(''), true);
@@ -60,8 +72,9 @@ test('a request with no Origin header is not refused', () => {
 test('an unrelated origin is refused, whatever it claims', () => {
   for (const origin of [
     'https://evil.example.com',
-    'https://mate-zone-chess-academy-chess-app4.vercel.app.evil.example.com',
-    'http://mate-zone-chess-academy-chess-app4.vercel.app',
+    'https://mate-zone.pages.dev.evil.example.com',
+    'http://mate-zone.pages.dev',
+    'https://some-other-project.pages.dev',
   ]) {
     assert.equal(isAllowed(origin), false, `${origin} was let through`);
   }
@@ -87,6 +100,7 @@ test('the predicate is shared, so REST and the socket can never drift apart', ()
   assert.match(server, /origin: corsOrigin/, 'the Socket.IO server still has its own allow-list');
   /* The bug this replaced: a hand-kept list naming a deployment that no longer
      exists, while the live one was blocked. */
+  assert.doesNotMatch(cors, /pages\.dev|vercel\.app/, 'no hardcoded frontend host in the CORS rule');
   assert.doesNotMatch(app, /clientOrigins/);
   assert.doesNotMatch(server, /CLIENT_URL.*split|localhost:5173/, 'server.js keeps a second copy of the list');
 });
