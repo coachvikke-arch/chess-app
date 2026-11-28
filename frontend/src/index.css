@@ -26582,6 +26582,31 @@ html, body {
   font-size: 0.74rem;
 }
 
+/* ── Top navbar stays put on phones ─────────────────────────────────────────
+   `overflow-x: hidden` on html/body makes the BODY a scroll container. A
+   `position: sticky` header then sticks to body's own scrollport (which never
+   scrolls) instead of the viewport, so it slides away with the page on mobile.
+   `clip` still hides horizontal overflow but leaves the viewport as the
+   scroller, which is what sticky needs. Kept last in the file so it wins over
+   the earlier `overflow-x: hidden` declarations without !important. */
+html,
+body {
+  overflow-x: clip;
+}
+
+@media (max-width: 767px) {
+  header.nav-glass,
+  #landing-header,
+  .admin-top-navbar {
+    position: sticky !important;
+    top: 0 !important;
+    left: 0;
+    right: 0;
+    width: 100%;
+    z-index: var(--z-navbar, 1300);
+  }
+}
+
 /* ── the tab's body ───────────────────────────────────────────────────────── */
 .chess-page.gr-page.gr-screen > .gr-view {
   grid-area: 2 / 1 / 3 / 4;
