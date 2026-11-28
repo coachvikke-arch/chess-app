@@ -15,8 +15,10 @@
    The two engines share the same wrapper but MUST NOT share a worker pool:
    every pool pins one distinct .wasm file.
 
-   ONE PATCH IS APPLIED ON THE WAY IN (see fixAbortRecursion below): the
-   published wrapper turns an aborted .wasm download into an infinite recursion.
+   TWO PATCHES ARE APPLIED ON THE WAY IN (see below): the
+   published wrapper turns an aborted .wasm download into an infinite recursion,
+   and its remote-download path uses streaming WASM compilation, which rejects
+   the raw GitHub URL's MIME type.
 
    SKIP_FULL_WASM=1 leaves the 94 MB full network OUT of public/ so a Cloudflare
    Pages build fits under its 25 MiB per-asset limit. Set VITE_REVIEW_WASM_URL
@@ -46,6 +48,25 @@ import { fileURLToPath } from 'node:url';
    can report it. Matched by shape rather than by literal text so an upstream
    rename of the minified identifiers cannot quietly skip the patch. */
 const ABORT_RECURSION = /\.catch\(function (\w+)\((\w+)\)\{(\w+)\.error\(\2\),\1\(\2\)\}\)/;
+
+/* The FULL review engine's remote-WASM path re-streams the GitHub download
+ * through a new Response and compiles it with WebAssembly.instantiateStreaming.
+ * raw.githubusercontent.com serves .wasm as `application/octet-stream`, so the
+ * browser rejects it with "Incorrect response MIME type. Expected
+ * 'application/wasm'" — the worker never reaches `uciok` and the review card
+ * sits at "Analyzing… 0%" forever. Emscripten's own loader has an ArrayBuffer
+ * fallback, but THIS progress-reporting path does not (it rethrows). Compile
+ * the same bytes from an ArrayBuffer: a slightly slower cold boot, identical
+ * engine results, and no extra hosting service. */
+const REMOTE_STREAM_COMPILE = '.then(function(t){return WebAssembly.instantiateStreaming(t,e)}).then(function(e){return r(e.instance,e.module),e.instance.exports})';
+const REMOTE_BUFFER_COMPILE = '.then(function(t){return t.arrayBuffer()}).then(function(t){return WebAssembly.instantiate(t,e)}).then(function(e){return r(e.instance,e.module),e.instance.exports})';
+
+function fixRemoteWasmMime(file) {
+  const src = readFileSync(file, 'utf8');
+  if (!src.includes(REMOTE_STREAM_COMPILE)) return `${file}: no remote streaming compile to patch`;
+  writeFileSync(file, src.replace(REMOTE_STREAM_COMPILE, REMOTE_BUFFER_COMPILE));
+  return `${file}: remote WASM compiled from ArrayBuffer (MIME-safe)`;
+}
 
 function fixAbortRecursion(file) {
   const src = readFileSync(file, 'utf8');
@@ -84,4 +105,7 @@ if (skipFullWasm) {
 
 console.log(fixAbortRecursion(full));
 console.log(fixAbortRecursion(lite));
+/* Only the full build is given a remote WASM URL; the lite build keeps using
+   its own same-origin .wasm, which Cloudflare tags application/wasm. */
+console.log(fixRemoteWasmMime(full));
 console.log('Stockfish 19 workers + lite engine copied to public/');
