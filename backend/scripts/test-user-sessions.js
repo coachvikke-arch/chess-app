@@ -3,9 +3,9 @@
  *
  * Exercises the real controller + middleware + database:
  *   · two logins create two active sessions
- *   · a third device revokes the oldest session
- *   · re-login on the SAME device does not add a session (and does not evict)
- *   · a revoked token is refused with 401 SESSION_REVOKED
+ *   · a third device is REFUSED (409 DEVICE_LIMIT_REACHED); nothing is evicted
+ *   · re-login on the SAME device still works at the cap
+ *   · revoking a session makes its token 401 SESSION_REVOKED
  *   · logout / logout-all / password change free the slots
  *
  * Run: node --test scripts/test-user-sessions.js   (npm run test:user-sessions)
@@ -96,7 +96,9 @@ test('concurrent-device session cap (max 2)', async (t) => {
       assert.equal(b.statusCode, 200, `login B failed: ${b.body && b.body.message}`);
 
       state.tokenA = a.body.token;
+      state.refreshA = a.body.refresh_token;
       state.tokenB = b.body.token;
+      state.refreshB = b.body.refresh_token;
 
       const active = await activeSessions();
       assert.equal(active.length, 2, 'exactly two active sessions');
@@ -108,40 +110,33 @@ test('concurrent-device session cap (max 2)', async (t) => {
       assert.equal(claims.session_id, a.body.session.id);
     });
 
-    await t.test('third device revokes the OLDEST session', async () => {
+    await t.test('third device is refused at the cap (no eviction)', async () => {
       const c = await login('device-C', 'Tablet');
-      assert.equal(c.statusCode, 200);
-      state.tokenC = c.body.token;
-      state.refreshC = c.body.refresh_token;
+      assert.equal(c.statusCode, 409, `expected cap refusal, got ${c.statusCode}`);
+      assert.equal(c.body.code, 'DEVICE_LIMIT_REACHED');
+      assert.match(c.body.message, /already logged in on two devices/i);
+      assert.equal(c.body.token, undefined, 'no token is issued');
 
       const active = await activeSessions();
-      assert.equal(active.length, 2, 'still capped at two active sessions');
-      assert.deepEqual(active.map((s) => s.device_id), ['device-B', 'device-C']);
+      assert.equal(active.length, 2, 'still exactly two active sessions');
+      assert.deepEqual(active.map((s) => s.device_id), ['device-A', 'device-B']);
 
       const all = await allSessions();
-      const rowA = all.find((s) => s.device_id === 'device-A');
-      assert.ok(rowA.revoked_at, 'device-A (the oldest) was revoked');
+      assert.equal(all.length, 2, 'no third session row was created');
+      assert.ok(all.every((s) => !s.revoked_at), 'neither existing device was revoked');
     });
 
     await t.test('same-device re-login does NOT add a session', async () => {
       const before = await allSessions();
-      const again = await login('device-C', 'Tablet');
+      const again = await login('device-B', 'Phone');
       assert.equal(again.statusCode, 200);
       const after = await allSessions();
 
       assert.equal(after.length, before.length, 'no new session row');
       assert.equal((await activeSessions()).length, 2, 'still two active');
       assert.equal(again.body.session.reused, true, 'session was reused');
-      state.tokenC = again.body.token;
-      state.refreshC = again.body.refresh_token;
-    });
-
-    await t.test('revoked token returns 401 SESSION_REVOKED', async () => {
-      const { res, nextCalled } = await callProtected(state.tokenA);
-      assert.equal(nextCalled, false, 'middleware must not continue');
-      assert.equal(res.statusCode, 401);
-      assert.equal(res.body.code, 'SESSION_REVOKED');
-      assert.match(res.body.message, /used on another device/i);
+      state.tokenB = again.body.token;
+      state.refreshB = again.body.refresh_token;
     });
 
     await t.test('active token passes the middleware', async () => {
@@ -152,11 +147,35 @@ test('concurrent-device session cap (max 2)', async (t) => {
 
     await t.test('refresh token issues a new access token for the same session', async () => {
       const res = mockRes();
-      await authController.refresh(fakeReq({ body: { refresh_token: state.refreshC } }), res);
+      await authController.refresh(fakeReq({ body: { refresh_token: state.refreshB } }), res);
       assert.equal(res.statusCode, 200);
       const claims = jwt.verify(res.body.token, process.env.JWT_SECRET);
       assert.ok(claims.session_id, 'refreshed token still session-bound');
-      state.tokenC = res.body.token;
+      state.tokenB = res.body.token;
+    });
+
+    await t.test('revoking a session makes its token 401 SESSION_REVOKED', async () => {
+      const active = await activeSessions();
+      const a = active.find((s) => s.device_id === 'device-A');
+      assert.ok(a, 'device-A session exists');
+      assert.equal(await sessionService.revokeSession(a.id), 1);
+
+      const { res, nextCalled } = await callProtected(state.tokenA);
+      assert.equal(nextCalled, false, 'middleware must not continue');
+      assert.equal(res.statusCode, 401);
+      assert.equal(res.body.code, 'SESSION_REVOKED');
+      assert.match(res.body.message, /used on another device/i);
+    });
+
+    await t.test('a freed slot lets a new device sign in', async () => {
+      const c = await login('device-C', 'Tablet');
+      assert.equal(c.statusCode, 200, `login C failed: ${c.body && c.body.message}`);
+      state.tokenC = c.body.token;
+      state.refreshC = c.body.refresh_token;
+
+      const active = await activeSessions();
+      assert.equal(active.length, 2, 'device-C took the slot freed by device-A');
+      assert.deepEqual(active.map((s) => s.device_id), ['device-B', 'device-C']);
     });
 
     await t.test('logout revokes the current session and frees the slot', async () => {

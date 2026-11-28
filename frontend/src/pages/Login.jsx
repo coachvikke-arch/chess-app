@@ -100,12 +100,19 @@ export default function Login() {
       navigate(destinationFrom(location.state) || homeForRole(user.role), { replace: true });
     } catch (err) {
       BOT.loginFail();
-      const msg = err.response?.data?.message || 'Login failed';
+      const data = err.response?.data || {};
+      const msg = data.message || 'Login failed';
       setError(msg);
-      showToast('Please check your username and password and try again.', {
-        tone: 'error',
-        title: 'Invalid username or password',
-      });
+      if (data.code === 'DEVICE_LIMIT_REACHED') {
+        /* Two active devices is a deliberate rule, not bad credentials — the
+           generic "invalid username or password" toast would be misleading. */
+        showToast(msg, { tone: 'error', title: 'Two devices already signed in' });
+      } else {
+        showToast('Please check your username and password and try again.', {
+          tone: 'error',
+          title: 'Invalid username or password',
+        });
+      }
     } finally {
       setLoading(false);
     }

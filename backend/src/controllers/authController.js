@@ -393,15 +393,28 @@ exports.login = async (req, res) => {
       return res.status(401).json({ message: 'Invalid username or password' });
     }
 
-    // Enforce the concurrent-device cap and bind this login to a session row.
-    // createSession evicts the oldest device when a third one signs in; the
-    // evicted session's token is then refused by authMiddleware.
-    const { session, reused, revoked, refreshToken } = await sessionService.createSession({
-      userId: user.id,
-      deviceId,
-      deviceName,
-      platform,
-    });
+    // Enforce the two-device cap and bind this login to a session row. A third,
+    // *different* device is refused (409) and BOTH current devices stay signed
+    // in — see sessionService.createSession. Re-login on an existing device is
+    // still allowed at the cap.
+    let sessionInfo;
+    try {
+      sessionInfo = await sessionService.createSession({
+        userId: user.id,
+        deviceId,
+        deviceName,
+        platform,
+      });
+    } catch (err) {
+      if (err.code === sessionService.DEVICE_LIMIT_REACHED_CODE) {
+        return res.status(err.status || 409).json({
+          code: err.code,
+          message: err.message,
+        });
+      }
+      throw err;
+    }
+    const { session, reused, revoked, refreshToken } = sessionInfo;
 
     const token = signToken(user, session.id);
     delete user.password;
@@ -452,7 +465,8 @@ exports.login = async (req, res) => {
       `Welcome back, ${user.name}! 👋`,
       'Good to see you again — your classes, puzzles and progress are waiting.'
     );
-    // Best-effort: tell any device we just bumped to log out immediately.
+    // Kept for response compatibility: a sign-in no longer bumps anyone, so
+    // this is always empty. Logout-all and password resets emit their own.
     emitSessionRevoked(req, revoked, 'max_devices');
     res.json({
       user,
@@ -467,8 +481,7 @@ exports.login = async (req, res) => {
         platform: session.platform,
         reused: reused === true,
       },
-      // Surfaced so a client could explain "you were signed out on another
-      // device" without guessing.
+      // Always 0 now: a sign-in at the cap is denied rather than evicting.
       revoked_sessions: revoked.length,
       notification: {
         title: `Welcome back, ${user.name}! 👋`,

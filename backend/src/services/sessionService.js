@@ -4,11 +4,14 @@ const db = require('../config/database');
 /* ── Concurrent-device session cap ───────────────────────────────────────────
  *
  * Every sign-in binds the JWT to a row in `user_sessions`. At most
- * MAX_ACTIVE_SESSIONS may be active per user; a sign-in on a THIRD device
- * revokes the oldest, and `authMiddleware` then rejects the revoked device's
- * token with code SESSION_REVOKED. The client turns that into a forced logout
- * with the message below.
+ * MAX_ACTIVE_SESSIONS (two) may be active per user. A sign-in on a THIRD,
+ * *different* device is REFUSED with DEVICE_LIMIT_REACHED instead of silently
+ * kicking the oldest device: both existing devices keep working, and the new
+ * one sees "already logged in on two devices" on the login screen. Re-signing
+ * in on a device that is already one of the two still works.
  *
+ * Sessions are revoked only deliberately — logout, logout-all, password reset
+ * or change — and those still produce SESSION_REVOKED on the affected device.
  * All state lives in Postgres (not memory) so the cap holds across restarts and
  * across multiple app instances behind a load balancer.
  */
@@ -17,6 +20,19 @@ const MAX_ACTIVE_SESSIONS = 2;
 const SESSION_REVOKED_CODE = 'SESSION_REVOKED';
 const SESSION_REVOKED_MESSAGE =
   'You were logged out because your account was used on another device.';
+
+const DEVICE_LIMIT_REACHED_CODE = 'DEVICE_LIMIT_REACHED';
+const DEVICE_LIMIT_REACHED_MESSAGE =
+  'You are already logged in on two devices. Log out from one of them first, or ask your coach to reset your sessions.';
+
+class DeviceLimitError extends Error {
+  constructor() {
+    super(DEVICE_LIMIT_REACHED_MESSAGE);
+    this.name = 'DeviceLimitError';
+    this.code = DEVICE_LIMIT_REACHED_CODE;
+    this.status = 409;
+  }
+}
 
 /** Only a digest of the refresh token is ever stored. */
 function hashToken(token) {
@@ -149,11 +165,15 @@ async function revokeAllSessions(userId, { exceptSessionId = null } = {}) {
  * so two simultaneous sign-ins for the same user cannot both observe "room for
  * another session" and slip a third past the cap.
  *
- *   · same device_id already active → reuse it (no new session, no eviction)
- *   · otherwise, if the cap is reached → revoke the oldest session(s)
+ *   · same device_id already active → reuse it (no new session)
+ *   · otherwise, if the cap is reached → throw DeviceLimitError (no eviction)
  *   · insert the new session
  *
- * Returns { session, reused, revoked: [ids], refreshToken }.
+ * Returns { session, reused, revoked: [], refreshToken }. `revoked` is kept in
+ * the response shape for callers that also handle logout/password resets; a
+ * sign-in never ends another device's session any more.
+ *
+ * @throws {DeviceLimitError} when two other devices are already signed in.
  */
 async function createSession({
   userId,
@@ -186,16 +206,10 @@ async function createSession({
     }
 
     const active = await listActiveSessions(userId, client);
-    const revoked = [];
-    // Free exactly enough slots for the incoming session to fit under the cap.
-    const excess = active.length - MAX_ACTIVE_SESSIONS + 1;
-    for (const row of active.slice(0, Math.max(0, excess))) {
-      const upd = await client.query(
-        `UPDATE user_sessions SET revoked_at = NOW()
-          WHERE id = $1 AND revoked_at IS NULL RETURNING id`,
-        [row.id]
-      );
-      if (upd.rows[0]) revoked.push(upd.rows[0].id);
+    if (active.length >= MAX_ACTIVE_SESSIONS) {
+      // Throwing inside the transaction rolls back (nothing was written yet)
+      // and releases the user-row lock. Both existing sessions stay untouched.
+      throw new DeviceLimitError();
     }
 
     const { rows } = await client.query(
@@ -205,7 +219,7 @@ async function createSession({
        RETURNING *`,
       [userId, deviceId, deviceName, platform, refreshTokenHash]
     );
-    return { session: rows[0], reused: false, revoked };
+    return { session: rows[0], reused: false, revoked: [] };
   });
 
   return { ...result, refreshToken };
@@ -232,6 +246,9 @@ module.exports = {
   MAX_ACTIVE_SESSIONS,
   SESSION_REVOKED_CODE,
   SESSION_REVOKED_MESSAGE,
+  DEVICE_LIMIT_REACHED_CODE,
+  DEVICE_LIMIT_REACHED_MESSAGE,
+  DeviceLimitError,
   hashToken,
   generateRefreshToken,
   listActiveSessions,
