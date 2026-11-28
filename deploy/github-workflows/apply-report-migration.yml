@@ -1,0 +1,61 @@
+name: Apply report migration
+
+# Copy this file to .github/workflows/apply-report-migration.yml in the GitHub
+# web UI (the CLI token used here does not have the `workflow` scope).
+#
+# The per-time-control rating tables were never installed in the production
+# database because their migration SQL file was missing. This workflow applies
+# the additive migration against the same Neon database the Render API uses.
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: apply-report-migration
+  cancel-in-progress: false
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install backend dependencies
+        working-directory: backend
+        run: npm ci --omit=dev --no-audit --no-fund
+
+      - name: Apply additive rating-table migration
+        working-directory: backend
+        run: |
+          node -e '
+            const fs = require("fs");
+            const { Pool } = require("pg");
+            const pool = new Pool({
+              connectionString: process.env.DATABASE_URL,
+              ssl: { rejectUnauthorized: false },
+            });
+            (async () => {
+              const sql = fs.readFileSync("migrations/add_time_control_ratings.sql", "utf8");
+              await pool.query(sql);
+              const r = await pool.query(
+                `SELECT table_name FROM information_schema.tables
+                  WHERE table_schema = $1 AND table_name = ANY($2::text[])
+                  ORDER BY table_name`,
+                ["public", ["student_time_ratings", "time_control_rating_history"]]
+              );
+              const found = r.rows.map((row) => row.table_name);
+              console.log("MIGRATION_OK tables=" + found.join(","));
+              if (found.length !== 2) process.exitCode = 1;
+            })()
+              .catch((err) => { console.error("MIGRATION_FAILED", err.message); process.exitCode = 1; })
+              .finally(() => pool.end());
+          '
