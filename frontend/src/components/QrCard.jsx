@@ -126,6 +126,11 @@ export default function QrCard({ user, onUserUpdate }) {
             />
           </div>
           <p className="myqr-hint">Anyone who scans this opens your player card</p>
+          {!isPublic && (
+            <p className="myqr-hint myqr-hint--warning">
+              Your card is private — scans currently show “Card not available”.
+            </p>
+          )}
 
           <div className="myqr-actions">
             <button type="button" className="myqr-btn myqr-btn--primary" onClick={() => setPreviewOpen(true)}>
@@ -173,7 +178,31 @@ export default function QrCard({ user, onUserUpdate }) {
           {!preview.loading && preview.error && (
             <div className="pc-preview-error">
               <p>Card not available</p>
-              <span>Turn “Show my card publicly” back on, or regenerate the QR.</span>
+              <span>
+                {isPublic
+                  ? 'This QR may be out of date. Regenerate it to get a working link.'
+                  : 'Your card is switched off, so scans cannot see it.'}
+              </span>
+              <div className="pc-preview-error-actions">
+                {!isPublic && (
+                  <button
+                    type="button"
+                    className="myqr-btn myqr-btn--primary"
+                    onClick={async () => { await togglePublic(); loadPreview(); }}
+                    disabled={toggling}
+                  >
+                    {toggling ? 'Turning on…' : 'Turn my card on'}
+                  </button>
+                )}
+                <button
+                  type="button"
+                  className="myqr-btn"
+                  onClick={() => { setPreviewOpen(false); regenerate(); }}
+                  disabled={regenerating}
+                >
+                  {regenerating ? 'Generating…' : 'Regenerate QR'}
+                </button>
+              </div>
             </div>
           )}
           {!preview.loading && preview.card && (

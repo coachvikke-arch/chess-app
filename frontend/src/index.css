@@ -27110,6 +27110,7 @@ html, body {
 .myqr-qr svg { display: block; width: min(196px, 100%); height: auto; }
 .myqr-hint { margin: 0; font-size: 0.8rem; line-height: 1.4; color: #485455; text-align: center; }
 .myqr-hint--empty { padding: 0 0.5rem; }
+.myqr-hint--warning { color: #9a5b00; font-weight: 600; }
 .myqr-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 0.5rem; align-self: stretch; }
 
 .myqr-btn {
@@ -27222,6 +27223,7 @@ html, body {
 .pc-preview-error { padding: 2rem 1rem; text-align: center; color: #0e2338; }
 .pc-preview-error p { margin: 0 0 0.35rem; font-size: 1.05rem; font-weight: 700; }
 .pc-preview-error span { font-size: 0.85rem; opacity: 0.72; }
+.pc-preview-error-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 0.5rem; margin-top: 1rem; }
 
 /* ── Gold player card ───────────────────────────────────────────────────── */
 .pc-stage {
