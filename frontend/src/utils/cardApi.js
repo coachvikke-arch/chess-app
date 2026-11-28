@@ -5,8 +5,20 @@ import axios from 'axios';
  * It must NOT go through services/api.js: that instance attaches the Bearer
  * token to every request and force-logs-out on a 401, so an expired session on
  * a phone that scans a QR would bounce the visitor to the login screen instead
- * of showing the card. */
-const bare = axios.create({ baseURL: '/api', timeout: 15000 });
+ * of showing the card. It still needs the SAME base URL as that client: on
+ * Cloudflare Pages /api/* is caught by the SPA fallback and returns index.html,
+ * which used to make every card lookup look like "Card not available". Locally
+ * the Vite proxy handles same-origin /api, so keep that as the fallback. */
+function apiBaseUrl(raw) {
+  const base = String(raw || '').trim().replace(/\/+$/, '');
+  if (!base) return '/api';
+  return /\/api$/i.test(base) ? base : `${base}/api`;
+}
+
+const bare = axios.create({
+  baseURL: apiBaseUrl(import.meta.env.VITE_API_URL),
+  timeout: 15000,
+});
 
 export async function fetchPublicCard(token) {
   /* The endpoint is cacheable (max-age=60) for scans, but the in-app preview
