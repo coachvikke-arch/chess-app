@@ -297,4 +297,10 @@ server.listen(PORT, '0.0.0.0', () => {
       ? `Board preferences: added ${added.join(', ')}`
       : 'Board preferences ready'))
     .catch((e) => console.warn('Board preference install failed:', e.message));
+  /* Reports (and the rating pages behind them) read the per-time-control
+     tables. A fresh Neon database never received that migration, so install
+     it on boot as well as lazily on the first report request. */
+  require('./src/services/reportSchemaService').ensureReportSchema()
+    .then(() => console.log('Time-control rating tables ready'))
+    .catch((e) => console.warn('Time-control rating table install failed:', e.message));
 });

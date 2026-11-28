@@ -26,6 +26,7 @@ import NotFound from './pages/NotFound';
 import AdminDashboard from './pages/AdminDashboard';
 import CommandCenter from './pages/CommandCenter';
 import AdminReports from './pages/AdminReports';
+import Reports from './pages/Reports';
 import Students from './pages/Students';
 import Admins from './pages/Admins';
 import AdminReport from './pages/AdminReport';
@@ -206,8 +207,12 @@ export default function App() {
      user's role. Public pages keep the public navbar; portal routes use their
      own shell. */
   const pathname = location.pathname;
-  const isAdmin = pathname.startsWith('/admin') || pathname.startsWith('/super') || pathname.startsWith('/coach');
-  const isStudent = pathname.startsWith('/student');
+  /* The shared /reports hub uses the same chrome as the rest of the portal it
+     belongs to, so its cards do not appear under a second navigation bar. */
+  const isReports = pathname === '/reports' || pathname.startsWith('/reports/');
+  const isAdmin = pathname.startsWith('/admin') || pathname.startsWith('/super') || pathname.startsWith('/coach') ||
+    (isReports && isAdminRole(user?.role));
+  const isStudent = pathname.startsWith('/student') || (isReports && user?.role === 'student');
   const isStudentQuiz = pathname.startsWith('/quizzes/');
   const isLiveClass = pathname.startsWith('/live-class');
   const isOpeningsModule = pathname === '/openings' || pathname.startsWith('/openings/');
@@ -321,6 +326,8 @@ export default function App() {
             <Route path="/student/openings/lessons/:levelSlug/:lessonSlug" element={<ProtectedRoute role="student"><AcademyLesson /></ProtectedRoute>} />
             <Route path="/student/openings/course/:openingSlug" element={<ProtectedRoute role="student"><AcademyOpening /></ProtectedRoute>} />
             <Route path="/quizzes/:id" element={<ProtectedRoute role="student"><TakeQuiz /></ProtectedRoute>} />
+            {/* Reports hub — reachable by direct URL from either portal. */}
+            <Route path="/reports" element={<ProtectedRoute><Reports /></ProtectedRoute>} />
             {/* Admin / Coach */}
             <Route path="/admin/dashboard" element={<ProtectedRoute role="admin"><AdminDashboard /></ProtectedRoute>} />
             <Route path="/admin/command-center" element={<ProtectedRoute role="admin"><CommandCenter /></ProtectedRoute>} />

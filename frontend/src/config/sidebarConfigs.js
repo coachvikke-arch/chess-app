@@ -25,6 +25,9 @@ export const adminLinks = [
      feature itself stays: the /admin/reports route, its page and its data all
      work, so anyone who reaches the report through a saved link or a direct URL
      lands on it exactly as before. Only the menu button was removed. */
+  /* /reports is the new shared hub: one door to every report the signed-in
+     role is allowed to open, instead of reviving the old single-report row. */
+  { to: '/reports', label: 'Reports', icon: '📊' },
   { to: '/admin/classes', label: 'Classes & Attendance', icon: '♘' },
   { to: '/admin/attendance', label: 'Offline Attendance', icon: '📋' },
   { to: '/admin/leaderboard', label: 'Leaderboard', icon: '♛' },

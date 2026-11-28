@@ -13,6 +13,7 @@ const { generateRecoveryCode, hashRecoveryCode } = require('../services/recovery
 const { normalisePhone } = require('../utils/phone');
 const { fetchProfile } = require('../services/profileService');
 const uploads = require('../services/uploadService');
+const { ensureReportSchema } = require('../services/reportSchemaService');
 const bcrypt = require('bcryptjs');
 const path = require('path');
 
@@ -595,10 +596,14 @@ exports.deleteStudent = async (req, res) => {
 // Aggregated progress used by the student dashboard & /student/progress page
 exports.getProgress = async (req, res) => {
   try {
+    /* This endpoint reads the per-time-control pools directly. They come from
+       the migration a fresh database may not have received, so install them
+       lazily here as well. */
+    await ensureReportSchema();
     const studentId = req.params.id === 'me' ? await studentIdForUser(req.user.id) : req.params.id;
     if (!studentId) return res.status(404).json({ message: 'Student profile not found' });
 
-    const [attendance, puzzles, puzzleSets, quizzes, assignments, courseProgress, rating] = await Promise.all([
+    const [attendance, puzzles, puzzleSets, quizzes, assignments, courseProgress, rating, timeRatings] = await Promise.all([
       db.query(
         `SELECT
            COUNT(*) AS total,

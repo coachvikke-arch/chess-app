@@ -1,5 +1,6 @@
 const db = require('../config/database');
 const { ensureScores } = require('./puzzleTrainerScore');
+const { ensureReportSchema } = require('./reportSchemaService');
 
 /* NOTE: certificateService is deliberately NOT imported here.
  *
@@ -719,6 +720,10 @@ function computeAge(birthdate) {
 
 /** Full rating profile for display: current rating, badge, progress, history. */
 async function buildProfile(studentId, { limit = 60, fullHistory = false } = {}) {
+  /* Reports read the per-control history below. On a database that skipped the
+     time-control migration these tables do not exist yet, so install them once
+     before the first read instead of returning a 500 on every report. */
+  await ensureReportSchema();
   const row = await getStudentRatingRow(studentId);
   if (!row) return null;
 
